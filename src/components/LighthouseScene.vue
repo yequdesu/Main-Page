@@ -17,6 +17,8 @@ let beamRays = []
 let oceanLines = []
 let dustParticles = []
 let animationId
+let gridTargetsComputed = false
+let gridVerticalLines = []
 
 const waveData = []
 const waveBaseColors = [] // 存储海浪原始颜色，用于动态光照混合
@@ -97,7 +99,7 @@ function buildOcean() {
     const line = new THREE.Line(geom, mat)
     scene.add(line)
     oceanLines.push(line)
-    waveData.push({ baseY, z, amplitude, frequency, speed, phase, span, segmentCount })
+    waveData.push({ baseY, z, amplitude, frequency, speed, phase, span, segmentCount, opacity })
   }
 }
 
@@ -622,9 +624,151 @@ function animateDust(time, scrollProgress) {
 }
 
 // ═══════════════════════════════════════════
+//  GRID TRANSITION (海浪拉直为网格 → 竖线穿插 → 文字浮现)
+// ═══════════════════════════════════════════
+
+function computeGridTargets() {
+  if (gridTargetsComputed || !camera) return
+
+  const dist = 5
+  const fovHalf = (40 * Math.PI / 180) / 2
+  const visibleHeight = 2 * dist * Math.tan(fovHalf)
+  const targetZ = 3
+  const topY = visibleHeight / 2
+  const targetSpan = visibleHeight * camera.aspect
+
+  for (let i = 0; i < waveData.length; i++) {
+    const fraction = waveData.length > 1 ? i / (waveData.length - 1) : 0.5
+    waveData[i].gridTargetY = topY - fraction * visibleHeight
+    waveData[i].gridTargetZ = targetZ
+    waveData[i].gridTargetSpan = targetSpan
+    waveData[i].gridTargetOpacity = 0.3
+  }
+
+  gridTargetsComputed = true
+}
+
+function buildVerticalGridLines() {
+  if (gridVerticalLines.length > 0 || !camera) return
+
+  const dist = 5
+  const fovHalf = (40 * Math.PI / 180) / 2
+  const visibleHeight = 2 * dist * Math.tan(fovHalf)
+  const targetSpan = visibleHeight * camera.aspect
+  const targetZ = 3
+  const topY = visibleHeight / 2
+  const bottomY = -visibleHeight / 2
+  const totalVLines = 40
+
+  for (let i = 0; i < totalVLines; i++) {
+    const x = -targetSpan / 2 + (i / (totalVLines - 1)) * targetSpan
+
+    const pts = [
+      new THREE.Vector3(x, topY, targetZ),
+      new THREE.Vector3(x, topY, targetZ)
+    ]
+
+    const geom = new THREE.BufferGeometry().setFromPoints(pts)
+    const mat = new THREE.LineBasicMaterial({
+      color: '#777777',
+      transparent: true,
+      opacity: 0,
+      depthTest: false,
+      depthWrite: false
+    })
+
+    const line = new THREE.Line(geom, mat)
+    scene.add(line)
+    gridVerticalLines.push({
+      line,
+      x,
+      topY,
+      bottomY,
+      staggerOffset: (i / totalVLines) * 0.5
+    })
+  }
+}
+
+function animateGridTransition(time) {
+  computeGridTargets()
+
+  const sp = props.scrollProgress
+  const gridFactor = Math.max(0, Math.min(1,
+    (sp - GRID_START) / (VERTICAL_START - GRID_START)))
+  const vertFactor = Math.max(0, Math.min(1,
+    (sp - VERTICAL_START) / (TEXT_START - VERTICAL_START)))
+
+  // ── Phase 1: Waves straighten → horizontal grid lines ──
+  for (let i = 0; i < oceanLines.length; i++) {
+    const line = oceanLines[i]
+    const data = waveData[i]
+    const baseCol = waveBaseColors[i]
+    const posAttr = line.geometry.attributes.position
+    const colAttr = line.geometry.attributes.color
+    const posArr = posAttr.array
+    const colArr = colAttr.array
+
+    const targetY = data.gridTargetY
+    const targetZ = data.gridTargetZ
+    const targetSpan = data.gridTargetSpan
+    const origSpan = data.span
+    const segCount = data.segmentCount
+    const grayR = 0.53, grayG = 0.53, grayB = 0.53
+
+    for (let j = 0; j <= segCount; j++) {
+      const idx = j * 3
+      const origX = (j / segCount - 0.5) * origSpan * 2
+      const t = time * data.speed + data.phase
+
+      const waveY = data.baseY +
+        Math.sin(origX * data.frequency + t) * data.amplitude +
+        Math.sin(origX * data.frequency * 1.8 + t * 1.2) * data.amplitude * 0.4
+
+      const xFrac = origSpan > 0 ? origX / origSpan : 0
+      const targetX = targetSpan > 0 ? xFrac * targetSpan : origX
+
+      posArr[idx] = origX + (targetX - origX) * gridFactor
+      posArr[idx + 1] = waveY + (targetY - waveY) * gridFactor
+      posArr[idx + 2] = data.z + (targetZ - data.z) * gridFactor
+
+      colArr[idx] = baseCol.r + (grayR - baseCol.r) * gridFactor
+      colArr[idx + 1] = baseCol.g + (grayG - baseCol.g) * gridFactor
+      colArr[idx + 2] = baseCol.b + (grayB - baseCol.b) * gridFactor
+    }
+    posAttr.needsUpdate = true
+    colAttr.needsUpdate = true
+
+    const origOpacity = data.opacity
+    const targetOpacity = data.gridTargetOpacity
+    line.material.opacity = origOpacity + (targetOpacity - origOpacity) * gridFactor
+  }
+
+  // ── Phase 2: Vertical lines weave top → bottom ──
+  if (vertFactor > 0) {
+    buildVerticalGridLines()
+
+    for (const vData of gridVerticalLines) {
+      const lineProgress = Math.max(0, Math.min(1,
+        (vertFactor - vData.staggerOffset) / 0.5
+      ))
+
+      const currentBottomY = vData.topY - lineProgress * (vData.topY - vData.bottomY)
+
+      const posArr = vData.line.geometry.attributes.position.array
+      posArr[4] = currentBottomY
+      vData.line.geometry.attributes.position.needsUpdate = true
+      vData.line.material.opacity = lineProgress * 0.3
+    }
+  }
+}
+
+// ═══════════════════════════════════════════
 //  CONTROL & TRANSITION (白场过载与探照轨迹)
 // ═══════════════════════════════════════════
-const WHITE_OUT_THRESHOLD = 0.80 
+const WHITE_OUT_THRESHOLD = 0.65
+const GRID_START = 0.80
+const VERTICAL_START = 0.88
+const TEXT_START = 0.94
 const IDLE_RESET_DELAY = 1.5
 
 function shortestDelta(from, to) {
@@ -638,7 +782,7 @@ function shortestDelta(from, to) {
 function updateWhiteOut(scrollProgress) {
   if (!scene) return
   
-  const whiteOutFactor = Math.max(0.0, Math.min(1.0, (scrollProgress - WHITE_OUT_THRESHOLD) / (1.0 - WHITE_OUT_THRESHOLD)))
+  const whiteOutFactor = Math.max(0.0, Math.min(1.0, (scrollProgress - WHITE_OUT_THRESHOLD) / (GRID_START - WHITE_OUT_THRESHOLD)))
 
   const baseBg = new THREE.Color('#050811')
   const targetBg = new THREE.Color('#ffffff')
@@ -720,7 +864,7 @@ function animateBeam(time, scrollProgress) {
 
   // 亮度与光亮持续累积
   const beamBoost = Math.pow(scrollProgress, 1.5) * 0.4
-  const whiteOutFactor = Math.max(0.0, Math.min(1.0, (scrollProgress - WHITE_OUT_THRESHOLD) / (1.0 - WHITE_OUT_THRESHOLD)))
+  const whiteOutFactor = Math.max(0.0, Math.min(1.0, (scrollProgress - WHITE_OUT_THRESHOLD) / (GRID_START - WHITE_OUT_THRESHOLD)))
   
   for (let i = 0; i < beamCones.length; i++) {
     const baseVals = [0.85, 0.45, 0.15]
@@ -742,7 +886,11 @@ function animate(time) {
   animationId = requestAnimationFrame(animate)
   const t = time * 0.001
   animateBeam(t, props.scrollProgress)
-  animateWavesAndLighting(t)
+  if (props.scrollProgress < GRID_START) {
+    animateWavesAndLighting(t)
+  } else {
+    animateGridTransition(t)
+  }
   animateDust(time, props.scrollProgress)
   updateWhiteOut(props.scrollProgress) 
   renderer.render(scene, camera)

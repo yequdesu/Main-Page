@@ -1,13 +1,14 @@
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { gsap } from 'gsap'
 import { ScrollTrigger } from 'gsap/ScrollTrigger'
 import LighthouseScene from './components/LighthouseScene.vue'
 import AppFooter from './components/AppFooter.vue'
 
-const SCROLL_VH = 3
+const SCROLL_VH = 4
 const scrollProgress = ref(0)
 const hintVisible = ref(true)
+const brandTextVisible = computed(() => scrollProgress.value >= 0.94)
 
 let st
 
@@ -49,6 +50,12 @@ onUnmounted(() => {
     </div>
   </Transition>
 
+  <Transition name="brand-fade">
+    <div v-if="brandTextVisible" class="brand-text" aria-hidden="true">
+      <span class="brand-text-inner">YeQuDesu</span>
+    </div>
+  </Transition>
+
   <AppFooter />
 </template>
 
@@ -85,4 +92,35 @@ onUnmounted(() => {
 .hint-fade-leave-active { transition: opacity 0.4s; }
 .hint-fade-enter-from,
 .hint-fade-leave-to { opacity: 0; }
+
+.brand-text {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+.brand-text-inner {
+  font-family: 'Georgia', 'Times New Roman', serif;
+  font-size: clamp(2.4rem, 6vw, 5rem);
+  font-weight: 400;
+  color: #2a2a2a;
+  letter-spacing: 0.08em;
+  text-shadow: 0 1px 4px rgba(0,0,0,0.08);
+}
+.brand-fade-enter-active {
+  transition: opacity 1.2s ease-out, transform 1.2s ease-out;
+}
+.brand-fade-leave-active {
+  transition: opacity 0.5s ease-in;
+}
+.brand-fade-enter-from {
+  opacity: 0;
+  transform: scale(0.96);
+}
+.brand-fade-leave-to {
+  opacity: 0;
+}
 </style>
