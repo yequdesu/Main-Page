@@ -648,7 +648,7 @@ function computeGridTargets() {
     waveData[i].gridTargetY = topY - fraction * visibleHeight
     waveData[i].gridTargetZ = targetZ
     waveData[i].gridTargetSpan = targetSpan
-    waveData[i].gridTargetOpacity = 0.3
+    waveData[i].gridTargetOpacity = 0.5
   }
 
   gridTargetsComputed = true
@@ -682,7 +682,7 @@ function buildVerticalGridLines() {
 
     const geom = new THREE.BufferGeometry().setFromPoints(pts)
     const mat = new THREE.LineBasicMaterial({
-      color: '#777777',
+      color: '#5a5a5a',
       transparent: true,
       opacity: 0,
       depthTest: false,
@@ -722,7 +722,7 @@ function animateGridTransition(time) {
     const targetSpan = data.gridTargetSpan
     const origSpan = data.span
     const segCount = data.segmentCount
-    const grayR = 0.53, grayG = 0.53, grayB = 0.53
+    const grayR = 0.35, grayG = 0.35, grayB = 0.35
 
     for (let j = 0; j <= segCount; j++) {
       const idx = j * 3
@@ -766,7 +766,7 @@ function animateGridTransition(time) {
       const posArr = vData.line.geometry.attributes.position.array
       posArr[4] = currentBottomY
       vData.line.geometry.attributes.position.needsUpdate = true
-      vData.line.material.opacity = lineProgress * 0.3
+      vData.line.material.opacity = lineProgress * 0.5
     }
   }
 }
@@ -776,8 +776,8 @@ function animateGridTransition(time) {
 // ═══════════════════════════════════════════
 const WHITE_OUT_THRESHOLD = 0.65
 const GRID_START = 0.80
-const VERTICAL_START = 0.88
-const TEXT_START = 0.94
+const VERTICAL_START = 0.91
+const TEXT_START = 0.96
 const IDLE_RESET_DELAY = 1.5
 
 function shortestDelta(from, to) {
