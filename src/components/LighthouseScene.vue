@@ -466,9 +466,11 @@ act2.build = () => {
 
 function buildDustAct2() {
   const dc = ctx.get('dustConfig') || { count: 135, color: '#f0f8ff', baseOpacity: 0.14, baseRadius: 0.015 }
-  const endPos = ctx.get('dustEndPositions') || []
   const geo = new THREE.SphereGeometry(dc.baseRadius, 10, 8)
-  const count = Math.min(dc.count, endPos.length) || dc.count
+
+  // 直接读取 Act1 粒子实时状态（act2.build 先于 act1.exit 触发，ctx 此时为空）
+  const source = dustParticles1.length > 0 ? dustParticles1 : []
+  const count = source.length || dc.count
 
   for (let i = 0; i < count; i++) {
     // per-particle grayscale variation
@@ -480,25 +482,23 @@ function buildDustAct2() {
     })
     const p = new THREE.Mesh(geo, mat)
 
-    // inherit Act1 end position if available, otherwise random fallback
-    if (endPos[i]) {
-      p.position.set(endPos[i].x, endPos[i].y, endPos[i].z)
+    if (source[i]) {
+      // 克隆 Act1 粒子的瞬时位置、userData 全程状态
+      const s = source[i]
+      p.position.copy(s.position)
+      p.userData = {
+        wx: s.userData.wx, wy: s.userData.wy, wz: s.userData.wz,
+        ph: s.userData.ph,
+        scale: s.userData.scale,
+        dx: s.userData.dx, dy: s.userData.dy, dz: s.userData.dz
+      }
     } else {
-      p.position.set(
-        (Math.random() - 0.5) * 28,
-        -3 + Math.random() * 7,
-        -3 + Math.random() * 7
-      )
-    }
-
-    p.userData = {
-      wx: p.position.x, wy: p.position.y, wz: p.position.z,
-      ph: endPos[i] ? endPos[i].ph : Math.random() * Math.PI * 2,
-      scale: endPos[i] ? endPos[i].scale : 0.25 + Math.random() * 0.55,
-      // Brownian motion phase offsets (compound sine pattern like Act1)
-      dx: (Math.random() - 0.5) * 0.12,
-      dy: (Math.random() - 0.5) * 0.08 + 0.04,
-      dz: (Math.random() - 0.5) * 0.06
+      p.position.set((Math.random()-0.5)*28, -3+Math.random()*7, -3+Math.random()*7)
+      p.userData = {
+        wx:p.position.x, wy:p.position.y, wz:p.position.z,
+        ph:Math.random()*Math.PI*2, scale:0.25+Math.random()*0.55,
+        dx:(Math.random()-0.5)*0.12, dy:(Math.random()-0.5)*0.08+0.04, dz:(Math.random()-0.5)*0.06
+      }
     }
     scene.add(p)
     dustParticles2.push(p)
@@ -568,21 +568,21 @@ act2.animate = (time, tSp, sp) => {
   }
   if (vertFactor < 1.0) verticalDone = false
 
-  // Dust — Brownian motion (compound sine, same pattern as Act1)
+  // Dust — Brownian motion (identical pattern to Act1)
   const tSec = time // time 已是秒（main loop 已做 *0.001）
   for (const p of dustParticles2) {
     const d = p.userData
     p.position.set(
-      d.wx + Math.sin(tSec * 0.4 + d.ph) * 0.20,
-      d.wy + Math.sin(tSec * 0.3 + d.ph + 1) * 0.14,
-      d.wz + Math.sin(tSec * 0.25 + d.ph + 2) * 0.12
+      d.wx + Math.sin(tSec * 0.4 + d.ph) * 0.25,
+      d.wy + Math.sin(tSec * 0.3 + d.ph + 1) * 0.18,
+      d.wz + Math.sin(tSec * 0.25 + d.ph + 2) * 0.15
     )
     const cd = p.position.distanceTo(camera.position)
-    const ds = 18 / Math.max(4, cd)
-    p.scale.setScalar(d.scale * ds)
-    // fade in as Act 2 progresses
-    const vis = Math.max(0, Math.min(1, (sp - WHITE_OUT_THRESHOLD) / (GRID_START - WHITE_OUT_THRESHOLD)))
-    p.material.opacity = Math.max(0, vis * 0.35 * Math.min(1, ds * 0.5))
+    const ds = 22 / Math.max(5, cd)
+    p.scale.setScalar(d.scale * 0.4 * ds)  // 匹配 Act1 无光束时的缩放 (bf=0)
+    // smooth fade-in, crossfading with Act1's dustOut
+    const fadeIn = Math.max(0, Math.min(1, (sp - WHITE_OUT_THRESHOLD) / (GRID_START - WHITE_OUT_THRESHOLD)))
+    p.material.opacity = fadeIn * 0.14
   }
 }
 
