@@ -525,6 +525,10 @@ function animateDust(time, scrollProgress) {
       finalOpacity *= Math.max(0.0, 1.0 - (cameraDist - 42.0) / 10.0)
     }
 
+    // 进入第二幕（白底/网格）时淡出大气粒子
+    const dustFadeOut = 1.0 - Math.max(0, Math.min(1, (scrollProgress - WHITE_OUT_THRESHOLD) / (WHITE_OUT_END - WHITE_OUT_THRESHOLD)))
+    finalOpacity *= dustFadeOut
+
     p.material.opacity = Math.max(0.0, finalOpacity)
   }
 }
@@ -553,7 +557,7 @@ function build3DLongitudinalGridLines() {
     ]
     const geom = new THREE.BufferGeometry().setFromPoints(pts)
     const mat = new THREE.LineBasicMaterial({
-      color: '#475569', 
+      color: '#1e293b', 
       transparent: true,
       opacity: 0,
       depthTest: true,
@@ -674,7 +678,7 @@ function animateGridTransition(time) {
           posArr[5] = curZ
           vData.line.geometry.attributes.position.needsUpdate = true
 
-          vData.line.material.opacity = Math.min(0.35, slideT * 0.35)
+          vData.line.material.opacity = Math.min(0.55, slideT * 0.55)
         }
       }
 
