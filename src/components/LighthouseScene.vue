@@ -36,7 +36,7 @@ function buildSky() {
 }
 
 // ═══════════════════════════════════════════
-//  OCEAN (海浪覆盖 $-52$ 到 $+5$，灯塔位于 $-38$)
+//  OCEAN (海浪覆盖 $-52$ 到 $+5$，灯塔位于 $-36$)
 // ═══════════════════════════════════════════
 function buildOcean() {
   const TOTAL = 75
@@ -48,7 +48,7 @@ function buildOcean() {
     
     // 浪线从极为遥远的深空 (-52) 延伸到相机下方 (5)
     const z = -52 + curveT * 57
-    const baseY = -4.5 + curveT * 2.0
+    const baseY = -3.5 + curveT * 2.0
     
     // 空间透视：远处的波浪振幅极小，近处的波浪高耸且清晰
     const amplitude = 0.005 + curveT * 0.45
@@ -113,15 +113,15 @@ function buildLighthouse() {
 
   // 1. 水下基础混凝土柱体 (Foundation)
   const foundation = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.7, 0.7, 2.4, 16),
+    new THREE.CylinderGeometry(0.7, 0.7, 1.4, 16),
     darkStoneMat
   )
-  foundation.position.y = -1.6
+  foundation.position.y = -1.1
   lighthouseGroup.add(foundation)
 
   // 【创意核心】水下消隐折射迷雾罩 (Shroud)
   // 其颜色与海面背景色一模一样，通过半透明度完美将没入海浪以下的柱体“模糊”消隐
-  const shroudGeo = new THREE.CylinderGeometry(0.75, 1.3, 2.6, 16)
+  const shroudGeo = new THREE.CylinderGeometry(0.75, 1.3, 1.6, 16)
   const shroudMat = new THREE.MeshBasicMaterial({
     color: '#050811',
     transparent: true,
@@ -129,7 +129,7 @@ function buildLighthouse() {
     depthWrite: false
   })
   const shroud = new THREE.Mesh(shroudGeo, shroudMat)
-  shroud.position.y = -1.65
+  shroud.position.y = -1.15
   lighthouseGroup.add(shroud)
 
   // 2. 水面之上的粗糙花岗岩底座 (Base Rock)
@@ -313,7 +313,7 @@ function buildLighthouse() {
   lighthouseGroup.add(spire)
 
   // 整体定位在 Y = -2.5 (上提以凸显塔身立体感)
-  lighthouseGroup.position.set(0, -2.5, -38)
+  lighthouseGroup.position.set(0, -2.5, -36)
   lighthouseGroup.scale.setScalar(0.7)
   scene.add(lighthouseGroup)
 }
