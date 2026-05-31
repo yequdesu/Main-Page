@@ -21,7 +21,7 @@ const WHITE_OUT_END      = 0.78
 const GRID_START         = 0.72
 const VERTICAL_START     = 0.86
 const TEXT_START         = 0.94
-const GRID_SHIFT_END     = 0.985
+const GRID_SHIFT_END     = 0.997
 const IDLE_RESET_DELAY   = 1.5
 
 // ============================================================
@@ -460,12 +460,13 @@ act1.dispose = () => {
 // ============================================================
 //  ACT 2  GRID TRANSITION  (sp 0.65 → 0.94)
 // ============================================================
-const act2 = { name: 'GridTransition', start: WHITE_OUT_THRESHOLD, end: TEXT_START }
+const act2 = { name: 'GridTransition', start: WHITE_OUT_THRESHOLD, end: GRID_SHIFT_END }
 
 let gridVerticalLines = []
 let horizontalFlattened = false
 let verticalDone = false
 let dustParticles2 = []
+let _gridBaseY = null  // 网格下移基准快照
 
 // ---- Act 2: build (lazy, called on first enter) ----
 act2.build = () => {
@@ -580,8 +581,52 @@ act2.animate = (time, tSp, sp) => {
   }
   if (vertFactor < 1.0) verticalDone = false
 
-  // Dust — Brownian motion (Act2 持续到 TEXT_START，之后交 Act3)
+  // ── Phase 3: 网格下移出屏 (0.94 → GRID_SHIFT_END) ──
+  const gridShift = Math.max(0, Math.min(1, (sp - TEXT_START) / (GRID_SHIFT_END - TEXT_START)))
+  const shiftY = -8 * gridShift
+
+  if (gridShift > 0 && _gridBaseY === null) {
+    const oceanLines = ctx.get('oceanLines')
+    _gridBaseY = { ocean: [], vertical: [] }
+    if (oceanLines) {
+      for (const line of oceanLines) {
+        _gridBaseY.ocean.push(line.geometry.attributes.position.array.slice())
+      }
+    }
+    for (const vd of gridVerticalLines) {
+      _gridBaseY.vertical.push(vd.line.geometry.attributes.position.array.slice())
+    }
+  }
+
+  if (_gridBaseY) {
+    const oceanLines = ctx.get('oceanLines')
+    if (oceanLines) {
+      for (let i = 0; i < oceanLines.length; i++) {
+        const arr = oceanLines[i].geometry.attributes.position.array
+        const base = _gridBaseY.ocean[i]
+        if (!base) continue
+        for (let j = 1; j < arr.length; j += 3) {
+          arr[j] = base[j] + shiftY
+        }
+        oceanLines[i].geometry.attributes.position.needsUpdate = true
+      }
+    }
+    for (let i = 0; i < gridVerticalLines.length; i++) {
+      const arr = gridVerticalLines[i].line.geometry.attributes.position.array
+      const base = _gridBaseY.vertical[i]
+      if (!base) continue
+      arr[1] = base[1] + shiftY
+      arr[4] = base[4] + shiftY
+      gridVerticalLines[i].line.geometry.attributes.position.needsUpdate = true
+    }
+  }
+
   if (sp < TEXT_START) {
+    _gridBaseY = null  // 回滚到文字出现前，释放基准快照
+  }
+
+  // Dust — Brownian motion (持续整个 Act2，直到网格完全离开)
+  {
     const tSec = time
     for (const p of dustParticles2) {
       const d = p.userData
@@ -609,17 +654,20 @@ act2.exit = () => {
 act2.dispose = () => {}
 
 // ============================================================
-//  ACT 3  CONTENT PHASE  (sp 0.94 → 1.00)
-//   Phase 1 (0.94→0.97): 网格下移出屏，上升感
-//   Phase 2 (0.97→1.00): 粒子收缩为倾斜星环
+//  ACT 3  CONTENT PHASE  (sp 0.997 → 1.00)
+//   ① 圆形扩散 wipe — Fog 背景渐变为纯白
+//   ② 粒子收缩为倾斜星环
 // ============================================================
-const act3 = { name: 'ContentPhase', start: TEXT_START, end: 1.00 }
+const act3 = { name: 'ContentPhase', start: GRID_SHIFT_END, end: 1.00 }
 
 let act3Initialized = false
-let _gridBaseY = null  // 网格下移起点（首次触发时捕获）
+let _overlayMesh = null
+let _overlayScene = null
+let _overlayCamera = null
 
 act3.build = () => {
   if (act3Initialized || dustParticles2.length === 0) return
+  // 星环参数
   for (const p of dustParticles2) {
     const d = p.userData
     d.orbitPhase = Math.random() * Math.PI * 2
@@ -630,70 +678,70 @@ act3.build = () => {
     d.enlargeAmt = 1.6 + Math.random() * 2.4
     d.flattenY   = 0.35 + Math.random() * 0.2
   }
+
+  // 圆形 wipe 遮罩 — 纯白从中心扩散
+  _overlayScene = new THREE.Scene()
+  _overlayCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 10)
+  _overlayCamera.position.z = 5
+  const overlayGeo = new THREE.PlaneGeometry(2, 2)
+  const overlayMat = new THREE.ShaderMaterial({
+    uniforms: {
+      uRadius: { value: 0.0 },
+      uColor:  { value: new THREE.Color('#ffffff') }
+    },
+    vertexShader: `
+      varying vec2 vUv;
+      void main() {
+        vUv = position.xy * 0.5 + 0.5;
+        gl_Position = vec4(position.xy, 0.0, 1.0);
+      }
+    `,
+    fragmentShader: `
+      varying vec2 vUv;
+      uniform float uRadius;
+      uniform vec3 uColor;
+      void main() {
+        float dist = length(vUv - 0.5) * 2.0;
+        float inCircle = 1.0 - smoothstep(uRadius - 0.03, uRadius, dist);
+        gl_FragColor = vec4(uColor, inCircle);
+      }
+    `,
+    transparent: true,
+    depthTest: false,
+    depthWrite: false
+  })
+  _overlayMesh = new THREE.Mesh(overlayGeo, overlayMat)
+  _overlayScene.add(_overlayMesh)
+
   act3Initialized = true
 }
 
 act3.animate = (time, tSp, sp) => {
   const tSec = time
 
-  // ── Phase 1: 网格下移 (0.94 → 0.97) ──
-  const gridShift = Math.max(0, Math.min(1, (sp - TEXT_START) / (GRID_SHIFT_END - TEXT_START)))
-  const shiftY = -8 * gridShift
-
-  if (gridShift > 0 && _gridBaseY === null) {
-    // 首次触发：捕获所有网格线的当前 y 作为基准
-    const oceanLines = ctx.get('oceanLines')
-    _gridBaseY = { ocean: [], vertical: [] }
-    if (oceanLines) {
-      for (const line of oceanLines) {
-        _gridBaseY.ocean.push(line.geometry.attributes.position.array.slice())
-      }
-    }
-    for (const vd of gridVerticalLines) {
-      _gridBaseY.vertical.push(vd.line.geometry.attributes.position.array.slice())
-    }
+  // ── 圆形 wipe：从中心向外扩散纯白 ──
+  const wipeProgress = Math.max(0, Math.min(1, (sp - GRID_SHIFT_END) / (1.0 - GRID_SHIFT_END)))
+  const wipeRadius = wipeProgress * 1.6  // 0 → 1.6（覆盖全屏 + 余量）
+  if (_overlayMesh) {
+    _overlayMesh.material.uniforms.uRadius.value = wipeRadius
+    _overlayMesh.visible = wipeProgress < 1.0
+  }
+  // 渐消雾效
+  if (scene.fog) {
+    scene.fog.density = 0.02 + (1.0 - wipeProgress) * 0.12
   }
 
-  if (_gridBaseY && gridShift > 0) {
-    const oceanLines = ctx.get('oceanLines')
-    if (oceanLines) {
-      for (let i = 0; i < oceanLines.length; i++) {
-        const arr = oceanLines[i].geometry.attributes.position.array
-        const base = _gridBaseY.ocean[i]
-        if (!base) continue
-        for (let j = 1; j < arr.length; j += 3) {
-          arr[j] = base[j] + shiftY
-        }
-        oceanLines[i].geometry.attributes.position.needsUpdate = true
-      }
-    }
-    for (let i = 0; i < gridVerticalLines.length; i++) {
-      const arr = gridVerticalLines[i].line.geometry.attributes.position.array
-      const base = _gridBaseY.vertical[i]
-      if (!base) continue
-      arr[1] = base[1] + shiftY
-      arr[4] = base[4] + shiftY
-      gridVerticalLines[i].line.geometry.attributes.position.needsUpdate = true
-    }
-  }
-
-  if (gridShift <= 0) {
-    _gridBaseY = null  // reset on scroll-back
-  }
-
-  // ── Phase 2: 粒子星环轨道 (0.97 → 1.00) ──
-  const orbitBlend = Math.max(0, Math.min(1, (sp - GRID_SHIFT_END) / (1.0 - GRID_SHIFT_END)))
+  // ── 星环轨道 ──
+  const orbitBlend = wipeProgress  // 随 wipe 同步过渡
   const cx = 0, cy = -1.2, cz = -4
 
   for (const p of dustParticles2) {
     const d = p.userData
 
-    // 布朗运动（延续 Act2）
     const bx = d.wx + Math.sin(tSec * 0.4 + d.ph) * 0.25
     const by = d.wy + Math.sin(tSec * 0.3 + d.ph + 1) * 0.18
     const bz = d.wz + Math.sin(tSec * 0.25 + d.ph + 2) * 0.15
 
-    // 星环轨道
     const orbitAngle = d.orbitPhase + tSec * d.orbitSpeed
     const ringX = Math.cos(orbitAngle) * d.orbitR
     const ringY = Math.sin(orbitAngle) * d.orbitR * d.flattenY
@@ -702,7 +750,6 @@ act3.animate = (time, tSp, sp) => {
     const oy = cy + (ringY * cosT)
     const oz = cz + (ringY * sinT)
 
-    // 混合：布朗运动 → 星环（仅在 Phase 2）
     p.position.set(
       THREE.MathUtils.lerp(bx, ox, orbitBlend),
       THREE.MathUtils.lerp(by, oy, orbitBlend),
@@ -718,8 +765,16 @@ act3.animate = (time, tSp, sp) => {
   }
 }
 
-act3.exit = () => {}
-act3.dispose = () => {}
+act3.exit = () => {
+  if (_overlayMesh) _overlayMesh.visible = false
+}
+act3.dispose = () => {
+  if (_overlayMesh) {
+    _overlayMesh.geometry.dispose()
+    _overlayMesh.material.dispose()
+    _overlayMesh = null
+  }
+}
 
 // ============================================================
 //  ACT MANAGER
@@ -757,6 +812,13 @@ function animate(time) {
   }
 
   renderer.render(scene, camera)
+
+  // ── Act3 圆形 wipe 遮罩层（覆盖在主场景之上） ──
+  if (_overlayMesh && _overlayMesh.visible && _overlayScene && _overlayCamera) {
+    renderer.autoClear = false
+    renderer.render(_overlayScene, _overlayCamera)
+    renderer.autoClear = true
+  }
 }
 
 function onResize() {
