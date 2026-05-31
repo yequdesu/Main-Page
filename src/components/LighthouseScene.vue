@@ -21,7 +21,7 @@ const WHITE_OUT_END      = 0.78
 const GRID_START         = 0.72
 const VERTICAL_START     = 0.86
 const TEXT_START         = 0.94
-const GRID_SHIFT_END     = 0.97
+const GRID_SHIFT_END     = 0.985
 const IDLE_RESET_DELAY   = 1.5
 
 // ============================================================
@@ -331,6 +331,9 @@ function buildLights() {
 
 // ---- Act 1: animate ----
 act1.animate = (time, tSp, sp) => {
+  // 恢复光束可见性（解决从 Act2 回滚后灯光消失的问题）
+  if (beamPivot && !beamPivot.visible) beamPivot.visible = true
+  if (_ptLightRef && _ptLightRef.intensity === 0) _ptLightRef.intensity = 3.0
   animateBeam(time, sp)
   animateWavesAndLighting(time, sp)
   animateDustAct1(time, sp)
@@ -444,8 +447,7 @@ act1.exit = () => {
     ph: p.userData.ph, scale: p.userData.scale
   }))
   ctx.set('dustEndPositions', finalPositions)
-  // 彻底隐藏灯塔光束
-  if (beamPivot) beamPivot.visible = false
+  // 淡出点光源（光束通过 beamFade 已自行淡出，不再强制 visible=false）
   if (_ptLightRef) _ptLightRef.intensity = 0
 }
 
@@ -517,9 +519,9 @@ function buildDustAct2() {
 
 function buildVerticalGridLines() {
   if (gridVerticalLines.length > 0) return
-  const totalLines=18, zStart=-52, zEnd=5, baseY=-2.5
+  const totalLines=28, zStart=-52, zEnd=12, baseY=-2.5
   for(let i=0;i<totalLines;i++){
-    const x=-24+(i/(totalLines-1))*48
+    const x=-28+(i/(totalLines-1))*56
     const pts=[new THREE.Vector3(x,baseY,zStart), new THREE.Vector3(x,baseY,zStart)]
     const g=new THREE.BufferGeometry().setFromPoints(pts)
     const mat=new THREE.LineBasicMaterial({ color:'#1e293b', transparent:true, opacity:0, depthTest:true, depthWrite:false })
