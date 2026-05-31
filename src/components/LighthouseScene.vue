@@ -41,7 +41,7 @@ function buildSky() {
 //  OCEAN (海浪覆盖 $-52$ 到 $+5$，灯塔位于 $-32$)
 // ═══════════════════════════════════════════
 function buildOcean() {
-  const TOTAL = 100
+  const TOTAL = 50
   const POWER = 2.2
 
   for (let i = 0; i < TOTAL; i++) {
@@ -510,9 +510,14 @@ function buildCamera(w, h) {
 //  ANIMATION & SPECULAR LOGIC (反射精细化整合)
 // ═══════════════════════════════════════════
 function animateWavesAndLighting(time) {
-  const beamOrigin = new THREE.Vector3()
-  beamPivot.getWorldPosition(beamOrigin)
-  const beamDir = new THREE.Vector3(0, 0, 1).applyQuaternion(beamPivot.quaternion).normalize()
+  const skipHighlights = props.scrollProgress >= WHITE_OUT_THRESHOLD
+
+  let beamOrigin, beamDir
+  if (!skipHighlights) {
+    beamOrigin = new THREE.Vector3()
+    beamPivot.getWorldPosition(beamOrigin)
+    beamDir = new THREE.Vector3(0, 0, 1).applyQuaternion(beamPivot.quaternion).normalize()
+  }
 
   for (let i = 0; i < oceanLines.length; i++) {
     const line = oceanLines[i]
@@ -522,8 +527,6 @@ function animateWavesAndLighting(time) {
     const colAttr = line.geometry.attributes.color
     const posArr = posAttr.array
     const colArr = colAttr.array
-
-    const highlightColor = { r: 0.92, g: 0.97, b: 1.0 }
 
     for (let j = 0; j <= data.segmentCount; j++) {
       const idx = j * 3
@@ -535,41 +538,43 @@ function animateWavesAndLighting(time) {
         Math.sin(x * data.frequency * 1.8 + t * 1.2) * data.amplitude * 0.4
       posArr[idx + 1] = y
 
-      const vx = x - beamOrigin.x
-      const vy = y - beamOrigin.y
-      const vz = data.z - beamOrigin.z
+      if (skipHighlights) {
+        // 白场期间保持深蓝基色，不被白色盖住
+        colArr[idx] = baseCol.r
+        colArr[idx + 1] = baseCol.g
+        colArr[idx + 2] = baseCol.b
+      } else {
+        const vx = x - beamOrigin.x
+        const vy = y - beamOrigin.y
+        const vz = data.z - beamOrigin.z
 
-      const proj = vx * beamDir.x + vy * beamDir.y + vz * beamDir.z
+        const proj = vx * beamDir.x + vy * beamDir.y + vz * beamDir.z
 
-      // 各向异性局部坐标（计算水平偏角）
-      const localX = vx * beamDir.z - vz * beamDir.x
+        const localX = vx * beamDir.z - vz * beamDir.x
 
-      // 动态光锥发散半径
-      const beamRadius = 1.2 + Math.max(0.0, proj) * 0.15
+        const beamRadius = 1.2 + Math.max(0.0, proj) * 0.15
 
-      // 直射高光
-      const distSq = (localX * localX) / (beamRadius * beamRadius) + (vy * vy) / 1.5
-      let directIntensity = Math.exp(-distSq * 0.9)
+        const distSq = (localX * localX) / (beamRadius * beamRadius) + (vy * vy) / 1.5
+        let directIntensity = Math.exp(-distSq * 0.9)
 
-      const smoothProj = Math.max(0.0, Math.min(1.0, (proj + 4.0) / 8.0))
-      directIntensity *= smoothProj
+        const smoothProj = Math.max(0.0, Math.min(1.0, (proj + 4.0) / 8.0))
+        directIntensity *= smoothProj
 
-      const fadeDist = Math.max(0.0, 1.0 - (Math.max(0.0, proj) / 48.0))
-      directIntensity *= fadeDist
+        const fadeDist = Math.max(0.0, 1.0 - (Math.max(0.0, proj) / 48.0))
+        directIntensity *= fadeDist
 
-      // 提高自由探照时的反射强感（侧向与背面高光极度明显）
-      let lightIntensity = directIntensity * 1.5
+        let lightIntensity = directIntensity * 1.5
 
-      // --- 湿润海面的镜头镜面高光 (Specular Glint) ---
-      // 修复提前亮：高光彻底与 directIntensity 乘积耦合
-      if (beamDir.z > 0 && vz > 0) {
-        const specStretch = Math.exp(-(x * x) / 7.0) * beamDir.z * 1.3
-        lightIntensity += directIntensity * specStretch
+        if (beamDir.z > 0 && vz > 0) {
+          const specStretch = Math.exp(-(x * x) / 7.0) * beamDir.z * 1.3
+          lightIntensity += directIntensity * specStretch
+        }
+
+        const hR = 0.92, hG = 0.97, hB = 1.0
+        colArr[idx] = baseCol.r + (hR - baseCol.r) * lightIntensity * 0.95
+        colArr[idx + 1] = baseCol.g + (hG - baseCol.g) * lightIntensity * 0.95
+        colArr[idx + 2] = baseCol.b + (hB - baseCol.b) * lightIntensity * 0.95
       }
-
-      colArr[idx] = baseCol.r + (highlightColor.r - baseCol.r) * lightIntensity * 0.95
-      colArr[idx + 1] = baseCol.g + (highlightColor.g - baseCol.g) * lightIntensity * 0.95
-      colArr[idx + 2] = baseCol.b + (highlightColor.b - baseCol.b) * lightIntensity * 0.95
     }
     posAttr.needsUpdate = true
     colAttr.needsUpdate = true
@@ -670,7 +675,9 @@ function buildVerticalGridLines() {
   const topY = centerY + halfHeight
   const bottomY = centerY - halfHeight
   const targetSpan = visibleHeight * camera.aspect
-  const totalVLines = 40
+  // 正方形网格：竖线间距 = 横线间距
+  const cellSize = visibleHeight / (waveData.length - 1)
+  const totalVLines = Math.ceil(targetSpan / cellSize) + 1
 
   for (let i = 0; i < totalVLines; i++) {
     const x = -targetSpan / 2 + (i / (totalVLines - 1)) * targetSpan
@@ -775,7 +782,8 @@ function animateGridTransition(time) {
 //  CONTROL & TRANSITION (白场过载与探照轨迹)
 // ═══════════════════════════════════════════
 const WHITE_OUT_THRESHOLD = 0.65
-const GRID_START = 0.80
+const WHITE_OUT_END = 0.78
+const GRID_START = 0.72
 const VERTICAL_START = 0.91
 const TEXT_START = 0.96
 const IDLE_RESET_DELAY = 1.5
@@ -791,7 +799,7 @@ function shortestDelta(from, to) {
 function updateWhiteOut(scrollProgress) {
   if (!scene) return
   
-  const whiteOutFactor = Math.max(0.0, Math.min(1.0, (scrollProgress - WHITE_OUT_THRESHOLD) / (GRID_START - WHITE_OUT_THRESHOLD)))
+  const whiteOutFactor = Math.max(0.0, Math.min(1.0, (scrollProgress - WHITE_OUT_THRESHOLD) / (WHITE_OUT_END - WHITE_OUT_THRESHOLD)))
 
   const baseBg = new THREE.Color('#050811')
   const targetBg = new THREE.Color('#ffffff')
@@ -873,7 +881,7 @@ function animateBeam(time, scrollProgress) {
 
   // 亮度与光亮持续累积
   const beamBoost = Math.pow(scrollProgress, 1.5) * 0.4
-  const whiteOutFactor = Math.max(0.0, Math.min(1.0, (scrollProgress - WHITE_OUT_THRESHOLD) / (GRID_START - WHITE_OUT_THRESHOLD)))
+  const whiteOutFactor = Math.max(0.0, Math.min(1.0, (scrollProgress - WHITE_OUT_THRESHOLD) / (WHITE_OUT_END - WHITE_OUT_THRESHOLD)))
   
   for (let i = 0; i < beamCones.length; i++) {
     const baseVals = [0.85, 0.45, 0.15]
