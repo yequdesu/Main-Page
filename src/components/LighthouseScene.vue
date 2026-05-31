@@ -106,7 +106,7 @@ function sceneApplyWhiteOut(sp) {
 // ============================================================
 //  ACT 1  OCEAN VOYAGE  (sp 0.00 → 0.45)
 // ============================================================
-const act1 = { name: 'OceanVoyage', start: 0.00, end: GRID_START }
+const act1 = { name: 'OceanVoyage', start: 0.00, end: WHITE_OUT_END }
 
 let lighthouseGroup, beamPivot
 let beamCones = [], beamRays = [], beamGlow = null
@@ -331,7 +331,7 @@ act1.animate = (time, tSp, sp) => {
   if (beamPivot && !beamPivot.visible) beamPivot.visible = true
   if (_ptLightRef && _ptLightRef.intensity === 0) _ptLightRef.intensity = 3.0
   animateBeam(time, sp)
-  animateWavesAndLighting(time, sp)
+  if (sp < GRID_START) animateWavesAndLighting(time, sp)  // Act2 接手后停止海浪
   animateDustAct1(time, sp)
 }
 
