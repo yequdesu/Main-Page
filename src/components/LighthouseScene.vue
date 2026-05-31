@@ -110,7 +110,7 @@ const act1 = { name: 'OceanVoyage', start: 0.00, end: GRID_START }
 
 // -- Act 1 local state --
 let lighthouseGroup, beamPivot
-let beamCones = [], beamRays = []
+let beamCones = [], beamRays = [], beamGlow = null
 let oceanLines = []
 let waveData = [], waveBaseColors = []
 let dustGeo1, dustParticles1 = []
@@ -289,8 +289,8 @@ function buildLightBeam() {
   beamPivot.add(makeRay(-1)); beamPivot.add(makeRay(1))
   beamRays.push(beamPivot.children[beamPivot.children.length-2], beamPivot.children[beamPivot.children.length-1])
 
-  const glow = new THREE.Mesh(new THREE.SphereGeometry(0.22,16,16), new THREE.MeshBasicMaterial({color:'#fff',transparent:true,opacity:0.95}))
-  beamPivot.add(glow)
+  beamGlow = new THREE.Mesh(new THREE.SphereGeometry(0.22,16,16), new THREE.MeshBasicMaterial({color:'#fff',transparent:true,opacity:0.95}))
+  beamPivot.add(beamGlow)
 }
 
 function buildDustAct1() {
@@ -400,10 +400,13 @@ function animateBeam(time, sp) {
 
   const beamBoost=Math.pow(sp,1.5)*0.4
   const wof=Math.max(0,Math.min(1,(sp-WHITE_OUT_THRESHOLD)/(WHITE_OUT_END-WHITE_OUT_THRESHOLD)))
+  // white-out 期间淡出光束
+  const beamFade = 1.0 - wof
   const baseVals=[0.85,0.45,0.15]
-  beamCones.forEach((c,i)=>{ c.material.uniforms.uOpacity.value=(baseVals[i]+beamBoost*(i===2?1.8:1.2)+wof*1.5)*beamMult })
-  beamRays.forEach(r=>{ r.material.opacity=(0.45+sp*0.35+wof*0.5)*beamMult })
-  if(_ptLightRef) _ptLightRef.intensity=(3.0+Math.pow(sp,1.5)*12+wof*50)*beamMult
+  beamCones.forEach((c,i)=>{ c.material.uniforms.uOpacity.value=(baseVals[i]+beamBoost*(i===2?1.8:1.2)+wof*1.5)*beamMult*beamFade })
+  beamRays.forEach(r=>{ r.material.opacity=(0.45+sp*0.35+wof*0.5)*beamMult*beamFade })
+  if(beamGlow) beamGlow.material.opacity = 0.95 * beamFade
+  if(_ptLightRef) _ptLightRef.intensity=(3.0+Math.pow(sp,1.5)*12+wof*50)*beamMult*beamFade
 }
 
 function animateDustAct1(time, sp) {
@@ -441,6 +444,9 @@ act1.exit = () => {
     ph: p.userData.ph, scale: p.userData.scale
   }))
   ctx.set('dustEndPositions', finalPositions)
+  // 彻底隐藏灯塔光束
+  if (beamPivot) beamPivot.visible = false
+  if (_ptLightRef) _ptLightRef.intensity = 0
 }
 
 // ---- Act 1: dispose ----
