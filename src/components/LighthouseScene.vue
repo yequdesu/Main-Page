@@ -36,7 +36,7 @@ function buildSky() {
 }
 
 // ═══════════════════════════════════════════
-//  OCEAN (海浪覆盖 $-52$ 到 $+5$，灯塔位于 $-36$)
+//  OCEAN (海浪覆盖 $-52$ 到 $+5$，灯塔位于 $-32$)
 // ═══════════════════════════════════════════
 function buildOcean() {
   const TOTAL = 75
@@ -116,7 +116,7 @@ function buildLighthouse() {
     new THREE.CylinderGeometry(0.7, 0.7, 1.4, 16),
     darkStoneMat
   )
-  foundation.position.y = -1.1
+  foundation.position.y = -0.9
   lighthouseGroup.add(foundation)
 
   // 【创意核心】水下消隐折射迷雾罩 (Shroud)
@@ -129,7 +129,7 @@ function buildLighthouse() {
     depthWrite: false
   })
   const shroud = new THREE.Mesh(shroudGeo, shroudMat)
-  shroud.position.y = -1.15
+  shroud.position.y = -0.95
   lighthouseGroup.add(shroud)
 
   // 2. 水面之上的粗糙花岗岩底座 (Base Rock)
@@ -313,7 +313,7 @@ function buildLighthouse() {
   lighthouseGroup.add(spire)
 
   // 整体定位在 Y = -2.5 (上提以凸显塔身立体感)
-  lighthouseGroup.position.set(0, -2.5, -36)
+  lighthouseGroup.position.set(0, -2.5, -32)
   lighthouseGroup.scale.setScalar(0.7)
   scene.add(lighthouseGroup)
 }
