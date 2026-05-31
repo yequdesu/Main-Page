@@ -426,12 +426,6 @@ function animateDustAct1(time, sp) {
     const dustOut=1-Math.max(0,Math.min(1,(sp-WHITE_OUT_THRESHOLD)/(WHITE_OUT_END-WHITE_OUT_THRESHOLD)))
     p.material.opacity=Math.max(0,fo*dustOut)
   }
-  if (dustParticles2.length > 0) {
-    for (let i = 0; i < Math.min(dustParticles1.length, dustParticles2.length); i++) {
-      dustParticles1[i].position.copy(dustParticles2[i].position)
-      dustParticles1[i].scale.copy(dustParticles2[i].scale)
-    }
-  }
 }
 
 act1.exit = () => {
@@ -597,7 +591,7 @@ act2.animate = (time, tSp, sp) => {
       const cd = p.position.distanceTo(camera.position)
       const ds = 22 / Math.max(5, cd)
       const targetScale = d.scale * 0.7 * (d.sizeBoost || 1.0) * ds
-      const fadeIn = Math.max(0, Math.min(1, (sp - WHITE_OUT_THRESHOLD) / (GRID_START - WHITE_OUT_THRESHOLD)))
+      const fadeIn = Math.max(0, Math.min(1, (sp - WHITE_OUT_THRESHOLD) / (WHITE_OUT_END - WHITE_OUT_THRESHOLD)))
       p.scale.setScalar(THREE.MathUtils.lerp(d.captureScale || targetScale, targetScale, fadeIn))
       p.material.opacity = fadeIn * 0.4
     }
