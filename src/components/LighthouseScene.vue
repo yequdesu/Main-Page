@@ -17,8 +17,6 @@ let beamRays = []
 let oceanLines = []
 let dustParticles = []
 let animationId
-let gridTargetsComputed = false
-let gridVerticalLines = []
 
 const waveData = []
 const waveBaseColors = [] // 存储海浪原始颜色，用于动态光照混合
@@ -59,7 +57,7 @@ function buildOcean() {
     const phase = Math.random() * Math.PI * 2
     
     // 远处的线条在视觉上极其淡雅模糊，近处的线条扎实明亮
-    const opacity = 0.02 + curveT * 0.75
+    const opacity = 0.06 + curveT * 0.71
     const span = 45 + curveT * 35
 
     // 海浪基色深浅渐变
@@ -315,7 +313,7 @@ function buildLighthouse() {
   lighthouseGroup.add(spire)
 
   // 整体定位在 Y = -2.5 (上提以凸显塔身立体感)
-  lighthouseGroup.position.set(0, -2.5, -32)
+  lighthouseGroup.position.set(0, -2.8, -32)
   lighthouseGroup.scale.setScalar(0.7)
   scene.add(lighthouseGroup)
 }
@@ -510,7 +508,11 @@ function buildCamera(w, h) {
 //  ANIMATION & SPECULAR LOGIC (反射精细化整合)
 // ═══════════════════════════════════════════
 function animateWavesAndLighting(time) {
-  const skipHighlights = props.scrollProgress >= WHITE_OUT_THRESHOLD
+  const sp = props.scrollProgress
+  const skipHighlights = sp >= WHITE_OUT_THRESHOLD
+  const colorShift = sp > WHITE_OUT_END
+    ? Math.max(0, Math.min(1, (sp - WHITE_OUT_END) / (TEXT_START - WHITE_OUT_END)))
+    : 0
 
   let beamOrigin, beamDir
   if (!skipHighlights) {
@@ -539,10 +541,10 @@ function animateWavesAndLighting(time) {
       posArr[idx + 1] = y
 
       if (skipHighlights) {
-        // 白场期间保持深蓝基色，不被白色盖住
-        colArr[idx] = baseCol.r
-        colArr[idx + 1] = baseCol.g
-        colArr[idx + 2] = baseCol.b
+        const grayR = 0.35, grayG = 0.35, grayB = 0.35
+        colArr[idx] = baseCol.r + (grayR - baseCol.r) * colorShift
+        colArr[idx + 1] = baseCol.g + (grayG - baseCol.g) * colorShift
+        colArr[idx + 2] = baseCol.b + (grayB - baseCol.b) * colorShift
       } else {
         const vx = x - beamOrigin.x
         const vy = y - beamOrigin.y
@@ -575,6 +577,11 @@ function animateWavesAndLighting(time) {
         colArr[idx + 1] = baseCol.g + (hG - baseCol.g) * lightIntensity * 0.95
         colArr[idx + 2] = baseCol.b + (hB - baseCol.b) * lightIntensity * 0.95
       }
+    }
+    // 白场后提升透明度，使波浪在白色背景上持续可见
+    if (skipHighlights) {
+      const boostFactor = Math.max(0, Math.min(1, (sp - WHITE_OUT_THRESHOLD) / 0.20))
+      line.material.opacity = data.opacity + (0.45 - data.opacity) * boostFactor
     }
     posAttr.needsUpdate = true
     colAttr.needsUpdate = true
@@ -629,163 +636,11 @@ function animateDust(time, scrollProgress) {
 }
 
 // ═══════════════════════════════════════════
-//  GRID TRANSITION (海浪拉直为网格 → 竖线穿插 → 文字浮现)
-// ═══════════════════════════════════════════
-
-function computeGridTargets() {
-  if (gridTargetsComputed || !camera) return
-
-  const targetZ = 0
-  const dist = 8
-  const halfHeight = dist * Math.tan(camera.fov * Math.PI / 360)
-  const visibleHeight = 2 * halfHeight
-
-  const rayDir = new THREE.Vector3()
-  camera.getWorldDirection(rayDir)
-  const t = (targetZ - camera.position.z) / rayDir.z
-  const centerY = camera.position.y + t * rayDir.y
-
-  const topY = centerY + halfHeight
-  const targetSpan = visibleHeight * camera.aspect
-
-  for (let i = 0; i < waveData.length; i++) {
-    const fraction = waveData.length > 1 ? i / (waveData.length - 1) : 0.5
-    waveData[i].gridTargetY = topY - fraction * visibleHeight
-    waveData[i].gridTargetZ = targetZ
-    waveData[i].gridTargetSpan = targetSpan
-    waveData[i].gridTargetOpacity = 0.5
-  }
-
-  gridTargetsComputed = true
-}
-
-function buildVerticalGridLines() {
-  if (gridVerticalLines.length > 0 || !camera) return
-
-  const targetZ = 0
-  const dist = 8
-  const halfHeight = dist * Math.tan(camera.fov * Math.PI / 360)
-  const visibleHeight = 2 * halfHeight
-
-  const rayDir = new THREE.Vector3()
-  camera.getWorldDirection(rayDir)
-  const t = (targetZ - camera.position.z) / rayDir.z
-  const centerY = camera.position.y + t * rayDir.y
-
-  const topY = centerY + halfHeight
-  const bottomY = centerY - halfHeight
-  const targetSpan = visibleHeight * camera.aspect
-  // 正方形网格：竖线间距 = 横线间距
-  const cellSize = visibleHeight / (waveData.length - 1)
-  const totalVLines = Math.ceil(targetSpan / cellSize) + 1
-
-  for (let i = 0; i < totalVLines; i++) {
-    const x = -targetSpan / 2 + (i / (totalVLines - 1)) * targetSpan
-
-    const pts = [
-      new THREE.Vector3(x, topY, targetZ),
-      new THREE.Vector3(x, topY, targetZ)
-    ]
-
-    const geom = new THREE.BufferGeometry().setFromPoints(pts)
-    const mat = new THREE.LineBasicMaterial({
-      color: '#5a5a5a',
-      transparent: true,
-      opacity: 0,
-      depthTest: false,
-      depthWrite: false
-    })
-
-    const line = new THREE.Line(geom, mat)
-    scene.add(line)
-    gridVerticalLines.push({
-      line, x, topY, bottomY,
-      staggerOffset: (i / totalVLines) * 0.5
-    })
-  }
-}
-
-function animateGridTransition(time) {
-  computeGridTargets()
-
-  const sp = props.scrollProgress
-  const gridFactor = Math.max(0, Math.min(1,
-    (sp - GRID_START) / (VERTICAL_START - GRID_START)))
-  const vertFactor = Math.max(0, Math.min(1,
-    (sp - VERTICAL_START) / (TEXT_START - VERTICAL_START)))
-
-  // ── Phase 1: Waves straighten → horizontal grid lines ──
-  for (let i = 0; i < oceanLines.length; i++) {
-    const line = oceanLines[i]
-    const data = waveData[i]
-    const baseCol = waveBaseColors[i]
-    const posAttr = line.geometry.attributes.position
-    const colAttr = line.geometry.attributes.color
-    const posArr = posAttr.array
-    const colArr = colAttr.array
-
-    const targetY = data.gridTargetY
-    const targetZ = data.gridTargetZ
-    const targetSpan = data.gridTargetSpan
-    const origSpan = data.span
-    const segCount = data.segmentCount
-    const grayR = 0.35, grayG = 0.35, grayB = 0.35
-
-    for (let j = 0; j <= segCount; j++) {
-      const idx = j * 3
-      const origX = (j / segCount - 0.5) * origSpan * 2
-      const t = time * data.speed + data.phase
-
-      const waveY = data.baseY +
-        Math.sin(origX * data.frequency + t) * data.amplitude +
-        Math.sin(origX * data.frequency * 1.8 + t * 1.2) * data.amplitude * 0.4
-
-      const xFrac = origSpan > 0 ? origX / origSpan : 0
-      const targetX = targetSpan > 0 ? xFrac * targetSpan : origX
-
-      posArr[idx] = origX + (targetX - origX) * gridFactor
-      posArr[idx + 1] = waveY + (targetY - waveY) * gridFactor
-      posArr[idx + 2] = data.z + (targetZ - data.z) * gridFactor
-
-      colArr[idx] = baseCol.r + (grayR - baseCol.r) * gridFactor
-      colArr[idx + 1] = baseCol.g + (grayG - baseCol.g) * gridFactor
-      colArr[idx + 2] = baseCol.b + (grayB - baseCol.b) * gridFactor
-    }
-    posAttr.needsUpdate = true
-    colAttr.needsUpdate = true
-
-    const origOpacity = data.opacity
-    const targetOpacity = data.gridTargetOpacity
-    line.material.opacity = origOpacity + (targetOpacity - origOpacity) * gridFactor
-  }
-
-  // ── Phase 2: Vertical lines weave top → bottom ──
-  if (vertFactor > 0) {
-    buildVerticalGridLines()
-
-    for (const vData of gridVerticalLines) {
-      const lineProgress = Math.max(0, Math.min(1,
-        (vertFactor - vData.staggerOffset) / 0.5
-      ))
-
-      const currentBottomY = vData.topY - lineProgress * (vData.topY - vData.bottomY)
-
-      const posArr = vData.line.geometry.attributes.position.array
-      posArr[4] = currentBottomY
-      vData.line.geometry.attributes.position.needsUpdate = true
-      vData.line.material.opacity = lineProgress * 0.5
-    }
-  }
-}
-
-// ═══════════════════════════════════════════
 //  CONTROL & TRANSITION (白场过载与探照轨迹)
 // ═══════════════════════════════════════════
 const WHITE_OUT_THRESHOLD = 0.65
 const WHITE_OUT_END = 0.78
-const GRID_START = 0.72
-const VERTICAL_START = 0.91
-const TEXT_START = 0.96
+const TEXT_START = 0.94
 const IDLE_RESET_DELAY = 1.5
 
 function shortestDelta(from, to) {
@@ -903,11 +758,7 @@ function animate(time) {
   animationId = requestAnimationFrame(animate)
   const t = time * 0.001
   animateBeam(t, props.scrollProgress)
-  if (props.scrollProgress < GRID_START) {
-    animateWavesAndLighting(t)
-  } else {
-    animateGridTransition(t)
-  }
+  animateWavesAndLighting(t)
   animateDust(time, props.scrollProgress)
   updateWhiteOut(props.scrollProgress) 
   renderer.render(scene, camera)
@@ -920,7 +771,6 @@ function onResize() {
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
   camera.aspect = w / h
   camera.updateProjectionMatrix()
-  gridTargetsComputed = false
 }
 
 onMounted(() => {
