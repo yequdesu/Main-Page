@@ -6,8 +6,6 @@ const props = defineProps({
   scrollProgress: { type: Number, default: 0 }
 })
 
-const emit = defineEmits([])
-
 const canvasRef = ref(null)
 
 let renderer, scene, camera
@@ -17,18 +15,22 @@ let beamRays = []
 let oceanLines = []
 let dustParticles = []
 let animationId
+let gridVerticalLines = []
 
 const waveData = []
-const waveBaseColors = [] // 存储海浪原始颜色，用于动态光照混合
+const waveBaseColors = [] 
 let baseBeamAngle = 0
-let scrollBeamOffset = 0
-let scrollStartAngle = 0        // 滚动起始时的光束角度
-let wasScrolling = false        // 上一帧是否在滚动
-let returnToIdleTime = 0        // 返回空闲状态的时间点
-let idlePhase = 0  // 自动旋转相位（返回空闲时计算）
+let returnToIdleTime = 0        
+let idlePhase = 0  
+let scrollStartAngle = 0        
+let wasScrolling = false        
+
+// 性能优化状态锁：防止过渡完成后持续进行无意义的顶点重绘
+let horizontalLinesFlattened = false
+let verticalLinesCompleted = false
 
 // ═══════════════════════════════════════════
-//  SKY & FOG (近实远虚：雾气使远处的浪线自然模糊)
+//  SKY & FOG
 // ═══════════════════════════════════════════
 function buildSky() {
   scene.background = new THREE.Color('#050811')
@@ -36,7 +38,7 @@ function buildSky() {
 }
 
 // ═══════════════════════════════════════════
-//  OCEAN (海浪覆盖 $-52$ 到 $+5$，灯塔位于 $-32$)
+//  OCEAN (海浪)
 // ═══════════════════════════════════════════
 function buildOcean() {
   const TOTAL = 50
@@ -46,24 +48,20 @@ function buildOcean() {
     const t = i / (TOTAL - 1)
     const curveT = Math.pow(t, POWER)
     
-    // 浪线从极为遥远的深空 (-52) 延伸到相机下方 (5)
     const z = -52 + curveT * 57
     const baseY = -3.5 + curveT * 2.0
     
-    // 空间透视：远处的波浪振幅极小，近处的波浪高耸且清晰
     const amplitude = 0.005 + curveT * 0.45
     const frequency = 0.12 + curveT * 0.22
     const speed = 0.35 * curveT + 0.05
     const phase = Math.random() * Math.PI * 2
     
-    // 远处的线条在视觉上极其淡雅模糊，近处的线条扎实明亮
-    const opacity = 0.10 + curveT * 0.67
+    const opacity = 0.15 + curveT * 0.55
     const span = 45 + curveT * 35
 
-    // 海浪基色深浅渐变
-    const rVal = Math.floor(3 + curveT * 15)
-    const gVal = Math.floor(6 + curveT * 24)
-    const bVal = Math.floor(12 + curveT * 38)
+    const rVal = Math.floor(6 + curveT * 12)
+    const gVal = Math.floor(12 + curveT * 18)
+    const bVal = Math.floor(26 + curveT * 24)
     const hex = `#${rVal.toString(16).padStart(2,'0')}${gVal.toString(16).padStart(2,'0')}${bVal.toString(16).padStart(2,'0')}`
     const baseColor = new THREE.Color(hex)
     waveBaseColors.push({ r: baseColor.r, g: baseColor.g, b: baseColor.b })
@@ -85,7 +83,6 @@ function buildOcean() {
     }
     geom.setAttribute('color', new THREE.BufferAttribute(colors, 3))
 
-    // 允许深度测试（但关闭深度写入以防止网格叠影），以便被灯塔遮挡
     const mat = new THREE.LineBasicMaterial({ 
       vertexColors: true, 
       transparent: true, 
@@ -102,7 +99,7 @@ function buildOcean() {
 }
 
 // ═══════════════════════════════════════════
-//  LIGHTHOUSE (精细化打磨模型，添加多层级水下模糊)
+//  LIGHTHOUSE (灯塔模型)
 // ═══════════════════════════════════════════
 function buildLighthouse() {
   lighthouseGroup = new THREE.Group()
@@ -111,44 +108,24 @@ function buildLighthouse() {
   const stoneMat = new THREE.MeshStandardMaterial({ color: '#40454f', roughness: 0.9 })
   const darkStoneMat = new THREE.MeshStandardMaterial({ color: '#252930', roughness: 0.8 })
 
-  // 1. 水下基础混凝土柱体 (Foundation)
-  const foundation = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.7, 0.7, 1.4, 16),
-    darkStoneMat
-  )
+  const foundation = new THREE.Mesh(new THREE.CylinderGeometry(0.7, 0.7, 1.4, 16), darkStoneMat)
   foundation.position.y = -0.9
   lighthouseGroup.add(foundation)
 
-  // 【创意核心】水下消隐折射迷雾罩 (Shroud)
-  // 其颜色与海面背景色一模一样，通过半透明度完美将没入海浪以下的柱体“模糊”消隐
   const shroudGeo = new THREE.CylinderGeometry(0.75, 1.3, 1.6, 16)
-  const shroudMat = new THREE.MeshBasicMaterial({
-    color: '#050811',
-    transparent: true,
-    opacity: 0.88,
-    depthWrite: false
-  })
+  const shroudMat = new THREE.MeshBasicMaterial({ color: '#050811', transparent: true, opacity: 0.88, depthWrite: false })
   const shroud = new THREE.Mesh(shroudGeo, shroudMat)
   shroud.position.y = -0.95
   lighthouseGroup.add(shroud)
 
-  // 2. 水面之上的粗糙花岗岩底座 (Base Rock)
-  const rock = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.55, 0.65, 0.4, 16),
-    stoneMat
-  )
+  const rock = new THREE.Mesh(new THREE.CylinderGeometry(0.55, 0.65, 0.4, 16), stoneMat)
   rock.position.y = -0.1
   lighthouseGroup.add(rock)
 
-  // 基座上边缘过渡环
-  const transitionRing = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.42, 0.55, 0.12, 16),
-    darkStoneMat
-  )
+  const transitionRing = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.55, 0.12, 16), darkStoneMat)
   transitionRing.position.y = 0.12
   lighthouseGroup.add(transitionRing)
 
-  // 3. 锥形渐窄主塔身 (Tapered Tower Shaft)
   const body = new THREE.Mesh(
     new THREE.CylinderGeometry(0.20, 0.30, 2.6, 20),
     new THREE.MeshStandardMaterial({ color: '#4d535c', roughness: 0.5, metalness: 0.1 })
@@ -156,94 +133,56 @@ function buildLighthouse() {
   body.position.y = 1.3
   lighthouseGroup.add(body)
 
-  // 塔身装饰腰线双环
   const bandMat = new THREE.MeshStandardMaterial({ color: '#7a828f', roughness: 0.6 })
-  const bands = [
-    { y: 0.6, r: 0.27 },
-    { y: 1.8, r: 0.22 }
-  ]
+  const bands = [{ y: 0.6, r: 0.27 }, { y: 1.8, r: 0.22 }]
   bands.forEach(b => {
-    const band = new THREE.Mesh(
-      new THREE.TorusGeometry(b.r, 0.022, 8, 20),
-      bandMat
-    )
+    const band = new THREE.Mesh(new THREE.TorusGeometry(b.r, 0.022, 8, 20), bandMat)
     band.rotation.x = Math.PI / 2
     band.position.y = b.y
     lighthouseGroup.add(band)
   })
 
-  // 创意细节：塔身复古微光小窗户
   const windowGlowMat = new THREE.MeshBasicMaterial({ color: '#ffdf6d' })
   const windowFrameMat = new THREE.MeshBasicMaterial({ color: '#111317' })
-  
-  const windowConfigs = [
-    { y: 1.0, rotY: 0.5, zOff: 0.24 },
-    { y: 1.9, rotY: -0.8, zOff: 0.19 }
-  ]
+  const windowConfigs = [{ y: 1.0, rotY: 0.5, zOff: 0.24 }, { y: 1.9, rotY: -0.8, zOff: 0.19 }]
   windowConfigs.forEach(wc => {
     const winGroup = new THREE.Group()
-    
-    // 窗框
     const frame = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.12, 0.05), windowFrameMat)
     winGroup.add(frame)
-    // 温暖发光玻璃
     const glass = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.10, 0.055), windowGlowMat)
     winGroup.add(glass)
-    
     winGroup.position.set(0, wc.y, wc.zOff)
     winGroup.rotation.y = wc.rotY
     lighthouseGroup.add(winGroup)
   })
 
-  // 4. 加宽观景露台 (Balcony Platform)
-  const balcony = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.32, 0.22, 0.12, 16),
-    darkStoneMat
-  )
+  const balcony = new THREE.Mesh(new THREE.CylinderGeometry(0.32, 0.22, 0.12, 16), darkStoneMat)
   balcony.position.y = 2.6
   lighthouseGroup.add(balcony)
 
-  // 阳台薄甲板
-  const deck = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.35, 0.35, 0.03, 16),
-    metalMat
-  )
+  const deck = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.35, 0.03, 16), metalMat)
   deck.position.y = 2.67
   lighthouseGroup.add(deck)
 
-  // 创意细节：露台微型金属防护栏杆（环形扶手 + 8 根立柱）
   const railGroup = new THREE.Group()
   railGroup.position.y = 2.68
-  // 顶部扶手圆环
-  const handrail = new THREE.Mesh(
-    new THREE.TorusGeometry(0.33, 0.008, 6, 24),
-    metalMat
-  )
+  const handrail = new THREE.Mesh(new THREE.TorusGeometry(0.33, 0.008, 6, 24), metalMat)
   handrail.rotation.x = Math.PI / 2
   handrail.position.y = 0.15
   railGroup.add(handrail)
   
-  // 8根环形排布的细立柱
   for (let i = 0; i < 8; i++) {
     const angle = (i / 8) * Math.PI * 2
-    const post = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.006, 0.006, 0.15, 6),
-      metalMat
-    )
+    const post = new THREE.Mesh(new THREE.CylinderGeometry(0.006, 0.006, 0.15, 6), metalMat)
     post.position.set(Math.cos(angle) * 0.33, 0.075, Math.sin(angle) * 0.33)
     railGroup.add(post)
   }
   lighthouseGroup.add(railGroup)
 
-  // 5. 灯室结构与框架支柱 (Lantern Room & Struts)
-  const lanternFloor = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.24, 0.24, 0.06, 16),
-    metalMat
-  )
+  const lanternFloor = new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.24, 0.06, 16), metalMat)
   lanternFloor.position.y = 2.74
   lighthouseGroup.add(lanternFloor)
 
-  // 玻璃透光罩
   const lanternGlass = new THREE.Mesh(
     new THREE.CylinderGeometry(0.21, 0.21, 0.44, 16, 1, true),
     new THREE.MeshStandardMaterial({
@@ -255,71 +194,45 @@ function buildLighthouse() {
   lanternGlass.position.y = 2.96
   lighthouseGroup.add(lanternGlass)
 
-  // 内部实体发光焦点
   const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.07, 12, 12), windowGlowMat)
   bulb.position.y = 2.96
   lighthouseGroup.add(bulb)
 
-  // 创意细节：外围 6 根坚固的金属承重垂直立柱
   for (let i = 0; i < 6; i++) {
     const angle = (i / 6) * Math.PI * 2
-    const strut = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.012, 0.012, 0.44, 6),
-      metalMat
-    )
+    const strut = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.44, 6), metalMat)
     strut.position.set(Math.cos(angle) * 0.22, 2.96, Math.sin(angle) * 0.22)
     lighthouseGroup.add(strut)
   }
 
-  // 6. 顶盖多级穹顶及高耸避雷尖塔 (Roof Dome, Spire & Finial)
-  const roofBase = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.24, 0.24, 0.04, 16),
-    metalMat
-  )
+  const roofBase = new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.24, 0.04, 16), metalMat)
   roofBase.position.y = 3.18
   lighthouseGroup.add(roofBase)
 
-  // 维多利亚式炭黑铜制穹顶 (Dome)
-  const roofDome = new THREE.Mesh(
-    new THREE.SphereGeometry(0.22, 16, 12, 0, Math.PI * 2, 0, Math.PI / 2),
-    metalMat
-  )
+  const roofDome = new THREE.Mesh(new THREE.SphereGeometry(0.22, 16, 12, 0, Math.PI * 2, 0, Math.PI / 2), metalMat)
   roofDome.position.y = 3.20
   lighthouseGroup.add(roofDome)
 
-  // 穹顶顶部的风道排气帽 (Ventilation Cap)
-  const ventCap = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.08, 0.08, 0.06, 12),
-    metalMat
-  )
+  const ventCap = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 0.06, 12), metalMat)
   ventCap.position.y = 3.42
   lighthouseGroup.add(ventCap)
 
-  // 黄金装饰球 (Ball Finial)
   const brassMat = new THREE.MeshStandardMaterial({ color: '#e5c158', roughness: 0.2, metalness: 0.9 })
-  const decorBall = new THREE.Mesh(
-    new THREE.SphereGeometry(0.035, 12, 12),
-    brassMat
-  )
+  const decorBall = new THREE.Mesh(new THREE.SphereGeometry(0.035, 12, 12), brassMat)
   decorBall.position.y = 3.47
   lighthouseGroup.add(decorBall)
 
-  // 针状精细避雷针 (Lightning Rod Spire)
-  const spire = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.005, 0.012, 0.35, 8),
-    metalMat
-  )
+  const spire = new THREE.Mesh(new THREE.CylinderGeometry(0.005, 0.012, 0.35, 8), metalMat)
   spire.position.y = 3.65
   lighthouseGroup.add(spire)
 
-  // 整体定位在 Y = -2.5 (上提以凸显塔身立体感)
-  lighthouseGroup.position.set(0, -2.65, -32)
+  lighthouseGroup.position.set(0, -2.5, -32)
   lighthouseGroup.scale.setScalar(0.7)
   scene.add(lighthouseGroup)
 }
 
 // ═══════════════════════════════════════════
-//  LIGHT BEAM (体积光主方向指向 +Z)
+//  LIGHT BEAM (体积光)
 // ═══════════════════════════════════════════
 const VolumetricBeamShader = {
   uniforms: {
@@ -352,12 +265,9 @@ const VolumetricBeamShader = {
     void main() {
       vec3 normal = normalize(vNormal);
       vec3 viewDir = normalize(vViewPosition);
-
       float edgeIntensity = pow(abs(dot(normal, viewDir)), uEdgePower);
       edgeIntensity = 0.25 + edgeIntensity * 0.75;
-
       float lengthFade = pow(clamp(1.0 - (abs(vPosition.y) / uLength), 0.0, 1.0), 1.5);
-
       float alpha = edgeIntensity * lengthFade * uOpacity;
       gl_FragColor = vec4(uColor, alpha);
     }
@@ -367,14 +277,13 @@ const VolumetricBeamShader = {
 function buildLightBeam() {
   beamPivot = new THREE.Group()
   beamPivot.position.copy(lighthouseGroup.position)
-  // 将旋转中心高度精准对齐到重构后的发光晶核中心 (2.96)
   beamPivot.position.y += 2.96 * lighthouseGroup.scale.y
   scene.add(beamPivot)
 
   const beamConfigs = [
-    { radius: 0.5,  length: 28, opacity: 0.85, power: 4.0 }, // 强散射核心
-    { radius: 1.8,  length: 32, opacity: 0.45, power: 2.5 }, // 实体锥体
-    { radius: 4.8,  length: 36, opacity: 0.15, power: 1.5 }  // 环境溢光
+    { radius: 0.5,  length: 28, opacity: 0.85, power: 4.0 }, 
+    { radius: 1.8,  length: 32, opacity: 0.45, power: 2.5 }, 
+    { radius: 4.8,  length: 36, opacity: 0.15, power: 1.5 }  
   ]
 
   beamConfigs.forEach(cfg => {
@@ -408,10 +317,7 @@ function buildLightBeam() {
   function makeRay(dx) {
     const pts = [new THREE.Vector3(0, 0, 0), new THREE.Vector3(dx * raySpread, 0, rayLen)]
     const geom = new THREE.BufferGeometry().setFromPoints(pts)
-    geom.setAttribute('color', new THREE.BufferAttribute(new Float32Array([
-      1, 1, 1,
-      0.3, 0.3, 0.3
-    ]), 3))
+    geom.setAttribute('color', new THREE.BufferAttribute(new Float32Array([1, 1, 1, 0.3, 0.3, 0.3]), 3))
     const mat = new THREE.LineBasicMaterial({
       vertexColors: true,
       transparent: true,
@@ -435,11 +341,11 @@ function buildLightBeam() {
 }
 
 // ═══════════════════════════════════════════
-//  DUST (高精圆形球面粉尘系统)
+//  DUST (低多边形优化)
 // ═══════════════════════════════════════════
 function buildDustParticles() {
-  // 将网格段数提升到 (12, 12)，彻底解决贴近镜头放大时的棱角多边形问题，变为丝滑圆球
-  const geo = new THREE.SphereGeometry(0.015, 12, 12)
+  // 性能优化：将高多边形 SphereGeometry(12,12) 替换为仅 12 个顶点的低面数二十面体，极大缓解 GPU 卡顿
+  const geo = new THREE.IcosahedronGeometry(0.015, 1)
   const count = 135
   for (let i = 0; i < count; i++) {
     const mat = new THREE.MeshBasicMaterial({
@@ -505,21 +411,17 @@ function buildCamera(w, h) {
 }
 
 // ═══════════════════════════════════════════
-//  ANIMATION & SPECULAR LOGIC (反射精细化整合)
+//  ANIMATION & SPECULAR LOGIC
 // ═══════════════════════════════════════════
 function animateWavesAndLighting(time) {
-  const sp = props.scrollProgress
-  const highlightFade = sp >= WHITE_OUT_THRESHOLD
-    ? Math.max(0, Math.min(1, (sp - WHITE_OUT_THRESHOLD) / (WHITE_OUT_END - WHITE_OUT_THRESHOLD)))
-    : 0
-  const colorShift = sp > WHITE_OUT_END
-    ? Math.max(0, Math.min(1, (sp - WHITE_OUT_END) / (TEXT_START - WHITE_OUT_END)))
-    : 0
-  const isTransition = highlightFade > 0 || colorShift > 0
+  const skipHighlights = props.scrollProgress >= WHITE_OUT_THRESHOLD
 
-  const beamOrigin = new THREE.Vector3()
-  beamPivot.getWorldPosition(beamOrigin)
-  const beamDir = new THREE.Vector3(0, 0, 1).applyQuaternion(beamPivot.quaternion).normalize()
+  let beamOrigin, beamDir
+  if (!skipHighlights) {
+    beamOrigin = new THREE.Vector3()
+    beamPivot.getWorldPosition(beamOrigin)
+    beamDir = new THREE.Vector3(0, 0, 1).applyQuaternion(beamPivot.quaternion).normalize()
+  }
 
   for (let i = 0; i < oceanLines.length; i++) {
     const line = oceanLines[i]
@@ -540,49 +442,40 @@ function animateWavesAndLighting(time) {
         Math.sin(x * data.frequency * 1.8 + t * 1.2) * data.amplitude * 0.4
       posArr[idx + 1] = y
 
-      const vx = x - beamOrigin.x
-      const vy = y - beamOrigin.y
-      const vz = data.z - beamOrigin.z
-      const proj = vx * beamDir.x + vy * beamDir.y + vz * beamDir.z
-      const localX = vx * beamDir.z - vz * beamDir.x
-      const beamRadius = 1.2 + Math.max(0.0, proj) * 0.15
-      const distSq = (localX * localX) / (beamRadius * beamRadius) + (vy * vy) / 1.5
-      let directIntensity = Math.exp(-distSq * 0.9)
-      const smoothProj = Math.max(0.0, Math.min(1.0, (proj + 4.0) / 8.0))
-      directIntensity *= smoothProj
-      const fDist = Math.max(0.0, 1.0 - (Math.max(0.0, proj) / 48.0))
-      directIntensity *= fDist
-      let lightIntensity = directIntensity * 1.5
-      if (beamDir.z > 0 && vz > 0) {
-        const specStretch = Math.exp(-(x * x) / 7.0) * beamDir.z * 1.3
-        lightIntensity += directIntensity * specStretch
-      }
-
-      const hR = 0.92, hG = 0.97, hB = 1.0
-      const hlR = baseCol.r + (hR - baseCol.r) * lightIntensity * 0.95
-      const hlG = baseCol.g + (hG - baseCol.g) * lightIntensity * 0.95
-      const hlB = baseCol.b + (hB - baseCol.b) * lightIntensity * 0.95
-
-      if (isTransition) {
-        let r = hlR + (baseCol.r - hlR) * highlightFade
-        let g = hlG + (baseCol.g - hlG) * highlightFade
-        let b = hlB + (baseCol.b - hlB) * highlightFade
-        const grayR = 0.35, grayG = 0.35, grayB = 0.35
-        colArr[idx] = r + (grayR - r) * colorShift
-        colArr[idx + 1] = g + (grayG - g) * colorShift
-        colArr[idx + 2] = b + (grayB - b) * colorShift
+      if (skipHighlights) {
+        colArr[idx] = baseCol.r
+        colArr[idx + 1] = baseCol.g
+        colArr[idx + 2] = baseCol.b
       } else {
-        colArr[idx] = hlR
-        colArr[idx + 1] = hlG
-        colArr[idx + 2] = hlB
+        const vx = x - beamOrigin.x
+        const vy = y - beamOrigin.y
+        const vz = data.z - beamOrigin.z
+
+        const proj = vx * beamDir.x + vy * beamDir.y + vz * beamDir.z
+        const localX = vx * beamDir.z - vz * beamDir.x
+        const beamRadius = 1.2 + Math.max(0.0, proj) * 0.15
+        const distSq = (localX * localX) / (beamRadius * beamRadius) + (vy * vy) / 1.5
+        let directIntensity = Math.exp(-distSq * 0.9)
+
+        const smoothProj = Math.max(0.0, Math.min(1.0, (proj + 4.0) / 8.0))
+        directIntensity *= smoothProj
+
+        const fadeDist = Math.max(0.0, 1.0 - (Math.max(0.0, proj) / 48.0))
+        directIntensity *= fadeDist
+
+        let lightIntensity = directIntensity * 1.5
+
+        if (beamDir.z > 0 && vz > 0) {
+          const specStretch = Math.exp(-(x * x) / 7.0) * beamDir.z * 1.3
+          lightIntensity += directIntensity * specStretch
+        }
+
+        const hR = 0.92, hG = 0.97, hB = 1.0
+        colArr[idx] = baseCol.r + (hR - baseCol.r) * lightIntensity * 0.95
+        colArr[idx + 1] = baseCol.g + (hG - baseCol.g) * lightIntensity * 0.95
+        colArr[idx + 2] = baseCol.b + (hB - baseCol.b) * lightIntensity * 0.95
       }
     }
-
-    if (isTransition) {
-      const boostFactor = Math.max(0, Math.min(1, (sp - WHITE_OUT_THRESHOLD) / 0.15))
-      line.material.opacity = data.opacity + (0.50 - data.opacity) * boostFactor
-    }
-
     posAttr.needsUpdate = true
     colAttr.needsUpdate = true
   }
@@ -636,197 +529,176 @@ function animateDust(time, scrollProgress) {
 }
 
 // ═══════════════════════════════════════════
-//  ORBIT PHASE (星环轨道 + 地面平面下沉 + 导航星球)
+//  3D GRID TRANSITION
 // ═══════════════════════════════════════════
-let orbitInitialized = false
-let orbitParticles = []
-let groundVerticalLines = []
+function build3DLongitudinalGridLines() {
+  if (gridVerticalLines.length > 0) return
 
-const RING_CENTER = new THREE.Vector3(0, 0, -3)
-const RING_TILT = Math.PI / 2.8
-const NAV_SITES = [
-  { label: 'FS', url: 'https://fs.yequdesu.top', color: '#5b8c5a' },
-  { label: 'Code', url: 'https://code.yequdesu.top', color: '#5a88b2' },
-  { label: 'GitHub', url: 'https://github.com/YeQuDesu', color: '#8b6b4d' }
-]
+  const totalLines = 18 
+  const zStart = -52    
+  const zEnd = 5        
+  const topY = 4.0      
+  const baseY = -2.5    
 
-function initOrbitPhase() {
-  if (orbitInitialized) return
+  // 性能优化：降落雨滴使用低多边形 geometry 替换，避免卡顿
+  const dropletGeo = new THREE.IcosahedronGeometry(0.018, 1)
 
-  const navIndices = [
-    Math.floor(Math.random() * dustParticles.length),
-    Math.floor(Math.random() * dustParticles.length),
-    Math.floor(Math.random() * dustParticles.length)
-  ]
-  // ensure unique
-  while (navIndices[1] === navIndices[0]) navIndices[1] = Math.floor(Math.random() * dustParticles.length)
-  while (navIndices[2] === navIndices[0] || navIndices[2] === navIndices[1]) navIndices[2] = Math.floor(Math.random() * dustParticles.length)
+  for (let i = 0; i < totalLines; i++) {
+    const x = -24 + (i / (totalLines - 1)) * 48
 
-  for (let i = 0; i < dustParticles.length; i++) {
-    const p = dustParticles[i]
-    const navIdx = navIndices.indexOf(i)
-    const isNav = navIdx >= 0
-
-    p.userData.orbitAngle = Math.random() * Math.PI * 2
-    p.userData.orbitRadius = isNav ? 3.5 + navIdx * 0.8 : 2.5 + Math.random() * 3.0
-    p.userData.orbitSpeed = isNav ? 0.15 + navIdx * 0.1 : 0.2 + Math.random() * 0.5
-    p.userData.orbitTiltY = 0.7 + Math.random() * 0.6
-    p.userData.orbitBaseScale = isNav ? 2.2 : 0.5 + Math.random() * 0.5
-    p.userData.orbitGray = isNav ? 0 : 0.2 + Math.random() * 0.45
-    p.userData.orbitIsNav = isNav
-    if (isNav) {
-      p.userData.orbitNavUrl = NAV_SITES[navIdx].url
-      p.userData.orbitNavColor = NAV_SITES[navIdx].color
-    }
-  }
-
-  // Create ground plane vertical perspective lines
-  const vpY = -1.5 // vanishing point Y
-  const fpY = -4.5 // floor plane bottom Y
-  const vCount = 16
-  const xSpan = 14
-  for (let i = 0; i < vCount; i++) {
-    const x = -xSpan / 2 + (i / (vCount - 1)) * xSpan
     const pts = [
-      new THREE.Vector3(x * 0.2, vpY, 0),
-      new THREE.Vector3(x, fpY, 5)
+      new THREE.Vector3(x, baseY, zStart),
+      new THREE.Vector3(x, baseY, zStart)
     ]
     const geom = new THREE.BufferGeometry().setFromPoints(pts)
     const mat = new THREE.LineBasicMaterial({
-      color: '#555555', transparent: true, opacity: 0, depthTest: false, depthWrite: false
+      color: '#475569', 
+      transparent: true,
+      opacity: 0,
+      depthTest: true,
+      depthWrite: false
     })
     const line = new THREE.Line(geom, mat)
     scene.add(line)
-    groundVerticalLines.push({ line, x, fpY, vpY })
-  }
 
-  orbitInitialized = true
-}
-
-function animateOrbitPhase(time, orbitProgress) {
-  initOrbitPhase()
-
-  // ── Ground plane: flatten ocean lines + slide down ──
-  const flatFactor = Math.min(1, orbitProgress * 3) // flatten quickly (first 33%)
-  const slideDown = orbitProgress * 7
-
-  for (let i = 0; i < oceanLines.length; i++) {
-    const line = oceanLines[i]
-    const data = waveData[i]
-    const posAttr = line.geometry.attributes.position
-    const colArr = line.geometry.attributes.color.array
-    const posArr = posAttr.array
-
-    const frac = i / Math.max(1, oceanLines.length - 1)
-    const flatY = -2.5 + frac * 3.0 - slideDown
-
-    for (let j = 0; j <= data.segmentCount; j++) {
-      const idx = j * 3
-      const t = time * data.speed + data.phase
-      const waveY = data.baseY +
-        Math.sin(posArr[idx] * data.frequency + t) * data.amplitude +
-        Math.sin(posArr[idx] * data.frequency * 1.8 + t * 1.2) * data.amplitude * 0.4
-
-      posArr[idx + 1] = waveY + (flatY - waveY) * flatFactor
-    }
-    posAttr.needsUpdate = true
-
-    line.material.opacity = 0.45 + (0.25 - 0.45) * flatFactor
-  }
-
-  // Ground vertical lines: slide down
-  for (const vLine of groundVerticalLines) {
-    const shift = slideDown * 1.2
-    const posArr = vLine.line.geometry.attributes.position.array
-    posArr[1] -= shift * 0.05 // vanish point shifts slightly
-    posArr[4] = vLine.fpY - shift
-    vLine.line.geometry.attributes.position.needsUpdate = true
-    vLine.line.material.opacity = 0.35 * (1 - Math.min(1, orbitProgress * 2))
-  }
-
-  // ── Dust → orbiting ring ──
-  const cosT = Math.cos(RING_TILT), sinT = Math.sin(RING_TILT)
-  const gatherPhase = Math.min(1, orbitProgress * 2.5)
-
-  for (const p of dustParticles) {
-    const d = p.userData
-    const angle = d.orbitAngle + time * d.orbitSpeed
-
-    // Ring position (3D tilted circle)
-    const lx = Math.cos(angle) * d.orbitRadius
-    const ly = Math.sin(angle) * d.orbitRadius * d.orbitTiltY
-    const wx = lx
-    const wy = ly * cosT
-    const wz = ly * sinT
-
-    // Gather from current dust position to ring target
-    const targetX = RING_CENTER.x + wx
-    const targetY = RING_CENTER.y + wy
-    const targetZ = RING_CENTER.z + wz
-
-    p.position.x += (targetX - p.position.x) * 0.08
-    p.position.y += (targetY - p.position.y) * 0.08
-    p.position.z += (targetZ - p.position.z) * 0.08
-
-    // Scale transition
-    const s = d.orbitBaseScale * gatherPhase
-    p.scale.setScalar(s)
-
-    // Color: varied grays
-    if (d.orbitIsNav) {
-      p.material.color.set(d.orbitNavColor)
-      p.material.opacity = gatherPhase * 0.9
-    } else {
-      const g = d.orbitGray
-      p.material.color.setRGB(g * 1.1, g, g * 0.85)
-      p.material.opacity = gatherPhase * 0.65 * (wz > 0 ? 0.35 : 1.0)
-    }
-  }
-
-  // Fade out beam and lighthouse during orbit
-  if (orbitProgress > 0.3) {
-    const fadeOut = (orbitProgress - 0.3) / 0.3
-    if (beamPivot) beamPivot.children.forEach(c => {
-      if (c.material && c.material.opacity !== undefined) c.material.opacity *= (1 - fadeOut * 0.1)
+    const dropMat = new THREE.MeshBasicMaterial({
+      color: '#3b82f6', 
+      transparent: true,
+      opacity: 0,
+      depthTest: true,
+      depthWrite: false
     })
-    if (lighthouseGroup) {
-      lighthouseGroup.children.forEach(c => {
-        if (c.material && c.material.opacity !== undefined) c.material.opacity = Math.max(0, (c.material.opacity || 1) - fadeOut * 0.08)
-      })
+    const droplet = new THREE.Mesh(dropletGeo, dropMat)
+    droplet.position.set(x, topY, zStart)
+    scene.add(droplet)
+
+    gridVerticalLines.push({
+      line,
+      droplet,
+      x,
+      topY,
+      baseY,
+      zStart,
+      zEnd,
+      staggerOffset: Math.random() * 0.45 
+    })
+  }
+}
+
+function animateGridTransition(time) {
+  const sp = props.scrollProgress
+  
+  const gridFactor = Math.max(0, Math.min(1, (sp - GRID_START) / (VERTICAL_START - GRID_START)))
+  const vertFactor = Math.max(0, Math.min(1, (sp - VERTICAL_START) / (TEXT_START - VERTICAL_START)))
+
+  // ── Phase 1: 海浪抚平（添加状态锁以停止重计算） ──
+  if (!horizontalLinesFlattened) {
+    for (let i = 0; i < oceanLines.length; i++) {
+      const line = oceanLines[i]
+      const data = waveData[i]
+      const baseCol = waveBaseColors[i]
+      const posAttr = line.geometry.attributes.position
+      const colAttr = line.geometry.attributes.color
+      const posArr = posAttr.array
+      const colArr = colAttr.array
+
+      const targetCol = new THREE.Color('#475569')
+
+      for (let j = 0; j <= data.segmentCount; j++) {
+        const idx = j * 3
+        const x = (j / data.segmentCount - 0.5) * data.span * 2
+        const t = time * data.speed + data.phase
+
+        const waveY = data.baseY +
+          Math.sin(x * data.frequency + t) * data.amplitude +
+          Math.sin(x * data.frequency * 1.8 + t * 1.2) * data.amplitude * 0.4
+
+        posArr[idx + 1] = THREE.MathUtils.lerp(waveY, data.baseY, gridFactor)
+
+        colArr[idx] = THREE.MathUtils.lerp(baseCol.r, targetCol.r, gridFactor)
+        colArr[idx + 1] = THREE.MathUtils.lerp(baseCol.g, targetCol.g, gridFactor)
+        colArr[idx + 2] = THREE.MathUtils.lerp(baseCol.b, targetCol.b, gridFactor)
+      }
+      posAttr.needsUpdate = true
+      colAttr.needsUpdate = true
+
+      line.material.opacity = THREE.MathUtils.lerp(data.opacity, 0.35, gridFactor)
+    }
+
+    if (gridFactor >= 1.0) {
+      horizontalLinesFlattened = true // 锁定：停止后续的循环和 GPU 数据上传
     }
   }
-}
+  
+  if (gridFactor < 1.0) {
+    horizontalLinesFlattened = false // 释放锁
+  }
 
-function handleCanvasClick(event) {
-  if (!orbitInitialized || !camera || !renderer) return
+  // ── Phase 2: 雨滴下落并沿 3D 轨迹滑行（添加状态锁） ──
+  if (vertFactor > 0) {
+    build3DLongitudinalGridLines()
 
-  const rect = renderer.domElement.getBoundingClientRect()
-  const mouse = new THREE.Vector2(
-    ((event.clientX - rect.left) / rect.width) * 2 - 1,
-    -((event.clientY - rect.top) / rect.height) * 2 + 1
-  )
+    if (!verticalLinesCompleted) {
+      for (const vData of gridVerticalLines) {
+        const localProgress = Math.max(0, Math.min(1, (vertFactor - vData.staggerOffset) / 0.55))
 
-  const raycaster = new THREE.Raycaster()
-  raycaster.setFromCamera(mouse, camera)
-  raycaster.params.Points.threshold = 0.3
-  raycaster.params.Mesh.threshold = 0.3
+        if (localProgress <= 0) {
+          vData.droplet.material.opacity = 0
+          continue
+        }
 
-  const navParticles = dustParticles.filter(p => p.userData.orbitIsNav)
-  const intersects = raycaster.intersectObjects(navParticles)
+        // 垂直落雨
+        if (localProgress < 0.25) {
+          const fallT = localProgress / 0.25
+          const curY = THREE.MathUtils.lerp(vData.topY, vData.baseY, fallT)
 
-  if (intersects.length > 0) {
-    const url = intersects[0].object.userData.orbitNavUrl
-    if (url) window.open(url, '_blank')
+          vData.droplet.position.set(vData.x, curY, vData.zStart)
+          vData.droplet.scale.set(0.7, 1.6, 0.7)  // 拉伸形态
+
+          vData.droplet.material.opacity = Math.min(1.0, fallT * 3.0) * 0.8
+          vData.droplet.material.color.setRGB(0.37, 0.64, 0.98) 
+        }
+        // 触地滑行
+        else {
+          const slideT = (localProgress - 0.25) / 0.75
+          const curZ = THREE.MathUtils.lerp(vData.zStart, vData.zEnd, slideT)
+
+          vData.droplet.position.set(vData.x, vData.baseY, curZ)
+          vData.droplet.scale.set(1.4, 0.6, 1.4) // 拍扁形变
+          
+          vData.droplet.material.opacity = Math.max(0.0, (1.0 - slideT) * 0.8)
+          vData.droplet.material.color.setRGB(0.58, 0.64, 0.72) 
+
+          const posArr = vData.line.geometry.attributes.position.array
+          posArr[5] = curZ
+          vData.line.geometry.attributes.position.needsUpdate = true
+
+          vData.line.material.opacity = Math.min(0.35, slideT * 0.35)
+        }
+      }
+
+      if (vertFactor >= 1.0) {
+        verticalLinesCompleted = true // 锁定：下落编织完成后释放一切计算并隐藏雨滴
+        for (const vData of gridVerticalLines) {
+          vData.droplet.material.opacity = 0
+        }
+      }
+    }
+  }
+
+  if (vertFactor < 1.0) {
+    verticalLinesCompleted = false // 释放锁
   }
 }
 
 // ═══════════════════════════════════════════
-//  CONTROL & TRANSITION (白场过载与探照轨迹)
+//  CONTROL & TRANSITION
 // ═══════════════════════════════════════════
-const PHASE1_END = 4 / 6
-const WHITE_OUT_THRESHOLD = 0.65 * PHASE1_END
-const WHITE_OUT_END = 0.78 * PHASE1_END
-const TEXT_START = 0.94 * PHASE1_END
+const WHITE_OUT_THRESHOLD = 0.65
+const WHITE_OUT_END = 0.78
+const GRID_START = 0.72
+const VERTICAL_START = 0.86 
+const TEXT_START = 0.94
 const IDLE_RESET_DELAY = 1.5
 
 function shortestDelta(from, to) {
@@ -836,25 +708,24 @@ function shortestDelta(from, to) {
   return d
 }
 
-// 白场过载动画：持续下拉，浓度、背景色和全局光晕暴增
 function updateWhiteOut(scrollProgress) {
   if (!scene) return
   
   const whiteOutFactor = Math.max(0.0, Math.min(1.0, (scrollProgress - WHITE_OUT_THRESHOLD) / (WHITE_OUT_END - WHITE_OUT_THRESHOLD)))
 
   const baseBg = new THREE.Color('#050811')
-  const targetBg = new THREE.Color('#ffffff')
+  const targetBg = new THREE.Color('#e2e8f0') 
   const currentBg = baseBg.clone().lerp(targetBg, whiteOutFactor)
   scene.background = currentBg
   
   if (scene.fog) {
     scene.fog.color = currentBg
-    scene.fog.density = 0.02 + whiteOutFactor * 0.18
+    scene.fog.density = 0.02 + whiteOutFactor * 0.12
   }
 
   const ambientLight = scene.children.find(c => c.isAmbientLight)
   if (ambientLight) {
-    ambientLight.intensity = 1.4 + whiteOutFactor * 8.0
+    ambientLight.intensity = 1.4 + whiteOutFactor * 4.0
   }
 }
 
@@ -877,7 +748,6 @@ function animateBeam(time, scrollProgress) {
 
     const elapsed = time - returnToIdleTime
 
-    // 随机探索
     const slowDrive = time * 0.20                
     const sweep1 = Math.sin(time * 0.12) * 2.2   
     const sweep2 = Math.cos(time * 0.41) * 0.5   
@@ -920,7 +790,6 @@ function animateBeam(time, scrollProgress) {
   beamPivot.rotation.y = targetY
   beamPivot.rotation.x = targetX
 
-  // 亮度与光亮持续累积
   const beamBoost = Math.pow(scrollProgress, 1.5) * 0.4
   const whiteOutFactor = Math.max(0.0, Math.min(1.0, (scrollProgress - WHITE_OUT_THRESHOLD) / (WHITE_OUT_END - WHITE_OUT_THRESHOLD)))
   
@@ -943,16 +812,19 @@ function animateBeam(time, scrollProgress) {
 function animate(time) {
   animationId = requestAnimationFrame(animate)
   const t = time * 0.001
-
-  if (props.scrollProgress >= PHASE1_END) {
-    const orbitProgress = (props.scrollProgress - PHASE1_END) / (1 - PHASE1_END)
-    animateOrbitPhase(t, orbitProgress)
-  } else {
-    animateBeam(t, props.scrollProgress)
+  animateBeam(t, props.scrollProgress)
+  
+  if (props.scrollProgress < GRID_START) {
     animateWavesAndLighting(t)
-    animateDust(time, props.scrollProgress)
-    updateWhiteOut(props.scrollProgress)
+    // 如果回滚，释放状态锁
+    horizontalLinesFlattened = false
+    verticalLinesCompleted = false
+  } else {
+    animateGridTransition(t)
   }
+  
+  animateDust(time, props.scrollProgress)
+  updateWhiteOut(props.scrollProgress) 
 
   renderer.render(scene, camera)
 }
@@ -985,7 +857,6 @@ onMounted(() => {
   
   animationId = requestAnimationFrame(animate)
   window.addEventListener('resize', onResize)
-  canvasRef.value.addEventListener('click', handleCanvasClick)
 })
 
 onUnmounted(() => {
