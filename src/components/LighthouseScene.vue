@@ -25,7 +25,7 @@ const GRID_SHIFT_START   = 0.85
 const IDLE_RESET_DELAY   = 1.5
 
 // ============================================================
-//  ACT 3 CONSTANTS — (修复：补充缺失的全局定义)
+//  ACT 3 CONSTANTS
 // ============================================================
 const ORBIT_COUNT = 3
 const ORBIT_RADII = [3.6, 5.0, 6.4]
@@ -224,10 +224,13 @@ function buildLighthouse() {
   const railG = new THREE.Group(); railG.position.y=2.68
   const hr = new THREE.Mesh(new THREE.TorusGeometry(0.33,0.008,6,24), metalMat)
   hr.rotation.x=Math.PI/2; hr.position.y=0.15; railG.add(hr)
+  
+  // 修复：手扶栏杆细立柱的链式调用
   for(let i=0;i<8;i++){
     const a=(i/8)*Math.PI*2
-    railG.add(new THREE.Mesh(new THREE.CylinderGeometry(0.006,0.006,0.15,6), metalMat)
-      .position.set(Math.cos(a)*0.33,0.075,Math.sin(a)*0.33))
+    const post = new THREE.Mesh(new THREE.CylinderGeometry(0.006,0.006,0.15,6), metalMat)
+    post.position.set(Math.cos(a)*0.33, 0.075, Math.sin(a)*0.33)
+    railG.add(post)
   }
   lighthouseGroup.add(railG)
 
@@ -242,19 +245,35 @@ function buildLighthouse() {
   const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.07,12,12), glowMat)
   bulb.position.y=2.96; lighthouseGroup.add(bulb)
 
+  // 修复：玻璃框立柱的链式调用
   for(let i=0;i<6;i++){
     const a=(i/6)*Math.PI*2
-    lighthouseGroup.add(new THREE.Mesh(new THREE.CylinderGeometry(0.012,0.012,0.44,6), metalMat)
-      .position.set(Math.cos(a)*0.22,2.96,Math.sin(a)*0.22))
+    const frame = new THREE.Mesh(new THREE.CylinderGeometry(0.012,0.012,0.44,6), metalMat)
+    frame.position.set(Math.cos(a)*0.22, 2.96, Math.sin(a)*0.22)
+    lighthouseGroup.add(frame)
   }
 
-  lighthouseGroup.add(new THREE.Mesh(new THREE.CylinderGeometry(0.30,0.30,0.05,16), metalMat).position.set(0,3.17,0))
-  lighthouseGroup.add(new THREE.Mesh(new THREE.SphereGeometry(0.22,16,12,0,Math.PI*2,0,Math.PI/2), metalMat).position.set(0,3.20,0))
-  lighthouseGroup.add(new THREE.Mesh(new THREE.CylinderGeometry(0.08,0.08,0.06,12), metalMat).position.set(0,3.42,0))
+  // 修复：塔顶盖及尖顶组件的链式调用
+  const roofPlate = new THREE.Mesh(new THREE.CylinderGeometry(0.24,0.24,0.04,16), metalMat)
+  roofPlate.position.set(0,3.18,0)
+  lighthouseGroup.add(roofPlate)
+
+  const roofDome = new THREE.Mesh(new THREE.SphereGeometry(0.22,16,12,0,Math.PI*2,0,Math.PI/2), metalMat)
+  roofDome.position.set(0,3.20,0)
+  lighthouseGroup.add(roofDome)
+
+  const spireBase = new THREE.Mesh(new THREE.CylinderGeometry(0.08,0.08,0.06,12), metalMat)
+  spireBase.position.set(0,3.42,0)
+  lighthouseGroup.add(spireBase)
 
   const brass = new THREE.MeshStandardMaterial({ color:'#e5c158', roughness:0.2, metalness:0.9 })
-  lighthouseGroup.add(new THREE.Mesh(new THREE.SphereGeometry(0.035,12,12), brass).position.set(0,3.47,0))
-  lighthouseGroup.add(new THREE.Mesh(new THREE.CylinderGeometry(0.005,0.012,0.35,8), metalMat).position.set(0,3.65,0))
+  const brassBall = new THREE.Mesh(new THREE.SphereGeometry(0.035,12,12), brass)
+  brassBall.position.set(0,3.47,0)
+  lighthouseGroup.add(brassBall)
+
+  const spireTip = new THREE.Mesh(new THREE.CylinderGeometry(0.005,0.012,0.35,8), metalMat)
+  spireTip.position.set(0,3.65,0)
+  lighthouseGroup.add(spireTip)
 
   lighthouseGroup.position.set(0,-2.5,-32)
   lighthouseGroup.scale.setScalar(0.7)
