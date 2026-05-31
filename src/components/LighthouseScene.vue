@@ -828,7 +828,7 @@ act3.animate = (time, tSp, sp) => {
     // 颜色配置
     if (d.isMainPlanet) {
       // 主行星：深色，悬停时变亮
-      const base = new THREE.Color('#1e3a5f')  // 深海暗蓝
+      const base = new THREE.Color('#1a1c23')  // 深炭灰
       const hover = new THREE.Color('#0ea5e9') // 悬停亮蓝
       p.material.color.copy(base).lerp(hover, (idx === _hoveredIdx && isFullyFormed) ? 1 : 0)
       p.material.opacity = THREE.MathUtils.lerp(0.40, 0.90, smoothProgress)
