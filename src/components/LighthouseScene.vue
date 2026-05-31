@@ -427,7 +427,7 @@ function animateDustAct1(time, sp) {
     p.material.opacity=Math.max(0,fo*dustOut)
   }
   // 与 Act2 粒子同步位置/缩放（防止从 Act2 回滚时跳变）
-  if (dustParticles2.length > 0 && sp >= WHITE_OUT_THRESHOLD) {
+  if (dustParticles2.length > 0) {
     for (let i = 0; i < Math.min(dustParticles1.length, dustParticles2.length); i++) {
       dustParticles1[i].position.copy(dustParticles2[i].position)
       dustParticles1[i].scale.copy(dustParticles2[i].scale)
@@ -495,12 +495,17 @@ function buildDustAct2() {
         captureScale: s.scale.x,
         dx: s.userData.dx, dy: s.userData.dy, dz: s.userData.dz
       }
+      // 粒子体积放大 + 方差（偏大，为 Act3 星环做准备）
+      p.userData.sizeBoost = Math.random() < 0.60
+        ? 1.5 + Math.random() * 2.5   // 60% 大粒子: 1.5x~4.0x
+        : 0.7 + Math.random() * 0.8   // 40% 小粒子: 0.7x~1.5x
     } else {
       p.position.set((Math.random()-0.5)*28, -3+Math.random()*7, -3+Math.random()*7)
       p.userData = {
         wx:p.position.x, wy:p.position.y, wz:p.position.z,
         ph:Math.random()*Math.PI*2, scale:0.25+Math.random()*0.55,
-        dx:(Math.random()-0.5)*0.12, dy:(Math.random()-0.5)*0.08+0.04, dz:(Math.random()-0.5)*0.06
+        dx:(Math.random()-0.5)*0.12, dy:(Math.random()-0.5)*0.08+0.04, dz:(Math.random()-0.5)*0.06,
+        sizeBoost: 0.8 + Math.random() * 2.0
       }
     }
     scene.add(p)
@@ -594,7 +599,7 @@ act2.animate = (time, tSp, sp) => {
       )
       const cd = p.position.distanceTo(camera.position)
       const ds = 22 / Math.max(5, cd)
-      const targetScale = d.scale * 0.4 * ds
+      const targetScale = d.scale * 0.7 * (d.sizeBoost || 1.0) * ds
       const fadeIn = Math.max(0, Math.min(1, (sp - WHITE_OUT_THRESHOLD) / (GRID_START - WHITE_OUT_THRESHOLD)))
       p.scale.setScalar(THREE.MathUtils.lerp(d.captureScale || targetScale, targetScale, fadeIn))
       p.material.opacity = fadeIn * 0.4
@@ -731,7 +736,7 @@ act3.animate = (time, tSp, sp) => {
 
     const cd = p.position.distanceTo(camera.position)
     const ds = 22 / Math.max(5, cd)
-    const baseScale = d.scale * 0.4 * ds
+    const baseScale = d.scale * 0.7 * (d.sizeBoost || 1.0) * ds
     const targetScale = baseScale * d.scaleMult
 
     p.scale.setScalar(THREE.MathUtils.lerp(baseScale, targetScale, smoothProgress))
