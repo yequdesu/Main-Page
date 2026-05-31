@@ -25,6 +25,13 @@ const GRID_SHIFT_START   = 0.85
 const IDLE_RESET_DELAY   = 1.5
 
 // ============================================================
+//  ACT 3 CONSTANTS — (修复：补充缺失的全局定义)
+// ============================================================
+const ORBIT_COUNT = 3
+const ORBIT_RADII = [3.6, 5.0, 6.4]
+let _mainPlanetIndices = []
+
+// ============================================================
 //  UTILITY
 // ============================================================
 function shortestDelta(from, to) {
@@ -106,7 +113,7 @@ function sceneApplyWhiteOut(sp) {
 // ============================================================
 //  ACT 1  OCEAN VOYAGE  (sp 0.00 → 0.45)
 // ============================================================
-const act1 = { name: 'OceanVoyage', start: 0.00, end: WHITE_OUT_END }
+const act1 = { name: 'OceanVoyage', start: 0.00, end: GRID_START }
 
 let lighthouseGroup, beamPivot
 let beamCones = [], beamRays = [], beamGlow = null
@@ -331,7 +338,7 @@ act1.animate = (time, tSp, sp) => {
   if (beamPivot && !beamPivot.visible) beamPivot.visible = true
   if (_ptLightRef && _ptLightRef.intensity === 0) _ptLightRef.intensity = 3.0
   animateBeam(time, sp)
-  if (sp < GRID_START) animateWavesAndLighting(time, sp)  // Act2 接手后停止海浪
+  if (sp < GRID_START) animateWavesAndLighting(time, sp)
   animateDustAct1(time, sp)
 }
 
