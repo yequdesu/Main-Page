@@ -426,6 +426,13 @@ function animateDustAct1(time, sp) {
     const dustOut=1-Math.max(0,Math.min(1,(sp-WHITE_OUT_THRESHOLD)/(WHITE_OUT_END-WHITE_OUT_THRESHOLD)))
     p.material.opacity=Math.max(0,fo*dustOut)
   }
+  // 与 Act2 粒子同步位置/缩放（防止从 Act2 回滚时跳变）
+  if (dustParticles2.length > 0 && sp >= WHITE_OUT_THRESHOLD) {
+    for (let i = 0; i < Math.min(dustParticles1.length, dustParticles2.length); i++) {
+      dustParticles1[i].position.copy(dustParticles2[i].position)
+      dustParticles1[i].scale.copy(dustParticles2[i].scale)
+    }
+  }
 }
 
 act1.exit = () => {
@@ -508,7 +515,20 @@ function buildVerticalGridLines() {
     const x=-28+(i/(totalLines-1))*56
     const pts=[new THREE.Vector3(x,baseY,zStart), new THREE.Vector3(x,baseY,zStart)]
     const g=new THREE.BufferGeometry().setFromPoints(pts)
-    const mat=new THREE.LineBasicMaterial({ color:'#cbd5e1', transparent:true, opacity:0, depthTest:true, depthWrite:false })
+    // 距离渐变：近端深色 → 远端融合白色背景
+    const nearColor = new THREE.Color('#0f172a')
+    const farColor  = new THREE.Color('#e2e8f0')
+    g.setAttribute('color', new THREE.BufferAttribute(new Float32Array([
+      farColor.r, farColor.g, farColor.b,
+      nearColor.r, nearColor.g, nearColor.b
+    ]), 3))
+    const mat=new THREE.LineBasicMaterial({
+      vertexColors: true,
+      transparent: true,
+      opacity: 0,
+      depthTest: true,
+      depthWrite: false
+    })
     const line=new THREE.Line(g,mat)
     scene.add(line)
     gridVerticalLines.push({ line, x, baseY, zStart, zEnd, staggerOffset: Math.random()*0.45 })
@@ -556,7 +576,7 @@ act2.animate = (time, tSp, sp) => {
       const pArr = vd.line.geometry.attributes.position.array
       pArr[5] = curZ
       vd.line.geometry.attributes.position.needsUpdate = true
-      vd.line.material.opacity = Math.min(0.65, lp * 0.65)
+      vd.line.material.opacity = Math.min(0.75, lp * 0.75)
     }
     if (vertFactor >= 1.0) verticalDone = true
   }
