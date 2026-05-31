@@ -8,7 +8,7 @@ import AppFooter from './components/AppFooter.vue'
 const SCROLL_VH = 15
 const scrollProgress = ref(0)
 const hintVisible = ref(true)
-const brandTextVisible = computed(() => scrollProgress.value >= 0.94)
+const brandTextVisible = computed(() => scrollProgress.value >= 0.70)
 
 let st
 
