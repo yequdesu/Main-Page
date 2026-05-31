@@ -41,7 +41,7 @@ function buildSky() {
 //  OCEAN (海浪覆盖 $-52$ 到 $+5$，灯塔位于 $-32$)
 // ═══════════════════════════════════════════
 function buildOcean() {
-  const TOTAL = 75
+  const TOTAL = 100
   const POWER = 2.2
 
   for (let i = 0; i < TOTAL; i++) {
@@ -630,11 +630,17 @@ function animateDust(time, scrollProgress) {
 function computeGridTargets() {
   if (gridTargetsComputed || !camera) return
 
-  const dist = 5
-  const fovHalf = (40 * Math.PI / 180) / 2
-  const visibleHeight = 2 * dist * Math.tan(fovHalf)
-  const targetZ = 3
-  const topY = visibleHeight / 2
+  const targetZ = 0
+  const dist = 8
+  const halfHeight = dist * Math.tan(camera.fov * Math.PI / 360)
+  const visibleHeight = 2 * halfHeight
+
+  const rayDir = new THREE.Vector3()
+  camera.getWorldDirection(rayDir)
+  const t = (targetZ - camera.position.z) / rayDir.z
+  const centerY = camera.position.y + t * rayDir.y
+
+  const topY = centerY + halfHeight
   const targetSpan = visibleHeight * camera.aspect
 
   for (let i = 0; i < waveData.length; i++) {
@@ -651,13 +657,19 @@ function computeGridTargets() {
 function buildVerticalGridLines() {
   if (gridVerticalLines.length > 0 || !camera) return
 
-  const dist = 5
-  const fovHalf = (40 * Math.PI / 180) / 2
-  const visibleHeight = 2 * dist * Math.tan(fovHalf)
+  const targetZ = 0
+  const dist = 8
+  const halfHeight = dist * Math.tan(camera.fov * Math.PI / 360)
+  const visibleHeight = 2 * halfHeight
+
+  const rayDir = new THREE.Vector3()
+  camera.getWorldDirection(rayDir)
+  const t = (targetZ - camera.position.z) / rayDir.z
+  const centerY = camera.position.y + t * rayDir.y
+
+  const topY = centerY + halfHeight
+  const bottomY = centerY - halfHeight
   const targetSpan = visibleHeight * camera.aspect
-  const targetZ = 3
-  const topY = visibleHeight / 2
-  const bottomY = -visibleHeight / 2
   const totalVLines = 40
 
   for (let i = 0; i < totalVLines; i++) {
@@ -680,10 +692,7 @@ function buildVerticalGridLines() {
     const line = new THREE.Line(geom, mat)
     scene.add(line)
     gridVerticalLines.push({
-      line,
-      x,
-      topY,
-      bottomY,
+      line, x, topY, bottomY,
       staggerOffset: (i / totalVLines) * 0.5
     })
   }
@@ -903,6 +912,7 @@ function onResize() {
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
   camera.aspect = w / h
   camera.updateProjectionMatrix()
+  gridTargetsComputed = false
 }
 
 onMounted(() => {

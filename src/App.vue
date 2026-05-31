@@ -52,7 +52,8 @@ onUnmounted(() => {
 
   <Transition name="brand-fade">
     <div v-if="brandTextVisible" class="brand-text" aria-hidden="true">
-      <span class="brand-text-inner">YeQuDesu</span>
+      <span class="brand-text-main">Personal Site</span>
+      <span class="brand-text-sub">by YeQuDesu</span>
     </div>
   </Transition>
 
@@ -98,27 +99,36 @@ onUnmounted(() => {
   inset: 0;
   z-index: 10;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: 0.6rem;
   pointer-events: none;
 }
-.brand-text-inner {
+.brand-text-main {
   font-family: 'Georgia', 'Times New Roman', serif;
-  font-size: clamp(2.4rem, 6vw, 5rem);
+  font-size: clamp(1.8rem, 4.5vw, 3.5rem);
   font-weight: 400;
-  color: #2a2a2a;
-  letter-spacing: 0.08em;
-  text-shadow: 0 1px 4px rgba(0,0,0,0.08);
+  color: #222;
+  letter-spacing: 0.05em;
+}
+.brand-text-sub {
+  font-family: 'Georgia', 'Times New Roman', serif;
+  font-size: clamp(0.8rem, 1.6vw, 1.1rem);
+  font-weight: 400;
+  color: #888;
+  letter-spacing: 0.04em;
+  font-style: italic;
 }
 .brand-fade-enter-active {
-  transition: opacity 1.2s ease-out, transform 1.2s ease-out;
+  transition: opacity 1.4s ease-out, transform 1.2s ease-out;
 }
 .brand-fade-leave-active {
   transition: opacity 0.5s ease-in;
 }
 .brand-fade-enter-from {
   opacity: 0;
-  transform: scale(0.96);
+  transform: scale(0.96) translateY(0.6rem);
 }
 .brand-fade-leave-to {
   opacity: 0;
