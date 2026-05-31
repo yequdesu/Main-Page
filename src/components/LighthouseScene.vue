@@ -23,6 +23,7 @@ let baseBeamAngle = 0
 let returnToIdleTime = 0        
 let idlePhase = 0  
 let scrollStartAngle = 0        
+let scrollStartAngleX = 0       
 let wasScrolling = false        
 
 // 性能优化状态锁：防止过渡完成后持续进行无意义的顶点重绘
@@ -775,6 +776,7 @@ function animateBeam(time, scrollProgress) {
   } else {
     if (!wasScrolling) {
       scrollStartAngle = beamPivot.rotation.y
+      scrollStartAngleX = beamPivot.rotation.x
       wasScrolling = true
     }
 
@@ -783,7 +785,7 @@ function animateBeam(time, scrollProgress) {
 
     const delta = shortestDelta(scrollStartAngle, 0)
     targetY = scrollStartAngle + delta * eased
-    targetX = THREE.MathUtils.lerp(0.06, -0.02, eased)
+    targetX = THREE.MathUtils.lerp(scrollStartAngleX, -0.02, eased)
     beamOpacityMult = 1.0
   }
 
