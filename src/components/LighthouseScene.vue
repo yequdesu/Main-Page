@@ -248,7 +248,7 @@ function buildLighthouse() {
       .position.set(Math.cos(a)*0.22,2.96,Math.sin(a)*0.22))
   }
 
-  lighthouseGroup.add(new THREE.Mesh(new THREE.CylinderGeometry(0.24,0.24,0.04,16), metalMat).position.set(0,3.18,0))
+  lighthouseGroup.add(new THREE.Mesh(new THREE.CylinderGeometry(0.30,0.30,0.05,16), metalMat).position.set(0,3.17,0))
   lighthouseGroup.add(new THREE.Mesh(new THREE.SphereGeometry(0.22,16,12,0,Math.PI*2,0,Math.PI/2), metalMat).position.set(0,3.20,0))
   lighthouseGroup.add(new THREE.Mesh(new THREE.CylinderGeometry(0.08,0.08,0.06,12), metalMat).position.set(0,3.42,0))
 
