@@ -57,7 +57,7 @@ function buildOcean() {
     const phase = Math.random() * Math.PI * 2
     
     // 远处的线条在视觉上极其淡雅模糊，近处的线条扎实明亮
-    const opacity = 0.06 + curveT * 0.71
+    const opacity = 0.10 + curveT * 0.67
     const span = 45 + curveT * 35
 
     // 海浪基色深浅渐变
@@ -313,7 +313,7 @@ function buildLighthouse() {
   lighthouseGroup.add(spire)
 
   // 整体定位在 Y = -2.5 (上提以凸显塔身立体感)
-  lighthouseGroup.position.set(0, -2.8, -32)
+  lighthouseGroup.position.set(0, -2.65, -32)
   lighthouseGroup.scale.setScalar(0.7)
   scene.add(lighthouseGroup)
 }
@@ -509,17 +509,17 @@ function buildCamera(w, h) {
 // ═══════════════════════════════════════════
 function animateWavesAndLighting(time) {
   const sp = props.scrollProgress
-  const skipHighlights = sp >= WHITE_OUT_THRESHOLD
+  const highlightFade = sp >= WHITE_OUT_THRESHOLD
+    ? Math.max(0, Math.min(1, (sp - WHITE_OUT_THRESHOLD) / (WHITE_OUT_END - WHITE_OUT_THRESHOLD)))
+    : 0
   const colorShift = sp > WHITE_OUT_END
     ? Math.max(0, Math.min(1, (sp - WHITE_OUT_END) / (TEXT_START - WHITE_OUT_END)))
     : 0
+  const isTransition = highlightFade > 0 || colorShift > 0
 
-  let beamOrigin, beamDir
-  if (!skipHighlights) {
-    beamOrigin = new THREE.Vector3()
-    beamPivot.getWorldPosition(beamOrigin)
-    beamDir = new THREE.Vector3(0, 0, 1).applyQuaternion(beamPivot.quaternion).normalize()
-  }
+  const beamOrigin = new THREE.Vector3()
+  beamPivot.getWorldPosition(beamOrigin)
+  const beamDir = new THREE.Vector3(0, 0, 1).applyQuaternion(beamPivot.quaternion).normalize()
 
   for (let i = 0; i < oceanLines.length; i++) {
     const line = oceanLines[i]
@@ -540,49 +540,49 @@ function animateWavesAndLighting(time) {
         Math.sin(x * data.frequency * 1.8 + t * 1.2) * data.amplitude * 0.4
       posArr[idx + 1] = y
 
-      if (skipHighlights) {
+      const vx = x - beamOrigin.x
+      const vy = y - beamOrigin.y
+      const vz = data.z - beamOrigin.z
+      const proj = vx * beamDir.x + vy * beamDir.y + vz * beamDir.z
+      const localX = vx * beamDir.z - vz * beamDir.x
+      const beamRadius = 1.2 + Math.max(0.0, proj) * 0.15
+      const distSq = (localX * localX) / (beamRadius * beamRadius) + (vy * vy) / 1.5
+      let directIntensity = Math.exp(-distSq * 0.9)
+      const smoothProj = Math.max(0.0, Math.min(1.0, (proj + 4.0) / 8.0))
+      directIntensity *= smoothProj
+      const fDist = Math.max(0.0, 1.0 - (Math.max(0.0, proj) / 48.0))
+      directIntensity *= fDist
+      let lightIntensity = directIntensity * 1.5
+      if (beamDir.z > 0 && vz > 0) {
+        const specStretch = Math.exp(-(x * x) / 7.0) * beamDir.z * 1.3
+        lightIntensity += directIntensity * specStretch
+      }
+
+      const hR = 0.92, hG = 0.97, hB = 1.0
+      const hlR = baseCol.r + (hR - baseCol.r) * lightIntensity * 0.95
+      const hlG = baseCol.g + (hG - baseCol.g) * lightIntensity * 0.95
+      const hlB = baseCol.b + (hB - baseCol.b) * lightIntensity * 0.95
+
+      if (isTransition) {
+        let r = hlR + (baseCol.r - hlR) * highlightFade
+        let g = hlG + (baseCol.g - hlG) * highlightFade
+        let b = hlB + (baseCol.b - hlB) * highlightFade
         const grayR = 0.35, grayG = 0.35, grayB = 0.35
-        colArr[idx] = baseCol.r + (grayR - baseCol.r) * colorShift
-        colArr[idx + 1] = baseCol.g + (grayG - baseCol.g) * colorShift
-        colArr[idx + 2] = baseCol.b + (grayB - baseCol.b) * colorShift
+        colArr[idx] = r + (grayR - r) * colorShift
+        colArr[idx + 1] = g + (grayG - g) * colorShift
+        colArr[idx + 2] = b + (grayB - b) * colorShift
       } else {
-        const vx = x - beamOrigin.x
-        const vy = y - beamOrigin.y
-        const vz = data.z - beamOrigin.z
-
-        const proj = vx * beamDir.x + vy * beamDir.y + vz * beamDir.z
-
-        const localX = vx * beamDir.z - vz * beamDir.x
-
-        const beamRadius = 1.2 + Math.max(0.0, proj) * 0.15
-
-        const distSq = (localX * localX) / (beamRadius * beamRadius) + (vy * vy) / 1.5
-        let directIntensity = Math.exp(-distSq * 0.9)
-
-        const smoothProj = Math.max(0.0, Math.min(1.0, (proj + 4.0) / 8.0))
-        directIntensity *= smoothProj
-
-        const fadeDist = Math.max(0.0, 1.0 - (Math.max(0.0, proj) / 48.0))
-        directIntensity *= fadeDist
-
-        let lightIntensity = directIntensity * 1.5
-
-        if (beamDir.z > 0 && vz > 0) {
-          const specStretch = Math.exp(-(x * x) / 7.0) * beamDir.z * 1.3
-          lightIntensity += directIntensity * specStretch
-        }
-
-        const hR = 0.92, hG = 0.97, hB = 1.0
-        colArr[idx] = baseCol.r + (hR - baseCol.r) * lightIntensity * 0.95
-        colArr[idx + 1] = baseCol.g + (hG - baseCol.g) * lightIntensity * 0.95
-        colArr[idx + 2] = baseCol.b + (hB - baseCol.b) * lightIntensity * 0.95
+        colArr[idx] = hlR
+        colArr[idx + 1] = hlG
+        colArr[idx + 2] = hlB
       }
     }
-    // 白场后提升透明度，使波浪在白色背景上持续可见
-    if (skipHighlights) {
-      const boostFactor = Math.max(0, Math.min(1, (sp - WHITE_OUT_THRESHOLD) / 0.20))
-      line.material.opacity = data.opacity + (0.45 - data.opacity) * boostFactor
+
+    if (isTransition) {
+      const boostFactor = Math.max(0, Math.min(1, (sp - WHITE_OUT_THRESHOLD) / 0.15))
+      line.material.opacity = data.opacity + (0.50 - data.opacity) * boostFactor
     }
+
     posAttr.needsUpdate = true
     colAttr.needsUpdate = true
   }
