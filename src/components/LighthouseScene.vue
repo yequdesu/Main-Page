@@ -571,22 +571,23 @@ act2.animate = (time, tSp, sp) => {
   }
   if (vertFactor < 1.0) verticalDone = false
 
-  // Dust — Brownian motion (identical pattern to Act1)
-  const tSec = time // time 已是秒（main loop 已做 *0.001）
-  for (const p of dustParticles2) {
-    const d = p.userData
-    p.position.set(
-      d.wx + Math.sin(tSec * 0.4 + d.ph) * 0.25,
-      d.wy + Math.sin(tSec * 0.3 + d.ph + 1) * 0.18,
-      d.wz + Math.sin(tSec * 0.25 + d.ph + 2) * 0.15
-    )
-    const cd = p.position.distanceTo(camera.position)
-    const ds = 22 / Math.max(5, cd)
-    const targetScale = d.scale * 0.4 * ds  // Act2 基准缩放 (bf=0)
-    // 从 Act1 捕获的视觉尺寸平滑过渡到 Act2 基准
-    const fadeIn = Math.max(0, Math.min(1, (sp - WHITE_OUT_THRESHOLD) / (GRID_START - WHITE_OUT_THRESHOLD)))
-    p.scale.setScalar(THREE.MathUtils.lerp(d.captureScale || targetScale, targetScale, fadeIn))
-    p.material.opacity = fadeIn * 0.14
+  // Dust — Brownian motion (hand off to Act3 at VERTICAL_START)
+  if (sp < VERTICAL_START) {
+    const tSec = time
+    for (const p of dustParticles2) {
+      const d = p.userData
+      p.position.set(
+        d.wx + Math.sin(tSec * 0.4 + d.ph) * 0.25,
+        d.wy + Math.sin(tSec * 0.3 + d.ph + 1) * 0.18,
+        d.wz + Math.sin(tSec * 0.25 + d.ph + 2) * 0.15
+      )
+      const cd = p.position.distanceTo(camera.position)
+      const ds = 22 / Math.max(5, cd)
+      const targetScale = d.scale * 0.4 * ds
+      const fadeIn = Math.max(0, Math.min(1, (sp - WHITE_OUT_THRESHOLD) / (GRID_START - WHITE_OUT_THRESHOLD)))
+      p.scale.setScalar(THREE.MathUtils.lerp(d.captureScale || targetScale, targetScale, fadeIn))
+      p.material.opacity = fadeIn * 0.35
+    }
   }
 }
 
@@ -599,49 +600,73 @@ act2.exit = () => {
 act2.dispose = () => {}
 
 // ============================================================
-//  ACT 3  CONTENT PHASE  (sp 0.86 → 1.00, stub)
+//  ACT 3  CONTENT PHASE  (sp 0.86 → 1.00)
+//   接手 Act2 的粒子 → 部分放大 → 倾斜星环轨道
 // ============================================================
 const act3 = { name: 'ContentPhase', start: VERTICAL_START, end: 1.00 }
 
-let dustParticles3 = []
+let act3Initialized = false
 
 act3.build = () => {
-  const dc = ctx.get('dustConfig') || { count:135, color:'#f0f8ff', baseOpacity:0.14, baseRadius:0.015 }
-  const geo = new THREE.SphereGeometry(dc.baseRadius, 10, 8)
-  for (let i = 0; i < dc.count; i++) {
-    const mat = new THREE.MeshBasicMaterial({ color:dc.color, transparent:true, opacity:0, depthWrite:false })
-    const p = new THREE.Mesh(geo, mat)
-    // distribute in a wider, flatter volume for Act 3
-    const t = Math.random()
-    const zDist = -30 + t * 55  // spread from -30 to 25 in z
-    const maxR = 12 + t * 8
-    const angle = Math.random() * Math.PI * 2
-    const r = Math.sqrt(Math.random()) * maxR
-    p.position.set(Math.cos(angle)*r, -3 + Math.random()*6, zDist)
-    p.userData = {
-      wx:p.position.x, wy:p.position.y, wz:p.position.z,
-      ph:Math.random()*Math.PI*2, scale:0.3+Math.random()*0.6,
-      orbitSpeed:0.1+Math.random()*0.3, orbitR:0.5+Math.random()*2.0
-    }
-    scene.add(p)
-    dustParticles3.push(p)
+  if (act3Initialized || dustParticles2.length === 0) return
+  // 为每颗粒子预设星环参数（在 Act2 粒子上扩展 userData）
+  for (const p of dustParticles2) {
+    const d = p.userData
+    d.orbitPhase = Math.random() * Math.PI * 2
+    d.orbitR     = 2.5 + Math.random() * 5.5           // 轨道半径
+    d.orbitSpeed = 0.4 + Math.random() * 0.5            // 轨道速度
+    d.orbitTilt  = Math.PI / 3 + (Math.random() - 0.5) * 0.4  // 倾斜角 ~60° ±12°
+    d.orbitAxis  = Math.random() * Math.PI * 2           // 环面方向
+    d.isEnlarged = Math.random() < 0.40                  // 40% 放大
+    d.enlargeAmt = 1.6 + Math.random() * 2.4             // 1.6x ~ 4.0x
+    d.flattenY   = 0.35 + Math.random() * 0.2            // 环扁平度
   }
+  act3Initialized = true
 }
 
 act3.animate = (time, tSp, sp) => {
-  const t = time * 0.001
-  for (const p of dustParticles3) {
+  const tSec = time
+  // blend: 0 → 1 as sp goes from VERTICAL_START to TEXT_START
+  const blend = Math.max(0, Math.min(1, (sp - VERTICAL_START) / (TEXT_START - VERTICAL_START)))
+
+  // 轨道中心 — 屏幕中央文字区域
+  const cx = 0, cy = -1.2, cz = -4
+
+  for (const p of dustParticles2) {
     const d = p.userData
-    // gentle orbital float + subtle vertical drift
-    p.position.x = d.wx + Math.cos(t*d.orbitSpeed+d.ph)*d.orbitR
-    p.position.y = d.wy + Math.sin(t*0.4+d.ph)*0.8
-    p.position.z = d.wz + Math.sin(t*0.3+d.ph)*0.5
+
+    // ── 布朗运动位置（延续 Act1/Act2） ──
+    const bx = d.wx + Math.sin(tSec * 0.4 + d.ph) * 0.25
+    const by = d.wy + Math.sin(tSec * 0.3 + d.ph + 1) * 0.18
+    const bz = d.wz + Math.sin(tSec * 0.25 + d.ph + 2) * 0.15
+
+    // ── 星环轨道 ──
+    const orbitAngle = d.orbitPhase + tSec * d.orbitSpeed
+    // 环平面坐标（绕 Y 轴的圆周 → 再绕 X 轴倾斜）
+    const ringX = Math.cos(orbitAngle) * d.orbitR
+    const ringY = Math.sin(orbitAngle) * d.orbitR * d.flattenY
+    // 绕 X 轴倾斜 ringTilt 弧度
+    const cosT = Math.cos(d.orbitTilt), sinT = Math.sin(d.orbitTilt)
+    const ox = cx + ringX
+    const oy = cy + (ringY * cosT)
+    const oz = cz + (ringY * sinT)
+
+    // ── 混合：布朗运动 → 星环 ──
+    p.position.set(
+      THREE.MathUtils.lerp(bx, ox, blend),
+      THREE.MathUtils.lerp(by, oy, blend),
+      THREE.MathUtils.lerp(bz, oz, blend)
+    )
+
+    // ── 缩放：放大粒子随 blend 逐渐膨胀 ──
     const cd = p.position.distanceTo(camera.position)
     const ds = 22 / Math.max(5, cd)
-    p.scale.setScalar(d.scale * ds)
-    // fade in as Act 3 becomes active
-    const vis = Math.max(0, Math.min(1, (sp - VERTICAL_START) / (TEXT_START - VERTICAL_START)))
-    p.material.opacity = Math.max(0, (0.0 + vis * 0.22) * Math.min(1, ds*0.5))
+    const baseScale = d.scale * 0.4 * ds
+    const targetScale = baseScale * (d.isEnlarged ? d.enlargeAmt : 1.0)
+    p.scale.setScalar(THREE.MathUtils.lerp(baseScale, targetScale, blend))
+
+    // ── 透明度 — 始终可见 ──
+    p.material.opacity = 0.35
   }
 }
 
