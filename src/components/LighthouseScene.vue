@@ -20,8 +20,8 @@ const WHITE_OUT_THRESHOLD = 0.40
 const WHITE_OUT_END      = 0.55 
 const GRID_START         = 0.45 
 const VERTICAL_START     = 0.58 
-const TEXT_START         = 0.70 // 网格在此处完全形成并保持静止
-const GRID_SHIFT_START   = 0.85 // Act 3 起点：网格开始下移，粒子开始聚合星环
+const TEXT_START         = 0.70 
+const GRID_SHIFT_START   = 0.85 
 const IDLE_RESET_DELAY   = 1.5
 
 // ============================================================
@@ -94,7 +94,7 @@ let _ptLightRef = null
 function sceneApplyWhiteOut(sp) {
   const wof = Math.max(0, Math.min(1, (sp - WHITE_OUT_THRESHOLD) / (WHITE_OUT_END - WHITE_OUT_THRESHOLD)))
   const baseBg = new THREE.Color('#050811')
-  const targetBg = new THREE.Color('#f1f5f9') // 浅灰白色背景
+  const targetBg = new THREE.Color('#f1f5f9') 
   scene.background = baseBg.clone().lerp(targetBg, wof)
   if (scene.fog) {
     scene.fog.color = scene.background
@@ -426,7 +426,6 @@ function animateDustAct1(time, sp) {
     const dustOut=1-Math.max(0,Math.min(1,(sp-WHITE_OUT_THRESHOLD)/(WHITE_OUT_END-WHITE_OUT_THRESHOLD)))
     p.material.opacity=Math.max(0,fo*dustOut)
   }
-  // 与 Act2 粒子同步位置/缩放（防止从 Act2 回滚时跳变）
   if (dustParticles2.length > 0) {
     for (let i = 0; i < Math.min(dustParticles1.length, dustParticles2.length); i++) {
       dustParticles1[i].position.copy(dustParticles2[i].position)
@@ -495,10 +494,9 @@ function buildDustAct2() {
         captureScale: s.scale.x,
         dx: s.userData.dx, dy: s.userData.dy, dz: s.userData.dz
       }
-      // 粒子体积放大 + 方差（偏大，为 Act3 星环做准备）
       p.userData.sizeBoost = Math.random() < 0.60
-        ? 1.5 + Math.random() * 2.5   // 60% 大粒子: 1.5x~4.0x
-        : 0.7 + Math.random() * 0.8   // 40% 小粒子: 0.7x~1.5x
+        ? 1.5 + Math.random() * 2.5   
+        : 0.7 + Math.random() * 0.8   
     } else {
       p.position.set((Math.random()-0.5)*28, -3+Math.random()*7, -3+Math.random()*7)
       p.userData = {
@@ -520,7 +518,6 @@ function buildVerticalGridLines() {
     const x=-28+(i/(totalLines-1))*56
     const pts=[new THREE.Vector3(x,baseY,zStart), new THREE.Vector3(x,baseY,zStart)]
     const g=new THREE.BufferGeometry().setFromPoints(pts)
-    // 距离渐变：近端深色 → 远端融合白色背景
     const nearColor = new THREE.Color('#0f172a')
     const farColor  = new THREE.Color('#e2e8f0')
     g.setAttribute('color', new THREE.BufferAttribute(new Float32Array([
@@ -587,7 +584,7 @@ act2.animate = (time, tSp, sp) => {
   }
   if (vertFactor < 1.0) verticalDone = false
 
-  // Dust — drift (Act 2 stable stage)
+  // Dust — drift
   {
     const tSec = time
     for (const p of dustParticles2) {
@@ -615,88 +612,120 @@ act2.dispose = () => {}
 
 // ============================================================
 //  ACT 3  DOUBLE RING & GRID DESCENT  (sp 0.85 → 1.00)
-//  网格平面下降，粒子分别聚合为倾斜内环与交互外星环
 // ============================================================
 const act3 = { name: 'ContentPhase', start: GRID_SHIFT_START, end: 1.00 }
 
 let act3Initialized = false
 let _act3GridBaseY = null
 let _mouseNDC = { x: 999, y: 999 }
-let _ringFreeze = 0          // 0=旋转, 1=冻结
+let _ringFreeze = 0          
 let _hoveredIdx = -1
 let _onMouseMove3 = null
+
+let _navigationOrbitLine = null  
+let _lastTimeSec = 0  // 物理增量积分时基
 
 act3.build = () => {
   if (act3Initialized || dustParticles2.length === 0) return
 
-  // 划分内外双星环：30%内圈，70%外圈
+  // 1. 分配粒子：精简外环，增加内环丰满度
+  // 仅分配 18 个点作为外主环节点，作为极简、松弛的主导航；其余全部作为内圈星环
+  const maxOuterCount = 18
+
   dustParticles2.forEach((p, idx) => {
     const d = p.userData
-    const isOuter = (idx % 10) < 7
+    const isOuter = idx < maxOuterCount
     d.isOuter = isOuter
 
+    // 为每个粒子初始化独立的积分角度（消除绝对时间依赖产生的剧烈旋转 Bug）
+    d.orbitAngle = Math.random() * Math.PI * 2
+
     if (isOuter) {
-      // 外圈 — 水平环绕，半径大，粒子大，逆时针缓慢旋转
-      d.orbitR     = 4.8 + Math.random() * 1.2
-      d.orbitSpeed = -(0.08 + Math.random() * 0.06)
-      d.orbitTilt  = 0                          // 水平（无倾斜）
-      d.scaleMult  = 3.2 + Math.random() * 1.5
-      d.flattenY   = 1.0                        // 正圆
-      d._baseSpeed = d.orbitSpeed               // 保存原始速度用于冻结恢复
+      // 导航外主环（平铺于 XZ 水平面，逆时针极慢速度）
+      d.orbitR     = 5.0
+      d.orbitSpeed = -0.06 // 速度放缓，更利于点击
+      d.orbitTilt  = 0
+      d.scaleMult  = 3.2 + Math.random() * 0.4 // 稍大一点更显质感
+      d.flattenY   = 1.0
+      d._baseSpeed = d.orbitSpeed
       p.name = `nav_node_${idx}`
       d.isNavigationElement = true
     } else {
-      // 内圈 — 倾斜 30°环绕，半径小，粒子小，顺时针
-      d.orbitR     = 2.0 + Math.random() * 0.6
-      d.orbitSpeed = 0.30 + Math.random() * 0.12
-      d.orbitTilt  = Math.PI / 6                 // 30°
-      d.scaleMult  = 0.6 + Math.random() * 0.4
-      d.flattenY   = 0.35
+      // 装饰内环（绕 X 轴倾斜 30°，密度高）
+      d.orbitR     = 2.2 + (Math.random() - 0.5) * 0.15
+      d.orbitSpeed = 0.25
+      d.orbitTilt  = Math.PI / 6 // 30°
+      d.scaleMult  = 0.45 + Math.random() * 0.25
+      d.flattenY   = 1.0
       d._baseSpeed = d.orbitSpeed
       d.isNavigationElement = false
     }
-    d.orbitPhase = Math.random() * Math.PI * 2
+    
+    // 基础初始相位分布
+    d.orbitPhase = (idx / dustParticles2.length) * Math.PI * 2
   })
 
-  // 鼠标交互监听
+  // 2. 建立水平 XZ 平面上的星环仪轨线
+  const circleGeo = new THREE.BufferGeometry()
+  const points = []
+  const segments = 128
+  for (let i = 0; i <= segments; i++) {
+    const theta = (i / segments) * Math.PI * 2
+    points.push(new THREE.Vector3(Math.cos(theta) * 5.0, 0, Math.sin(theta) * 5.0))
+  }
+  circleGeo.setFromPoints(points)
+  const circleMat = new THREE.LineBasicMaterial({
+    color: '#cbd5e1',
+    transparent: true,
+    opacity: 0,
+    depthWrite: false
+  })
+  _navigationOrbitLine = new THREE.Line(circleGeo, circleMat)
+  _navigationOrbitLine.position.set(0, -1.0, -8) 
+  scene.add(_navigationOrbitLine)
+
   _onMouseMove3 = (e) => {
     _mouseNDC.x = (e.clientX / window.innerWidth) * 2 - 1
     _mouseNDC.y = -(e.clientY / window.innerHeight) * 2 + 1
   }
   window.addEventListener('mousemove', _onMouseMove3)
 
+  // 初始化时间微分锚点
+  _lastTimeSec = 0
   act3Initialized = true
 }
 
 act3.animate = (time, tSp, sp) => {
   const tSec = time
-  // 过渡曲线
   const progress = Math.max(0, Math.min(1, (sp - GRID_SHIFT_START) / (1.0 - GRID_SHIFT_START)))
   const smoothProgress = progress * progress * (3 - 2 * progress)
+  const isFullyFormed = progress >= 0.95
 
-  // ── 1. 网格平面伴随滚动缓慢下降 ──
-  const shiftY = -10 * smoothProgress // 随进度下降10单位，使其沉到屏幕下边界之外
+  // 计算帧间时间微分（Delta Time）以用于增量物理旋转
+  if (_lastTimeSec === 0) _lastTimeSec = tSec
+  const dt = Math.min(0.1, tSec - _lastTimeSec) // 限制最大步长防止切屏跳跃
+  _lastTimeSec = tSec
+
+  // ── 1. 网格平面随着滑动缓慢下移 ──
+  const shiftY = -11 * smoothProgress 
 
   if (_act3GridBaseY === null) {
-    const oceanLines = ctx.get('oceanLines')
-    const gridVert = ctx.get('gridVerticalLines')
     _act3GridBaseY = { ocean: [], vertical: [] }
-    if (oceanLines) {
+    // 优化：直接读取 SFC 全局数组变量引用，保证首轮网格线下沉同步率
+    if (oceanLines && oceanLines.length > 0) {
       for (const line of oceanLines) {
         _act3GridBaseY.ocean.push(line.geometry.attributes.position.array.slice())
       }
     }
-    if (gridVert) {
-      for (const vd of gridVert) {
+    if (gridVerticalLines && gridVerticalLines.length > 0) {
+      for (const vd of gridVerticalLines) {
         _act3GridBaseY.vertical.push(vd.line.geometry.attributes.position.array.slice())
       }
     }
   }
 
   if (_act3GridBaseY) {
-    const oceanLines = ctx.get('oceanLines')
-    const gridVert = ctx.get('gridVerticalLines')
-    if (oceanLines) {
+    if (oceanLines && oceanLines.length > 0) {
       for (let i = 0; i < oceanLines.length; i++) {
         const arr = oceanLines[i].geometry.attributes.position.array
         const base = _act3GridBaseY.ocean[i]
@@ -707,61 +736,86 @@ act3.animate = (time, tSp, sp) => {
         oceanLines[i].geometry.attributes.position.needsUpdate = true
       }
     }
-    if (gridVert) {
-      for (let i = 0; i < gridVert.length; i++) {
-        const arr = gridVert[i].line.geometry.attributes.position.array
+    if (gridVerticalLines && gridVerticalLines.length > 0) {
+      for (let i = 0; i < gridVerticalLines.length; i++) {
+        const arr = gridVerticalLines[i].line.geometry.attributes.position.array
         const base = _act3GridBaseY.vertical[i]
         if (!base) continue
         arr[1] = base[1] + shiftY
         arr[4] = base[4] + shiftY
-        gridVert[i].line.geometry.attributes.position.needsUpdate = true
+        gridVerticalLines[i].line.geometry.attributes.position.needsUpdate = true
       }
     }
   }
 
-  // ── 2. 粒子分别聚合为倾斜内圈与交互外主环 ──
-  // 鼠标交互：检测外环粒子悬停
+  if (_navigationOrbitLine) {
+    _navigationOrbitLine.material.opacity = smoothProgress * 0.35
+  }
+
+  // ── 2. 双星环重组与鼠标阻尼检测 ──
   let bestDist = 1e9, bestIdx = -1
   const _scratch = new THREE.Vector3()
-  for (let i = 0; i < dustParticles2.length; i++) {
-    const p = dustParticles2[i]
-    const d = p.userData
-    if (!d.isOuter) continue
-    // 用上一帧位置估算屏幕投影（足够准确）
-    _scratch.copy(p.position).project(camera)
-    const dx = (_scratch.x - _mouseNDC.x) * (window.innerWidth / window.innerHeight)
-    const dy = _scratch.y - _mouseNDC.y
-    const dist = Math.hypot(dx, dy)
-    if (dist < bestDist) { bestDist = dist; bestIdx = i }
+
+  if (isFullyFormed) {
+    for (let i = 0; i < dustParticles2.length; i++) {
+      const p = dustParticles2[i]
+      const d = p.userData
+      if (!d.isOuter) continue
+      
+      _scratch.copy(p.position).project(camera)
+      const dx = (_scratch.x - _mouseNDC.x) * (window.innerWidth / window.innerHeight)
+      const dy = _scratch.y - _mouseNDC.y
+      const dist = Math.hypot(dx, dy)
+      if (dist < bestDist) {
+        bestDist = dist
+        bestIdx = i
+      }
+    }
+    
+    // 微调响应区域
+    const nearThreshold = 0.16
+    const targetFreeze = bestDist < nearThreshold ? 1.0 : 0
+    _ringFreeze += (targetFreeze - _ringFreeze) * 0.08 // 进一步放缓阻尼过度，使其更自然
+    _hoveredIdx = bestDist < 0.045 ? bestIdx : -1
+  } else {
+    _ringFreeze += (0 - _ringFreeze) * 0.15
+    _hoveredIdx = -1
   }
-  // 冻结环旋转：鼠标靠近外环 → 冻结；远离 → 恢复
-  const nearThreshold = 0.10  // NDC 空间阈值
-  const targetFreeze = bestDist < nearThreshold ? 1 : 0
-  _ringFreeze += (targetFreeze - _ringFreeze) * 0.12  // 平滑过渡
-  _hoveredIdx = bestDist < 0.03 ? bestIdx : -1        // 更小阈值确认悬停
 
   const cx = 0, cy = -1.0, cz = -8
+
   for (let idx = 0; idx < dustParticles2.length; idx++) {
     const p = dustParticles2[idx]
     const d = p.userData
 
-    // 原布朗漂移轨迹
+    // 布朗漂移轨迹
     const bx = d.wx + Math.sin(tSec * 0.4 + d.ph) * 0.25
     const by = d.wy + Math.sin(tSec * 0.3 + d.ph + 1) * 0.18
     const bz = d.wz + Math.sin(tSec * 0.25 + d.ph + 2) * 0.15
 
-    // 精准双轨道星环轨迹（外环受鼠标冻结影响）
+    // ── 物理增量微分积分计算（避免减速突变时的疯狂旋转 Bug） ──
     const effectiveSpeed = d.isOuter
       ? d._baseSpeed * (1 - _ringFreeze)
       : d._baseSpeed
-    const orbitAngle = d.orbitPhase + tSec * effectiveSpeed
-    const ringX = Math.cos(orbitAngle) * d.orbitR
-    const ringY = Math.sin(orbitAngle) * d.orbitR * d.flattenY
-    const cosT = Math.cos(d.orbitTilt), sinT = Math.sin(d.orbitTilt)
+    
+    // 累加计算当前帧增量弧度
+    d.orbitAngle += dt * effectiveSpeed
 
-    const ox = cx + ringX
-    const oy = cy + (ringY * cosT)
-    const oz = cz + (ringY * sinT)
+    let ox, oy, oz
+
+    if (d.isOuter) {
+      // 导航外主环：平铺于 XZ 轴，Y 高度静止
+      ox = cx + Math.cos(d.orbitAngle) * d.orbitR
+      oy = cy
+      oz = cz + Math.sin(d.orbitAngle) * d.orbitR
+    } else {
+      // 装饰内环：平铺 XZ 平面并绕 X 轴旋转 30° 切入
+      const flatX = Math.cos(d.orbitAngle) * d.orbitR
+      const flatZ = Math.sin(d.orbitAngle) * d.orbitR
+      ox = cx + flatX
+      oy = cy - flatZ * Math.sin(d.orbitTilt)
+      oz = cz + flatZ * Math.cos(d.orbitTilt)
+    }
 
     p.position.set(
       THREE.MathUtils.lerp(bx, ox, smoothProgress),
@@ -775,19 +829,26 @@ act3.animate = (time, tSp, sp) => {
     const targetScale = baseScale * d.scaleMult
 
     let finalScale = THREE.MathUtils.lerp(baseScale, targetScale, smoothProgress)
-    // 悬停放大：鼠标停留在外环粒子上时轻微放大
-    if (idx === _hoveredIdx && d.isOuter) {
-      finalScale *= 1.35  // +35% 确认反馈
+    
+    // 悬停仅保留简练的物理放大
+    if (idx === _hoveredIdx && d.isOuter && isFullyFormed) {
+      finalScale *= 1.35
     }
+
     p.scale.setScalar(finalScale)
     
-    // 主环强化颜色和亮度，凸显交互导航感
-    if (d.isOuter && smoothProgress > 0.5) {
-      p.material.color.set('#38bdf8') // 改为醒目的科技亮蓝，吸引点击
+    // 颜色配置
+    if (d.isOuter) {
+      const activeColor = new THREE.Color('#0284c7') // 深海蓝
+      const idleColor = new THREE.Color('#475569')   // 深石板灰
+      const isCurrentHovered = (idx === _hoveredIdx && isFullyFormed)
+      
+      p.material.color.copy(idleColor).lerp(activeColor, isCurrentHovered ? 1.0 : 0)
       p.material.opacity = THREE.MathUtils.lerp(0.40, 0.85, smoothProgress)
     } else {
-      p.material.color.set('#64748b') // 内环保持雅致的淡灰色
-      p.material.opacity = THREE.MathUtils.lerp(0.40, 0.45, smoothProgress)
+      // 强化内环的亮度和清晰度（采用深石板灰，透明度强化到 0.7），使其清晰可见
+      p.material.color.set('#475569') 
+      p.material.opacity = THREE.MathUtils.lerp(0.40, 0.70, smoothProgress)
     }
   }
 }
@@ -799,6 +860,11 @@ act3.dispose = () => {
   if (_onMouseMove3) {
     window.removeEventListener('mousemove', _onMouseMove3)
     _onMouseMove3 = null
+  }
+  if (_navigationOrbitLine) {
+    _navigationOrbitLine.geometry.dispose()
+    _navigationOrbitLine.material.dispose()
+    _navigationOrbitLine = null
   }
 }
 
