@@ -636,11 +636,197 @@ function animateDust(time, scrollProgress) {
 }
 
 // ═══════════════════════════════════════════
+//  ORBIT PHASE (星环轨道 + 地面平面下沉 + 导航星球)
+// ═══════════════════════════════════════════
+let orbitInitialized = false
+let orbitParticles = []
+let groundVerticalLines = []
+
+const RING_CENTER = new THREE.Vector3(0, 0, -3)
+const RING_TILT = Math.PI / 2.8
+const NAV_SITES = [
+  { label: 'FS', url: 'https://fs.yequdesu.top', color: '#5b8c5a' },
+  { label: 'Code', url: 'https://code.yequdesu.top', color: '#5a88b2' },
+  { label: 'GitHub', url: 'https://github.com/YeQuDesu', color: '#8b6b4d' }
+]
+
+function initOrbitPhase() {
+  if (orbitInitialized) return
+
+  const navIndices = [
+    Math.floor(Math.random() * dustParticles.length),
+    Math.floor(Math.random() * dustParticles.length),
+    Math.floor(Math.random() * dustParticles.length)
+  ]
+  // ensure unique
+  while (navIndices[1] === navIndices[0]) navIndices[1] = Math.floor(Math.random() * dustParticles.length)
+  while (navIndices[2] === navIndices[0] || navIndices[2] === navIndices[1]) navIndices[2] = Math.floor(Math.random() * dustParticles.length)
+
+  for (let i = 0; i < dustParticles.length; i++) {
+    const p = dustParticles[i]
+    const navIdx = navIndices.indexOf(i)
+    const isNav = navIdx >= 0
+
+    p.userData.orbitAngle = Math.random() * Math.PI * 2
+    p.userData.orbitRadius = isNav ? 3.5 + navIdx * 0.8 : 2.5 + Math.random() * 3.0
+    p.userData.orbitSpeed = isNav ? 0.15 + navIdx * 0.1 : 0.2 + Math.random() * 0.5
+    p.userData.orbitTiltY = 0.7 + Math.random() * 0.6
+    p.userData.orbitBaseScale = isNav ? 2.2 : 0.5 + Math.random() * 0.5
+    p.userData.orbitGray = isNav ? 0 : 0.2 + Math.random() * 0.45
+    p.userData.orbitIsNav = isNav
+    if (isNav) {
+      p.userData.orbitNavUrl = NAV_SITES[navIdx].url
+      p.userData.orbitNavColor = NAV_SITES[navIdx].color
+    }
+  }
+
+  // Create ground plane vertical perspective lines
+  const vpY = -1.5 // vanishing point Y
+  const fpY = -4.5 // floor plane bottom Y
+  const vCount = 16
+  const xSpan = 14
+  for (let i = 0; i < vCount; i++) {
+    const x = -xSpan / 2 + (i / (vCount - 1)) * xSpan
+    const pts = [
+      new THREE.Vector3(x * 0.2, vpY, 0),
+      new THREE.Vector3(x, fpY, 5)
+    ]
+    const geom = new THREE.BufferGeometry().setFromPoints(pts)
+    const mat = new THREE.LineBasicMaterial({
+      color: '#555555', transparent: true, opacity: 0, depthTest: false, depthWrite: false
+    })
+    const line = new THREE.Line(geom, mat)
+    scene.add(line)
+    groundVerticalLines.push({ line, x, fpY, vpY })
+  }
+
+  orbitInitialized = true
+}
+
+function animateOrbitPhase(time, orbitProgress) {
+  initOrbitPhase()
+
+  // ── Ground plane: flatten ocean lines + slide down ──
+  const flatFactor = Math.min(1, orbitProgress * 3) // flatten quickly (first 33%)
+  const slideDown = orbitProgress * 7
+
+  for (let i = 0; i < oceanLines.length; i++) {
+    const line = oceanLines[i]
+    const data = waveData[i]
+    const posAttr = line.geometry.attributes.position
+    const colArr = line.geometry.attributes.color.array
+    const posArr = posAttr.array
+
+    const frac = i / Math.max(1, oceanLines.length - 1)
+    const flatY = -2.5 + frac * 3.0 - slideDown
+
+    for (let j = 0; j <= data.segmentCount; j++) {
+      const idx = j * 3
+      const t = time * data.speed + data.phase
+      const waveY = data.baseY +
+        Math.sin(posArr[idx] * data.frequency + t) * data.amplitude +
+        Math.sin(posArr[idx] * data.frequency * 1.8 + t * 1.2) * data.amplitude * 0.4
+
+      posArr[idx + 1] = waveY + (flatY - waveY) * flatFactor
+    }
+    posAttr.needsUpdate = true
+
+    line.material.opacity = 0.45 + (0.25 - 0.45) * flatFactor
+  }
+
+  // Ground vertical lines: slide down
+  for (const vLine of groundVerticalLines) {
+    const shift = slideDown * 1.2
+    const posArr = vLine.line.geometry.attributes.position.array
+    posArr[1] -= shift * 0.05 // vanish point shifts slightly
+    posArr[4] = vLine.fpY - shift
+    vLine.line.geometry.attributes.position.needsUpdate = true
+    vLine.line.material.opacity = 0.35 * (1 - Math.min(1, orbitProgress * 2))
+  }
+
+  // ── Dust → orbiting ring ──
+  const cosT = Math.cos(RING_TILT), sinT = Math.sin(RING_TILT)
+  const gatherPhase = Math.min(1, orbitProgress * 2.5)
+
+  for (const p of dustParticles) {
+    const d = p.userData
+    const angle = d.orbitAngle + time * d.orbitSpeed
+
+    // Ring position (3D tilted circle)
+    const lx = Math.cos(angle) * d.orbitRadius
+    const ly = Math.sin(angle) * d.orbitRadius * d.orbitTiltY
+    const wx = lx
+    const wy = ly * cosT
+    const wz = ly * sinT
+
+    // Gather from current dust position to ring target
+    const targetX = RING_CENTER.x + wx
+    const targetY = RING_CENTER.y + wy
+    const targetZ = RING_CENTER.z + wz
+
+    p.position.x += (targetX - p.position.x) * 0.08
+    p.position.y += (targetY - p.position.y) * 0.08
+    p.position.z += (targetZ - p.position.z) * 0.08
+
+    // Scale transition
+    const s = d.orbitBaseScale * gatherPhase
+    p.scale.setScalar(s)
+
+    // Color: varied grays
+    if (d.orbitIsNav) {
+      p.material.color.set(d.orbitNavColor)
+      p.material.opacity = gatherPhase * 0.9
+    } else {
+      const g = d.orbitGray
+      p.material.color.setRGB(g * 1.1, g, g * 0.85)
+      p.material.opacity = gatherPhase * 0.65 * (wz > 0 ? 0.35 : 1.0)
+    }
+  }
+
+  // Fade out beam and lighthouse during orbit
+  if (orbitProgress > 0.3) {
+    const fadeOut = (orbitProgress - 0.3) / 0.3
+    if (beamPivot) beamPivot.children.forEach(c => {
+      if (c.material && c.material.opacity !== undefined) c.material.opacity *= (1 - fadeOut * 0.1)
+    })
+    if (lighthouseGroup) {
+      lighthouseGroup.children.forEach(c => {
+        if (c.material && c.material.opacity !== undefined) c.material.opacity = Math.max(0, (c.material.opacity || 1) - fadeOut * 0.08)
+      })
+    }
+  }
+}
+
+function handleCanvasClick(event) {
+  if (!orbitInitialized || !camera || !renderer) return
+
+  const rect = renderer.domElement.getBoundingClientRect()
+  const mouse = new THREE.Vector2(
+    ((event.clientX - rect.left) / rect.width) * 2 - 1,
+    -((event.clientY - rect.top) / rect.height) * 2 + 1
+  )
+
+  const raycaster = new THREE.Raycaster()
+  raycaster.setFromCamera(mouse, camera)
+  raycaster.params.Points.threshold = 0.3
+  raycaster.params.Mesh.threshold = 0.3
+
+  const navParticles = dustParticles.filter(p => p.userData.orbitIsNav)
+  const intersects = raycaster.intersectObjects(navParticles)
+
+  if (intersects.length > 0) {
+    const url = intersects[0].object.userData.orbitNavUrl
+    if (url) window.open(url, '_blank')
+  }
+}
+
+// ═══════════════════════════════════════════
 //  CONTROL & TRANSITION (白场过载与探照轨迹)
 // ═══════════════════════════════════════════
-const WHITE_OUT_THRESHOLD = 0.65
-const WHITE_OUT_END = 0.78
-const TEXT_START = 0.94
+const PHASE1_END = 4 / 6
+const WHITE_OUT_THRESHOLD = 0.65 * PHASE1_END
+const WHITE_OUT_END = 0.78 * PHASE1_END
+const TEXT_START = 0.94 * PHASE1_END
 const IDLE_RESET_DELAY = 1.5
 
 function shortestDelta(from, to) {
@@ -757,10 +943,17 @@ function animateBeam(time, scrollProgress) {
 function animate(time) {
   animationId = requestAnimationFrame(animate)
   const t = time * 0.001
-  animateBeam(t, props.scrollProgress)
-  animateWavesAndLighting(t)
-  animateDust(time, props.scrollProgress)
-  updateWhiteOut(props.scrollProgress) 
+
+  if (props.scrollProgress >= PHASE1_END) {
+    const orbitProgress = (props.scrollProgress - PHASE1_END) / (1 - PHASE1_END)
+    animateOrbitPhase(t, orbitProgress)
+  } else {
+    animateBeam(t, props.scrollProgress)
+    animateWavesAndLighting(t)
+    animateDust(time, props.scrollProgress)
+    updateWhiteOut(props.scrollProgress)
+  }
+
   renderer.render(scene, camera)
 }
 
@@ -792,6 +985,7 @@ onMounted(() => {
   
   animationId = requestAnimationFrame(animate)
   window.addEventListener('resize', onResize)
+  canvasRef.value.addEventListener('click', handleCanvasClick)
 })
 
 onUnmounted(() => {

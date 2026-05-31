@@ -5,7 +5,7 @@ import { ScrollTrigger } from 'gsap/ScrollTrigger'
 import LighthouseScene from './components/LighthouseScene.vue'
 import AppFooter from './components/AppFooter.vue'
 
-const SCROLL_VH = 4
+const SCROLL_VH = 6
 const scrollProgress = ref(0)
 const hintVisible = ref(true)
 const brandTextVisible = computed(() => scrollProgress.value >= 0.94)
