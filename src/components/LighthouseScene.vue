@@ -462,21 +462,28 @@ function buildDustAct2() {
   const dc = ctx.get('dustConfig') || { count: 135, color: '#f0f8ff', baseOpacity: 0.14, baseRadius: 0.015 }
   const geo = new THREE.SphereGeometry(dc.baseRadius, 10, 8)
   for (let i = 0; i < dc.count; i++) {
-    const mat = new THREE.MeshBasicMaterial({ color: dc.color, transparent: true, opacity: 0, depthWrite: false })
+    // per-particle grayscale variation: darker than Act1, each unique
+    const gray = Math.floor(60 + Math.random() * 80) // 60–140 range
+    const hex = `#${gray.toString(16).padStart(2,'0')}${gray.toString(16).padStart(2,'0')}${gray.toString(16).padStart(2,'0')}`
+    const mat = new THREE.MeshBasicMaterial({
+      color: hex, transparent: true, opacity: 0,
+      depthTest: false, depthWrite: false  // always visible, no occlusion
+    })
     const p = new THREE.Mesh(geo, mat)
-    // spread around text area — z ~ -10 to 0, x ~ -12 to 12, y ~ -2 to 3
-    const t = Math.random()
+    // spread across screen: camera at (0,0.25,8), spread z ~ -3 to 4 (in front of grid)
     p.position.set(
-      (Math.random() - 0.5) * 24,
-      -2 + Math.random() * 5,
-      -10 + t * 10
+      (Math.random() - 0.5) * 28,       // x: -14 ~ 14
+      -3 + Math.random() * 7,            // y: -3 ~ 4
+      -3 + Math.random() * 7             // z: -3 ~ 4 (near camera)
     )
     p.userData = {
       wx: p.position.x, wy: p.position.y, wz: p.position.z,
       ph: Math.random() * Math.PI * 2,
-      scale: 0.3 + Math.random() * 0.6,
-      floatAmp: 0.3 + Math.random() * 0.7,
-      floatFreq: 0.3 + Math.random() * 0.5
+      scale: 0.25 + Math.random() * 0.55,
+      // Brownian motion phase offsets (compound sine pattern like Act1)
+      dx: (Math.random() - 0.5) * 0.12,
+      dy: (Math.random() - 0.5) * 0.08 + 0.04,
+      dz: (Math.random() - 0.5) * 0.06
     }
     scene.add(p)
     dustParticles2.push(p)
@@ -546,19 +553,21 @@ act2.animate = (time, tSp, sp) => {
   }
   if (vertFactor < 1.0) verticalDone = false
 
-  // Dust as text decorations — gentle floating
+  // Dust — Brownian motion (compound sine, same pattern as Act1)
   const tSec = time * 0.001
   for (const p of dustParticles2) {
     const d = p.userData
-    p.position.x = d.wx + Math.sin(tSec * d.floatFreq + d.ph) * d.floatAmp
-    p.position.y = d.wy + Math.cos(tSec * d.floatFreq * 0.7 + d.ph) * d.floatAmp * 0.6
-    p.position.z = d.wz + Math.sin(tSec * 0.2 + d.ph) * 0.5
+    p.position.set(
+      d.wx + Math.sin(tSec * 0.4 + d.ph) * 0.20,
+      d.wy + Math.sin(tSec * 0.3 + d.ph + 1) * 0.14,
+      d.wz + Math.sin(tSec * 0.25 + d.ph + 2) * 0.12
+    )
     const cd = p.position.distanceTo(camera.position)
-    const ds = 20 / Math.max(5, cd)
+    const ds = 18 / Math.max(4, cd)
     p.scale.setScalar(d.scale * ds)
     // fade in as Act 2 progresses
     const vis = Math.max(0, Math.min(1, (sp - WHITE_OUT_THRESHOLD) / (GRID_START - WHITE_OUT_THRESHOLD)))
-    p.material.opacity = Math.max(0, vis * 0.22 * ds * 0.6)
+    p.material.opacity = Math.max(0, vis * 0.35 * Math.min(1, ds * 0.5))
   }
 }
 
