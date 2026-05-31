@@ -616,67 +616,64 @@ let _ringFreeze = 0
 let _hoveredIdx = -1
 let _onMouseMove3 = null
 
-let _navigationOrbitLine = null  
-let _lastTimeSec = 0  // 物理增量积分时基
+let _orbitLines = []
+let _lastTimeSec = 0
 
 act3.build = () => {
   if (act3Initialized || dustParticles2.length === 0) return
 
-  // 1. 分配粒子：精简外环，增加内环丰满度
-  // 仅分配 18 个点作为外主环节点，作为极简、松弛的主导航；其余全部作为内圈星环
-  const maxOuterCount = 18
+  // 选出最大的 3 颗作为主行星
+  const sorted = dustParticles2.map((p, i) => ({
+    idx: i,
+    size: p.userData.scale * (p.userData.sizeBoost || 1.0)
+  }))
+  sorted.sort((a, b) => b.size - a.size)
+  _mainPlanetIndices = sorted.slice(0, ORBIT_COUNT).map(s => s.idx)
 
   dustParticles2.forEach((p, idx) => {
     const d = p.userData
-    const isOuter = idx < maxOuterCount
-    d.isOuter = isOuter
-
-    // 为每个粒子初始化独立的积分角度（消除绝对时间依赖产生的剧烈旋转 Bug）
     d.orbitAngle = Math.random() * Math.PI * 2
+    const isMain = _mainPlanetIndices.includes(idx)
+    d.isMainPlanet = isMain
+    d.isOuter = true
 
-    if (isOuter) {
-      // 导航外主环（平铺于 XZ 水平面，逆时针极慢速度）
-      d.orbitR     = 5.0
-      d.orbitSpeed = -0.06 // 速度放缓，更利于点击
-      d.orbitTilt  = 0
-      d.scaleMult  = 3.2 + Math.random() * 0.4 // 稍大一点更显质感
-      d.flattenY   = 1.0
+    if (isMain) {
+      const trackIdx = _mainPlanetIndices.indexOf(idx)
+      d.orbitR     = ORBIT_RADII[trackIdx]
+      d.orbitSpeed = -0.04 - trackIdx * 0.015
       d._baseSpeed = d.orbitSpeed
-      p.name = `nav_node_${idx}`
+      d.scaleMult  = 3.5 + trackIdx * 0.3
       d.isNavigationElement = true
+      p.name = `planet_${trackIdx}`
     } else {
-      // 装饰内环（绕 X 轴倾斜 30°，密度高）
-      d.orbitR     = 2.2 + (Math.random() - 0.5) * 0.15
-      d.orbitSpeed = 0.25
-      d.orbitTilt  = Math.PI / 6 // 30°
-      d.scaleMult  = 0.45 + Math.random() * 0.25
-      d.flattenY   = 1.0
+      d.orbitR     = 2.5 + Math.random() * 4.5
+      d.orbitSpeed = -(0.03 + Math.random() * 0.08)
       d._baseSpeed = d.orbitSpeed
+      d.scaleMult  = 0.8 + Math.random() * 1.5
+      d.wobbleAmp  = 0.5 + Math.random() * 1.2
+      d.wobbleFreq = 0.3 + Math.random() * 0.4
       d.isNavigationElement = false
     }
-    
-    // 基础初始相位分布
+    d.orbitTilt  = 0
+    d.flattenY   = 1.0
     d.orbitPhase = (idx / dustParticles2.length) * Math.PI * 2
   })
 
-  // 2. 建立水平 XZ 平面上的星环仪轨线
-  const circleGeo = new THREE.BufferGeometry()
-  const points = []
-  const segments = 128
-  for (let i = 0; i <= segments; i++) {
-    const theta = (i / segments) * Math.PI * 2
-    points.push(new THREE.Vector3(Math.cos(theta) * 5.0, 0, Math.sin(theta) * 5.0))
+  // 三条轨道线
+  for (let t = 0; t < ORBIT_COUNT; t++) {
+    const r = ORBIT_RADII[t]
+    const pts = []
+    for (let i = 0; i <= 128; i++) {
+      const theta = (i / 128) * Math.PI * 2
+      pts.push(new THREE.Vector3(Math.cos(theta) * r, 0, Math.sin(theta) * r))
+    }
+    const geo = new THREE.BufferGeometry().setFromPoints(pts)
+    const mat = new THREE.LineBasicMaterial({ color: '#94a3b8', transparent: true, opacity: 0, depthWrite: false })
+    const line = new THREE.Line(geo, mat)
+    line.position.set(0, -1.0, -8)
+    scene.add(line)
+    _orbitLines.push(line)
   }
-  circleGeo.setFromPoints(points)
-  const circleMat = new THREE.LineBasicMaterial({
-    color: '#cbd5e1',
-    transparent: true,
-    opacity: 0,
-    depthWrite: false
-  })
-  _navigationOrbitLine = new THREE.Line(circleGeo, circleMat)
-  _navigationOrbitLine.position.set(0, -1.0, -8) 
-  scene.add(_navigationOrbitLine)
 
   _onMouseMove3 = (e) => {
     _mouseNDC.x = (e.clientX / window.innerWidth) * 2 - 1
@@ -684,7 +681,6 @@ act3.build = () => {
   }
   window.addEventListener('mousemove', _onMouseMove3)
 
-  // 初始化时间微分锚点
   _lastTimeSec = 0
   act3Initialized = true
 }
@@ -742,8 +738,8 @@ act3.animate = (time, tSp, sp) => {
     }
   }
 
-  if (_navigationOrbitLine) {
-    _navigationOrbitLine.material.opacity = smoothProgress * 0.35
+  for (const line of _orbitLines) {
+    line.material.opacity = smoothProgress * 0.35
   }
 
   // ── 2. 双星环重组与鼠标阻尼检测 ──
@@ -754,7 +750,7 @@ act3.animate = (time, tSp, sp) => {
     for (let i = 0; i < dustParticles2.length; i++) {
       const p = dustParticles2[i]
       const d = p.userData
-      if (!d.isOuter) continue
+      if (!d.isMainPlanet) continue  // 仅主行星可悬停
       
       _scratch.copy(p.position).project(camera)
       const dx = (_scratch.x - _mouseNDC.x) * (window.innerWidth / window.innerHeight)
@@ -787,29 +783,20 @@ act3.animate = (time, tSp, sp) => {
     const by = d.wy + Math.sin(tSec * 0.3 + d.ph + 1) * 0.18
     const bz = d.wz + Math.sin(tSec * 0.25 + d.ph + 2) * 0.15
 
-    // ── 物理增量微分积分计算（避免减速突变时的疯狂旋转 Bug） ──
-    const effectiveSpeed = d.isOuter
+    // ── 物理增量积分 ──
+    const effectiveSpeed = d.isMainPlanet
       ? d._baseSpeed * (1 - _ringFreeze)
       : d._baseSpeed
-    
-    // 累加计算当前帧增量弧度
     d.orbitAngle += dt * effectiveSpeed
 
-    let ox, oy, oz
+    // 小行星：径向漂移（无固定轨道）
+    const wobbleR = d.isMainPlanet
+      ? d.orbitR
+      : d.orbitR + Math.sin(tSec * d.wobbleFreq + d.ph) * d.wobbleAmp
 
-    if (d.isOuter) {
-      // 导航外主环：平铺于 XZ 轴，Y 高度静止
-      ox = cx + Math.cos(d.orbitAngle) * d.orbitR
-      oy = cy
-      oz = cz + Math.sin(d.orbitAngle) * d.orbitR
-    } else {
-      // 装饰内环：平铺 XZ 平面并绕 X 轴旋转 30° 切入
-      const flatX = Math.cos(d.orbitAngle) * d.orbitR
-      const flatZ = Math.sin(d.orbitAngle) * d.orbitR
-      ox = cx + flatX
-      oy = cy - flatZ * Math.sin(d.orbitTilt)
-      oz = cz + flatZ * Math.cos(d.orbitTilt)
-    }
+    const ox = cx + Math.cos(d.orbitAngle) * wobbleR
+    const oy = cy
+    const oz = cz + Math.sin(d.orbitAngle) * wobbleR
 
     p.position.set(
       THREE.MathUtils.lerp(bx, ox, smoothProgress),
@@ -825,24 +812,23 @@ act3.animate = (time, tSp, sp) => {
     let finalScale = THREE.MathUtils.lerp(baseScale, targetScale, smoothProgress)
     
     // 悬停仅保留简练的物理放大
-    if (idx === _hoveredIdx && d.isOuter && isFullyFormed) {
+    if (idx === _hoveredIdx && d.isMainPlanet && isFullyFormed) {
       finalScale *= 1.35
     }
 
     p.scale.setScalar(finalScale)
     
     // 颜色配置
-    if (d.isOuter) {
-      const activeColor = new THREE.Color('#0284c7') // 深海蓝
-      const idleColor = new THREE.Color('#475569')   // 深石板灰
-      const isCurrentHovered = (idx === _hoveredIdx && isFullyFormed)
-      
-      p.material.color.copy(idleColor).lerp(activeColor, isCurrentHovered ? 1.0 : 0)
-      p.material.opacity = THREE.MathUtils.lerp(0.40, 0.85, smoothProgress)
+    if (d.isMainPlanet) {
+      // 主行星：深色，悬停时变亮
+      const base = new THREE.Color('#1e3a5f')  // 深海暗蓝
+      const hover = new THREE.Color('#0ea5e9') // 悬停亮蓝
+      p.material.color.copy(base).lerp(hover, (idx === _hoveredIdx && isFullyFormed) ? 1 : 0)
+      p.material.opacity = THREE.MathUtils.lerp(0.40, 0.90, smoothProgress)
     } else {
-      // 强化内环的亮度和清晰度（采用深石板灰，透明度强化到 0.7），使其清晰可见
-      p.material.color.set('#475569') 
-      p.material.opacity = THREE.MathUtils.lerp(0.40, 0.70, smoothProgress)
+      // 小行星：淡灰环带
+      p.material.color.set('#64748b')
+      p.material.opacity = THREE.MathUtils.lerp(0.40, 0.55, smoothProgress)
     }
   }
 }
@@ -855,11 +841,11 @@ act3.dispose = () => {
     window.removeEventListener('mousemove', _onMouseMove3)
     _onMouseMove3 = null
   }
-  if (_navigationOrbitLine) {
-    _navigationOrbitLine.geometry.dispose()
-    _navigationOrbitLine.material.dispose()
-    _navigationOrbitLine = null
+  for (const line of _orbitLines) {
+    line.geometry.dispose()
+    line.material.dispose()
   }
+  _orbitLines = []
 }
 
 // ============================================================
