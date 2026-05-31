@@ -620,39 +620,50 @@ act2.dispose = () => {}
 const act3 = { name: 'ContentPhase', start: GRID_SHIFT_START, end: 1.00 }
 
 let act3Initialized = false
-let _act3GridBaseY = null // 缓动平面网格Y轴基准
+let _act3GridBaseY = null
+let _mouseNDC = { x: 999, y: 999 }
+let _ringFreeze = 0          // 0=旋转, 1=冻结
+let _hoveredIdx = -1
+let _onMouseMove3 = null
 
 act3.build = () => {
   if (act3Initialized || dustParticles2.length === 0) return
 
-  // 划分内外双星环：30%内圈顺时针，70%外圈逆时针
+  // 划分内外双星环：30%内圈，70%外圈
   dustParticles2.forEach((p, idx) => {
     const d = p.userData
-    const isOuter = (idx % 10) < 7 // 70% 概率分配至外圈
+    const isOuter = (idx % 10) < 7
     d.isOuter = isOuter
 
     if (isOuter) {
-      // 1. 外圈主环 (用于承载网页导航交互点击，粒子尺寸大，逆时针)
-      d.orbitR     = 4.2 + Math.random() * 0.8 // 聚拢度高，主航道结构明确
-      d.orbitSpeed = -(0.10 + Math.random() * 0.08) // 逆时针，转速偏缓便于点击
-      d.orbitTilt  = 0.05 + (Math.random() - 0.5) * 0.04 // 接近平面的微倾角，保障交互视觉对齐
-      d.scaleMult  = 3.2 + Math.random() * 1.5 // 粒子明显放大，方便触控及光标射线检测
-      d.flattenY   = 0.25 // 压扁系数
-      
-      // 为后期交互（导航、点击）附带可标识属性
+      // 外圈 — 水平环绕，半径大，粒子大，逆时针缓慢旋转
+      d.orbitR     = 4.8 + Math.random() * 1.2
+      d.orbitSpeed = -(0.08 + Math.random() * 0.06)
+      d.orbitTilt  = 0                          // 水平（无倾斜）
+      d.scaleMult  = 3.2 + Math.random() * 1.5
+      d.flattenY   = 1.0                        // 正圆
+      d._baseSpeed = d.orbitSpeed               // 保存原始速度用于冻结恢复
       p.name = `nav_node_${idx}`
       d.isNavigationElement = true
     } else {
-      // 2. 内圈斜星环 (精细装饰性质，顺时针，大倾角)
-      d.orbitR     = 1.8 + Math.random() * 0.5
-      d.orbitSpeed = 0.35 + Math.random() * 0.15 // 顺时针，转速快一些
-      d.orbitTilt  = Math.PI / 4 // 明显的45度倾角，创造立体穿插效果
-      d.scaleMult  = 0.6 + Math.random() * 0.4 // 粒子精巧细密
+      // 内圈 — 倾斜 30°环绕，半径小，粒子小，顺时针
+      d.orbitR     = 2.0 + Math.random() * 0.6
+      d.orbitSpeed = 0.30 + Math.random() * 0.12
+      d.orbitTilt  = Math.PI / 6                 // 30°
+      d.scaleMult  = 0.6 + Math.random() * 0.4
       d.flattenY   = 0.35
+      d._baseSpeed = d.orbitSpeed
       d.isNavigationElement = false
     }
     d.orbitPhase = Math.random() * Math.PI * 2
   })
+
+  // 鼠标交互监听
+  _onMouseMove3 = (e) => {
+    _mouseNDC.x = (e.clientX / window.innerWidth) * 2 - 1
+    _mouseNDC.y = -(e.clientY / window.innerHeight) * 2 + 1
+  }
+  window.addEventListener('mousemove', _onMouseMove3)
 
   act3Initialized = true
 }
@@ -709,8 +720,29 @@ act3.animate = (time, tSp, sp) => {
   }
 
   // ── 2. 粒子分别聚合为倾斜内圈与交互外主环 ──
-  const cx = 0, cy = -1.0, cz = -8 // 双星环聚拢的空间中心
-  for (const p of dustParticles2) {
+  // 鼠标交互：检测外环粒子悬停
+  let bestDist = 1e9, bestIdx = -1
+  const _scratch = new THREE.Vector3()
+  for (let i = 0; i < dustParticles2.length; i++) {
+    const p = dustParticles2[i]
+    const d = p.userData
+    if (!d.isOuter) continue
+    // 用上一帧位置估算屏幕投影（足够准确）
+    _scratch.copy(p.position).project(camera)
+    const dx = (_scratch.x - _mouseNDC.x) * (window.innerWidth / window.innerHeight)
+    const dy = _scratch.y - _mouseNDC.y
+    const dist = Math.hypot(dx, dy)
+    if (dist < bestDist) { bestDist = dist; bestIdx = i }
+  }
+  // 冻结环旋转：鼠标靠近外环 → 冻结；远离 → 恢复
+  const nearThreshold = 0.10  // NDC 空间阈值
+  const targetFreeze = bestDist < nearThreshold ? 1 : 0
+  _ringFreeze += (targetFreeze - _ringFreeze) * 0.12  // 平滑过渡
+  _hoveredIdx = bestDist < 0.03 ? bestIdx : -1        // 更小阈值确认悬停
+
+  const cx = 0, cy = -1.0, cz = -8
+  for (let idx = 0; idx < dustParticles2.length; idx++) {
+    const p = dustParticles2[idx]
     const d = p.userData
 
     // 原布朗漂移轨迹
@@ -718,8 +750,11 @@ act3.animate = (time, tSp, sp) => {
     const by = d.wy + Math.sin(tSec * 0.3 + d.ph + 1) * 0.18
     const bz = d.wz + Math.sin(tSec * 0.25 + d.ph + 2) * 0.15
 
-    // 精准双轨道星环轨迹
-    const orbitAngle = d.orbitPhase + tSec * d.orbitSpeed
+    // 精准双轨道星环轨迹（外环受鼠标冻结影响）
+    const effectiveSpeed = d.isOuter
+      ? d._baseSpeed * (1 - _ringFreeze)
+      : d._baseSpeed
+    const orbitAngle = d.orbitPhase + tSec * effectiveSpeed
     const ringX = Math.cos(orbitAngle) * d.orbitR
     const ringY = Math.sin(orbitAngle) * d.orbitR * d.flattenY
     const cosT = Math.cos(d.orbitTilt), sinT = Math.sin(d.orbitTilt)
@@ -739,7 +774,12 @@ act3.animate = (time, tSp, sp) => {
     const baseScale = d.scale * 0.7 * (d.sizeBoost || 1.0) * ds
     const targetScale = baseScale * d.scaleMult
 
-    p.scale.setScalar(THREE.MathUtils.lerp(baseScale, targetScale, smoothProgress))
+    let finalScale = THREE.MathUtils.lerp(baseScale, targetScale, smoothProgress)
+    // 悬停放大：鼠标停留在外环粒子上时轻微放大
+    if (idx === _hoveredIdx && d.isOuter) {
+      finalScale *= 1.35  // +35% 确认反馈
+    }
+    p.scale.setScalar(finalScale)
     
     // 主环强化颜色和亮度，凸显交互导航感
     if (d.isOuter && smoothProgress > 0.5) {
@@ -755,7 +795,12 @@ act3.animate = (time, tSp, sp) => {
 act3.exit = () => {
   _act3GridBaseY = null
 }
-act3.dispose = () => {}
+act3.dispose = () => {
+  if (_onMouseMove3) {
+    window.removeEventListener('mousemove', _onMouseMove3)
+    _onMouseMove3 = null
+  }
+}
 
 // ============================================================
 //  ACT MANAGER
