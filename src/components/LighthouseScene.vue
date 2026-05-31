@@ -483,13 +483,16 @@ function buildDustAct2() {
     const p = new THREE.Mesh(geo, mat)
 
     if (source[i]) {
-      // 克隆 Act1 粒子的瞬时位置、userData 全程状态
+      // 克隆 Act1 粒子的瞬时位置、userData、视觉尺寸
       const s = source[i]
       p.position.copy(s.position)
+      p.scale.copy(s.scale)  // 继承当前渲染尺寸（含 bf、ds 影响）
       p.userData = {
         wx: s.userData.wx, wy: s.userData.wy, wz: s.userData.wz,
         ph: s.userData.ph,
         scale: s.userData.scale,
+        visualScale: s.scale.x,  // 捕获瞬间视觉大小，用于过渡
+        captureScale: s.scale.x,  // 过渡起点
         dx: s.userData.dx, dy: s.userData.dy, dz: s.userData.dz
       }
     } else {
@@ -579,9 +582,10 @@ act2.animate = (time, tSp, sp) => {
     )
     const cd = p.position.distanceTo(camera.position)
     const ds = 22 / Math.max(5, cd)
-    p.scale.setScalar(d.scale * 0.4 * ds)  // 匹配 Act1 无光束时的缩放 (bf=0)
-    // smooth fade-in, crossfading with Act1's dustOut
+    const targetScale = d.scale * 0.4 * ds  // Act2 基准缩放 (bf=0)
+    // 从 Act1 捕获的视觉尺寸平滑过渡到 Act2 基准
     const fadeIn = Math.max(0, Math.min(1, (sp - WHITE_OUT_THRESHOLD) / (GRID_START - WHITE_OUT_THRESHOLD)))
+    p.scale.setScalar(THREE.MathUtils.lerp(d.captureScale || targetScale, targetScale, fadeIn))
     p.material.opacity = fadeIn * 0.14
   }
 }
