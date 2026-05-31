@@ -16,12 +16,12 @@ let renderer, scene, camera, animationId
 // ============================================================
 //  SHARED CONSTANTS — act boundary thresholds
 // ============================================================
-const WHITE_OUT_THRESHOLD = 0.65
-const WHITE_OUT_END      = 0.78
-const GRID_START         = 0.72
-const VERTICAL_START     = 0.86
-const TEXT_START         = 0.94
-const GRID_SHIFT_END     = 0.995
+const WHITE_OUT_THRESHOLD = 0.40 
+const WHITE_OUT_END      = 0.55 
+const GRID_START         = 0.45 
+const VERTICAL_START     = 0.58 
+const TEXT_START         = 0.70 // 网格在此处完全形成并保持静止
+const GRID_SHIFT_START   = 0.85 // Act 3 起点：网格开始下移，粒子开始聚合星环
 const IDLE_RESET_DELAY   = 1.5
 
 // ============================================================
@@ -86,7 +86,7 @@ const VolumetricBeamShader = {
 }
 
 // ============================================================
-//  SCENE MANAGER — white-out transition (cross-act global)
+//  SCENE MANAGER — white-out transition
 // ============================================================
 let _ambientLightRef = null
 let _ptLightRef = null
@@ -94,21 +94,20 @@ let _ptLightRef = null
 function sceneApplyWhiteOut(sp) {
   const wof = Math.max(0, Math.min(1, (sp - WHITE_OUT_THRESHOLD) / (WHITE_OUT_END - WHITE_OUT_THRESHOLD)))
   const baseBg = new THREE.Color('#050811')
-  const targetBg = new THREE.Color('#e2e8f0')
+  const targetBg = new THREE.Color('#f1f5f9') // 浅灰白色背景
   scene.background = baseBg.clone().lerp(targetBg, wof)
   if (scene.fog) {
     scene.fog.color = scene.background
-    scene.fog.density = 0.02 + wof * 0.12
+    scene.fog.density = 0.02 + wof * 0.10
   }
-  if (_ambientLightRef) _ambientLightRef.intensity = 1.4 + wof * 4.0
+  if (_ambientLightRef) _ambientLightRef.intensity = 1.4 + wof * 3.5
 }
 
 // ============================================================
-//  ACT 1  OCEAN VOYAGE  (sp 0.00 → 0.72)
+//  ACT 1  OCEAN VOYAGE  (sp 0.00 → 0.45)
 // ============================================================
 const act1 = { name: 'OceanVoyage', start: 0.00, end: GRID_START }
 
-// -- Act 1 local state --
 let lighthouseGroup, beamPivot
 let beamCones = [], beamRays = [], beamGlow = null
 let oceanLines = []
@@ -119,7 +118,6 @@ let baseBeamAngle = 0, returnToIdleTime = 0, idlePhase = 0
 let scrollStartAngle = 0, scrollStartAngleX = 0
 let wasScrolling = false
 
-// ---- Act 1: build ----
 act1.build = () => {
   buildSky()
   buildOcean()
@@ -294,7 +292,7 @@ function buildLightBeam() {
 }
 
 function buildDustAct1() {
-  dustGeo1 = new THREE.SphereGeometry(0.015, 10, 8) // 更多边数，更圆
+  dustGeo1 = new THREE.SphereGeometry(0.015, 10, 8)
   const count = 135
   for (let i = 0; i < count; i++) {
     const mat = new THREE.MeshBasicMaterial({ color:'#f0f8ff', transparent:true, opacity:0, depthWrite:false })
@@ -329,9 +327,7 @@ function buildLights() {
   scene.add(_ptLightRef)
 }
 
-// ---- Act 1: animate ----
 act1.animate = (time, tSp, sp) => {
-  // 恢复光束可见性（解决从 Act2 回滚后灯光消失的问题）
   if (beamPivot && !beamPivot.visible) beamPivot.visible = true
   if (_ptLightRef && _ptLightRef.intensity === 0) _ptLightRef.intensity = 3.0
   animateBeam(time, sp)
@@ -342,7 +338,7 @@ act1.animate = (time, tSp, sp) => {
 function animateWavesAndLighting(time, sp) {
   const skipHL = sp >= WHITE_OUT_THRESHOLD
   let beamOrigin, beamDir
-  if (!skipHL) {
+  if (!skipHL && beamPivot) {
     beamOrigin = new THREE.Vector3(); beamPivot.getWorldPosition(beamOrigin)
     beamDir = new THREE.Vector3(0,0,1).applyQuaternion(beamPivot.quaternion).normalize()
   }
@@ -356,7 +352,7 @@ function animateWavesAndLighting(time, sp) {
       const y = data.baseY + Math.sin(x*data.frequency+t)*data.amplitude + Math.sin(x*data.frequency*1.8+t*1.2)*data.amplitude*0.4
       pArr[idx+1] = y
       if (skipHL) { cArr[idx]=bc.r; cArr[idx+1]=bc.g; cArr[idx+2]=bc.b }
-      else {
+      else if (beamDir) {
         const vx=x-beamOrigin.x, vy=y-beamOrigin.y, vz=data.z-beamOrigin.z
         const proj=vx*beamDir.x+vy*beamDir.y+vz*beamDir.z
         const localX=vx*beamDir.z-vz*beamDir.x
@@ -403,8 +399,7 @@ function animateBeam(time, sp) {
 
   const beamBoost=Math.pow(sp,1.5)*0.4
   const wof=Math.max(0,Math.min(1,(sp-WHITE_OUT_THRESHOLD)/(WHITE_OUT_END-WHITE_OUT_THRESHOLD)))
-  // white-out 期间淡出光束
-  const beamFade = 1.0 - wof
+  const beamFade = Math.max(0, 1.0 - wof * 1.5)
   const baseVals=[0.85,0.45,0.15]
   beamCones.forEach((c,i)=>{ c.material.uniforms.uOpacity.value=(baseVals[i]+beamBoost*(i===2?1.8:1.2)+wof*1.5)*beamMult*beamFade })
   beamRays.forEach(r=>{ r.material.opacity=(0.45+sp*0.35+wof*0.5)*beamMult*beamFade })
@@ -414,7 +409,7 @@ function animateBeam(time, sp) {
 
 function animateDustAct1(time, sp) {
   if(!beamPivot||!camera) return
-  const t=time // time 已是秒（main loop 已做 *0.001）
+  const t=time
   const bwo=new THREE.Vector3(); beamPivot.getWorldPosition(bwo)
   const beamDir=new THREE.Vector3(0,0,1).applyQuaternion(beamPivot.quaternion).normalize()
   for(const p of dustParticles1){
@@ -433,7 +428,6 @@ function animateDustAct1(time, sp) {
   }
 }
 
-// ---- Act 1: exit → save state for Act 2 ----
 act1.exit = () => {
   ctx.set('oceanLines', oceanLines)
   ctx.set('waveData', waveData)
@@ -441,34 +435,27 @@ act1.exit = () => {
   ctx.set('dustConfig', { count:135, color:'#f0f8ff', baseOpacity:0.14, baseRadius:0.015 })
   ctx.set('beamFinalAngleY', beamPivot ? beamPivot.rotation.y : 0)
   ctx.set('beamFinalAngleX', beamPivot ? beamPivot.rotation.x : -0.02)
-  // 保存 Act1 粒子终态位置，供 Act2 继承
   const finalPositions = dustParticles1.map(p => ({
     x: p.position.x, y: p.position.y, z: p.position.z,
     ph: p.userData.ph, scale: p.userData.scale
   }))
   ctx.set('dustEndPositions', finalPositions)
-  // 淡出点光源（光束通过 beamFade 已自行淡出，不再强制 visible=false）
   if (_ptLightRef) _ptLightRef.intensity = 0
 }
 
-// ---- Act 1: dispose ----
-act1.dispose = () => {
-  // Act 1 objects stay in scene for now (ocean lines used by Act 2, lighthouse fades naturally)
-  // Full cleanup happens in onUnmounted
-}
+act1.dispose = () => {}
 
 // ============================================================
-//  ACT 2  GRID TRANSITION  (sp 0.65 → 0.94)
+//  ACT 2  GRID PLANARIZATION  (sp 0.40 → 0.85)
+//  平面网格在此时完全稳定，供显示核心内容/文字
 // ============================================================
-const act2 = { name: 'GridTransition', start: WHITE_OUT_THRESHOLD, end: GRID_SHIFT_END }
+const act2 = { name: 'GridTransition', start: WHITE_OUT_THRESHOLD, end: GRID_SHIFT_START }
 
 let gridVerticalLines = []
 let horizontalFlattened = false
 let verticalDone = false
 let dustParticles2 = []
-let _gridBaseY = null  // 网格下移基准快照
 
-// ---- Act 2: build (lazy, called on first enter) ----
 act2.build = () => {
   buildVerticalGridLines()
   buildDustAct2()
@@ -477,32 +464,28 @@ act2.build = () => {
 function buildDustAct2() {
   const dc = ctx.get('dustConfig') || { count: 135, color: '#f0f8ff', baseOpacity: 0.14, baseRadius: 0.015 }
   const geo = new THREE.SphereGeometry(dc.baseRadius, 10, 8)
-
-  // 直接读取 Act1 粒子实时状态（act2.build 先于 act1.exit 触发，ctx 此时为空）
   const source = dustParticles1.length > 0 ? dustParticles1 : []
   const count = source.length || dc.count
 
   for (let i = 0; i < count; i++) {
-    // per-particle grayscale variation
-    const gray = Math.floor(60 + Math.random() * 80)
-    const hex = '#' + gray.toString(16).padStart(2,'0') + gray.toString(16).padStart(2,'0') + gray.toString(16).padStart(2,'0')
+    const gray = Math.floor(100 + Math.random() * 60)
+    const hex = '#' + gray.toString(16).padStart(2,'0').repeat(3)
     const mat = new THREE.MeshBasicMaterial({
       color: hex, transparent: true, opacity: 0,
-      depthTest: false, depthWrite: false
+      depthTest: true, depthWrite: false
     })
     const p = new THREE.Mesh(geo, mat)
 
     if (source[i]) {
-      // 克隆 Act1 粒子的瞬时位置、userData、视觉尺寸
       const s = source[i]
       p.position.copy(s.position)
-      p.scale.copy(s.scale)  // 继承当前渲染尺寸（含 bf、ds 影响）
+      p.scale.copy(s.scale)
       p.userData = {
         wx: s.userData.wx, wy: s.userData.wy, wz: s.userData.wz,
         ph: s.userData.ph,
         scale: s.userData.scale,
-        visualScale: s.scale.x,  // 捕获瞬间视觉大小，用于过渡
-        captureScale: s.scale.x,  // 过渡起点
+        visualScale: s.scale.x,
+        captureScale: s.scale.x,
         dx: s.userData.dx, dy: s.userData.dy, dz: s.userData.dz
       }
     } else {
@@ -525,25 +508,24 @@ function buildVerticalGridLines() {
     const x=-28+(i/(totalLines-1))*56
     const pts=[new THREE.Vector3(x,baseY,zStart), new THREE.Vector3(x,baseY,zStart)]
     const g=new THREE.BufferGeometry().setFromPoints(pts)
-    const mat=new THREE.LineBasicMaterial({ color:'#1e293b', transparent:true, opacity:0, depthTest:true, depthWrite:false })
+    const mat=new THREE.LineBasicMaterial({ color:'#cbd5e1', transparent:true, opacity:0, depthTest:true, depthWrite:false })
     const line=new THREE.Line(g,mat)
     scene.add(line)
     gridVerticalLines.push({ line, x, baseY, zStart, zEnd, staggerOffset: Math.random()*0.45 })
   }
 }
 
-// ---- Act 2: animate ----
 act2.animate = (time, tSp, sp) => {
   const gridFactor = Math.max(0, Math.min(1, (sp - GRID_START) / (VERTICAL_START - GRID_START)))
   const vertFactor = Math.max(0, Math.min(1, (sp - VERTICAL_START) / (TEXT_START - VERTICAL_START)))
 
-  // Phase 1 — flatten ocean waves into straight lines
+  // Phase 1 — flatten waves
   if (!horizontalFlattened) {
     const oceanLines = ctx.get('oceanLines')
     const waveData   = ctx.get('waveData')
     const waveBC     = ctx.get('waveBaseColors')
     if (oceanLines && waveData) {
-      const targetCol = new THREE.Color('#475569')
+      const targetCol = new THREE.Color('#94a3b8')
       for (let i = 0; i < oceanLines.length; i++) {
         const line = oceanLines[i], data = waveData[i], bc = waveBC[i]
         const pa = line.geometry.attributes.position, ca = line.geometry.attributes.color
@@ -558,74 +540,29 @@ act2.animate = (time, tSp, sp) => {
           cArr[idx+2]=THREE.MathUtils.lerp(bc.b,targetCol.b,gridFactor)
         }
         pa.needsUpdate = true; ca.needsUpdate = true
-        line.material.opacity = THREE.MathUtils.lerp(data.opacity, 0.35, gridFactor)
+        line.material.opacity = THREE.MathUtils.lerp(data.opacity, 0.45, gridFactor)
       }
     }
     if (gridFactor >= 1.0) horizontalFlattened = true
   }
   if (gridFactor < 1.0) horizontalFlattened = false
 
-  // Phase 2 — vertical lines fade in (simplified, no droplets)
+  // Phase 2 — vertical lines
   if (vertFactor > 0 && !verticalDone) {
     for (const vd of gridVerticalLines) {
       const lp = Math.max(0, Math.min(1, (vertFactor - vd.staggerOffset) / 0.55))
       if (lp <= 0) { vd.line.material.opacity = 0; continue }
-      // line extends from zStart forward
       const curZ = THREE.MathUtils.lerp(vd.zStart, vd.zEnd, lp)
       const pArr = vd.line.geometry.attributes.position.array
       pArr[5] = curZ
       vd.line.geometry.attributes.position.needsUpdate = true
-      vd.line.material.opacity = Math.min(0.55, lp * 0.55)
+      vd.line.material.opacity = Math.min(0.65, lp * 0.65)
     }
     if (vertFactor >= 1.0) verticalDone = true
   }
   if (vertFactor < 1.0) verticalDone = false
 
-  // ── Phase 3: 网格下移出屏 (0.94 → GRID_SHIFT_END) ──
-  const gridShift = Math.max(0, Math.min(1, (sp - TEXT_START) / (GRID_SHIFT_END - TEXT_START)))
-  const shiftY = -8 * gridShift
-
-  if (gridShift > 0 && _gridBaseY === null) {
-    const oceanLines = ctx.get('oceanLines')
-    _gridBaseY = { ocean: [], vertical: [] }
-    if (oceanLines) {
-      for (const line of oceanLines) {
-        _gridBaseY.ocean.push(line.geometry.attributes.position.array.slice())
-      }
-    }
-    for (const vd of gridVerticalLines) {
-      _gridBaseY.vertical.push(vd.line.geometry.attributes.position.array.slice())
-    }
-  }
-
-  if (_gridBaseY) {
-    const oceanLines = ctx.get('oceanLines')
-    if (oceanLines) {
-      for (let i = 0; i < oceanLines.length; i++) {
-        const arr = oceanLines[i].geometry.attributes.position.array
-        const base = _gridBaseY.ocean[i]
-        if (!base) continue
-        for (let j = 1; j < arr.length; j += 3) {
-          arr[j] = base[j] + shiftY
-        }
-        oceanLines[i].geometry.attributes.position.needsUpdate = true
-      }
-    }
-    for (let i = 0; i < gridVerticalLines.length; i++) {
-      const arr = gridVerticalLines[i].line.geometry.attributes.position.array
-      const base = _gridBaseY.vertical[i]
-      if (!base) continue
-      arr[1] = base[1] + shiftY
-      arr[4] = base[4] + shiftY
-      gridVerticalLines[i].line.geometry.attributes.position.needsUpdate = true
-    }
-  }
-
-  if (sp < TEXT_START) {
-    _gridBaseY = null  // 回滚到文字出现前，释放基准快照
-  }
-
-  // Dust — Brownian motion (持续整个 Act2，直到网格完全离开)
+  // Dust — drift (Act 2 stable stage)
   {
     const tSec = time
     for (const p of dustParticles2) {
@@ -640,141 +577,160 @@ act2.animate = (time, tSp, sp) => {
       const targetScale = d.scale * 0.4 * ds
       const fadeIn = Math.max(0, Math.min(1, (sp - WHITE_OUT_THRESHOLD) / (GRID_START - WHITE_OUT_THRESHOLD)))
       p.scale.setScalar(THREE.MathUtils.lerp(d.captureScale || targetScale, targetScale, fadeIn))
-      p.material.opacity = fadeIn * 0.35
+      p.material.opacity = fadeIn * 0.4
     }
   }
 }
 
-// ---- Act 2: exit ----
 act2.exit = () => {
   ctx.set('gridVerticalLines', gridVerticalLines)
 }
 
-// ---- Act 2: dispose ----
 act2.dispose = () => {}
 
 // ============================================================
-//  ACT 3  CONTENT PHASE  (sp 0.997 → 1.00)
-//   ① 圆形扩散 wipe — Fog 背景渐变为纯白
-//   ② 粒子收缩为倾斜星环
+//  ACT 3  DOUBLE RING & GRID DESCENT  (sp 0.85 → 1.00)
+//  网格平面下降，粒子分别聚合为倾斜内环与交互外星环
 // ============================================================
-const act3 = { name: 'ContentPhase', start: GRID_SHIFT_END, end: 1.00 }
+const act3 = { name: 'ContentPhase', start: GRID_SHIFT_START, end: 1.00 }
 
 let act3Initialized = false
-let _overlayMesh = null
-let _overlayScene = null
-let _overlayCamera = null
+let _act3GridBaseY = null // 缓动平面网格Y轴基准
 
 act3.build = () => {
   if (act3Initialized || dustParticles2.length === 0) return
-  // 星环参数
-  for (const p of dustParticles2) {
-    const d = p.userData
-    d.orbitPhase = Math.random() * Math.PI * 2
-    d.orbitR     = 2.5 + Math.random() * 5.5
-    d.orbitSpeed = 0.4 + Math.random() * 0.5
-    d.orbitTilt  = Math.PI / 3 + (Math.random() - 0.5) * 0.4
-    d.isEnlarged = Math.random() < 0.40
-    d.enlargeAmt = 1.6 + Math.random() * 2.4
-    d.flattenY   = 0.35 + Math.random() * 0.2
-  }
 
-  // 圆形 wipe 遮罩 — 纯白从中心扩散
-  _overlayScene = new THREE.Scene()
-  _overlayCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 10)
-  _overlayCamera.position.z = 5
-  const overlayGeo = new THREE.PlaneGeometry(2, 2)
-  const overlayMat = new THREE.ShaderMaterial({
-    uniforms: {
-      uRadius: { value: 0.0 },
-      uColor:  { value: new THREE.Color('#ffffff') }
-    },
-    vertexShader: `
-      varying vec2 vUv;
-      void main() {
-        vUv = position.xy * 0.5 + 0.5;
-        gl_Position = vec4(position.xy, 0.0, 1.0);
-      }
-    `,
-    fragmentShader: `
-      varying vec2 vUv;
-      uniform float uRadius;
-      uniform vec3 uColor;
-      void main() {
-        float dist = length(vUv - 0.5) * 2.0;
-        float inCircle = 1.0 - smoothstep(uRadius - 0.03, uRadius, dist);
-        gl_FragColor = vec4(uColor, inCircle);
-      }
-    `,
-    transparent: true,
-    depthTest: false,
-    depthWrite: false
+  // 划分内外双星环：30%内圈顺时针，70%外圈逆时针
+  dustParticles2.forEach((p, idx) => {
+    const d = p.userData
+    const isOuter = (idx % 10) < 7 // 70% 概率分配至外圈
+    d.isOuter = isOuter
+
+    if (isOuter) {
+      // 1. 外圈主环 (用于承载网页导航交互点击，粒子尺寸大，逆时针)
+      d.orbitR     = 4.2 + Math.random() * 0.8 // 聚拢度高，主航道结构明确
+      d.orbitSpeed = -(0.10 + Math.random() * 0.08) // 逆时针，转速偏缓便于点击
+      d.orbitTilt  = 0.05 + (Math.random() - 0.5) * 0.04 // 接近平面的微倾角，保障交互视觉对齐
+      d.scaleMult  = 3.2 + Math.random() * 1.5 // 粒子明显放大，方便触控及光标射线检测
+      d.flattenY   = 0.25 // 压扁系数
+      
+      // 为后期交互（导航、点击）附带可标识属性
+      p.name = `nav_node_${idx}`
+      d.isNavigationElement = true
+    } else {
+      // 2. 内圈斜星环 (精细装饰性质，顺时针，大倾角)
+      d.orbitR     = 1.8 + Math.random() * 0.5
+      d.orbitSpeed = 0.35 + Math.random() * 0.15 // 顺时针，转速快一些
+      d.orbitTilt  = Math.PI / 4 // 明显的45度倾角，创造立体穿插效果
+      d.scaleMult  = 0.6 + Math.random() * 0.4 // 粒子精巧细密
+      d.flattenY   = 0.35
+      d.isNavigationElement = false
+    }
+    d.orbitPhase = Math.random() * Math.PI * 2
   })
-  _overlayMesh = new THREE.Mesh(overlayGeo, overlayMat)
-  _overlayScene.add(_overlayMesh)
 
   act3Initialized = true
 }
 
 act3.animate = (time, tSp, sp) => {
   const tSec = time
+  // 过渡曲线
+  const progress = Math.max(0, Math.min(1, (sp - GRID_SHIFT_START) / (1.0 - GRID_SHIFT_START)))
+  const smoothProgress = progress * progress * (3 - 2 * progress)
 
-  // ── 圆形 wipe：从中心向外扩散纯白 ──
-  const wipeProgress = Math.max(0, Math.min(1, (sp - GRID_SHIFT_END) / (1.0 - GRID_SHIFT_END)))
-  const wipeRadius = wipeProgress * 1.6  // 0 → 1.6（覆盖全屏 + 余量）
-  if (_overlayMesh) {
-    _overlayMesh.material.uniforms.uRadius.value = wipeRadius
-    _overlayMesh.visible = wipeProgress < 1.0
+  // ── 1. 网格平面伴随滚动缓慢下降 ──
+  const shiftY = -10 * smoothProgress // 随进度下降10单位，使其沉到屏幕下边界之外
+
+  if (_act3GridBaseY === null) {
+    const oceanLines = ctx.get('oceanLines')
+    const gridVert = ctx.get('gridVerticalLines')
+    _act3GridBaseY = { ocean: [], vertical: [] }
+    if (oceanLines) {
+      for (const line of oceanLines) {
+        _act3GridBaseY.ocean.push(line.geometry.attributes.position.array.slice())
+      }
+    }
+    if (gridVert) {
+      for (const vd of gridVert) {
+        _act3GridBaseY.vertical.push(vd.line.geometry.attributes.position.array.slice())
+      }
+    }
   }
-  // 渐消雾效
-  if (scene.fog) {
-    scene.fog.density = 0.02 + (1.0 - wipeProgress) * 0.12
+
+  if (_act3GridBaseY) {
+    const oceanLines = ctx.get('oceanLines')
+    const gridVert = ctx.get('gridVerticalLines')
+    if (oceanLines) {
+      for (let i = 0; i < oceanLines.length; i++) {
+        const arr = oceanLines[i].geometry.attributes.position.array
+        const base = _act3GridBaseY.ocean[i]
+        if (!base) continue
+        for (let j = 1; j < arr.length; j += 3) {
+          arr[j] = base[j] + shiftY
+        }
+        oceanLines[i].geometry.attributes.position.needsUpdate = true
+      }
+    }
+    if (gridVert) {
+      for (let i = 0; i < gridVert.length; i++) {
+        const arr = gridVert[i].line.geometry.attributes.position.array
+        const base = _act3GridBaseY.vertical[i]
+        if (!base) continue
+        arr[1] = base[1] + shiftY
+        arr[4] = base[4] + shiftY
+        gridVert[i].line.geometry.attributes.position.needsUpdate = true
+      }
+    }
   }
 
-  // ── 星环轨道 ──
-  const orbitBlend = wipeProgress  // 随 wipe 同步过渡
-  const cx = 0, cy = -1.2, cz = -4
-
+  // ── 2. 粒子分别聚合为倾斜内圈与交互外主环 ──
+  const cx = 0, cy = -1.0, cz = -8 // 双星环聚拢的空间中心
   for (const p of dustParticles2) {
     const d = p.userData
 
+    // 原布朗漂移轨迹
     const bx = d.wx + Math.sin(tSec * 0.4 + d.ph) * 0.25
     const by = d.wy + Math.sin(tSec * 0.3 + d.ph + 1) * 0.18
     const bz = d.wz + Math.sin(tSec * 0.25 + d.ph + 2) * 0.15
 
+    // 精准双轨道星环轨迹
     const orbitAngle = d.orbitPhase + tSec * d.orbitSpeed
     const ringX = Math.cos(orbitAngle) * d.orbitR
     const ringY = Math.sin(orbitAngle) * d.orbitR * d.flattenY
     const cosT = Math.cos(d.orbitTilt), sinT = Math.sin(d.orbitTilt)
+
     const ox = cx + ringX
     const oy = cy + (ringY * cosT)
     const oz = cz + (ringY * sinT)
 
     p.position.set(
-      THREE.MathUtils.lerp(bx, ox, orbitBlend),
-      THREE.MathUtils.lerp(by, oy, orbitBlend),
-      THREE.MathUtils.lerp(bz, oz, orbitBlend)
+      THREE.MathUtils.lerp(bx, ox, smoothProgress),
+      THREE.MathUtils.lerp(by, oy, smoothProgress),
+      THREE.MathUtils.lerp(bz, oz, smoothProgress)
     )
 
     const cd = p.position.distanceTo(camera.position)
     const ds = 22 / Math.max(5, cd)
     const baseScale = d.scale * 0.4 * ds
-    const targetScale = baseScale * (d.isEnlarged ? d.enlargeAmt : 1.0)
-    p.scale.setScalar(THREE.MathUtils.lerp(baseScale, targetScale, orbitBlend))
-    p.material.opacity = 0.35
+    const targetScale = baseScale * d.scaleMult
+
+    p.scale.setScalar(THREE.MathUtils.lerp(baseScale, targetScale, smoothProgress))
+    
+    // 主环强化颜色和亮度，凸显交互导航感
+    if (d.isOuter && smoothProgress > 0.5) {
+      p.material.color.set('#38bdf8') // 改为醒目的科技亮蓝，吸引点击
+      p.material.opacity = THREE.MathUtils.lerp(0.40, 0.85, smoothProgress)
+    } else {
+      p.material.color.set('#64748b') // 内环保持雅致的淡灰色
+      p.material.opacity = THREE.MathUtils.lerp(0.40, 0.45, smoothProgress)
+    }
   }
 }
 
 act3.exit = () => {
-  if (_overlayMesh) _overlayMesh.visible = false
+  _act3GridBaseY = null
 }
-act3.dispose = () => {
-  if (_overlayMesh) {
-    _overlayMesh.geometry.dispose()
-    _overlayMesh.material.dispose()
-    _overlayMesh = null
-  }
-}
+act3.dispose = () => {}
 
 // ============================================================
 //  ACT MANAGER
@@ -786,7 +742,6 @@ function resolveActiveActs(sp) {
   const active = []
   for (const act of acts) {
     if (sp >= act.start - 0.01 && sp <= act.end + 0.01) {
-      // lazy build
       if (!builtActs.has(act.name)) {
         if (act.build) act.build()
         builtActs.add(act.name)
@@ -802,7 +757,6 @@ function animate(time) {
   const t = time * 0.001
   const sp = props.scrollProgress
 
-  // cross-act background transition — always applied
   sceneApplyWhiteOut(sp)
 
   const activeActs = resolveActiveActs(sp)
@@ -812,13 +766,6 @@ function animate(time) {
   }
 
   renderer.render(scene, camera)
-
-  // ── Act3 圆形 wipe 遮罩层（覆盖在主场景之上） ──
-  if (_overlayMesh && _overlayMesh.visible && _overlayScene && _overlayCamera) {
-    renderer.autoClear = false
-    renderer.render(_overlayScene, _overlayCamera)
-    renderer.autoClear = true
-  }
 }
 
 function onResize() {
@@ -840,11 +787,9 @@ onMounted(() => {
   renderer.setSize(w, h)
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
 
-  // Act 1 is always built on mount (it starts at sp=0)
   if (act1.build) act1.build()
   builtActs.add(act1.name)
 
-  // Handle inter-act state passing via exit detection
   let prevActiveNames = []
   const origAnimate = animate
   animate = function(time) {
@@ -853,7 +798,6 @@ onMounted(() => {
     for (const act of acts) {
       if (sp >= act.start - 0.01 && sp <= act.end + 0.01) activeNames.push(act.name)
     }
-    // detect acts that fully exited this frame
     for (const act of acts) {
       if (prevActiveNames.includes(act.name) && !activeNames.includes(act.name)) {
         if (act.exit && builtActs.has(act.name)) act.exit()
