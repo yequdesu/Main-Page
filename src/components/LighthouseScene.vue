@@ -407,7 +407,7 @@ function animateBeam(time, sp) {
 
 function animateDustAct1(time, sp) {
   if(!beamPivot||!camera) return
-  const t=time*0.001
+  const t=time // time 已是秒（main loop 已做 *0.001）
   const bwo=new THREE.Vector3(); beamPivot.getWorldPosition(bwo)
   const beamDir=new THREE.Vector3(0,0,1).applyQuaternion(beamPivot.quaternion).normalize()
   for(const p of dustParticles1){
@@ -434,6 +434,12 @@ act1.exit = () => {
   ctx.set('dustConfig', { count:135, color:'#f0f8ff', baseOpacity:0.14, baseRadius:0.015 })
   ctx.set('beamFinalAngleY', beamPivot ? beamPivot.rotation.y : 0)
   ctx.set('beamFinalAngleX', beamPivot ? beamPivot.rotation.x : -0.02)
+  // 保存 Act1 粒子终态位置，供 Act2 继承
+  const finalPositions = dustParticles1.map(p => ({
+    x: p.position.x, y: p.position.y, z: p.position.z,
+    ph: p.userData.ph, scale: p.userData.scale
+  }))
+  ctx.set('dustEndPositions', finalPositions)
 }
 
 // ---- Act 1: dispose ----
@@ -460,26 +466,35 @@ act2.build = () => {
 
 function buildDustAct2() {
   const dc = ctx.get('dustConfig') || { count: 135, color: '#f0f8ff', baseOpacity: 0.14, baseRadius: 0.015 }
+  const endPos = ctx.get('dustEndPositions') || []
   const geo = new THREE.SphereGeometry(dc.baseRadius, 10, 8)
-  for (let i = 0; i < dc.count; i++) {
-    // per-particle grayscale variation: darker than Act1, each unique
-    const gray = Math.floor(60 + Math.random() * 80) // 60–140 range
-    const hex = `#${gray.toString(16).padStart(2,'0')}${gray.toString(16).padStart(2,'0')}${gray.toString(16).padStart(2,'0')}`
+  const count = Math.min(dc.count, endPos.length) || dc.count
+
+  for (let i = 0; i < count; i++) {
+    // per-particle grayscale variation
+    const gray = Math.floor(60 + Math.random() * 80)
+    const hex = '#' + gray.toString(16).padStart(2,'0') + gray.toString(16).padStart(2,'0') + gray.toString(16).padStart(2,'0')
     const mat = new THREE.MeshBasicMaterial({
       color: hex, transparent: true, opacity: 0,
-      depthTest: false, depthWrite: false  // always visible, no occlusion
+      depthTest: false, depthWrite: false
     })
     const p = new THREE.Mesh(geo, mat)
-    // spread across screen: camera at (0,0.25,8), spread z ~ -3 to 4 (in front of grid)
-    p.position.set(
-      (Math.random() - 0.5) * 28,       // x: -14 ~ 14
-      -3 + Math.random() * 7,            // y: -3 ~ 4
-      -3 + Math.random() * 7             // z: -3 ~ 4 (near camera)
-    )
+
+    // inherit Act1 end position if available, otherwise random fallback
+    if (endPos[i]) {
+      p.position.set(endPos[i].x, endPos[i].y, endPos[i].z)
+    } else {
+      p.position.set(
+        (Math.random() - 0.5) * 28,
+        -3 + Math.random() * 7,
+        -3 + Math.random() * 7
+      )
+    }
+
     p.userData = {
       wx: p.position.x, wy: p.position.y, wz: p.position.z,
-      ph: Math.random() * Math.PI * 2,
-      scale: 0.25 + Math.random() * 0.55,
+      ph: endPos[i] ? endPos[i].ph : Math.random() * Math.PI * 2,
+      scale: endPos[i] ? endPos[i].scale : 0.25 + Math.random() * 0.55,
       // Brownian motion phase offsets (compound sine pattern like Act1)
       dx: (Math.random() - 0.5) * 0.12,
       dy: (Math.random() - 0.5) * 0.08 + 0.04,
@@ -554,7 +569,7 @@ act2.animate = (time, tSp, sp) => {
   if (vertFactor < 1.0) verticalDone = false
 
   // Dust — Brownian motion (compound sine, same pattern as Act1)
-  const tSec = time * 0.001
+  const tSec = time // time 已是秒（main loop 已做 *0.001）
   for (const p of dustParticles2) {
     const d = p.userData
     p.position.set(
