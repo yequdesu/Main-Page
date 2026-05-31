@@ -21,7 +21,7 @@ const WHITE_OUT_END      = 0.78
 const GRID_START         = 0.72
 const VERTICAL_START     = 0.86
 const TEXT_START         = 0.94
-const GRID_SHIFT_END     = 0.997
+const GRID_SHIFT_END     = 0.995
 const IDLE_RESET_DELAY   = 1.5
 
 // ============================================================
