@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, onMounted, onUnmounted, computed } from 'vue'
 import * as THREE from 'three'
 
 const props = defineProps({
@@ -46,7 +46,7 @@ function smoothstep(t) {
 }
 
 // ============================================================
-//  STATE CONTEXT — carries data between acts
+//  STATE CONTEXT
 // ============================================================
 class StateContext {
   constructor() { this._store = new Map() }
@@ -58,7 +58,7 @@ class StateContext {
 const ctx = new StateContext()
 
 // ============================================================
-//  VOLUMETRIC BEAM SHADER (shared by Act 1 beam build)
+//  VOLUMETRIC BEAM SHADER
 // ============================================================
 const VolumetricBeamShader = {
   uniforms: {
@@ -99,19 +99,44 @@ let _ambientLightRef = null
 let _ptLightRef = null
 
 function sceneApplyWhiteOut(sp) {
-  const wof = Math.max(0, Math.min(1, (sp - WHITE_OUT_THRESHOLD) / (WHITE_OUT_END - WHITE_OUT_THRESHOLD)))
   const baseBg = new THREE.Color('#050811')
   const targetBg = new THREE.Color('#f1f5f9') 
+  
+  const wof = Math.max(0, Math.min(1, (sp - WHITE_OUT_THRESHOLD) / (WHITE_OUT_END - WHITE_OUT_THRESHOLD)))
   scene.background = baseBg.clone().lerp(targetBg, wof)
-  if (scene.fog) {
-    scene.fog.color = scene.background
-    scene.fog.density = 0.02 + wof * 0.10
+
+  let fogDensity = 0.02
+  if (sp >= WHITE_OUT_THRESHOLD && sp < WHITE_OUT_END) {
+    fogDensity = 0.02 + wof * 0.08
+  } else if (sp >= WHITE_OUT_END) {
+    const fadeProgress = Math.max(0, Math.min(1, (sp - WHITE_OUT_END) / (GRID_SHIFT_START - WHITE_OUT_END)))
+    fogDensity = 0.10 * (1.0 - fadeProgress)
   }
+
+  if (fogDensity > 0.001) {
+    if (!scene.fog) {
+      scene.fog = new THREE.FogExp2(scene.background, fogDensity)
+    }
+    scene.fog.color.copy(scene.background)
+    scene.fog.density = fogDensity
+  } else {
+    if (scene.fog) scene.fog = null
+  }
+  
   if (_ambientLightRef) _ambientLightRef.intensity = 1.4 + wof * 3.5
+
+  if (lighthouseGroup) {
+    const scaleFactor = 0.7 * (1.0 - wof)
+    lighthouseGroup.scale.setScalar(scaleFactor)
+    lighthouseGroup.visible = scaleFactor > 0.001
+  }
+  if (beamPivot) {
+    beamPivot.visible = wof < 1.0
+  }
 }
 
 // ============================================================
-//  ACT 1  OCEAN VOYAGE  (sp 0.00 → 0.45)
+//  ACT 1  OCEAN VOYAGE
 // ============================================================
 const act1 = { name: 'OceanVoyage', start: 0.00, end: GRID_START }
 
@@ -119,7 +144,7 @@ let lighthouseGroup, beamPivot
 let beamCones = [], beamRays = [], beamGlow = null
 let oceanLines = []
 let waveData = [], waveBaseColors = []
-let dustGeo1, dustParticles1 = []
+let dustParticles = []
 
 let baseBeamAngle = 0, returnToIdleTime = 0, idlePhase = 0
 let scrollStartAngle = 0, scrollStartAngleX = 0
@@ -130,7 +155,7 @@ act1.build = () => {
   buildOcean()
   buildLighthouse()
   buildLightBeam()
-  buildDustAct1()
+  buildDust()
   buildLights()
 }
 
@@ -225,7 +250,6 @@ function buildLighthouse() {
   const hr = new THREE.Mesh(new THREE.TorusGeometry(0.33,0.008,6,24), metalMat)
   hr.rotation.x=Math.PI/2; hr.position.y=0.15; railG.add(hr)
   
-  // 修复：手扶栏杆细立柱的链式调用
   for(let i=0;i<8;i++){
     const a=(i/8)*Math.PI*2
     const post = new THREE.Mesh(new THREE.CylinderGeometry(0.006,0.006,0.15,6), metalMat)
@@ -245,7 +269,6 @@ function buildLighthouse() {
   const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.07,12,12), glowMat)
   bulb.position.y=2.96; lighthouseGroup.add(bulb)
 
-  // 修复：玻璃框立柱的链式调用
   for(let i=0;i<6;i++){
     const a=(i/6)*Math.PI*2
     const frame = new THREE.Mesh(new THREE.CylinderGeometry(0.012,0.012,0.44,6), metalMat)
@@ -253,7 +276,6 @@ function buildLighthouse() {
     lighthouseGroup.add(frame)
   }
 
-  // 修复：塔顶盖及尖顶组件的链式调用
   const roofPlate = new THREE.Mesh(new THREE.CylinderGeometry(0.24,0.24,0.04,16), metalMat)
   roofPlate.position.set(0,3.18,0)
   lighthouseGroup.add(roofPlate)
@@ -317,12 +339,36 @@ function buildLightBeam() {
   beamPivot.add(beamGlow)
 }
 
-function buildDustAct1() {
-  dustGeo1 = new THREE.SphereGeometry(0.015, 10, 8)
+function buildDust() {
+  if (dustParticles.length > 0) return
   const count = 135
+
+  // 1. 预先计算尺寸和主行星权重
+  const dustConfigs = []
   for (let i = 0; i < count; i++) {
-    const mat = new THREE.MeshBasicMaterial({ color:'#f0f8ff', transparent:true, opacity:0, depthWrite:false })
-    const p = new THREE.Mesh(dustGeo1, mat)
+    const scale = 0.4 + Math.random() * 0.8
+    const sizeBoost = Math.random() < 0.60 ? 1.5 + Math.random() * 2.5 : 0.7 + Math.random() * 0.8
+    dustConfigs.push({ scale, sizeBoost, totalSize: scale * sizeBoost })
+  }
+
+  const sorted = dustConfigs.map((c, i) => ({ idx: i, size: c.totalSize }))
+    .sort((a, b) => b.size - a.size)
+  _mainPlanetIndices = sorted.slice(0, ORBIT_COUNT).map(s => s.idx)
+
+  // 2. 独立分级几何体 (低面数微尘 vs 高面数主行星)
+  const lowPolyGeo = new THREE.SphereGeometry(0.015, 10, 8)
+  const highPolyGeo = new THREE.SphereGeometry(0.015, 32, 32)
+
+  // 3. 构建粒子系统
+  for (let i = 0; i < count; i++) {
+    const isMain = _mainPlanetIndices.includes(i)
+    const geo = isMain ? highPolyGeo : lowPolyGeo
+
+    const gray = Math.floor(100 + Math.random() * 60)
+    const grayHex = '#' + gray.toString(16).padStart(2,'0').repeat(3)
+    const mat = new THREE.MeshBasicMaterial({ color:'#f0f8ff', transparent:true, opacity:0, depthWrite:false, depthTest:true })
+    const p = new THREE.Mesh(geo, mat)
+    
     const t = Math.random()
     const worldOrigin = new THREE.Vector3()
     lighthouseGroup.getWorldPosition(worldOrigin)
@@ -331,14 +377,42 @@ function buildDustAct1() {
     const maxR = (zDist / 42) * 7.5 + 0.2
     const angle = Math.random() * Math.PI * 2
     const r = Math.sqrt(Math.random()) * maxR
+    
     p.position.set(worldOrigin.x+Math.cos(angle)*r, worldOrigin.y+(Math.random()-0.5)*maxR*0.6, worldOrigin.z+zDist)
+    
+    const scale = dustConfigs[i].scale
+    const sizeBoost = dustConfigs[i].sizeBoost
+    
     p.userData = {
       wx:p.position.x, wy:p.position.y, wz:p.position.z,
       dx:(Math.random()-0.5)*0.15, dy:(Math.random()-0.5)*0.1+0.06, dz:(Math.random()-0.5)*0.08,
-      ph:Math.random()*Math.PI*2, scale:0.4+Math.random()*0.8
+      ph:Math.random()*Math.PI*2, scale, sizeBoost,
+      grayHex,
+      orbitAngle: Math.random() * Math.PI * 2,
+      isMainPlanet: isMain,
+      hoverFactor: 0.0 // 独立阻尼过渡系数
     }
+
+    if (isMain) {
+      const trackIdx = _mainPlanetIndices.indexOf(i)
+      p.userData.orbitR     = ORBIT_RADII[trackIdx]
+      p.userData.orbitSpeed = -0.04 - trackIdx * 0.015
+      p.userData._baseSpeed = p.userData.orbitSpeed
+      p.userData.scaleMult  = 3.5 + trackIdx * 0.3
+      p.name = `planet_${trackIdx}`
+    } else {
+      p.userData.orbitR     = 2.5 + Math.random() * 4.5
+      p.userData.orbitSpeed = -(0.03 + Math.random() * 0.08)
+      p.userData._baseSpeed = p.userData.orbitSpeed
+      p.userData.scaleMult  = 0.8 + Math.random() * 1.5
+      p.userData.wobbleAmp  = 0.5 + Math.random() * 1.2
+      p.userData.wobbleFreq = 0.3 + Math.random() * 0.4
+    }
+    p.userData.orbitTilt  = 0
+    p.userData.flattenY   = 1.0
+    
     scene.add(p)
-    dustParticles1.push(p)
+    dustParticles.push(p)
   }
 }
 
@@ -354,32 +428,45 @@ function buildLights() {
 }
 
 act1.animate = (time, tSp, sp) => {
-  if (beamPivot && !beamPivot.visible) beamPivot.visible = true
+  if (beamPivot && !beamPivot.visible && sp < WHITE_OUT_END) beamPivot.visible = true
   if (_ptLightRef && _ptLightRef.intensity === 0) _ptLightRef.intensity = 3.0
-  animateBeam(time, sp)
-  if (sp < GRID_START) animateWavesAndLighting(time, sp)
-  animateDustAct1(time, sp)
 }
 
 function animateWavesAndLighting(time, sp) {
-  const skipHL = sp >= WHITE_OUT_THRESHOLD
+  const hlWeight = Math.max(0, Math.min(1, (WHITE_OUT_THRESHOLD - sp) / 0.10))
+  const gridFactor = Math.max(0, Math.min(1, (sp - GRID_START) / (VERTICAL_START - GRID_START)))
+  const act3Progress = Math.max(0, Math.min(1, (sp - GRID_SHIFT_START) / (1.0 - GRID_SHIFT_START)))
+  const smoothProgress3 = act3Progress * act3Progress * (3 - 2 * act3Progress)
+  
+  // 双保险：增大物理沉降深度(-32)并辅以完全透明淡出，彻底清除杂乱横条
+  const shiftY = -32.0 * smoothProgress3
+  const gridOpacityMult = 1.0 - smoothProgress3
+  const targetCol = new THREE.Color('#94a3b8')
+
   let beamOrigin, beamDir
-  if (!skipHL && beamPivot) {
+  if (hlWeight > 0 && beamPivot) {
     beamOrigin = new THREE.Vector3(); beamPivot.getWorldPosition(beamOrigin)
     beamDir = new THREE.Vector3(0,0,1).applyQuaternion(beamPivot.quaternion).normalize()
   }
+  
   for (let i = 0; i < oceanLines.length; i++) {
     const line = oceanLines[i], data = waveData[i], bc = waveBaseColors[i]
     const pa = line.geometry.attributes.position, ca = line.geometry.attributes.color
     const pArr = pa.array, cArr = ca.array
+    
+    const rawZ = data.z 
+    const baseDepthFade = Math.max(0, Math.min(1, (rawZ - (-52)) / 20.0)) 
+    
     for (let j = 0; j <= data.segCount; j++) {
       const idx = j*3, x = pArr[idx]
       const t = time * data.speed + data.phase
-      const y = data.baseY + Math.sin(x*data.frequency+t)*data.amplitude + Math.sin(x*data.frequency*1.8+t*1.2)*data.amplitude*0.4
-      pArr[idx+1] = y
-      if (skipHL) { cArr[idx]=bc.r; cArr[idx+1]=bc.g; cArr[idx+2]=bc.b }
-      else if (beamDir) {
-        const vx=x-beamOrigin.x, vy=y-beamOrigin.y, vz=data.z-beamOrigin.z
+      const waveY = data.baseY + Math.sin(x*data.frequency+t)*data.amplitude + Math.sin(x*data.frequency*1.8+t*1.2)*data.amplitude*0.4
+      
+      pArr[idx+1] = THREE.MathUtils.lerp(waveY, data.baseY, gridFactor) + shiftY
+      
+      let r = bc.r, g = bc.g, b = bc.b
+      if (hlWeight > 0 && beamDir) {
+        const vx=x-beamOrigin.x, vy=waveY-beamOrigin.y, vz=data.z-beamOrigin.z
         const proj=vx*beamDir.x+vy*beamDir.y+vz*beamDir.z
         const localX=vx*beamDir.z-vz*beamDir.x
         const beamR=1.2+Math.max(0,proj)*0.15
@@ -387,13 +474,20 @@ function animateWavesAndLighting(time, sp) {
         let di=Math.exp(-distSq*0.9)
         di*=Math.max(0,Math.min(1,(proj+4)/8))
         di*=Math.max(0,1-(Math.max(0,proj)/48))
-        let li=di*1.5
-        if(beamDir.z>0&&vz>0) li+=di*Math.exp(-(x*x)/7)*beamDir.z*1.3
+        let li=di*1.5 * hlWeight
+        if(beamDir.z>0&&vz>0) li+=di*Math.exp(-(x*x)/7)*beamDir.z*1.3 * hlWeight
         const hR=0.92,hG=0.97,hB=1.0
-        cArr[idx]=bc.r+(hR-bc.r)*li*0.95; cArr[idx+1]=bc.g+(hG-bc.g)*li*0.95; cArr[idx+2]=bc.b+(hB-bc.b)*li*0.95
+        r = bc.r+(hR-bc.r)*li*0.95
+        g = bc.g+(hG-bc.g)*li*0.95
+        b = bc.b+(hB-bc.b)*li*0.95
       }
+
+      cArr[idx]   = THREE.MathUtils.lerp(r, targetCol.r, gridFactor)
+      cArr[idx+1] = THREE.MathUtils.lerp(g, targetCol.g, gridFactor)
+      cArr[idx+2] = THREE.MathUtils.lerp(b, targetCol.b, gridFactor)
     }
     pa.needsUpdate=true; ca.needsUpdate=true
+    line.material.opacity = THREE.MathUtils.lerp(data.opacity, 0.45, gridFactor) * baseDepthFade * gridOpacityMult
   }
 }
 
@@ -424,8 +518,10 @@ function animateBeam(time, sp) {
   beamPivot.rotation.y=targetY; beamPivot.rotation.x=targetX
 
   const beamBoost=Math.pow(sp,1.5)*0.4
-  const wof=Math.max(0,Math.min(1,(sp-WHITE_OUT_THRESHOLD)/(WHITE_OUT_END-WHITE_OUT_THRESHOLD)))
-  const beamFade = Math.max(0, 1.0 - wof * 1.5)
+  const wof = Math.max(0, Math.min(1, (sp - WHITE_OUT_THRESHOLD) / (WHITE_OUT_END - WHITE_OUT_THRESHOLD)))
+  
+  const beamFade = Math.max(0, 1.0 - wof)
+  
   const baseVals=[0.85,0.45,0.15]
   beamCones.forEach((c,i)=>{ c.material.uniforms.uOpacity.value=(baseVals[i]+beamBoost*(i===2?1.8:1.2)+wof*1.5)*beamMult*beamFade })
   beamRays.forEach(r=>{ r.material.opacity=(0.45+sp*0.35+wof*0.5)*beamMult*beamFade })
@@ -433,24 +529,127 @@ function animateBeam(time, sp) {
   if(_ptLightRef) _ptLightRef.intensity=(3.0+Math.pow(sp,1.5)*12+wof*50)*beamMult*beamFade
 }
 
-function animateDustAct1(time, sp) {
-  if(!beamPivot||!camera) return
-  const t=time
-  const bwo=new THREE.Vector3(); beamPivot.getWorldPosition(bwo)
-  const beamDir=new THREE.Vector3(0,0,1).applyQuaternion(beamPivot.quaternion).normalize()
-  for(const p of dustParticles1){
-    const d=p.userData
-    p.position.set(d.wx+Math.sin(t*0.4+d.ph)*0.25, d.wy+Math.sin(t*0.3+d.ph+1)*0.18, d.wz+Math.sin(t*0.25+d.ph+2)*0.15)
-    const toP=new THREE.Vector3().subVectors(p.position,bwo), proj=toP.dot(beamDir)
-    let bf=0
-    if(proj>0&&proj<45){ const pp=bwo.clone().addScaledVector(beamDir,proj); const dist=p.position.distanceTo(pp); const br=(proj/45)*5.5+0.2; if(dist<br) bf=Math.pow(1-dist/br,1.8) }
-    const cd=p.position.distanceTo(camera.position), ds=22/Math.max(5,cd)
-    p.scale.setScalar(d.scale*(0.4+bf*2)*ds)
-    let fo=(0.14+bf*0.76)*(0.35+sp*0.65)
-    if(cd<7) fo*=Math.max(0,(cd-2.5)/4.5)
-    if(cd>42) fo*=Math.max(0,1-(cd-42)/10)
-    const dustOut=1-Math.max(0,Math.min(1,(sp-WHITE_OUT_THRESHOLD)/(WHITE_OUT_END-WHITE_OUT_THRESHOLD)))
-    p.material.opacity=Math.max(0,fo*dustOut)
+function animateDust(time, sp) {
+  if (dustParticles.length === 0 || !camera) return
+
+  const wof = Math.max(0, Math.min(1, (sp - WHITE_OUT_THRESHOLD) / (WHITE_OUT_END - WHITE_OUT_THRESHOLD)))
+  const act3Progress = Math.max(0, Math.min(1, (sp - GRID_SHIFT_START) / (1.0 - GRID_SHIFT_START)))
+  const smoothProgress3 = act3Progress * act3Progress * (3 - 2 * act3Progress)
+  const isFullyFormed3 = act3Progress >= 0.95
+
+  let bwo, beamDir
+  if (sp < WHITE_OUT_END && beamPivot) {
+    bwo = new THREE.Vector3(); beamPivot.getWorldPosition(bwo)
+    beamDir = new THREE.Vector3(0,0,1).applyQuaternion(beamPivot.quaternion).normalize()
+  }
+
+  // 1. 寻找鼠标悬停最近的行星 (微调检测热区范围)
+  let bestDist = 1e9, bestIdx = -1
+  const _scratch = new THREE.Vector3()
+
+  if (isFullyFormed3) {
+    for (let i = 0; i < dustParticles.length; i++) {
+      const p = dustParticles[i]
+      const d = p.userData
+      if (!d.isMainPlanet) continue
+      
+      _scratch.copy(p.position).project(camera)
+      const dx = (_scratch.x - _mouseNDC.x) * (window.innerWidth / window.innerHeight)
+      const dy = _scratch.y - _mouseNDC.y
+      const dist = Math.hypot(dx, dy)
+      if (dist < bestDist) {
+        bestDist = dist
+        bestIdx = i
+      }
+    }
+    _hoveredIdx = bestDist < 0.16 ? bestIdx : -1
+  } else {
+    _hoveredIdx = -1
+  }
+
+  if (_lastTimeSec === 0) _lastTimeSec = time
+  const dt = Math.min(0.1, time - _lastTimeSec)
+  _lastTimeSec = time
+
+  const cx = 0, cy = -1.0, cz = -8
+
+  for (let idx = 0; idx < dustParticles.length; idx++) {
+    const p = dustParticles[idx]
+    const d = p.userData
+
+    // 2. 独立弹性阻尼物理计算 (取代原全局硬开关)
+    const targetHover = (idx === _hoveredIdx && isFullyFormed3) ? 1.0 : 0.0
+    d.hoverFactor = d.hoverFactor ?? 0.0
+    d.hoverFactor += (targetHover - d.hoverFactor) * 0.10 // 极细腻的过渡惯性
+
+    const bx = d.wx + Math.sin(time * 0.4 + d.ph) * 0.25
+    const by = d.wy + Math.sin(time * 0.3 + d.ph + 1) * 0.18
+    const bz = d.wz + Math.sin(time * 0.25 + d.ph + 2) * 0.15
+
+    // 优雅缓动：悬停主行星时，旋转非强制刹停，而是平滑减速至原速 15%，富有太空滑行质感
+    const speedMultiplier = d.isMainPlanet ? (1.0 - d.hoverFactor * 0.85) : 1.0
+    const effectiveSpeed = d._baseSpeed * speedMultiplier
+    d.orbitAngle += dt * effectiveSpeed
+
+    const wobbleR = d.isMainPlanet ? d.orbitR : d.orbitR + Math.sin(time * d.wobbleFreq + d.ph) * d.wobbleAmp
+    const ox = cx + Math.cos(d.orbitAngle) * wobbleR
+    const oy = cy
+    const oz = cz + Math.sin(d.orbitAngle) * wobbleR
+
+    p.position.set(
+      THREE.MathUtils.lerp(bx, ox, smoothProgress3),
+      THREE.MathUtils.lerp(by, oy, smoothProgress3),
+      THREE.MathUtils.lerp(bz, oz, smoothProgress3)
+    )
+
+    const cd = p.position.distanceTo(camera.position)
+    const ds = 22 / Math.max(5, cd)
+
+    let bf = 0
+    if (sp < WHITE_OUT_END && bwo && beamDir) {
+      const toP = new THREE.Vector3().subVectors(p.position, bwo), proj = toP.dot(beamDir)
+      if (proj > 0 && proj < 45) {
+        const pp = bwo.clone().addScaledVector(beamDir, proj)
+        const dist = p.position.distanceTo(pp)
+        const br = (proj / 45) * 5.5 + 0.2
+        if (dist < br) bf = Math.pow(1 - dist / br, 1.8)
+      }
+    }
+
+    const scaleAct1 = d.scale * (0.4 + bf * 2) * ds
+    const scaleAct2 = d.scale * 0.7 * d.sizeBoost * ds
+    const scaleAct3 = scaleAct2 * d.scaleMult
+
+    let currentScale = THREE.MathUtils.lerp(scaleAct1, scaleAct2, wof)
+    currentScale = THREE.MathUtils.lerp(currentScale, scaleAct3, smoothProgress3)
+
+    // 悬停缩放过渡
+    const hoverScaleMultiplier = 1.0 + d.hoverFactor * 0.45 // 顺滑扩增1.45倍
+    p.scale.setScalar(currentScale * hoverScaleMultiplier)
+
+    let opacityAct1 = (0.14 + bf * 0.76) * (0.35 + sp * 0.65)
+    if (cd < 7) opacityAct1 *= Math.max(0, (cd - 2.5) / 4.5)
+    if (cd > 42) opacityAct1 *= Math.max(0, 1 - (cd - 42) / 10)
+
+    const opacityAct2 = 0.4
+    const opacityAct3 = d.isMainPlanet ? 0.90 : 0.55
+
+    let currentOpacity = THREE.MathUtils.lerp(opacityAct1, opacityAct2, wof)
+    p.material.opacity = THREE.MathUtils.lerp(currentOpacity, opacityAct3, smoothProgress3)
+
+    // 3. 极简雅致色调设计 (Slate钛金暖灰色 -> 亮钴蓝微光)
+    const colorAct1 = new THREE.Color('#f0f8ff')
+    const colorAct2 = new THREE.Color(d.grayHex)
+    const colorAct3 = new THREE.Color('#64748b')
+
+    if (d.isMainPlanet) {
+      const baseSlate = new THREE.Color('#475569') // 温暖钛金色
+      const hoverSkyBlue = new THREE.Color('#0ea5e9') // 微光天蓝色
+      colorAct3.copy(baseSlate).lerp(hoverSkyBlue, d.hoverFactor)
+    }
+
+    const currentColor = colorAct1.clone().lerp(colorAct2, wof).lerp(colorAct3, smoothProgress3)
+    p.material.color.copy(currentColor)
   }
 }
 
@@ -458,77 +657,22 @@ act1.exit = () => {
   ctx.set('oceanLines', oceanLines)
   ctx.set('waveData', waveData)
   ctx.set('waveBaseColors', waveBaseColors)
-  ctx.set('dustConfig', { count:135, color:'#f0f8ff', baseOpacity:0.14, baseRadius:0.015 })
   ctx.set('beamFinalAngleY', beamPivot ? beamPivot.rotation.y : 0)
   ctx.set('beamFinalAngleX', beamPivot ? beamPivot.rotation.x : -0.02)
-  const finalPositions = dustParticles1.map(p => ({
-    x: p.position.x, y: p.position.y, z: p.position.z,
-    ph: p.userData.ph, scale: p.userData.scale
-  }))
-  ctx.set('dustEndPositions', finalPositions)
   if (_ptLightRef) _ptLightRef.intensity = 0
 }
 
 act1.dispose = () => {}
 
 // ============================================================
-//  ACT 2  GRID PLANARIZATION  (sp 0.40 → 0.85)
-//  平面网格在此时完全稳定，供显示核心内容/文字
+//  ACT 2  GRID PLANARIZATION
 // ============================================================
 const act2 = { name: 'GridTransition', start: WHITE_OUT_THRESHOLD, end: GRID_SHIFT_START }
 
 let gridVerticalLines = []
-let horizontalFlattened = false
-let verticalDone = false
-let dustParticles2 = []
 
 act2.build = () => {
   buildVerticalGridLines()
-  buildDustAct2()
-}
-
-function buildDustAct2() {
-  const dc = ctx.get('dustConfig') || { count: 135, color: '#f0f8ff', baseOpacity: 0.14, baseRadius: 0.015 }
-  const geo = new THREE.SphereGeometry(dc.baseRadius, 10, 8)
-  const source = dustParticles1.length > 0 ? dustParticles1 : []
-  const count = source.length || dc.count
-
-  for (let i = 0; i < count; i++) {
-    const gray = Math.floor(100 + Math.random() * 60)
-    const hex = '#' + gray.toString(16).padStart(2,'0').repeat(3)
-    const mat = new THREE.MeshBasicMaterial({
-      color: hex, transparent: true, opacity: 0,
-      depthTest: true, depthWrite: false
-    })
-    const p = new THREE.Mesh(geo, mat)
-
-    if (source[i]) {
-      const s = source[i]
-      p.position.copy(s.position)
-      p.scale.copy(s.scale)
-      p.userData = {
-        wx: s.userData.wx, wy: s.userData.wy, wz: s.userData.wz,
-        ph: s.userData.ph,
-        scale: s.userData.scale,
-        visualScale: s.scale.x,
-        captureScale: s.scale.x,
-        dx: s.userData.dx, dy: s.userData.dy, dz: s.userData.dz
-      }
-      p.userData.sizeBoost = Math.random() < 0.60
-        ? 1.5 + Math.random() * 2.5   
-        : 0.7 + Math.random() * 0.8   
-    } else {
-      p.position.set((Math.random()-0.5)*28, -3+Math.random()*7, -3+Math.random()*7)
-      p.userData = {
-        wx:p.position.x, wy:p.position.y, wz:p.position.z,
-        ph:Math.random()*Math.PI*2, scale:0.25+Math.random()*0.55,
-        dx:(Math.random()-0.5)*0.12, dy:(Math.random()-0.5)*0.08+0.04, dz:(Math.random()-0.5)*0.06,
-        sizeBoost: 0.8 + Math.random() * 2.0
-      }
-    }
-    scene.add(p)
-    dustParticles2.push(p)
-  }
 }
 
 function buildVerticalGridLines() {
@@ -538,8 +682,8 @@ function buildVerticalGridLines() {
     const x=-28+(i/(totalLines-1))*56
     const pts=[new THREE.Vector3(x,baseY,zStart), new THREE.Vector3(x,baseY,zStart)]
     const g=new THREE.BufferGeometry().setFromPoints(pts)
-    const nearColor = new THREE.Color('#0f172a')
-    const farColor  = new THREE.Color('#e2e8f0')
+    const nearColor = new THREE.Color('#94a3b8')
+    const farColor  = new THREE.Color('#f1f5f9')
     g.setAttribute('color', new THREE.BufferAttribute(new Float32Array([
       farColor.r, farColor.g, farColor.b,
       nearColor.r, nearColor.g, nearColor.b
@@ -558,69 +702,27 @@ function buildVerticalGridLines() {
 }
 
 act2.animate = (time, tSp, sp) => {
-  const gridFactor = Math.max(0, Math.min(1, (sp - GRID_START) / (VERTICAL_START - GRID_START)))
+  animateVerticalGrid(sp)
+}
+
+function animateVerticalGrid(sp) {
   const vertFactor = Math.max(0, Math.min(1, (sp - VERTICAL_START) / (TEXT_START - VERTICAL_START)))
+  const act3Progress = Math.max(0, Math.min(1, (sp - GRID_SHIFT_START) / (1.0 - GRID_SHIFT_START)))
+  const smoothProgress3 = act3Progress * act3Progress * (3 - 2 * act3Progress)
+  const shiftY = -32.0 * smoothProgress3
+  const gridOpacityMult = 1.0 - smoothProgress3
 
-  // Phase 1 — flatten waves
-  if (!horizontalFlattened) {
-    const oceanLines = ctx.get('oceanLines')
-    const waveData   = ctx.get('waveData')
-    const waveBC     = ctx.get('waveBaseColors')
-    if (oceanLines && waveData) {
-      const targetCol = new THREE.Color('#94a3b8')
-      for (let i = 0; i < oceanLines.length; i++) {
-        const line = oceanLines[i], data = waveData[i], bc = waveBC[i]
-        const pa = line.geometry.attributes.position, ca = line.geometry.attributes.color
-        const pArr = pa.array, cArr = ca.array
-        for (let j = 0; j <= data.segCount; j++) {
-          const idx = j * 3
-          const x = (j / data.segCount - 0.5) * data.span * 2
-          const waveY = data.baseY + Math.sin(x*data.frequency+time*data.speed+data.phase)*data.amplitude + Math.sin(x*data.frequency*1.8+(time*data.speed+data.phase)*1.2)*data.amplitude*0.4
-          pArr[idx+1] = THREE.MathUtils.lerp(waveY, data.baseY, gridFactor)
-          cArr[idx]=THREE.MathUtils.lerp(bc.r,targetCol.r,gridFactor)
-          cArr[idx+1]=THREE.MathUtils.lerp(bc.g,targetCol.g,gridFactor)
-          cArr[idx+2]=THREE.MathUtils.lerp(bc.b,targetCol.b,gridFactor)
-        }
-        pa.needsUpdate = true; ca.needsUpdate = true
-        line.material.opacity = THREE.MathUtils.lerp(data.opacity, 0.45, gridFactor)
-      }
-    }
-    if (gridFactor >= 1.0) horizontalFlattened = true
-  }
-  if (gridFactor < 1.0) horizontalFlattened = false
-
-  // Phase 2 — vertical lines
-  if (vertFactor > 0 && !verticalDone) {
-    for (const vd of gridVerticalLines) {
-      const lp = Math.max(0, Math.min(1, (vertFactor - vd.staggerOffset) / 0.55))
-      if (lp <= 0) { vd.line.material.opacity = 0; continue }
-      const curZ = THREE.MathUtils.lerp(vd.zStart, vd.zEnd, lp)
-      const pArr = vd.line.geometry.attributes.position.array
-      pArr[5] = curZ
-      vd.line.geometry.attributes.position.needsUpdate = true
-      vd.line.material.opacity = Math.min(0.75, lp * 0.75)
-    }
-    if (vertFactor >= 1.0) verticalDone = true
-  }
-  if (vertFactor < 1.0) verticalDone = false
-
-  // Dust — drift
-  {
-    const tSec = time
-    for (const p of dustParticles2) {
-      const d = p.userData
-      p.position.set(
-        d.wx + Math.sin(tSec * 0.4 + d.ph) * 0.25,
-        d.wy + Math.sin(tSec * 0.3 + d.ph + 1) * 0.18,
-        d.wz + Math.sin(tSec * 0.25 + d.ph + 2) * 0.15
-      )
-      const cd = p.position.distanceTo(camera.position)
-      const ds = 22 / Math.max(5, cd)
-      const targetScale = d.scale * 0.7 * (d.sizeBoost || 1.0) * ds
-      const fadeIn = Math.max(0, Math.min(1, (sp - WHITE_OUT_THRESHOLD) / (WHITE_OUT_END - WHITE_OUT_THRESHOLD)))
-      p.scale.setScalar(THREE.MathUtils.lerp(d.captureScale || targetScale, targetScale, fadeIn))
-      p.material.opacity = fadeIn * 0.4
-    }
+  for (const vd of gridVerticalLines) {
+    const lp = Math.max(0, Math.min(1, (vertFactor - vd.staggerOffset) / 0.55))
+    const curZ = THREE.MathUtils.lerp(vd.zStart, vd.zEnd, lp)
+    const pArr = vd.line.geometry.attributes.position.array
+    
+    pArr[1] = vd.baseY + shiftY
+    pArr[4] = vd.baseY + shiftY
+    pArr[5] = curZ
+    
+    vd.line.geometry.attributes.position.needsUpdate = true
+    vd.line.material.opacity = Math.min(0.75, lp * 0.75) * gridOpacityMult
   }
 }
 
@@ -631,61 +733,21 @@ act2.exit = () => {
 act2.dispose = () => {}
 
 // ============================================================
-//  ACT 3  DOUBLE RING & GRID DESCENT  (sp 0.85 → 1.00)
+//  ACT 3  DOUBLE RING & GRID DESCENT
 // ============================================================
 const act3 = { name: 'ContentPhase', start: GRID_SHIFT_START, end: 1.00 }
 
 let act3Initialized = false
-let _act3GridBaseY = null
 let _mouseNDC = { x: 999, y: 999 }
 let _ringFreeze = 0          
 let _hoveredIdx = -1
-let _onMouseMove3 = null
 
 let _orbitLines = []
 let _lastTimeSec = 0
 
 act3.build = () => {
-  if (act3Initialized || dustParticles2.length === 0) return
+  if (act3Initialized) return
 
-  // 选出最大的 3 颗作为主行星
-  const sorted = dustParticles2.map((p, i) => ({
-    idx: i,
-    size: p.userData.scale * (p.userData.sizeBoost || 1.0)
-  }))
-  sorted.sort((a, b) => b.size - a.size)
-  _mainPlanetIndices = sorted.slice(0, ORBIT_COUNT).map(s => s.idx)
-
-  dustParticles2.forEach((p, idx) => {
-    const d = p.userData
-    d.orbitAngle = Math.random() * Math.PI * 2
-    const isMain = _mainPlanetIndices.includes(idx)
-    d.isMainPlanet = isMain
-    d.isOuter = true
-
-    if (isMain) {
-      const trackIdx = _mainPlanetIndices.indexOf(idx)
-      d.orbitR     = ORBIT_RADII[trackIdx]
-      d.orbitSpeed = -0.04 - trackIdx * 0.015
-      d._baseSpeed = d.orbitSpeed
-      d.scaleMult  = 3.5 + trackIdx * 0.3
-      d.isNavigationElement = true
-      p.name = `planet_${trackIdx}`
-    } else {
-      d.orbitR     = 2.5 + Math.random() * 4.5
-      d.orbitSpeed = -(0.03 + Math.random() * 0.08)
-      d._baseSpeed = d.orbitSpeed
-      d.scaleMult  = 0.8 + Math.random() * 1.5
-      d.wobbleAmp  = 0.5 + Math.random() * 1.2
-      d.wobbleFreq = 0.3 + Math.random() * 0.4
-      d.isNavigationElement = false
-    }
-    d.orbitTilt  = 0
-    d.flattenY   = 1.0
-    d.orbitPhase = (idx / dustParticles2.length) * Math.PI * 2
-  })
-
-  // 三条轨道线
   for (let t = 0; t < ORBIT_COUNT; t++) {
     const r = ORBIT_RADII[t]
     const pts = []
@@ -694,184 +756,35 @@ act3.build = () => {
       pts.push(new THREE.Vector3(Math.cos(theta) * r, 0, Math.sin(theta) * r))
     }
     const geo = new THREE.BufferGeometry().setFromPoints(pts)
-    const mat = new THREE.LineBasicMaterial({ color: '#94a3b8', transparent: true, opacity: 0, depthWrite: false })
+    const mat = new THREE.LineBasicMaterial({ color: '#cbd5e1', transparent: true, opacity: 0, depthWrite: false })
     const line = new THREE.Line(geo, mat)
     line.position.set(0, -1.0, -8)
     scene.add(line)
     _orbitLines.push(line)
   }
 
-  _onMouseMove3 = (e) => {
-    _mouseNDC.x = (e.clientX / window.innerWidth) * 2 - 1
-    _mouseNDC.y = -(e.clientY / window.innerHeight) * 2 + 1
-  }
-  window.addEventListener('mousemove', _onMouseMove3)
-
   _lastTimeSec = 0
   act3Initialized = true
 }
 
 act3.animate = (time, tSp, sp) => {
-  const tSec = time
   const progress = Math.max(0, Math.min(1, (sp - GRID_SHIFT_START) / (1.0 - GRID_SHIFT_START)))
   const smoothProgress = progress * progress * (3 - 2 * progress)
-  const isFullyFormed = progress >= 0.95
-
-  // 计算帧间时间微分（Delta Time）以用于增量物理旋转
-  if (_lastTimeSec === 0) _lastTimeSec = tSec
-  const dt = Math.min(0.1, tSec - _lastTimeSec) // 限制最大步长防止切屏跳跃
-  _lastTimeSec = tSec
-
-  // ── 1. 网格平面随着滑动缓慢下移 ──
-  const shiftY = -11 * smoothProgress 
-
-  if (_act3GridBaseY === null) {
-    _act3GridBaseY = { ocean: [], vertical: [] }
-    // 优化：直接读取 SFC 全局数组变量引用，保证首轮网格线下沉同步率
-    if (oceanLines && oceanLines.length > 0) {
-      for (const line of oceanLines) {
-        _act3GridBaseY.ocean.push(line.geometry.attributes.position.array.slice())
-      }
-    }
-    if (gridVerticalLines && gridVerticalLines.length > 0) {
-      for (const vd of gridVerticalLines) {
-        _act3GridBaseY.vertical.push(vd.line.geometry.attributes.position.array.slice())
-      }
-    }
-  }
-
-  if (_act3GridBaseY) {
-    if (oceanLines && oceanLines.length > 0) {
-      for (let i = 0; i < oceanLines.length; i++) {
-        const arr = oceanLines[i].geometry.attributes.position.array
-        const base = _act3GridBaseY.ocean[i]
-        if (!base) continue
-        for (let j = 1; j < arr.length; j += 3) {
-          arr[j] = base[j] + shiftY
-        }
-        oceanLines[i].geometry.attributes.position.needsUpdate = true
-      }
-    }
-    if (gridVerticalLines && gridVerticalLines.length > 0) {
-      for (let i = 0; i < gridVerticalLines.length; i++) {
-        const arr = gridVerticalLines[i].line.geometry.attributes.position.array
-        const base = _act3GridBaseY.vertical[i]
-        if (!base) continue
-        arr[1] = base[1] + shiftY
-        arr[4] = base[4] + shiftY
-        gridVerticalLines[i].line.geometry.attributes.position.needsUpdate = true
-      }
-    }
-  }
 
   for (const line of _orbitLines) {
     line.material.opacity = smoothProgress * 0.35
   }
-
-  // ── 2. 双星环重组与鼠标阻尼检测 ──
-  let bestDist = 1e9, bestIdx = -1
-  const _scratch = new THREE.Vector3()
-
-  if (isFullyFormed) {
-    for (let i = 0; i < dustParticles2.length; i++) {
-      const p = dustParticles2[i]
-      const d = p.userData
-      if (!d.isMainPlanet) continue  // 仅主行星可悬停
-      
-      _scratch.copy(p.position).project(camera)
-      const dx = (_scratch.x - _mouseNDC.x) * (window.innerWidth / window.innerHeight)
-      const dy = _scratch.y - _mouseNDC.y
-      const dist = Math.hypot(dx, dy)
-      if (dist < bestDist) {
-        bestDist = dist
-        bestIdx = i
-      }
-    }
-    
-    // 微调响应区域
-    const nearThreshold = 0.16
-    const targetFreeze = bestDist < nearThreshold ? 1.0 : 0
-    _ringFreeze += (targetFreeze - _ringFreeze) * 0.08 // 进一步放缓阻尼过度，使其更自然
-    _hoveredIdx = bestDist < 0.045 ? bestIdx : -1
-  } else {
-    _ringFreeze += (0 - _ringFreeze) * 0.15
-    _hoveredIdx = -1
-  }
-
-  const cx = 0, cy = -1.0, cz = -8
-
-  for (let idx = 0; idx < dustParticles2.length; idx++) {
-    const p = dustParticles2[idx]
-    const d = p.userData
-
-    // 布朗漂移轨迹
-    const bx = d.wx + Math.sin(tSec * 0.4 + d.ph) * 0.25
-    const by = d.wy + Math.sin(tSec * 0.3 + d.ph + 1) * 0.18
-    const bz = d.wz + Math.sin(tSec * 0.25 + d.ph + 2) * 0.15
-
-    // ── 物理增量积分 ──
-    const effectiveSpeed = d.isMainPlanet
-      ? d._baseSpeed * (1 - _ringFreeze)
-      : d._baseSpeed
-    d.orbitAngle += dt * effectiveSpeed
-
-    // 小行星：径向漂移（无固定轨道）
-    const wobbleR = d.isMainPlanet
-      ? d.orbitR
-      : d.orbitR + Math.sin(tSec * d.wobbleFreq + d.ph) * d.wobbleAmp
-
-    const ox = cx + Math.cos(d.orbitAngle) * wobbleR
-    const oy = cy
-    const oz = cz + Math.sin(d.orbitAngle) * wobbleR
-
-    p.position.set(
-      THREE.MathUtils.lerp(bx, ox, smoothProgress),
-      THREE.MathUtils.lerp(by, oy, smoothProgress),
-      THREE.MathUtils.lerp(bz, oz, smoothProgress)
-    )
-
-    const cd = p.position.distanceTo(camera.position)
-    const ds = 22 / Math.max(5, cd)
-    const baseScale = d.scale * 0.7 * (d.sizeBoost || 1.0) * ds
-    const targetScale = baseScale * d.scaleMult
-
-    let finalScale = THREE.MathUtils.lerp(baseScale, targetScale, smoothProgress)
-    
-    // 悬停仅保留简练的物理放大
-    if (idx === _hoveredIdx && d.isMainPlanet && isFullyFormed) {
-      finalScale *= 1.35
-    }
-
-    p.scale.setScalar(finalScale)
-    
-    // 颜色配置
-    if (d.isMainPlanet) {
-      // 主行星：深色，悬停时变亮
-      const base = new THREE.Color('#1a1c23')  // 深炭灰
-      const hover = new THREE.Color('#0ea5e9') // 悬停亮蓝
-      p.material.color.copy(base).lerp(hover, (idx === _hoveredIdx && isFullyFormed) ? 1 : 0)
-      p.material.opacity = THREE.MathUtils.lerp(0.40, 0.90, smoothProgress)
-    } else {
-      // 小行星：淡灰环带
-      p.material.color.set('#64748b')
-      p.material.opacity = THREE.MathUtils.lerp(0.40, 0.55, smoothProgress)
-    }
-  }
 }
 
-act3.exit = () => {
-  _act3GridBaseY = null
-}
+act3.exit = () => {}
+
 act3.dispose = () => {
-  if (_onMouseMove3) {
-    window.removeEventListener('mousemove', _onMouseMove3)
-    _onMouseMove3 = null
-  }
   for (const line of _orbitLines) {
     line.geometry.dispose()
     line.material.dispose()
   }
   _orbitLines = []
+  act3Initialized = false
 }
 
 // ============================================================
@@ -900,6 +813,11 @@ function animate(time) {
   const sp = props.scrollProgress
 
   sceneApplyWhiteOut(sp)
+  
+  animateWavesAndLighting(t, sp)
+  animateVerticalGrid(sp)
+  animateDust(t, sp)
+  animateBeam(t, sp) 
 
   const activeActs = resolveActiveActs(sp)
   for (const act of activeActs) {
@@ -917,6 +835,22 @@ function onResize() {
   camera.aspect = w / h
   camera.updateProjectionMatrix()
 }
+
+const onMouseMoveGlobal = (e) => {
+  _mouseNDC.x = (e.clientX / window.innerWidth) * 2 - 1
+  _mouseNDC.y = -(e.clientY / window.innerHeight) * 2 + 1
+}
+
+// 容器偏移计算：向下滚动时暴露 CSS 变量 --text-offset-y 以控制外部 HTML 文字无感上移 90px
+const containerStyle = computed(() => {
+  const sp = props.scrollProgress
+  const progress = Math.max(0, Math.min(1, (sp - GRID_SHIFT_START) / (1.0 - GRID_SHIFT_START)))
+  const smoothProgress = progress * progress * (3 - 2 * progress)
+  const translateUp = -90 * smoothProgress
+  return {
+    '--text-offset-y': `${translateUp}px`
+  }
+})
 
 onMounted(() => {
   const w = window.innerWidth, h = window.innerHeight
@@ -951,11 +885,14 @@ onMounted(() => {
 
   animationId = requestAnimationFrame(animate)
   window.addEventListener('resize', onResize)
+  window.addEventListener('mousemove', onMouseMoveGlobal)
 })
 
 onUnmounted(() => {
   cancelAnimationFrame(animationId)
   window.removeEventListener('resize', onResize)
+  window.removeEventListener('mousemove', onMouseMoveGlobal)
+  
   renderer?.dispose()
   scene?.traverse(obj => {
     if (obj.geometry) obj.geometry.dispose()
@@ -968,5 +905,7 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <canvas ref="canvasRef" style="position:fixed;inset:0;z-index:0" />
+  <div :style="containerStyle" style="position:fixed;inset:0;z-index:0">
+    <canvas ref="canvasRef" style="position:absolute;inset:0" />
+  </div>
 </template>
