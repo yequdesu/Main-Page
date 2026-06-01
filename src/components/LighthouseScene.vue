@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, onMounted, onUnmounted, computed } from 'vue'
 import * as THREE from 'three'
 
 const props = defineProps({
@@ -414,6 +414,24 @@ function buildDust() {
     scene.add(p)
     dustParticles.push(p)
   }
+
+  // 拓扑连线预计算：为主行星寻找各自初始位置最近的 6 颗微尘，构建星系链接关系
+  dustParticles.forEach((p, idx) => {
+    if (p.userData.isMainPlanet) {
+      const neighbors = []
+      dustParticles.forEach((other, oIdx) => {
+        if (idx === oIdx || other.userData.isMainPlanet) return
+        const dist = Math.hypot(
+          p.userData.wx - other.userData.wx, 
+          p.userData.wy - other.userData.wy, 
+          p.userData.wz - other.userData.wz
+        )
+        neighbors.push({ idx: oIdx, dist })
+      })
+      neighbors.sort((a,b)=>a.dist-b.dist)
+      p.userData.neighborIndices = neighbors.slice(0, 6).map(n => n.idx)
+    }
+  })
 }
 
 function buildLights() {
@@ -543,7 +561,6 @@ function animateDust(time, sp) {
     beamDir = new THREE.Vector3(0,0,1).applyQuaternion(beamPivot.quaternion).normalize()
   }
 
-  // 1. 寻找鼠标悬停最近的行星 (微调检测热区范围)
   let bestDist = 1e9, bestIdx = -1
   const _scratch = new THREE.Vector3()
 
@@ -567,7 +584,6 @@ function animateDust(time, sp) {
     _hoveredIdx = -1
   }
 
-  // 光标反馈：悬停行星时显示 pointer
   if (canvasRef.value) {
     canvasRef.value.style.cursor = (_hoveredIdx >= 0) ? 'pointer' : ''
   }
@@ -578,20 +594,49 @@ function animateDust(time, sp) {
 
   const cx = 0, cy = -1.0, cz = -8
 
+  // 渲染星系连线数据网
+  if (_constellationLines && _constellationGeometry) {
+    const posAttr = _constellationGeometry.attributes.position
+    const posArr = posAttr.array
+    let writeIdx = 0
+    
+    _mainPlanetIndices.forEach((mIdx) => {
+      const mP = dustParticles[mIdx]
+      const mD = mP.userData
+      const neighbors = mD.neighborIndices || []
+      
+      neighbors.forEach((nIdx) => {
+        const nP = dustParticles[nIdx]
+        posArr[writeIdx++] = mP.position.x
+        posArr[writeIdx++] = mP.position.y
+        posArr[writeIdx++] = mP.position.z
+        
+        posArr[writeIdx++] = nP.position.x
+        posArr[writeIdx++] = nP.position.y
+        posArr[writeIdx++] = nP.position.z
+      })
+    })
+    posAttr.needsUpdate = true
+    
+    let maxHover = 0
+    _mainPlanetIndices.forEach((mIdx) => {
+      maxHover = Math.max(maxHover, dustParticles[mIdx].userData.hoverFactor || 0)
+    })
+    _constellationLines.material.opacity = smoothProgress3 * maxHover * 0.42
+  }
+
   for (let idx = 0; idx < dustParticles.length; idx++) {
     const p = dustParticles[idx]
     const d = p.userData
 
-    // 2. 独立弹性阻尼物理计算 (取代原全局硬开关)
     const targetHover = (idx === _hoveredIdx && isFullyFormed3) ? 1.0 : 0.0
     d.hoverFactor = d.hoverFactor ?? 0.0
-    d.hoverFactor += (targetHover - d.hoverFactor) * 0.10 // 极细腻的过渡惯性
+    d.hoverFactor += (targetHover - d.hoverFactor) * 0.10 
 
     const bx = d.wx + Math.sin(time * 0.4 + d.ph) * 0.25
     const by = d.wy + Math.sin(time * 0.3 + d.ph + 1) * 0.18
     const bz = d.wz + Math.sin(time * 0.25 + d.ph + 2) * 0.15
 
-    // 优雅缓动：悬停主行星时，旋转非强制刹停，而是平滑减速至原速 15%，富有太空滑行质感
     const speedMultiplier = d.isMainPlanet ? (1.0 - d.hoverFactor * 0.85) : 1.0
     const effectiveSpeed = d._baseSpeed * speedMultiplier
     d.orbitAngle += dt * effectiveSpeed
@@ -628,8 +673,7 @@ function animateDust(time, sp) {
     let currentScale = THREE.MathUtils.lerp(scaleAct1, scaleAct2, wof)
     currentScale = THREE.MathUtils.lerp(currentScale, scaleAct3, smoothProgress3)
 
-    // 悬停缩放过渡
-    const hoverScaleMultiplier = 1.0 + d.hoverFactor * 0.45 // 顺滑扩增1.45倍
+    const hoverScaleMultiplier = 1.0 + d.hoverFactor * 0.45 
     p.scale.setScalar(currentScale * hoverScaleMultiplier)
 
     let opacityAct1 = (0.14 + bf * 0.76) * (0.35 + sp * 0.65)
@@ -642,14 +686,13 @@ function animateDust(time, sp) {
     let currentOpacity = THREE.MathUtils.lerp(opacityAct1, opacityAct2, wof)
     p.material.opacity = THREE.MathUtils.lerp(currentOpacity, opacityAct3, smoothProgress3)
 
-    // 3. 极简雅致色调设计 (Slate钛金暖灰色 -> 亮钴蓝微光)
     const colorAct1 = new THREE.Color('#f0f8ff')
     const colorAct2 = new THREE.Color(d.grayHex)
     const colorAct3 = new THREE.Color('#64748b')
 
     if (d.isMainPlanet) {
-      const baseSlate = new THREE.Color('#475569') // 温暖钛金色
-      const hoverSkyBlue = new THREE.Color('#0ea5e9') // 微光天蓝色
+      const baseSlate = new THREE.Color('#475569') 
+      const hoverSkyBlue = new THREE.Color('#0ea5e9') 
       colorAct3.copy(baseSlate).lerp(hoverSkyBlue, d.hoverFactor)
     }
 
@@ -675,9 +718,34 @@ act1.dispose = () => {}
 const act2 = { name: 'GridTransition', start: WHITE_OUT_THRESHOLD, end: GRID_SHIFT_START }
 
 let gridVerticalLines = []
+let _gridPoints = null
 
 act2.build = () => {
   buildVerticalGridLines()
+  buildGridJunctionNodes()
+}
+
+function buildGridJunctionNodes() {
+  if (_gridPoints) return
+  const dotPts = []
+  for (let i = 0; i < 14; i++) {
+    const x = -26 + (i / 13) * 52
+    for (let j = 0; j < 15; j++) {
+      const z = -48 + (j / 14) * 52
+      dotPts.push(new THREE.Vector3(x, -2.5, z))
+    }
+  }
+  const dotGeo = new THREE.BufferGeometry().setFromPoints(dotPts)
+  const dotMat = new THREE.PointsMaterial({
+    color: '#94a3b8',
+    size: 0.052,
+    transparent: true,
+    opacity: 0,
+    depthWrite: false,
+    depthTest: true
+  })
+  _gridPoints = new THREE.Points(dotGeo, dotMat)
+  scene.add(_gridPoints)
 }
 
 function buildVerticalGridLines() {
@@ -729,6 +797,12 @@ function animateVerticalGrid(sp) {
     vd.line.geometry.attributes.position.needsUpdate = true
     vd.line.material.opacity = Math.min(0.75, lp * 0.75) * gridOpacityMult
   }
+
+  if (_gridPoints) {
+    const gridFactor = Math.max(0, Math.min(1, (sp - GRID_START) / (VERTICAL_START - GRID_START)))
+    _gridPoints.position.y = shiftY
+    _gridPoints.material.opacity = gridFactor * 0.55 * gridOpacityMult
+  }
 }
 
 act2.exit = () => {
@@ -749,16 +823,22 @@ let _hoveredIdx = -1
 
 let _orbitLines = []
 let _planetLabels = []
+let _hudConnectors = [] // HUD 连线集合
 let _raycaster = null
 let _lastTimeSec = 0
 
-// 主行星导航链接 (trackIdx → { label, accent, url })
+// 拓扑数据网格变量
+let _constellationGeometry = null
+let _constellationLines = null
+
+// 修正后的主行星导航链接 (FS 与 Code 链接域名后缀修正为 top)
 const _planetLinks = [
-  { label: 'FS',     accent: '#94a3b8', url: 'https://fs.yequdesu.com' },
-  { label: 'Code',   accent: '#38bdf8', url: 'https://code.yequdesu.com' },
+  { label: 'FS',     accent: '#94a3b8', url: 'https://fs.yequdesu.top' },
+  { label: 'Code',   accent: '#0ea5e9', url: 'https://code.yequdesu.top' },
   { label: 'GitHub', accent: '#818cf8', url: 'https://github.com/yequdesu' },
 ]
 
+// 优化：采用精密的 HUD 边框与极简胶囊背板设计代替粗糙的全黑块，大幅提升视觉档次
 function createPlanetLabel(text, accentColor) {
   const size = 256
   const canvas = document.createElement('canvas')
@@ -766,49 +846,53 @@ function createPlanetLabel(text, accentColor) {
   canvas.height = 64
   const ctx = canvas.getContext('2d')
 
-  // 半透明暗色 pill 背景
-  const metrics = ctx.measureText(text)
-  ctx.font = '600 28px "Inter", "Segoe UI", system-ui, sans-serif'
+  ctx.clearRect(0, 0, size, size)
+
+  // 计算文本尺寸
+  ctx.font = 'bold 24px "Inter", "Roboto Mono", "Segoe UI", system-ui, sans-serif'
   const tw = ctx.measureText(text).width
-  const padX = 28, padY = 14
-  const pillW = tw + padX * 2, pillH = 38
-  const pillX = (size - pillW) / 2, pillY = (64 - pillH) / 2
-  const pillR = 19
+  const padX = 22, padY = 10
+  const pillW = Math.max(82, tw + padX * 2)
+  const pillH = 34
+  const pillX = (size - pillW) / 2
+  const pillY = (64 - pillH) / 2
+  const pillR = 8 
 
+  // 半透明高质感背板
   ctx.beginPath()
-  ctx.moveTo(pillX + pillR, pillY)
-  ctx.lineTo(pillX + pillW - pillR, pillY)
-  ctx.arcTo(pillX + pillW, pillY, pillX + pillW, pillY + pillR, pillR)
-  ctx.lineTo(pillX + pillW, pillY + pillH - pillR)
-  ctx.arcTo(pillX + pillW, pillY + pillH, pillX + pillW - pillR, pillY + pillH, pillR)
-  ctx.lineTo(pillX + pillR, pillY + pillH)
-  ctx.arcTo(pillX, pillY + pillH, pillX, pillY + pillH - pillR, pillR)
-  ctx.lineTo(pillX, pillY + pillR)
-  ctx.arcTo(pillX, pillY, pillX + pillR, pillY, pillR)
+  if (ctx.roundRect) {
+    ctx.roundRect(pillX, pillY, pillW, pillH, pillR)
+  } else {
+    ctx.rect(pillX, pillY, pillW, pillH)
+  }
   ctx.closePath()
-
-  ctx.fillStyle = 'rgba(15, 23, 42, 0.82)'
+  ctx.fillStyle = 'rgba(15, 23, 42, 0.45)'
   ctx.fill()
 
-  // 左侧 accent 色条
-  ctx.fillStyle = accentColor
-  ctx.beginPath()
-  ctx.moveTo(pillX, pillY + 6)
-  ctx.lineTo(pillX + 4, pillY + 6)
-  ctx.lineTo(pillX + 4, pillY + pillH - 6)
-  ctx.lineTo(pillX, pillY + pillH - 6)
-  ctx.arcTo(pillX, pillY + pillH - 6, pillX, pillY + pillH - 6 - 4, 4)
-  ctx.lineTo(pillX, pillY + 6 + 4)
-  ctx.arcTo(pillX, pillY + 6, pillX + 4, pillY + 6, 4)
-  ctx.closePath()
-  ctx.fill()
+  // CAD 科技感边框描线 (左右两侧线条修饰)
+  ctx.strokeStyle = accentColor
+  ctx.lineWidth = 1.5
 
-  // 文字
-  ctx.fillStyle = '#f1f5f9'
-  ctx.font = '600 28px "Inter", "Segoe UI", system-ui, sans-serif'
+  ctx.beginPath()
+  ctx.moveTo(pillX + 12, pillY)
+  ctx.lineTo(pillX, pillY)
+  ctx.lineTo(pillX, pillY + pillH)
+  ctx.lineTo(pillX + 12, pillY + pillH)
+  ctx.stroke()
+
+  ctx.beginPath()
+  ctx.moveTo(pillX + pillW - 12, pillY)
+  ctx.lineTo(pillX + pillW, pillY)
+  ctx.lineTo(pillX + pillW, pillY + pillH)
+  ctx.lineTo(pillX + pillW - 12, pillY + pillH)
+  ctx.stroke()
+
+  // 文字渲染
+  ctx.fillStyle = '#f8fafc'
+  ctx.font = 'bold 22px "Inter", "Roboto Mono", "Segoe UI", system-ui, sans-serif'
   ctx.textAlign = 'center'
   ctx.textBaseline = 'middle'
-  ctx.fillText(text, size / 2, 64 / 2)
+  ctx.fillText(text.toUpperCase(), size / 2, 64 / 2)
 
   const tex = new THREE.CanvasTexture(canvas)
   tex.minFilter = THREE.LinearFilter
@@ -821,14 +905,14 @@ function createPlanetLabel(text, accentColor) {
     depthWrite: false,
   })
   const sprite = new THREE.Sprite(spriteMat)
-  sprite.scale.set(2.2, 0.55, 1)
+  sprite.scale.set(1.8, 0.45, 1) // 缩放调整为更加精细的尺寸
   return sprite
 }
 
 act3.build = () => {
   if (act3Initialized) return
 
-  // 轨道环
+  // 同心轨道
   for (let t = 0; t < ORBIT_COUNT; t++) {
     const r = ORBIT_RADII[t]
     const pts = []
@@ -844,6 +928,43 @@ act3.build = () => {
     _orbitLines.push(line)
   }
 
+  // 浑天仪立体装饰环
+  const tMat = new THREE.LineBasicMaterial({ color: '#cbd5e1', transparent: true, opacity: 0, depthWrite: false })
+  
+  const gyro1 = new THREE.RingGeometry(6.38, 6.4, 64)
+  gyro1.rotateX(Math.PI / 2 + 0.15)
+  gyro1.rotateZ(0.2)
+  const lineG1 = new THREE.LineLoop(gyro1, tMat)
+  lineG1.position.set(0, -1.0, -8)
+  scene.add(lineG1)
+  _orbitLines.push(lineG1)
+
+  const gyro2 = new THREE.RingGeometry(4.98, 5.0, 64)
+  gyro2.rotateX(Math.PI / 2 - 0.1)
+  gyro2.rotateZ(-0.25)
+  const lineG2 = new THREE.LineLoop(gyro2, tMat.clone())
+  lineG2.position.set(0, -1.0, -8)
+  scene.add(lineG2)
+  _orbitLines.push(lineG2)
+
+  // 导航指示线 (三轴矢量连接线)
+  for (let t = 0; t < ORBIT_COUNT; t++) {
+    const geom = new THREE.BufferGeometry().setFromPoints([
+      new THREE.Vector3(0, 0, 0),
+      new THREE.Vector3(0, 0, 0)
+    ])
+    const mat = new THREE.LineBasicMaterial({
+      color: _planetLinks[t].accent,
+      transparent: true,
+      opacity: 0,
+      depthWrite: false,
+      depthTest: false
+    })
+    const line = new THREE.Line(geom, mat)
+    scene.add(line)
+    _hudConnectors.push(line)
+  }
+
   // 行星标签精灵
   for (let t = 0; t < ORBIT_COUNT; t++) {
     const link = _planetLinks[t]
@@ -853,6 +974,21 @@ act3.build = () => {
     scene.add(sprite)
     _planetLabels.push(sprite)
   }
+
+  // 拓扑连线
+  const segmentCount = 18
+  const posArray = new Float32Array(segmentCount * 2 * 3) 
+  _constellationGeometry = new THREE.BufferGeometry()
+  _constellationGeometry.setAttribute('position', new THREE.BufferAttribute(posArray, 3))
+  const lineMat = new THREE.LineBasicMaterial({
+    color: '#0ea5e9',
+    transparent: true,
+    opacity: 0,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending
+  })
+  _constellationLines = new THREE.LineSegments(_constellationGeometry, lineMat)
+  scene.add(_constellationLines)
 
   _raycaster = new THREE.Raycaster()
   _raycaster.params.Points.threshold = 0
@@ -869,14 +1005,39 @@ act3.animate = (time, tSp, sp) => {
     line.material.opacity = smoothProgress * 0.35
   }
 
-  // 标签位置跟踪对应主行星
+  // 标签位置与三维指示线的动态阻尼跟随
   const mainPlanets = dustParticles.filter(p => p.userData.isMainPlanet)
   for (let t = 0; t < _planetLabels.length && t < mainPlanets.length; t++) {
     const label = _planetLabels[t]
     const planet = mainPlanets[t]
+    const connector = _hudConnectors[t]
+    
+    const hoverF = planet.userData.hoverFactor || 0.0
+
+    // 计算跟随坐标
     label.position.copy(planet.position)
-    label.position.y += 0.45
-    label.material.opacity = smoothProgress * 0.92
+    
+    // 悬停时标签受引力上升抬高，极富物理张力
+    const currentLift = 0.45 + hoverF * 0.15
+    label.position.y += currentLift
+
+    // 指示线连接更新 (从主行星核心到文字背板底部)
+    if (connector) {
+      const positions = connector.geometry.attributes.position.array
+      positions[0] = planet.position.x
+      positions[1] = planet.position.y
+      positions[2] = planet.position.z
+      
+      positions[3] = label.position.x
+      positions[4] = label.position.y - 0.12
+      positions[5] = label.position.z
+      connector.geometry.attributes.position.needsUpdate = true
+
+      // 指示线跟随悬停做柔和亮暗变化
+      connector.material.opacity = smoothProgress * (0.20 + hoverF * 0.40)
+    }
+
+    label.material.opacity = smoothProgress * (0.75 + hoverF * 0.25)
   }
 }
 
@@ -888,11 +1049,27 @@ act3.dispose = () => {
     line.material.dispose()
   }
   _orbitLines = []
+  
   for (const sprite of _planetLabels) {
     sprite.material.map.dispose()
     sprite.material.dispose()
   }
   _planetLabels = []
+
+  for (const conn of _hudConnectors) {
+    conn.geometry.dispose()
+    conn.material.dispose()
+  }
+  _hudConnectors = []
+
+  if (_constellationGeometry) _constellationGeometry.dispose()
+  if (_constellationLines) {
+    _constellationLines.material.dispose()
+    scene.remove(_constellationLines)
+  }
+  _constellationGeometry = null
+  _constellationLines = null
+
   _raycaster = null
   act3Initialized = false
 }
