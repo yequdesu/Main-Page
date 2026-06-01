@@ -154,11 +154,6 @@ function sceneApplyWhiteOut(sp) {
   
   if (_ambientLightRef) _ambientLightRef.intensity = 1.4 + wof * 3.5
 
-  if (lighthouseGroup) {
-    const scaleFactor = 0.7 * (1.0 - wof)
-    lighthouseGroup.scale.setScalar(scaleFactor)
-    lighthouseGroup.visible = scaleFactor > 0.001
-  }
   if (beamPivot) {
     beamPivot.visible = wof < 1.0
   }
@@ -295,7 +290,8 @@ function buildLighthouse() {
       emissive:'#fff', emissiveIntensity:1.0, side:THREE.DoubleSide, transparent:true, opacity:0.2 }))
   glass.position.y=2.96; lighthouseGroup.add(glass)
 
-  const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.07,12,12), glowMat)
+  const bulbGlow = new THREE.MeshBasicMaterial({ color:'#ffdf6d', transparent:true, opacity:0.55, depthWrite:false })
+  const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.07,12,12), bulbGlow)
   bulb.position.y=2.96; lighthouseGroup.add(bulb)
 
   for(let i=0;i<6;i++){
