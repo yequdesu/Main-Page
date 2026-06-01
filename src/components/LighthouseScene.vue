@@ -32,6 +32,35 @@ const ORBIT_RADII = [3.6, 5.0, 6.4]
 let _mainPlanetIndices = []
 
 // ============================================================
+//  PRE-ALLOCATED REUSABLE OBJECTS (GC-FREE)
+// ============================================================
+const _waveBeamOrigin = new THREE.Vector3()
+const _waveBeamDir = new THREE.Vector3()
+const _targetCol = new THREE.Color('#94a3b8')
+
+const _dustBwo = new THREE.Vector3()
+const _dustBeamDir = new THREE.Vector3()
+const _dustToP = new THREE.Vector3()
+const _dustPp = new THREE.Vector3()
+const _colorAct1 = new THREE.Color('#f0f8ff')
+const _colorAct3 = new THREE.Color('#64748b')
+const _colorAct2 = new THREE.Color()
+const _currentColor = new THREE.Color()
+
+const _clickNDC = new THREE.Vector2()
+
+// ============================================================
+//  FRAME CACHING GUARDS (Prevents redundant updates in a single frame)
+// ============================================================
+let _lastWavesTime = -1, _lastWavesSp = -1
+let _lastGridSp = -1
+let _lastDustTime = -1, _lastDustSp = -1
+let _lastBeamTime = -1, _lastBeamSp = -1
+
+let wavesVisible = true
+let gridLinesVisible = true
+
+// ============================================================
 //  UTILITY
 // ============================================================
 function shortestDelta(from, to) {
@@ -343,7 +372,6 @@ function buildDust() {
   if (dustParticles.length > 0) return
   const count = 135
 
-  // 1. 预先计算尺寸和主行星权重
   const dustConfigs = []
   for (let i = 0; i < count; i++) {
     const scale = 0.4 + Math.random() * 0.8
@@ -355,11 +383,9 @@ function buildDust() {
     .sort((a, b) => b.size - a.size)
   _mainPlanetIndices = sorted.slice(0, ORBIT_COUNT).map(s => s.idx)
 
-  // 2. 独立分级几何体 (低面数微尘 vs 高面数主行星)
   const lowPolyGeo = new THREE.SphereGeometry(0.015, 10, 8)
   const highPolyGeo = new THREE.SphereGeometry(0.015, 32, 32)
 
-  // 3. 构建粒子系统
   for (let i = 0; i < count; i++) {
     const isMain = _mainPlanetIndices.includes(i)
     const geo = isMain ? highPolyGeo : lowPolyGeo
@@ -390,7 +416,7 @@ function buildDust() {
       grayHex,
       orbitAngle: Math.random() * Math.PI * 2,
       isMainPlanet: isMain,
-      hoverFactor: 0.0 // 独立阻尼过渡系数
+      hoverFactor: 0.0 
     }
 
     if (isMain) {
@@ -414,8 +440,6 @@ function buildDust() {
     scene.add(p)
     dustParticles.push(p)
   }
-
-
 }
 
 function buildLights() {
@@ -435,20 +459,39 @@ act1.animate = (time, tSp, sp) => {
 }
 
 function animateWavesAndLighting(time, sp) {
-  const hlWeight = Math.max(0, Math.min(1, (WHITE_OUT_THRESHOLD - sp) / 0.10))
-  const gridFactor = Math.max(0, Math.min(1, (sp - GRID_START) / (VERTICAL_START - GRID_START)))
+  if (time === _lastWavesTime && sp === _lastWavesSp) return
+  _lastWavesTime = time
+  _lastWavesSp = sp
+
   const act3Progress = Math.max(0, Math.min(1, (sp - GRID_SHIFT_START) / (1.0 - GRID_SHIFT_START)))
   const smoothProgress3 = act3Progress * act3Progress * (3 - 2 * act3Progress)
-  
-  // 双保险：增大物理沉降深度(-32)并辅以完全透明淡出，彻底清除杂乱横条
-  const shiftY = -32.0 * smoothProgress3
   const gridOpacityMult = 1.0 - smoothProgress3
-  const targetCol = new THREE.Color('#94a3b8')
 
-  let beamOrigin, beamDir
+  // 若波浪完全淡出不可见，直接隐藏它们并跳过顶点着色更新
+  if (gridOpacityMult < 0.001) {
+    if (wavesVisible) {
+      for (let i = 0; i < oceanLines.length; i++) {
+        oceanLines[i].visible = false
+      }
+      wavesVisible = false
+    }
+    return
+  } else {
+    if (!wavesVisible) {
+      for (let i = 0; i < oceanLines.length; i++) {
+        oceanLines[i].visible = true
+      }
+      wavesVisible = true
+    }
+  }
+
+  const hlWeight = Math.max(0, Math.min(1, (WHITE_OUT_THRESHOLD - sp) / 0.10))
+  const gridFactor = Math.max(0, Math.min(1, (sp - GRID_START) / (VERTICAL_START - GRID_START)))
+  const shiftY = -32.0 * smoothProgress3
+
   if (hlWeight > 0 && beamPivot) {
-    beamOrigin = new THREE.Vector3(); beamPivot.getWorldPosition(beamOrigin)
-    beamDir = new THREE.Vector3(0,0,1).applyQuaternion(beamPivot.quaternion).normalize()
+    beamPivot.getWorldPosition(_waveBeamOrigin)
+    _waveBeamDir.set(0, 0, 1).applyQuaternion(beamPivot.quaternion).normalize()
   }
   
   for (let i = 0; i < oceanLines.length; i++) {
@@ -467,33 +510,40 @@ function animateWavesAndLighting(time, sp) {
       pArr[idx+1] = THREE.MathUtils.lerp(waveY, data.baseY, gridFactor) + shiftY
       
       let r = bc.r, g = bc.g, b = bc.b
-      if (hlWeight > 0 && beamDir) {
-        const vx=x-beamOrigin.x, vy=waveY-beamOrigin.y, vz=data.z-beamOrigin.z
-        const proj=vx*beamDir.x+vy*beamDir.y+vz*beamDir.z
-        const localX=vx*beamDir.z-vz*beamDir.x
-        const beamR=1.2+Math.max(0,proj)*0.15
-        const distSq=(localX*localX)/(beamR*beamR)+(vy*vy)/1.5
-        let di=Math.exp(-distSq*0.9)
-        di*=Math.max(0,Math.min(1,(proj+4)/8))
-        di*=Math.max(0,1-(Math.max(0,proj)/48))
-        let li=di*1.5 * hlWeight
-        if(beamDir.z>0&&vz>0) li+=di*Math.exp(-(x*x)/7)*beamDir.z*1.3 * hlWeight
-        const hR=0.92,hG=0.97,hB=1.0
-        r = bc.r+(hR-bc.r)*li*0.95
-        g = bc.g+(hG-bc.g)*li*0.95
-        b = bc.b+(hB-bc.b)*li*0.95
+      if (hlWeight > 0 && beamPivot) {
+        const vx = x - _waveBeamOrigin.x
+        const vy = waveY - _waveBeamOrigin.y
+        const vz = data.z - _waveBeamOrigin.z
+        const proj = vx * _waveBeamDir.x + vy * _waveBeamDir.y + vz * _waveBeamDir.z
+        const localX = vx * _waveBeamDir.z - vz * _waveBeamDir.x
+        const beamR = 1.2 + Math.max(0, proj) * 0.15
+        const distSq = (localX * localX) / (beamR * beamR) + (vy * vy) / 1.5
+        let di = Math.exp(-distSq * 0.9)
+        di *= Math.max(0, Math.min(1, (proj + 4) / 8))
+        di *= Math.max(0, 1 - (Math.max(0, proj) / 48))
+        let li = di * 1.5 * hlWeight
+        if (_waveBeamDir.z > 0 && vz > 0) li += di * Math.exp(-(x * x) / 7) * _waveBeamDir.z * 1.3 * hlWeight
+        const hR = 0.92, hG = 0.97, hB = 1.0
+        r = bc.r + (hR - bc.r) * li * 0.95
+        g = bc.g + (hG - bc.g) * li * 0.95
+        b = bc.b + (hB - bc.b) * li * 0.95
       }
 
-      cArr[idx]   = THREE.MathUtils.lerp(r, targetCol.r, gridFactor)
-      cArr[idx+1] = THREE.MathUtils.lerp(g, targetCol.g, gridFactor)
-      cArr[idx+2] = THREE.MathUtils.lerp(b, targetCol.b, gridFactor)
+      cArr[idx]   = THREE.MathUtils.lerp(r, _targetCol.r, gridFactor)
+      cArr[idx+1] = THREE.MathUtils.lerp(g, _targetCol.g, gridFactor)
+      cArr[idx+2] = THREE.MathUtils.lerp(b, _targetCol.b, gridFactor)
     }
-    pa.needsUpdate=true; ca.needsUpdate=true
+    pa.needsUpdate = true
+    ca.needsUpdate = true
     line.material.opacity = THREE.MathUtils.lerp(data.opacity, 0.45, gridFactor) * baseDepthFade * gridOpacityMult
   }
 }
 
 function animateBeam(time, sp) {
+  if (time === _lastBeamTime && sp === _lastBeamSp) return
+  _lastBeamTime = time
+  _lastBeamSp = sp
+
   if (!beamPivot) return
   let targetY=0, targetX=0.08, beamMult=1.0
   const isScrolling = sp > 0.005
@@ -532,6 +582,10 @@ function animateBeam(time, sp) {
 }
 
 function animateDust(time, sp) {
+  if (time === _lastDustTime && sp === _lastDustSp) return
+  _lastDustTime = time
+  _lastDustSp = sp
+
   if (dustParticles.length === 0 || !camera) return
 
   const wof = Math.max(0, Math.min(1, (sp - WHITE_OUT_THRESHOLD) / (WHITE_OUT_END - WHITE_OUT_THRESHOLD)))
@@ -539,10 +593,9 @@ function animateDust(time, sp) {
   const smoothProgress3 = act3Progress * act3Progress * (3 - 2 * act3Progress)
   const isFullyFormed3 = act3Progress >= 0.95
 
-  let bwo, beamDir
   if (sp < WHITE_OUT_END && beamPivot) {
-    bwo = new THREE.Vector3(); beamPivot.getWorldPosition(bwo)
-    beamDir = new THREE.Vector3(0,0,1).applyQuaternion(beamPivot.quaternion).normalize()
+    beamPivot.getWorldPosition(_dustBwo)
+    _dustBeamDir.set(0, 0, 1).applyQuaternion(beamPivot.quaternion).normalize()
   }
 
   let bestDist = 1e9, bestIdx = -1
@@ -608,11 +661,12 @@ function animateDust(time, sp) {
     const ds = 22 / Math.max(5, cd)
 
     let bf = 0
-    if (sp < WHITE_OUT_END && bwo && beamDir) {
-      const toP = new THREE.Vector3().subVectors(p.position, bwo), proj = toP.dot(beamDir)
+    if (sp < WHITE_OUT_END && beamPivot) {
+      _dustToP.subVectors(p.position, _dustBwo)
+      const proj = _dustToP.dot(_dustBeamDir)
       if (proj > 0 && proj < 45) {
-        const pp = bwo.clone().addScaledVector(beamDir, proj)
-        const dist = p.position.distanceTo(pp)
+        _dustPp.copy(_dustBwo).addScaledVector(_dustBeamDir, proj)
+        const dist = p.position.distanceTo(_dustPp)
         const br = (proj / 45) * 5.5 + 0.2
         if (dist < br) bf = Math.pow(1 - dist / br, 1.8)
       }
@@ -637,12 +691,9 @@ function animateDust(time, sp) {
     let currentOpacity = THREE.MathUtils.lerp(opacityAct1, opacityAct2, wof)
     p.material.opacity = THREE.MathUtils.lerp(currentOpacity, opacityAct3, smoothProgress3)
 
-    const colorAct1 = new THREE.Color('#f0f8ff')
-    const colorAct2 = new THREE.Color(d.grayHex)
-    const colorAct3 = new THREE.Color('#64748b')
-
-    const currentColor = colorAct1.clone().lerp(colorAct2, wof).lerp(colorAct3, smoothProgress3)
-    p.material.color.copy(currentColor)
+    _colorAct2.set(d.grayHex)
+    _currentColor.copy(_colorAct1).lerp(_colorAct2, wof).lerp(_colorAct3, smoothProgress3)
+    p.material.color.copy(_currentColor)
   }
 }
 
@@ -724,11 +775,40 @@ act2.animate = (time, tSp, sp) => {
 }
 
 function animateVerticalGrid(sp) {
+  if (sp === _lastGridSp) return
+  _lastGridSp = sp
+
   const vertFactor = Math.max(0, Math.min(1, (sp - VERTICAL_START) / (TEXT_START - VERTICAL_START)))
   const act3Progress = Math.max(0, Math.min(1, (sp - GRID_SHIFT_START) / (1.0 - GRID_SHIFT_START)))
   const smoothProgress3 = act3Progress * act3Progress * (3 - 2 * act3Progress)
-  const shiftY = -32.0 * smoothProgress3
   const gridOpacityMult = 1.0 - smoothProgress3
+
+  // 若网格移出屏幕且完全透明，则直接将其隐藏并不再更新顶点几何体
+  if (gridOpacityMult < 0.001) {
+    if (gridLinesVisible) {
+      for (const vd of gridVerticalLines) {
+        vd.line.visible = false
+      }
+      if (_gridPoints) _gridPoints.visible = false
+      gridLinesVisible = false
+    }
+    return
+  } else {
+    if (!gridLinesVisible) {
+      for (const vd of gridVerticalLines) {
+        vd.line.visible = true
+      }
+      if (_gridPoints) _gridPoints.visible = true
+      gridLinesVisible = true
+    }
+  }
+
+  // 如果 sp 还未到达垂直动作点，其位置完全是静态的（和初始构建一样），跳过重复的 CPU 计算
+  if (sp < VERTICAL_START) {
+    return
+  }
+
+  const shiftY = -32.0 * smoothProgress3
 
   for (const vd of gridVerticalLines) {
     const lp = Math.max(0, Math.min(1, (vertFactor - vd.staggerOffset) / 0.55))
@@ -772,14 +852,12 @@ let _planetLabels = []
 let _raycaster = null
 let _lastTimeSec = 0
 
-// 主行星导航链接
 const _planetLinks = [
   { label: 'FS',     accent: '#94a3b8', url: 'https://fs.yequdesu.top' },
   { label: 'Code',   accent: '#0ea5e9', url: 'https://code.yequdesu.top' },
   { label: 'GitHub', accent: '#818cf8', url: 'https://github.com/yequdesu' },
 ]
 
-// 简洁 pill 标签精灵
 function createPlanetLabel(text, accentColor) {
   const size = 256
   const canvas = document.createElement('canvas')
@@ -834,7 +912,6 @@ function createPlanetLabel(text, accentColor) {
 act3.build = () => {
   if (act3Initialized) return
 
-  // 同心轨道
   for (let t = 0; t < ORBIT_COUNT; t++) {
     const r = ORBIT_RADII[t]
     const pts = []
@@ -850,7 +927,6 @@ act3.build = () => {
     _orbitLines.push(line)
   }
 
-  // 三条倾斜装饰环 — 大半径 + 缓慢中心旋转
   const gyroRadii = [7.8, 9.4, 11.0]
   const gyroTilts = [
     { x: Math.PI / 2 + 0.25, z: 0.35 },
@@ -872,7 +948,6 @@ act3.build = () => {
     _gyroGroups.push(group)
   }
 
-  // 行星标签精灵
   for (let t = 0; t < ORBIT_COUNT; t++) {
     const link = _planetLinks[t]
     const sprite = createPlanetLabel(link.label, link.accent)
@@ -897,13 +972,11 @@ act3.animate = (time, tSp, sp) => {
     line.material.opacity = smoothProgress * 0.35
   }
 
-  // 倾斜环旋转
   for (const g of _gyroGroups) {
     g.rotation.y += g.userData.rotSpeed * 0.016
     if (g.children[0]) g.children[0].material.opacity = smoothProgress * 0.28
   }
 
-  // 标签位置跟随主行星 (按 trackIdx 排序确保映射正确)
   const mainPlanets = dustParticles
     .filter(p => p.userData.isMainPlanet)
     .sort((a, b) => _mainPlanetIndices.indexOf(dustParticles.indexOf(a)) - _mainPlanetIndices.indexOf(dustParticles.indexOf(b)))
@@ -971,6 +1044,7 @@ function animate(time) {
   updateTextOffsetCSS(sp)
   sceneApplyWhiteOut(sp)
   
+  // 核心逻辑执行（内部包含了帧缓存和重复调用拦截）
   animateWavesAndLighting(t, sp)
   animateVerticalGrid(sp)
   animateDust(t, sp)
@@ -998,7 +1072,6 @@ const onMouseMoveGlobal = (e) => {
   _mouseNDC.y = -(e.clientY / window.innerHeight) * 2 + 1
 }
 
-// 行星点击 → 导航
 const onClickCanvas = (e) => {
   const sp = props.scrollProgress
   if (sp < GRID_SHIFT_START || !_raycaster) return
@@ -1007,7 +1080,8 @@ const onClickCanvas = (e) => {
   const ndcX = ((e.clientX - rect.left) / rect.width) * 2 - 1
   const ndcY = -((e.clientY - rect.top) / rect.height) * 2 + 1
 
-  _raycaster.setFromCamera(new THREE.Vector2(ndcX, ndcY), camera)
+  _clickNDC.set(ndcX, ndcY)
+  _raycaster.setFromCamera(_clickNDC, camera)
   const mainPlanets = dustParticles.filter(p => p.userData.isMainPlanet)
   const hits = _raycaster.intersectObjects(mainPlanets, false)
   if (hits.length > 0) {
