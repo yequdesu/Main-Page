@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted, onUnmounted, computed } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import * as THREE from 'three'
 
 const props = defineProps({
@@ -567,6 +567,11 @@ function animateDust(time, sp) {
     _hoveredIdx = -1
   }
 
+  // 光标反馈：悬停行星时显示 pointer
+  if (canvasRef.value) {
+    canvasRef.value.style.cursor = (_hoveredIdx >= 0) ? 'pointer' : ''
+  }
+
   if (_lastTimeSec === 0) _lastTimeSec = time
   const dt = Math.min(0.1, time - _lastTimeSec)
   _lastTimeSec = time
@@ -743,11 +748,87 @@ let _ringFreeze = 0
 let _hoveredIdx = -1
 
 let _orbitLines = []
+let _planetLabels = []
+let _raycaster = null
 let _lastTimeSec = 0
+
+// 主行星导航链接 (trackIdx → { label, accent, url })
+const _planetLinks = [
+  { label: 'FS',     accent: '#94a3b8', url: 'https://fs.yequdesu.com' },
+  { label: 'Code',   accent: '#38bdf8', url: 'https://code.yequdesu.com' },
+  { label: 'GitHub', accent: '#818cf8', url: 'https://github.com/yequdesu' },
+]
+
+function createPlanetLabel(text, accentColor) {
+  const size = 256
+  const canvas = document.createElement('canvas')
+  canvas.width = size
+  canvas.height = 64
+  const ctx = canvas.getContext('2d')
+
+  // 半透明暗色 pill 背景
+  const metrics = ctx.measureText(text)
+  ctx.font = '600 28px "Inter", "Segoe UI", system-ui, sans-serif'
+  const tw = ctx.measureText(text).width
+  const padX = 28, padY = 14
+  const pillW = tw + padX * 2, pillH = 38
+  const pillX = (size - pillW) / 2, pillY = (64 - pillH) / 2
+  const pillR = 19
+
+  ctx.beginPath()
+  ctx.moveTo(pillX + pillR, pillY)
+  ctx.lineTo(pillX + pillW - pillR, pillY)
+  ctx.arcTo(pillX + pillW, pillY, pillX + pillW, pillY + pillR, pillR)
+  ctx.lineTo(pillX + pillW, pillY + pillH - pillR)
+  ctx.arcTo(pillX + pillW, pillY + pillH, pillX + pillW - pillR, pillY + pillH, pillR)
+  ctx.lineTo(pillX + pillR, pillY + pillH)
+  ctx.arcTo(pillX, pillY + pillH, pillX, pillY + pillH - pillR, pillR)
+  ctx.lineTo(pillX, pillY + pillR)
+  ctx.arcTo(pillX, pillY, pillX + pillR, pillY, pillR)
+  ctx.closePath()
+
+  ctx.fillStyle = 'rgba(15, 23, 42, 0.82)'
+  ctx.fill()
+
+  // 左侧 accent 色条
+  ctx.fillStyle = accentColor
+  ctx.beginPath()
+  ctx.moveTo(pillX, pillY + 6)
+  ctx.lineTo(pillX + 4, pillY + 6)
+  ctx.lineTo(pillX + 4, pillY + pillH - 6)
+  ctx.lineTo(pillX, pillY + pillH - 6)
+  ctx.arcTo(pillX, pillY + pillH - 6, pillX, pillY + pillH - 6 - 4, 4)
+  ctx.lineTo(pillX, pillY + 6 + 4)
+  ctx.arcTo(pillX, pillY + 6, pillX + 4, pillY + 6, 4)
+  ctx.closePath()
+  ctx.fill()
+
+  // 文字
+  ctx.fillStyle = '#f1f5f9'
+  ctx.font = '600 28px "Inter", "Segoe UI", system-ui, sans-serif'
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'middle'
+  ctx.fillText(text, size / 2, 64 / 2)
+
+  const tex = new THREE.CanvasTexture(canvas)
+  tex.minFilter = THREE.LinearFilter
+  tex.magFilter = THREE.LinearFilter
+  const spriteMat = new THREE.SpriteMaterial({
+    map: tex,
+    transparent: true,
+    opacity: 0,
+    depthTest: false,
+    depthWrite: false,
+  })
+  const sprite = new THREE.Sprite(spriteMat)
+  sprite.scale.set(2.2, 0.55, 1)
+  return sprite
+}
 
 act3.build = () => {
   if (act3Initialized) return
 
+  // 轨道环
   for (let t = 0; t < ORBIT_COUNT; t++) {
     const r = ORBIT_RADII[t]
     const pts = []
@@ -763,6 +844,19 @@ act3.build = () => {
     _orbitLines.push(line)
   }
 
+  // 行星标签精灵
+  for (let t = 0; t < ORBIT_COUNT; t++) {
+    const link = _planetLinks[t]
+    const sprite = createPlanetLabel(link.label, link.accent)
+    sprite.position.set(0, -1.0, -8)
+    sprite.name = `planetLabel_${t}`
+    scene.add(sprite)
+    _planetLabels.push(sprite)
+  }
+
+  _raycaster = new THREE.Raycaster()
+  _raycaster.params.Points.threshold = 0
+  _raycaster.params.Line = undefined
   _lastTimeSec = 0
   act3Initialized = true
 }
@@ -774,6 +868,16 @@ act3.animate = (time, tSp, sp) => {
   for (const line of _orbitLines) {
     line.material.opacity = smoothProgress * 0.35
   }
+
+  // 标签位置跟踪对应主行星
+  const mainPlanets = dustParticles.filter(p => p.userData.isMainPlanet)
+  for (let t = 0; t < _planetLabels.length && t < mainPlanets.length; t++) {
+    const label = _planetLabels[t]
+    const planet = mainPlanets[t]
+    label.position.copy(planet.position)
+    label.position.y += 0.45
+    label.material.opacity = smoothProgress * 0.92
+  }
 }
 
 act3.exit = () => {}
@@ -784,6 +888,12 @@ act3.dispose = () => {
     line.material.dispose()
   }
   _orbitLines = []
+  for (const sprite of _planetLabels) {
+    sprite.material.map.dispose()
+    sprite.material.dispose()
+  }
+  _planetLabels = []
+  _raycaster = null
   act3Initialized = false
 }
 
@@ -812,6 +922,7 @@ function animate(time) {
   const t = time * 0.001
   const sp = props.scrollProgress
 
+  updateTextOffsetCSS(sp)
   sceneApplyWhiteOut(sp)
   
   animateWavesAndLighting(t, sp)
@@ -841,16 +952,33 @@ const onMouseMoveGlobal = (e) => {
   _mouseNDC.y = -(e.clientY / window.innerHeight) * 2 + 1
 }
 
-// 容器偏移计算：向下滚动时暴露 CSS 变量 --text-offset-y 以控制外部 HTML 文字无感上移 90px
-const containerStyle = computed(() => {
+// 行星点击 → 导航
+const onClickCanvas = (e) => {
   const sp = props.scrollProgress
+  if (sp < GRID_SHIFT_START || !_raycaster) return
+
+  const rect = canvasRef.value.getBoundingClientRect()
+  const ndcX = ((e.clientX - rect.left) / rect.width) * 2 - 1
+  const ndcY = -((e.clientY - rect.top) / rect.height) * 2 + 1
+
+  _raycaster.setFromCamera(new THREE.Vector2(ndcX, ndcY), camera)
+  const mainPlanets = dustParticles.filter(p => p.userData.isMainPlanet)
+  const hits = _raycaster.intersectObjects(mainPlanets, false)
+  if (hits.length > 0) {
+    const planet = hits[0].object
+    const trackIdx = _mainPlanetIndices.indexOf(dustParticles.indexOf(planet))
+    if (trackIdx >= 0 && trackIdx < _planetLinks.length) {
+      window.open(_planetLinks[trackIdx].url, '_blank', 'noopener')
+    }
+  }
+}
+
+function updateTextOffsetCSS(sp) {
   const progress = Math.max(0, Math.min(1, (sp - GRID_SHIFT_START) / (1.0 - GRID_SHIFT_START)))
   const smoothProgress = progress * progress * (3 - 2 * progress)
   const translateUp = -90 * smoothProgress
-  return {
-    '--text-offset-y': `${translateUp}px`
-  }
-})
+  document.documentElement.style.setProperty('--text-offset-y', `${translateUp}px`)
+}
 
 onMounted(() => {
   const w = window.innerWidth, h = window.innerHeight
@@ -886,12 +1014,14 @@ onMounted(() => {
   animationId = requestAnimationFrame(animate)
   window.addEventListener('resize', onResize)
   window.addEventListener('mousemove', onMouseMoveGlobal)
+  canvasRef.value.addEventListener('click', onClickCanvas)
 })
 
 onUnmounted(() => {
   cancelAnimationFrame(animationId)
   window.removeEventListener('resize', onResize)
   window.removeEventListener('mousemove', onMouseMoveGlobal)
+  canvasRef.value?.removeEventListener('click', onClickCanvas)
   
   renderer?.dispose()
   scene?.traverse(obj => {
@@ -905,7 +1035,7 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div :style="containerStyle" style="position:fixed;inset:0;z-index:0">
+  <div style="position:fixed;inset:0;z-index:0">
     <canvas ref="canvasRef" style="position:absolute;inset:0" />
   </div>
 </template>

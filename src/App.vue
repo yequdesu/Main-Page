@@ -104,6 +104,7 @@ onUnmounted(() => {
   justify-content: center;
   gap: 0.6rem;
   pointer-events: none;
+  transform: translateY(var(--text-offset-y, 0px));
 }
 .brand-text-main {
   font-family: 'Georgia', 'Times New Roman', serif;
