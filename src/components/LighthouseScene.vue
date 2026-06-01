@@ -590,7 +590,7 @@ function animateDust(time, sp) {
     const by = d.wy + Math.sin(time * 0.3 + d.ph + 1) * 0.18
     const bz = d.wz + Math.sin(time * 0.25 + d.ph + 2) * 0.15
 
-    const effectiveSpeed = d._baseSpeed
+    const effectiveSpeed = d._baseSpeed * (1.0 - d.hoverFactor * 0.80)
     d.orbitAngle += dt * effectiveSpeed
 
     const wobbleR = d.isMainPlanet ? d.orbitR : d.orbitR + Math.sin(time * d.wobbleFreq + d.ph) * d.wobbleAmp
@@ -625,7 +625,7 @@ function animateDust(time, sp) {
     let currentScale = THREE.MathUtils.lerp(scaleAct1, scaleAct2, wof)
     currentScale = THREE.MathUtils.lerp(currentScale, scaleAct3, smoothProgress3)
 
-    p.scale.setScalar(currentScale)
+    p.scale.setScalar(currentScale * (1.0 + d.hoverFactor * 0.35))
 
     let opacityAct1 = (0.14 + bf * 0.76) * (0.35 + sp * 0.65)
     if (cd < 7) opacityAct1 *= Math.max(0, (cd - 2.5) / 4.5)
@@ -903,8 +903,10 @@ act3.animate = (time, tSp, sp) => {
     if (g.children[0]) g.children[0].material.opacity = smoothProgress * 0.28
   }
 
-  // 标签位置跟随主行星
-  const mainPlanets = dustParticles.filter(p => p.userData.isMainPlanet)
+  // 标签位置跟随主行星 (按 trackIdx 排序确保映射正确)
+  const mainPlanets = dustParticles
+    .filter(p => p.userData.isMainPlanet)
+    .sort((a, b) => _mainPlanetIndices.indexOf(dustParticles.indexOf(a)) - _mainPlanetIndices.indexOf(dustParticles.indexOf(b)))
   for (let t = 0; t < _planetLabels.length && t < mainPlanets.length; t++) {
     const label = _planetLabels[t]
     const planet = mainPlanets[t]
