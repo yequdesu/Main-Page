@@ -1104,13 +1104,13 @@ act3.build = () => {
   // --- central star (sun) at orbit center ---
   _starGroup = new THREE.Group()
   _starGroup.position.set(0, -1.0, SCENE_CENTER_Z)
-  _starGroup.renderOrder = 1
+  _starGroup.renderOrder = 0  // render before orbits/labels
 
-  // Core: warm bright sphere
+  // Core: warm bright sphere (writes depth to occlude objects behind)
   const coreGeo = new THREE.SphereGeometry(0.42, 32, 32)
-  const coreMat = new THREE.MeshBasicMaterial({ color: '#fff8e7', transparent: true, opacity: 0, depthWrite: true })
+  const coreMat = new THREE.MeshBasicMaterial({ color: '#fff8e7', transparent: true, opacity: 0, depthWrite: true, depthTest: true })
   _starCore = new THREE.Mesh(coreGeo, coreMat)
-  _starCore.renderOrder = 1
+  _starCore.renderOrder = 0
   _starGroup.add(_starCore)
 
   // Inner glow: larger transparent envelope
@@ -1123,6 +1123,7 @@ act3.build = () => {
     depthTest: true
   })
   _starGlow = new THREE.Mesh(glowGeo, glowMat)
+  _starGlow.renderOrder = 0
   _starGroup.add(_starGlow)
 
   // Outer halo: sprite for soft radial falloff
@@ -1147,10 +1148,10 @@ act3.build = () => {
       transparent: true,
       opacity: 0,
       depthWrite: false,
-      depthTest: true
+      depthTest: false
     }))
     sprite.scale.set(5.5, 5.5, 1)
-    sprite.renderOrder = 1
+    sprite.renderOrder = 0
     return sprite
   })()
   _starGroup.add(haloSprite)
