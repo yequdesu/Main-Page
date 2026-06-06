@@ -1,40 +1,72 @@
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { gsap } from 'gsap'
+import { InertiaPlugin } from 'gsap/InertiaPlugin'
 import { ScrollTrigger } from 'gsap/ScrollTrigger'
 import LighthouseScene from './components/LighthouseScene.vue'
 import AppFooter from './components/AppFooter.vue'
 
+gsap.registerPlugin(InertiaPlugin, ScrollTrigger)
+
 const SCROLL_VH = 15
+
+// ---- state ----
 const scrollProgress = ref(0)
 const clickProgress = ref(0)
 const isClickPlaying = ref(false)
 const hintVisible = ref(true)
+const lighthouseImage = ref(null)
+const lighthouseCharStyle = ref({})
+
+const sceneRef = ref(null)
 const brandTextVisible = computed(() => scrollProgress.value >= 0.70)
 const effectiveProgress = computed(() =>
   isClickPlaying.value ? clickProgress.value : scrollProgress.value
 )
 
-let st
-let _clickTween = null
-let _maxScroll = 0
+// ---- Inertia tracker ----
+const tracker = { progress: 0 }
+let _lastInertiaScrollTime = 0
 
+InertiaPlugin.track(tracker, 'progress', {
+  resistance: 400,
+  bounds: { min: 0, max: 1 },
+  onUpdate: () => {
+    scrollProgress.value = tracker.progress
+    _lastInertiaScrollTime = performance.now()
+    const h = document.body.scrollHeight - window.innerHeight
+    window.scrollTo(0, tracker.progress * h)
+  }
+})
+
+// ---- helpers ----
+function smoothstep(t) {
+  return t * t * (3 - 2 * t)
+}
+function clamped(sp, s, e) {
+  return Math.max(0, Math.min(1, (sp - s) / (e - s)))
+}
+
+// ---- character visibility ----
+const line1Opacity = computed(() => smoothstep(clamped(scrollProgress.value, 0.70, 0.82)))
+const lighthouseDescentT = computed(() => smoothstep(clamped(scrollProgress.value, 0.78, 0.88)))
+const line2Opacity = computed(() => smoothstep(clamped(scrollProgress.value, 0.82, 0.92)))
+
+// ---- click fast-forward ----
+let _clickTween = null
 function onClick() {
   if (isClickPlaying.value) return
   if (scrollProgress.value >= 0.995) return
-
-  clickProgress.value = scrollProgress.value
   isClickPlaying.value = true
-  _maxScroll = document.body.scrollHeight - window.innerHeight
 
-  const tweenObj = { val: scrollProgress.value }
+  const tweenObj = { val: tracker.progress }
   _clickTween = gsap.to(tweenObj, {
     val: 1.0,
     duration: 2,
     ease: 'power2.inOut',
     onUpdate: () => {
+      tracker.progress = tweenObj.val
       clickProgress.value = tweenObj.val
-      window.scrollTo(0, tweenObj.val * _maxScroll)
     },
     onComplete: () => {
       isClickPlaying.value = false
@@ -43,21 +75,75 @@ function onClick() {
   })
 }
 
-function onWheel() {
-  if (!isClickPlaying.value || !_clickTween) return
-  _clickTween.kill()
-  _clickTween = null
-  isClickPlaying.value = false
+// ---- wheel handler ----
+function onWheel(e) {
+  e.preventDefault()
+  if (isClickPlaying.value && _clickTween) {
+    _clickTween.kill()
+    _clickTween = null
+    isClickPlaying.value = false
+  }
+  const step = e.deltaY / (window.innerHeight * SCROLL_VH)
+  const next = Math.min(1, Math.max(0, tracker.progress + step * 0.8))
+  tracker.progress = next
 }
 
-function updateScroll(self) {
+// ---- lighthouse capture ----
+let _lighthouseCaptured = false
+function ensureCapture() {
+  if (_lighthouseCaptured) return
+  if (!sceneRef.value) return
+  if (scrollProgress.value >= 0.54) {
+    _lighthouseCaptured = true
+    try {
+      const url = sceneRef.value.captureLighthouse()
+      if (url) lighthouseImage.value = url
+    } catch (e) {
+      console.warn('Lighthouse capture failed:', e)
+    }
+  }
+}
+
+// ---- lighthouse char position ----
+function updateLighthousePos() {
+  const slot = document.querySelector('.char-i-slot')
+  if (!slot) {
+    lighthouseCharStyle.value = { opacity: 0 }
+    return
+  }
+  const sr = slot.getBoundingClientRect()
+  const t = lighthouseDescentT.value
+  const descentPx = -40 * (1 - t)
+  lighthouseCharStyle.value = {
+    position: 'fixed',
+    left: sr.left + 'px',
+    top: (sr.top + descentPx) + 'px',
+    width: (sr.width * 1.05) + 'px',
+    height: 'auto',
+    opacity: t,
+    zIndex: 11,
+    pointerEvents: 'none'
+  }
+}
+
+// ---- ScrollTrigger (native scroll → tracker) ----
+let st
+function onScrollTrigger(self) {
+  // Ignore scroll events triggered by InertiaPlugin's own window.scrollTo
+  if (performance.now() - _lastInertiaScrollTime < 50) return
   const p = self.progress
-  scrollProgress.value = p
+  tracker.progress = p
 
   if (p > 0.02 && hintVisible.value) {
     hintVisible.value = false
   }
 }
+
+// ---- watch scrollProgress to drive capture & lighthouse position ----
+watch(scrollProgress, () => {
+  ensureCapture()
+  updateLighthousePos()
+})
 
 onMounted(() => {
   document.body.style.height = window.innerHeight * SCROLL_VH + 'px'
@@ -66,12 +152,13 @@ onMounted(() => {
     trigger: document.body,
     start: 'top top',
     end: 'bottom bottom',
-    scrub: 0.4,
-    onUpdate: updateScroll
+    scrub: 0,
+    onUpdate: onScrollTrigger
   })
 
   window.addEventListener('click', onClick)
-  window.addEventListener('wheel', onWheel, { passive: true })
+  window.addEventListener('wheel', onWheel, { passive: false })
+  window.addEventListener('resize', updateLighthousePos)
 })
 
 onUnmounted(() => {
@@ -80,11 +167,12 @@ onUnmounted(() => {
   document.body.style.height = ''
   window.removeEventListener('click', onClick)
   window.removeEventListener('wheel', onWheel)
+  window.removeEventListener('resize', updateLighthousePos)
 })
 </script>
 
 <template>
-  <LighthouseScene :scrollProgress="effectiveProgress" />
+  <LighthouseScene ref="sceneRef" :scrollProgress="effectiveProgress" />
 
   <Transition name="hint-fade">
     <div v-if="hintVisible" class="scroll-hint" aria-hidden="true">
@@ -94,17 +182,45 @@ onUnmounted(() => {
     </div>
   </Transition>
 
-  <Transition name="brand-fade">
-    <div v-if="brandTextVisible" class="brand-text" aria-hidden="true">
-      <span class="brand-text-main">Personal Site</span>
-      <span class="brand-text-sub">by YeQuDesu</span>
+  <div
+    v-if="brandTextVisible"
+    class="brand-text"
+    :class="{ 'no-transition': isClickPlaying }"
+    aria-hidden="true"
+  >
+    <div class="brand-text-inner">
+      <p class="brand-line-1" :style="{ opacity: line1Opacity }">
+        <span class="char">P</span>
+        <span class="char">e</span>
+        <span class="char">r</span>
+        <span class="char">s</span>
+        <span class="char">o</span>
+        <span class="char">n</span>
+        <span class="char">a</span>
+        <span class="char">l</span>
+        <span class="char char-space">&nbsp;</span>
+        <span class="char">S</span>
+        <span class="char char-i-slot"></span>
+        <span class="char">t</span>
+        <span class="char">e</span>
+      </p>
+      <p class="brand-line-2" :style="{ opacity: line2Opacity }">By YeQuDesu</p>
     </div>
-  </Transition>
+  </div>
+
+  <img
+    v-if="lighthouseImage && brandTextVisible"
+    :src="lighthouseImage"
+    class="lighthouse-char-img"
+    :style="lighthouseCharStyle"
+    alt=""
+  />
 
   <AppFooter />
 </template>
 
 <style>
+/* ---- scroll hint ---- */
 .scroll-hint {
   position: fixed;
   bottom: 2.8rem;
@@ -144,44 +260,59 @@ onUnmounted(() => {
 .hint-fade-enter-from,
 .hint-fade-leave-to { opacity: 0; }
 
+/* ---- brand text ---- */
 .brand-text {
   position: fixed;
   inset: 0;
   z-index: 10;
   display: flex;
-  flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 0.6rem;
   pointer-events: none;
-  transform: translateY(var(--text-offset-y, 0px));
 }
-.brand-text-main {
+.brand-text.no-transition,
+.brand-text.no-transition * {
+  transition: none !important;
+}
+.brand-text-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.6rem;
+}
+.brand-line-1 {
+  margin: 0;
   font-family: 'Georgia', 'Times New Roman', serif;
   font-size: clamp(1.8rem, 4.5vw, 3.5rem);
   font-weight: 400;
   color: #222;
   letter-spacing: 0.05em;
+  white-space: nowrap;
+  text-align: left;
 }
-.brand-text-sub {
+.brand-line-2 {
+  margin: 0;
   font-family: 'Georgia', 'Times New Roman', serif;
   font-size: clamp(0.8rem, 1.6vw, 1.1rem);
   font-weight: 400;
   color: #888;
   letter-spacing: 0.04em;
   font-style: italic;
+  text-align: left;
 }
-.brand-fade-enter-active {
-  transition: opacity 1.4s ease-out, transform 1.2s ease-out;
+.char {
+  display: inline;
 }
-.brand-fade-leave-active {
-  transition: opacity 0.5s ease-in;
+.char-space {
+  /* space between "Personal" and "Site" */
 }
-.brand-fade-enter-from {
-  opacity: 0;
-  transform: scale(0.96) translateY(0.6rem);
+.char-i-slot {
+  display: inline-block;
+  width: 0.45em;
+  vertical-align: baseline;
 }
-.brand-fade-leave-to {
-  opacity: 0;
+.lighthouse-char-img {
+  transition: none;
+  will-change: left, top, opacity;
 }
 </style>

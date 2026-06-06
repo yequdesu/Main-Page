@@ -1082,11 +1082,16 @@ function animate(time) {
 
   updateTextOffsetCSS(sp)
   sceneApplyWhiteOut(sp)
-  
+
+  // Hide 3D lighthouse once white-out fully covers it
+  if (lighthouseGroup) {
+    lighthouseGroup.visible = sp < WHITE_OUT_END
+  }
+
   animateWavesAndLighting(t, sp)
   animateVerticalGrid(sp)
   animateDust(t, sp)
-  animateBeam(t, sp) 
+  animateBeam(t, sp)
 
   const activeActs = resolveActiveActs(sp)
   for (const act of activeActs) {
@@ -1140,6 +1145,55 @@ function updateTextOffsetCSS(sp) {
   const translateUp = -90 * smoothProgress
   document.documentElement.style.setProperty('--text-offset-y', `${translateUp}px`)
 }
+
+function captureLighthouse() {
+  if (!lighthouseGroup || !renderer) return null
+
+  const captureW = 512, captureH = 1024
+  const offRenderer = new THREE.WebGLRenderer({ alpha: true, antialias: true, preserveDrawingBuffer: true })
+  offRenderer.setSize(captureW, captureH)
+  offRenderer.setPixelRatio(1)
+  offRenderer.setClearColor(0x000000, 0)
+
+  const clone = lighthouseGroup.clone(true)
+  const tempScene = new THREE.Scene()
+
+  // Position clone so lighthouse center is at origin
+  // Local y extent: ~-0.63 to ~2.56 (after 0.7 scale), center ~0.96
+  clone.position.set(0, -0.96, 0)
+  clone.scale.copy(lighthouseGroup.scale)
+  tempScene.add(clone)
+
+  // Lighting for MeshStandardMaterials
+  tempScene.add(new THREE.AmbientLight('#ffffff', 1.8))
+  const key = new THREE.DirectionalLight('#ffffff', 2.2)
+  key.position.set(4, 6, 8)
+  tempScene.add(key)
+  const fill = new THREE.DirectionalLight('#c8d6ff', 1.0)
+  fill.position.set(-4, 2, 4)
+  tempScene.add(fill)
+
+  const capCam = new THREE.PerspectiveCamera(25, captureW / captureH, 0.1, 50)
+  capCam.position.set(0, 0.96, 8)
+  capCam.lookAt(0, 0.96, 0)
+
+  offRenderer.render(tempScene, capCam)
+  const dataUrl = offRenderer.domElement.toDataURL('image/png')
+
+  // Cleanup
+  offRenderer.dispose()
+  clone.traverse(c => {
+    if (c.geometry) c.geometry.dispose()
+    if (c.material) {
+      if (Array.isArray(c.material)) c.material.forEach(m => m.dispose())
+      else c.material.dispose()
+    }
+  })
+
+  return dataUrl
+}
+
+defineExpose({ captureLighthouse })
 
 onMounted(() => {
   const w = window.innerWidth, h = window.innerHeight
