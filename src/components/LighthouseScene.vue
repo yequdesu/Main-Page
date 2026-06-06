@@ -1190,16 +1190,12 @@ act3.animate = (time, tSp, sp) => {
 
   if (_starGroup) _starGroup.visible = true
 
-  // Star: fade in, subtle pulse
+  // Star: static fade in
   if (_starGroup) {
-    const pulse = 1 + Math.sin(time * 1.8) * 0.06 + Math.sin(time * 3.3) * 0.04
-    if (_starCore) _starCore.material.opacity = smoothProgress * pulse
-    if (_starGlow) {
-      _starGlow.material.opacity = smoothProgress * 0.30 * pulse
-      _starGlow.scale.setScalar(pulse)
-    }
+    if (_starCore) _starCore.material.opacity = smoothProgress
+    if (_starGlow) _starGlow.material.opacity = smoothProgress * 0.30
     if (_starGroup.userData.haloSprite) {
-      _starGroup.userData.haloSprite.material.opacity = smoothProgress * 0.55 * pulse
+      _starGroup.userData.haloSprite.material.opacity = smoothProgress * 0.55
     }
   }
 
