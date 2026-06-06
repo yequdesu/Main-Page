@@ -753,19 +753,22 @@ function updateCameraFocus(sp) {
   const focusedPlanet = (_focusedPlanetIdx >= 0) ? dustParticles[_focusedPlanetIdx] : null
 
   if (focusedPlanet && focusedPlanet.userData.isMainPlanet) {
-    // Framing: star (right half) ← camera → planet (left side)
-    // Camera behind planet (away from star), shifted left
+    // Framing: star (right) ··· camera ··· planet (left)
+    // Camera at fixed distance from planet for consistent planet size
     _camToStar.subVectors(_starPos, focusedPlanet.position).normalize()
     _camLeftDir.crossVectors(_camUp, _camToStar).normalize()
 
-    const orbitR = focusedPlanet.userData.orbitR || 4.5
-    _targetCamPos.copy(focusedPlanet.position)
-      .addScaledVector(_camToStar, -orbitR * 1.35)  // behind planet
-      .addScaledVector(_camLeftDir, orbitR * 0.55)   // shift left
+    const behindDist = 2.5  // fixed distance behind planet (away from star)
+    const sideDist = 2.2     // lateral offset for viewing angle
 
-    // Look between star and planet, biased 60% toward star
+    _targetCamPos.copy(focusedPlanet.position)
+      .addScaledVector(_camToStar, -behindDist)
+      .addScaledVector(_camLeftDir, sideDist)
+
+    // Look ~25% toward star from planet, keeping both in frame
+    const orbitR = focusedPlanet.userData.orbitR || 4.5
     _targetLookAt.copy(focusedPlanet.position)
-      .addScaledVector(_camToStar, orbitR * 0.55)
+      .addScaledVector(_camToStar, orbitR * 0.25)
   } else {
     // Return to default
     _targetCamPos.copy(_defaultCamPos)
