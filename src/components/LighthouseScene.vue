@@ -1267,32 +1267,35 @@ const onMouseMoveGlobal = (e) => {
 
 const onClickCanvas = (e) => {
   const sp = props.scrollProgress
-  if (sp < GRID_SHIFT_START || !_raycaster) return
+  if (sp < GRID_SHIFT_START) return
 
   const rect = canvasRef.value.getBoundingClientRect()
   const ndcX = ((e.clientX - rect.left) / rect.width) * 2 - 1
   const ndcY = -((e.clientY - rect.top) / rect.height) * 2 + 1
 
-  _clickNDC.set(ndcX, ndcY)
-  _raycaster.setFromCamera(_clickNDC, camera)
-  const mainPlanets = dustParticles.filter(p => p.userData.isMainPlanet)
-  const hits = _raycaster.intersectObjects(mainPlanets, false)
-  if (hits.length > 0) {
-    const planet = hits[0].object
-    const planetIdx = dustParticles.indexOf(planet)
-    const trackIdx = _mainPlanetIndices.indexOf(planetIdx)
+  // Use screen-space distance (same as hover) for reliable click detection
+  let bestDist = 1e9, bestIdx = -1
+  for (let i = 0; i < dustParticles.length; i++) {
+    const p = dustParticles[i]
+    if (!p.userData.isMainPlanet) continue
+    _dustProjectScratch.copy(p.position).project(camera)
+    const dx = (_dustProjectScratch.x - ndcX) * (window.innerWidth / window.innerHeight)
+    const dy = _dustProjectScratch.y - ndcY
+    const dist = Math.hypot(dx, dy)
+    if (dist < bestDist) { bestDist = dist; bestIdx = i }
+  }
+
+  if (bestDist < 0.16 && bestIdx >= 0) {
+    const trackIdx = _mainPlanetIndices.indexOf(bestIdx)
     if (trackIdx >= 0 && trackIdx < _planetLinks.length) {
-      if (_focusedPlanetIdx === planetIdx) {
-        // Already focused — open URL
+      if (_focusedPlanetIdx === bestIdx) {
         window.open(_planetLinks[trackIdx].url, '_blank', 'noopener')
       } else {
-        // Focus this planet
-        _focusedPlanetIdx = planetIdx
+        _focusedPlanetIdx = bestIdx
         emit('focusChange', true)
       }
     }
   } else {
-    // Clicked empty space — unfocus
     _focusedPlanetIdx = -1
     emit('focusChange', false)
   }
