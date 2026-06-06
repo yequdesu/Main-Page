@@ -343,6 +343,7 @@ onUnmounted(() => {
 .char-i-slot {
   display: inline-block;
   width: 0.45em;
+  height: 1em;
   vertical-align: baseline;
 }
 .lighthouse-char-img {
