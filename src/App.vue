@@ -295,6 +295,7 @@ onUnmounted(() => {
   text-align: left;
 }
 .lighthouse-icon {
+  font-size: clamp(1.8rem, 4.5vw, 3.5rem);
   height: 1.9em;
   width: auto;
   vertical-align: baseline;
