@@ -128,6 +128,9 @@ function updateLighthousePos() {
 // ---- ScrollTrigger (native scrollbar → direct position) ----
 let st
 function onScrollTrigger(self) {
+  // Ignore scroll events triggered by our own syncScrollbar (position unchanged)
+  if (Math.abs(self.progress - _physTarget) < 0.0005) return
+
   _lastScrollbarTime = performance.now()
   _physVelocity = 0 // kill wheel momentum when user grabs scrollbar
   _physTarget = self.progress
