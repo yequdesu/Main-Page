@@ -65,6 +65,9 @@ const _camToStar = new THREE.Vector3()
 const _camLeftDir = new THREE.Vector3()
 const _camUp = new THREE.Vector3(0, 1, 0)
 const _starPos = new THREE.Vector3(0, -1.0, SCENE_CENTER_Z)
+const _occCamToPlanet = new THREE.Vector3()
+const _occToParticle = new THREE.Vector3()
+const _occProj = new THREE.Vector3()
 const _focusAxisPoint = new THREE.Vector3()
 const _focusBaseOffset = new THREE.Vector3()
 const _focusOrbitQuat = new THREE.Quaternion()
@@ -737,6 +740,23 @@ function animateDust(time, sp) {
 
     let currentOpacity = THREE.MathUtils.lerp(opacityAct1, opacityAct2, wof)
     p.material.opacity = THREE.MathUtils.lerp(currentOpacity, opacityAct3, smoothProgress3)
+
+    // Occlusion: fade particles blocking the view of the focused planet
+    if (_focusedPlanetIdx >= 0 && idx !== _focusedPlanetIdx) {
+      const fp = dustParticles[_focusedPlanetIdx]
+      _occCamToPlanet.subVectors(fp.position, camera.position).normalize()
+      _occToParticle.subVectors(p.position, camera.position)
+      const projDist = _occToParticle.dot(_occCamToPlanet)
+      const fpDist = fp.position.distanceTo(camera.position)
+      if (projDist > 0.5 && projDist < fpDist - 0.3) {
+        _occProj.copy(camera.position).addScaledVector(_occCamToPlanet, projDist)
+        const perpDist = p.position.distanceTo(_occProj)
+        const occRadius = currentScale * 0.6 + 0.06
+        if (perpDist < occRadius) {
+          p.material.opacity *= 0.12
+        }
+      }
+    }
 
     _colorAct2.set(d.grayHex)
     _currentColor.copy(_colorAct1).lerp(_colorAct2, wof).lerp(_colorAct3, smoothProgress3)
