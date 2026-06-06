@@ -1106,9 +1106,9 @@ act3.build = () => {
   _starGroup.position.set(0, -1.0, SCENE_CENTER_Z)
   _starGroup.renderOrder = 1
 
-  // Core: warm bright sphere (no depth write to avoid blocking objects behind)
+  // Core: warm bright sphere
   const coreGeo = new THREE.SphereGeometry(0.42, 32, 32)
-  const coreMat = new THREE.MeshBasicMaterial({ color: '#fff8e7', transparent: true, opacity: 0, depthWrite: false })
+  const coreMat = new THREE.MeshBasicMaterial({ color: '#fff8e7', transparent: true, opacity: 0, depthWrite: true })
   _starCore = new THREE.Mesh(coreGeo, coreMat)
   _starCore.renderOrder = 1
   _starGroup.add(_starCore)
@@ -1120,7 +1120,7 @@ act3.build = () => {
     transparent: true,
     opacity: 0.30,
     depthWrite: false,
-    depthTest: false
+    depthTest: true
   })
   _starGlow = new THREE.Mesh(glowGeo, glowMat)
   _starGroup.add(_starGlow)
@@ -1147,7 +1147,7 @@ act3.build = () => {
       transparent: true,
       opacity: 0,
       depthWrite: false,
-      depthTest: false
+      depthTest: true
     }))
     sprite.scale.set(5.5, 5.5, 1)
     sprite.renderOrder = 1
