@@ -267,16 +267,18 @@ onUnmounted(() => {
 .brand-text-row {
   display: flex;
   align-items: flex-end;
-  gap: 0.12em;
+  gap: 0em;
 }
 .brand-text-inner {
   display: flex;
   flex-direction: column;
   align-items: flex-end;
   gap: 0.05rem;
+  margin-left: 0.15em;
 }
 .brand-line-1 {
   margin: 0;
+  margin-right: -0.05em; /* cancel trailing letter-spacing */
   font-family: 'Georgia', 'Times New Roman', serif;
   font-size: clamp(1.8rem, 4.5vw, 3.5rem);
   font-weight: 600;
@@ -287,6 +289,7 @@ onUnmounted(() => {
 }
 .brand-line-2 {
   margin: 0;
+  margin-right: -0.04em; /* cancel trailing letter-spacing */
   font-family: 'Georgia', 'Times New Roman', serif;
   font-size: clamp(0.55rem, 1.0vw, 0.75rem);
   font-weight: 400;
@@ -299,6 +302,7 @@ onUnmounted(() => {
   font-size: clamp(1.8rem, 4.5vw, 3.5rem);
   height: 2.8em;
   width: auto;
+  margin-bottom: -0.08em;
   vertical-align: baseline;
   object-fit: contain;
 }
