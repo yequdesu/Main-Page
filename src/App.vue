@@ -8,14 +8,15 @@ import AppFooter from './components/AppFooter.vue'
 gsap.registerPlugin(ScrollTrigger)
 
 const SCROLL_VH = 15
-const FRICTION = 0.955      // per-frame velocity decay (≈60fps)
-const MAX_VELOCITY = 0.025  // cap per-frame progress delta
+const FRICTION = 0.955      // per-60fps-frame velocity decay
+const MAX_VELOCITY = 0.025  // cap per-60fps-frame progress delta
 
 // ---- physics state ----
-let _physTarget = 0    // current progress (driven by velocity or scrollbar)
+let _physTarget = 0
 let _physVelocity = 0
 let _lastScrollbarTime = 0
-let _physActive = true  // ticker is running
+let _lastPhysicsTime = 0
+let _physActive = true
 
 // ---- reactive state ----
 const scrollProgress = ref(0)
@@ -152,25 +153,29 @@ onMounted(() => {
     onUpdate: onScrollTrigger
   })
 
-  // Physics ticker: applies velocity with friction
+  // Physics ticker: applies velocity with friction (delta-time based)
   gsap.ticker.add(() => {
     if (!_physActive) return
     const now = performance.now()
+    if (!_lastPhysicsTime) { _lastPhysicsTime = now; return }
+    const dt = Math.min(0.1, (now - _lastPhysicsTime) / 1000) // seconds
+    _lastPhysicsTime = now
+    const dtFrames = dt * 60 // normalize to 60fps-equivalent
 
     // Skip if scrollbar was recently used (user is dragging it)
     if (now - _lastScrollbarTime < 80) return
     // Skip during click fast-forward (gsap tween controls position)
     if (isClickPlaying.value) return
 
-    // Apply velocity
-    _physTarget += _physVelocity
+    // Apply velocity (scaled by delta time)
+    _physTarget += _physVelocity * dtFrames
 
     // Clamp & stop at bounds
     if (_physTarget <= 0) { _physTarget = 0; _physVelocity = 0 }
     if (_physTarget >= 1) { _physTarget = 1; _physVelocity = 0 }
 
-    // Friction decay
-    _physVelocity *= FRICTION
+    // Friction decay (delta-time normalized)
+    _physVelocity *= Math.pow(FRICTION, dtFrames)
     if (Math.abs(_physVelocity) < 0.00001) _physVelocity = 0
 
     scrollProgress.value = _physTarget

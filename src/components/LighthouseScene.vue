@@ -788,7 +788,7 @@ function updateCameraFocus(sp, time) {
     _focusAxisPoint.copy(planet.position)
       .addScaledVector(_camToStar, orbitR * 0.25) // same as lookAt point
 
-    _focusOrbitAngle += 0.0004 // ~260s per rotation, subtle breathing
+    _focusOrbitAngle = (time - _focusStartTime) * 0.024 // time-based, ~262s/rotation
     _focusOrbitQuat.setFromAxisAngle(_camToStar, _focusOrbitAngle)
     _focusBaseOffset.subVectors(_targetCamPos, _focusAxisPoint)
     _focusBaseOffset.applyQuaternion(_focusOrbitQuat)
@@ -1160,7 +1160,7 @@ act3.animate = (time, tSp, sp) => {
   }
 
   for (const g of _gyroGroups) {
-    g.rotation.y += g.userData.rotSpeed * 0.016
+    g.rotation.y = time * g.userData.rotSpeed * 0.96
     if (g.children[0]) g.children[0].material.opacity = smoothProgress * 0.28
   }
 
