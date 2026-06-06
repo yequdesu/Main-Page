@@ -645,7 +645,9 @@ function animateDust(time, sp) {
         bestIdx = i
       }
     }
-    _hoveredIdx = bestDist < 0.16 ? bestIdx : -1
+    // Hysteresis: harder to exit than enter, prevents focus-defocus oscillation
+    const exitThreshold = (_hoveredIdx >= 0) ? 0.22 : 0.16
+    _hoveredIdx = bestDist < exitThreshold ? bestIdx : -1
   } else {
     _hoveredIdx = -1
   }
@@ -687,7 +689,9 @@ function animateDust(time, sp) {
       THREE.MathUtils.lerp(bz, oz, smoothProgress3)
     )
 
-    const cd = p.position.distanceTo(camera.position)
+    // Non-planet dust uses fixed reference distance so camera focus doesn't resize them
+    const refPos = d.isMainPlanet ? camera.position : _defaultCamPos
+    const cd = p.position.distanceTo(refPos)
     const ds = 22 / Math.max(5, cd)
 
     let bf = 0
