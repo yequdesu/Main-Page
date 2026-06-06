@@ -267,6 +267,7 @@ onUnmounted(() => {
   justify-content: center;
   pointer-events: none;
   transform: translateY(calc(var(--text-offset-y, 0px) - 4vh));
+  transition: opacity 0.5s ease-out, margin-top 0.5s ease-out;
 }
 .brand-text.no-transition,
 .brand-text.no-transition * {
@@ -274,8 +275,7 @@ onUnmounted(() => {
 }
 .brand-text.focused-out {
   opacity: 0;
-  transform: translateY(calc(var(--text-offset-y, 0px) - 6vh));
-  transition: opacity 0.5s ease-out, transform 0.5s ease-out;
+  margin-top: -24px;
 }
 .brand-text-row {
   display: flex;
