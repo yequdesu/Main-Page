@@ -459,13 +459,13 @@ function buildDust() {
       p.userData.orbitR     = ORBIT_RADII[trackIdx]
       p.userData.orbitSpeed = -0.04 - trackIdx * 0.015
       p.userData._baseSpeed = p.userData.orbitSpeed
-      p.userData.scaleMult  = 3.5 + trackIdx * 0.3
+      p.userData.scaleMult  = 2.4 + trackIdx * 0.2
       p.name = `planet_${trackIdx}`
     } else {
       p.userData.orbitR     = 2.5 + Math.random() * 4.5
       p.userData.orbitSpeed = -(0.03 + Math.random() * 0.08)
       p.userData._baseSpeed = p.userData.orbitSpeed
-      p.userData.scaleMult  = 0.8 + Math.random() * 1.5
+      p.userData.scaleMult  = 0.4 + Math.random() * 0.9
       p.userData.wobbleAmp  = 0.5 + Math.random() * 1.2
       p.userData.wobbleFreq = 0.3 + Math.random() * 0.4
     }
@@ -1059,13 +1059,13 @@ act3.build = () => {
   _starGroup.renderOrder = 1
 
   // Core: warm bright sphere
-  const coreGeo = new THREE.SphereGeometry(0.22, 32, 32)
+  const coreGeo = new THREE.SphereGeometry(0.42, 32, 32)
   const coreMat = new THREE.MeshBasicMaterial({ color: '#fff8e7' })
   const core = new THREE.Mesh(coreGeo, coreMat)
   _starGroup.add(core)
 
   // Inner glow: larger transparent envelope
-  const glowGeo = new THREE.SphereGeometry(0.40, 32, 32)
+  const glowGeo = new THREE.SphereGeometry(0.70, 32, 32)
   const glowMat = new THREE.MeshBasicMaterial({
     color: '#ffe8c0',
     transparent: true,
@@ -1099,7 +1099,7 @@ act3.build = () => {
       depthWrite: false,
       depthTest: true
     }))
-    sprite.scale.set(3.5, 3.5, 1)
+    sprite.scale.set(5.5, 5.5, 1)
     sprite.renderOrder = 1
     return sprite
   })()

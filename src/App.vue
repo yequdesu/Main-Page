@@ -27,6 +27,7 @@ const sceneRef = ref(null)
 const brandTextRef = ref(null)
 const brandTextVisible = computed(() => scrollProgress.value >= 0.70)
 let _focusTween = null
+const isAct3Focused = ref(false)
 const effectiveProgress = computed(() =>
   isClickPlaying.value ? clickProgress.value : scrollProgress.value
 )
@@ -76,6 +77,7 @@ function onClick() {
 // ---- wheel handler (adds velocity for momentum) ----
 function onWheel(e) {
   e.preventDefault()
+  if (isAct3Focused.value) return  // block scroll during planet focus
   if (isClickPlaying.value && _clickTween) {
     _clickTween.kill()
     _clickTween = null
@@ -125,6 +127,7 @@ watch(scrollProgress, () => {
 
 // ---- act3 focus handler (GSAP-driven fade + slide) ----
 function onFocusChange(focused) {
+  isAct3Focused.value = focused
   const el = brandTextRef.value
   if (!el) return
   if (_focusTween) _focusTween.kill()
