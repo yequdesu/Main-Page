@@ -1108,7 +1108,7 @@ act3.build = () => {
 
   // Core: warm bright sphere (writes depth to occlude objects behind)
   const coreGeo = new THREE.SphereGeometry(0.42, 32, 32)
-  const coreMat = new THREE.MeshBasicMaterial({ color: '#ffcc66', transparent: true, opacity: 0, depthWrite: true, depthTest: true })
+  const coreMat = new THREE.MeshBasicMaterial({ color: '#d4a45a', transparent: true, opacity: 0, depthWrite: true, depthTest: true })
   _starCore = new THREE.Mesh(coreGeo, coreMat)
   _starCore.renderOrder = 0
   _starGroup.add(_starCore)
@@ -1116,7 +1116,7 @@ act3.build = () => {
   // Inner glow: larger transparent envelope
   const glowGeo = new THREE.SphereGeometry(0.70, 32, 32)
   const glowMat = new THREE.MeshBasicMaterial({
-    color: '#ffe8c0',
+    color: '#e8c888',
     transparent: true,
     opacity: 0.30,
     depthWrite: false,
@@ -1133,10 +1133,10 @@ act3.build = () => {
     c.width = c.height = size
     const ctx = c.getContext('2d')
     const gradient = ctx.createRadialGradient(size/2, size/2, 0, size/2, size/2, size/2)
-    gradient.addColorStop(0, 'rgba(255,240,210,0.6)')
-    gradient.addColorStop(0.15, 'rgba(255,220,170,0.35)')
-    gradient.addColorStop(0.4, 'rgba(255,180,100,0.08)')
-    gradient.addColorStop(0.7, 'rgba(255,140,60,0.01)')
+    gradient.addColorStop(0, 'rgba(220,180,130,0.5)')
+    gradient.addColorStop(0.15, 'rgba(210,165,110,0.3)')
+    gradient.addColorStop(0.4, 'rgba(190,140,80,0.06)')
+    gradient.addColorStop(0.7, 'rgba(160,110,50,0.01)')
     gradient.addColorStop(1, 'rgba(0,0,0,0)')
     ctx.fillStyle = gradient
     ctx.fillRect(0, 0, size, size)
