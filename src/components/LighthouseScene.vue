@@ -1175,14 +1175,16 @@ act3.animate = (time, tSp, sp) => {
   const progress = Math.max(0, Math.min(1, (sp - GRID_SHIFT_START) / (1.0 - GRID_SHIFT_START)))
   const smoothProgress = progress * progress * (3 - 2 * progress)
 
-  for (const line of _orbitLines) {
-    line.material.opacity = smoothProgress * 0.35
-  }
+  // Ensure elements are visible on re-entry
+  for (const line of _orbitLines) { line.visible = true; line.material.opacity = smoothProgress * 0.35 }
+  for (const g of _gyroGroups) { g.visible = true }
 
   for (const g of _gyroGroups) {
     g.rotation.y = time * g.userData.rotSpeed * 0.96
     if (g.children[0]) g.children[0].material.opacity = smoothProgress * 0.28
   }
+
+  if (_starGroup) _starGroup.visible = true
 
   // Star: fade in, subtle pulse
   if (_starGroup) {
@@ -1203,6 +1205,7 @@ act3.animate = (time, tSp, sp) => {
   for (let t = 0; t < _planetLabels.length && t < _mainPlanetsPreFiltered.length; t++) {
     const label = _planetLabels[t]
     const planet = _mainPlanetsPreFiltered[t]
+    label.visible = true
     label.position.copy(planet.position)
     label.position.y += 0.45
     label.material.opacity = _labelOpacityCurrent
@@ -1210,16 +1213,11 @@ act3.animate = (time, tSp, sp) => {
 }
 
 act3.exit = () => {
-  // Hide all Act 3 elements when leaving this act
-  for (const line of _orbitLines) line.material.opacity = 0
-  for (const g of _gyroGroups) {
-    if (g.children[0]) g.children[0].material.opacity = 0
-  }
-  for (const label of _planetLabels) label.material.opacity = 0
-  if (_starGroup) {
-    if (_starGlow) _starGlow.material.opacity = 0
-    if (_starGroup.userData.haloSprite) _starGroup.userData.haloSprite.material.opacity = 0
-  }
+  // Completely hide all Act 3 elements (visible=false, not just opacity)
+  for (const line of _orbitLines) line.visible = false
+  for (const g of _gyroGroups) g.visible = false
+  for (const label of _planetLabels) label.visible = false
+  if (_starGroup) _starGroup.visible = false
   // Reset focus state
   if (_focusedPlanetIdx >= 0) {
     _focusedPlanetIdx = -1
