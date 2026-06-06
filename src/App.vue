@@ -1,16 +1,23 @@
 <script setup>
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { gsap } from 'gsap'
-import { InertiaPlugin } from 'gsap/InertiaPlugin'
 import { ScrollTrigger } from 'gsap/ScrollTrigger'
 import LighthouseScene from './components/LighthouseScene.vue'
 import AppFooter from './components/AppFooter.vue'
 
-gsap.registerPlugin(InertiaPlugin, ScrollTrigger)
+gsap.registerPlugin(ScrollTrigger)
 
 const SCROLL_VH = 15
+const FRICTION = 0.955      // per-frame velocity decay (≈60fps)
+const MAX_VELOCITY = 0.025  // cap per-frame progress delta
 
-// ---- state ----
+// ---- physics state ----
+let _physTarget = 0    // current progress (driven by velocity or scrollbar)
+let _physVelocity = 0
+let _lastScrollbarTime = 0
+let _physActive = true  // ticker is running
+
+// ---- reactive state ----
 const scrollProgress = ref(0)
 const clickProgress = ref(0)
 const isClickPlaying = ref(false)
@@ -24,27 +31,16 @@ const effectiveProgress = computed(() =>
   isClickPlaying.value ? clickProgress.value : scrollProgress.value
 )
 
-// ---- Inertia tracker ----
-const tracker = { progress: 0 }
-let _lastInertiaScrollTime = 0
-
-InertiaPlugin.track(tracker, 'progress', {
-  resistance: 400,
-  bounds: { min: 0, max: 1 },
-  onUpdate: () => {
-    scrollProgress.value = tracker.progress
-    _lastInertiaScrollTime = performance.now()
-    const h = document.body.scrollHeight - window.innerHeight
-    window.scrollTo(0, tracker.progress * h)
-  }
-})
-
 // ---- helpers ----
 function smoothstep(t) {
   return t * t * (3 - 2 * t)
 }
 function clamped(sp, s, e) {
   return Math.max(0, Math.min(1, (sp - s) / (e - s)))
+}
+function syncScrollbar() {
+  const h = document.body.scrollHeight - window.innerHeight
+  if (h > 0) window.scrollTo(0, _physTarget * h)
 }
 
 // ---- character visibility ----
@@ -58,15 +54,18 @@ function onClick() {
   if (isClickPlaying.value) return
   if (scrollProgress.value >= 0.995) return
   isClickPlaying.value = true
+  _physVelocity = 0 // kill momentum
 
-  const tweenObj = { val: tracker.progress }
+  const tweenObj = { val: _physTarget }
   _clickTween = gsap.to(tweenObj, {
     val: 1.0,
     duration: 2,
     ease: 'power2.inOut',
     onUpdate: () => {
-      tracker.progress = tweenObj.val
-      clickProgress.value = tweenObj.val
+      _physTarget = tweenObj.val
+      scrollProgress.value = _physTarget
+      clickProgress.value = _physTarget
+      syncScrollbar()
     },
     onComplete: () => {
       isClickPlaying.value = false
@@ -75,7 +74,7 @@ function onClick() {
   })
 }
 
-// ---- wheel handler ----
+// ---- wheel handler (adds velocity for momentum) ----
 function onWheel(e) {
   e.preventDefault()
   if (isClickPlaying.value && _clickTween) {
@@ -83,9 +82,9 @@ function onWheel(e) {
     _clickTween = null
     isClickPlaying.value = false
   }
-  const step = e.deltaY / (window.innerHeight * SCROLL_VH)
-  const next = Math.min(1, Math.max(0, tracker.progress + step * 0.8))
-  tracker.progress = next
+  const step = e.deltaY / (window.innerHeight * SCROLL_VH) * 0.65
+  _physVelocity += step
+  _physVelocity = Math.max(-MAX_VELOCITY, Math.min(MAX_VELOCITY, _physVelocity))
 }
 
 // ---- lighthouse capture ----
@@ -126,15 +125,15 @@ function updateLighthousePos() {
   }
 }
 
-// ---- ScrollTrigger (native scroll → tracker) ----
+// ---- ScrollTrigger (native scrollbar → direct position) ----
 let st
 function onScrollTrigger(self) {
-  // Ignore scroll events triggered by InertiaPlugin's own window.scrollTo
-  if (performance.now() - _lastInertiaScrollTime < 50) return
-  const p = self.progress
-  tracker.progress = p
+  _lastScrollbarTime = performance.now()
+  _physVelocity = 0 // kill wheel momentum when user grabs scrollbar
+  _physTarget = self.progress
+  scrollProgress.value = _physTarget
 
-  if (p > 0.02 && hintVisible.value) {
+  if (_physTarget > 0.02 && hintVisible.value) {
     hintVisible.value = false
   }
 }
@@ -148,6 +147,7 @@ watch(scrollProgress, () => {
 onMounted(() => {
   document.body.style.height = window.innerHeight * SCROLL_VH + 'px'
 
+  // ScrollTrigger: fires when native scroll changes (scrollbar drag etc)
   st = ScrollTrigger.create({
     trigger: document.body,
     start: 'top top',
@@ -156,12 +156,38 @@ onMounted(() => {
     onUpdate: onScrollTrigger
   })
 
+  // Physics ticker: applies velocity with friction
+  gsap.ticker.add(() => {
+    if (!_physActive) return
+    const now = performance.now()
+
+    // Skip if scrollbar was recently used (user is dragging it)
+    if (now - _lastScrollbarTime < 80) return
+    // Skip during click fast-forward (gsap tween controls position)
+    if (isClickPlaying.value) return
+
+    // Apply velocity
+    _physTarget += _physVelocity
+
+    // Clamp & stop at bounds
+    if (_physTarget <= 0) { _physTarget = 0; _physVelocity = 0 }
+    if (_physTarget >= 1) { _physTarget = 1; _physVelocity = 0 }
+
+    // Friction decay
+    _physVelocity *= FRICTION
+    if (Math.abs(_physVelocity) < 0.00001) _physVelocity = 0
+
+    scrollProgress.value = _physTarget
+    syncScrollbar()
+  })
+
   window.addEventListener('click', onClick)
   window.addEventListener('wheel', onWheel, { passive: false })
   window.addEventListener('resize', updateLighthousePos)
 })
 
 onUnmounted(() => {
+  _physActive = false
   st?.kill()
   ScrollTrigger.getAll().forEach((t) => t.kill())
   document.body.style.height = ''
