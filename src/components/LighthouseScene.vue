@@ -980,7 +980,8 @@ let _gyroGroups = []
 let _planetLabels = []
 let _starGroup = null
 let _starCore = null
-let _starGlow = null
+let _starGlowSprite = null
+let _starHaloSprite = null
 let _labelOpacityCurrent = 0
 let _raycaster = null
 let _lastTimeSec = 0
@@ -1104,58 +1105,55 @@ act3.build = () => {
   // --- central star (sun) at orbit center ---
   _starGroup = new THREE.Group()
   _starGroup.position.set(0, -1.0, SCENE_CENTER_Z)
-  _starGroup.renderOrder = 0  // render before orbits/labels
+  _starGroup.renderOrder = 0
 
-  // Core: warm bright sphere (writes depth to occlude objects behind)
-  const coreGeo = new THREE.SphereGeometry(0.42, 32, 32)
-  const coreMat = new THREE.MeshBasicMaterial({ color: '#d4a45a', transparent: true, opacity: 0, depthWrite: true, depthTest: true })
+  // Helper: create radial-gradient sprite
+  const makeGlowSprite = (scale, stops) => {
+    const sz = 256
+    const c = document.createElement('canvas')
+    c.width = c.height = sz
+    const ctx = c.getContext('2d')
+    const g = ctx.createRadialGradient(sz/2, sz/2, 0, sz/2, sz/2, sz/2)
+    stops.forEach(s => g.addColorStop(s[0], s[1]))
+    ctx.fillStyle = g
+    ctx.fillRect(0, 0, sz, sz)
+    const tex = new THREE.CanvasTexture(c)
+    tex.minFilter = THREE.LinearFilter
+    const sp = new THREE.Sprite(new THREE.SpriteMaterial({
+      map: tex, blending: THREE.AdditiveBlending,
+      transparent: true, opacity: 0, depthWrite: false, depthTest: false
+    }))
+    sp.scale.set(scale, scale, 1)
+    sp.renderOrder = 0
+    return sp
+  }
+
+  // Core: warm sphere
+  const coreGeo = new THREE.SphereGeometry(0.30, 32, 32)
+  const coreMat = new THREE.MeshBasicMaterial({ color: '#e8c878', transparent: true, opacity: 0, depthWrite: true, depthTest: true })
   _starCore = new THREE.Mesh(coreGeo, coreMat)
   _starCore.renderOrder = 0
   _starGroup.add(_starCore)
 
-  // Inner glow: larger transparent envelope
-  const glowGeo = new THREE.SphereGeometry(0.70, 32, 32)
-  const glowMat = new THREE.MeshBasicMaterial({
-    color: '#e8c888',
-    transparent: true,
-    opacity: 0.30,
-    depthWrite: false,
-    depthTest: true
-  })
-  _starGlow = new THREE.Mesh(glowGeo, glowMat)
-  _starGlow.renderOrder = 0
-  _starGroup.add(_starGlow)
+  // Inner glow sprite (soft, compact)
+  _starGlowSprite = makeGlowSprite(1.8, [
+    [0, 'rgba(240,210,160,0.7)'],
+    [0.2, 'rgba(220,180,120,0.35)'],
+    [0.5, 'rgba(180,140,80,0.06)'],
+    [0.75, 'rgba(140,100,50,0.01)'],
+    [1, 'rgba(0,0,0,0)']
+  ])
+  _starGroup.add(_starGlowSprite)
 
-  // Outer halo: sprite for soft radial falloff
-  const haloSprite = (() => {
-    const size = 128
-    const c = document.createElement('canvas')
-    c.width = c.height = size
-    const ctx = c.getContext('2d')
-    const gradient = ctx.createRadialGradient(size/2, size/2, 0, size/2, size/2, size/2)
-    gradient.addColorStop(0, 'rgba(220,180,130,0.5)')
-    gradient.addColorStop(0.15, 'rgba(210,165,110,0.3)')
-    gradient.addColorStop(0.4, 'rgba(190,140,80,0.06)')
-    gradient.addColorStop(0.7, 'rgba(160,110,50,0.01)')
-    gradient.addColorStop(1, 'rgba(0,0,0,0)')
-    ctx.fillStyle = gradient
-    ctx.fillRect(0, 0, size, size)
-    const tex = new THREE.CanvasTexture(c)
-    tex.minFilter = THREE.LinearFilter
-    const sprite = new THREE.Sprite(new THREE.SpriteMaterial({
-      map: tex,
-      blending: THREE.AdditiveBlending,
-      transparent: true,
-      opacity: 0,
-      depthWrite: false,
-      depthTest: false
-    }))
-    sprite.scale.set(5.5, 5.5, 1)
-    sprite.renderOrder = 0
-    return sprite
-  })()
-  _starGroup.add(haloSprite)
-  _starGroup.userData = { haloSprite }
+  // Outer halo sprite (wide, faint)
+  _starHaloSprite = makeGlowSprite(6.0, [
+    [0, 'rgba(200,160,110,0.35)'],
+    [0.15, 'rgba(180,140,90,0.15)'],
+    [0.4, 'rgba(140,100,60,0.03)'],
+    [0.7, 'rgba(100,70,30,0.005)'],
+    [1, 'rgba(0,0,0,0)']
+  ])
+  _starGroup.add(_starHaloSprite)
 
   scene.add(_starGroup)
 
@@ -1194,13 +1192,8 @@ act3.animate = (time, tSp, sp) => {
   if (_starGroup) {
     const pulse = 1 + Math.sin(time * 1.8) * 0.06 + Math.sin(time * 3.3) * 0.04
     if (_starCore) _starCore.material.opacity = smoothProgress * pulse
-    if (_starGlow) {
-      _starGlow.material.opacity = smoothProgress * 0.30 * pulse
-      _starGlow.scale.setScalar(pulse)
-    }
-    if (_starGroup.userData.haloSprite) {
-      _starGroup.userData.haloSprite.material.opacity = smoothProgress * 0.55 * pulse
-    }
+    if (_starGlowSprite) _starGlowSprite.material.opacity = smoothProgress * 0.65 * pulse
+    if (_starHaloSprite) _starHaloSprite.material.opacity = smoothProgress * 0.45 * pulse
   }
 
   const isFocused = _focusedPlanetIdx >= 0
@@ -1262,7 +1255,8 @@ act3.dispose = () => {
     })
     _starGroup = null
     _starCore = null
-    _starGlow = null
+    _starGlowSprite = null
+    _starHaloSprite = null
   }
 
   _raycaster = null
