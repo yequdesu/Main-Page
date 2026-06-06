@@ -190,17 +190,17 @@ onUnmounted(() => {
     :class="{ 'no-transition': isClickPlaying }"
     aria-hidden="true"
   >
-    <div class="brand-text-inner">
-      <p class="brand-line-1" :style="{ opacity: line1Opacity }">
-        <img
-          v-if="lighthouseImage"
-          :src="lighthouseImage"
-          class="lighthouse-icon"
-          alt=""
-        />
-        Personal Site
-      </p>
-      <p class="brand-line-2" :style="{ opacity: line2Opacity }">By YeQuDesu</p>
+    <div class="brand-text-row">
+      <img
+        v-if="lighthouseImage"
+        :src="lighthouseImage"
+        class="lighthouse-icon"
+        alt=""
+      />
+      <div class="brand-text-inner">
+        <p class="brand-line-1" :style="{ opacity: line1Opacity }">Personal Site</p>
+        <p class="brand-line-2" :style="{ opacity: line2Opacity }">By YeQuDesu</p>
+      </div>
     </div>
   </div>
 
@@ -263,6 +263,11 @@ onUnmounted(() => {
 .brand-text.no-transition * {
   transition: none !important;
 }
+.brand-text-row {
+  display: flex;
+  align-items: baseline;
+  gap: 0.35em;
+}
 .brand-text-inner {
   display: flex;
   flex-direction: column;
@@ -290,11 +295,9 @@ onUnmounted(() => {
   text-align: left;
 }
 .lighthouse-icon {
-  display: inline;
-  height: 0.95em;
+  height: 1.9em;
   width: auto;
   vertical-align: baseline;
-  margin-right: 0.15em;
   object-fit: contain;
 }
 </style>
