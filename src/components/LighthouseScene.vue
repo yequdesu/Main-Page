@@ -1209,7 +1209,24 @@ act3.animate = (time, tSp, sp) => {
   }
 }
 
-act3.exit = () => {}
+act3.exit = () => {
+  // Hide all Act 3 elements when leaving this act
+  for (const line of _orbitLines) line.material.opacity = 0
+  for (const g of _gyroGroups) {
+    if (g.children[0]) g.children[0].material.opacity = 0
+  }
+  for (const label of _planetLabels) label.material.opacity = 0
+  if (_starGroup) {
+    if (_starGlow) _starGlow.material.opacity = 0
+    if (_starGroup.userData.haloSprite) _starGroup.userData.haloSprite.material.opacity = 0
+  }
+  // Reset focus state
+  if (_focusedPlanetIdx >= 0) {
+    _focusedPlanetIdx = -1
+    _focusStartTime = 0
+    emit('focusChange', false)
+  }
+}
 
 act3.dispose = () => {
   for (const line of _orbitLines) {
