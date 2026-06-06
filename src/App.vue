@@ -16,6 +16,38 @@ const effectiveProgress = computed(() =>
 )
 
 let st
+let _clickTween = null
+let _maxScroll = 0
+
+function onClick() {
+  if (isClickPlaying.value) return
+  if (scrollProgress.value >= 0.995) return
+
+  isClickPlaying.value = true
+  _maxScroll = document.body.scrollHeight - window.innerHeight
+
+  const tweenObj = { val: scrollProgress.value }
+  _clickTween = gsap.to(tweenObj, {
+    val: 1.0,
+    duration: 0.7,
+    ease: 'power2.inOut',
+    onUpdate: () => {
+      clickProgress.value = tweenObj.val
+      window.scrollTo(0, tweenObj.val * _maxScroll)
+    },
+    onComplete: () => {
+      isClickPlaying.value = false
+      _clickTween = null
+    }
+  })
+}
+
+function onWheel() {
+  if (!isClickPlaying.value || !_clickTween) return
+  _clickTween.kill()
+  _clickTween = null
+  isClickPlaying.value = false
+}
 
 function updateScroll(self) {
   const p = self.progress
@@ -36,12 +68,17 @@ onMounted(() => {
     scrub: 0.4,
     onUpdate: updateScroll
   })
+
+  window.addEventListener('click', onClick)
+  window.addEventListener('wheel', onWheel, { passive: true })
 })
 
 onUnmounted(() => {
   st?.kill()
   ScrollTrigger.getAll().forEach((t) => t.kill())
   document.body.style.height = ''
+  window.removeEventListener('click', onClick)
+  window.removeEventListener('wheel', onWheel)
 })
 </script>
 
