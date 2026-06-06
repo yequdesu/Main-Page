@@ -265,13 +265,13 @@ onUnmounted(() => {
 }
 .brand-text-row {
   display: flex;
-  align-items: baseline;
+  align-items: flex-end;
   gap: 0.35em;
 }
 .brand-text-inner {
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
+  align-items: flex-end;
   gap: 0.15rem;
 }
 .brand-line-1 {
@@ -296,7 +296,7 @@ onUnmounted(() => {
 }
 .lighthouse-icon {
   font-size: clamp(1.8rem, 4.5vw, 3.5rem);
-  height: 1.9em;
+  height: 2.8em;
   width: auto;
   vertical-align: baseline;
   object-fit: contain;
