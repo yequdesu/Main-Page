@@ -788,7 +788,7 @@ function updateCameraFocus(sp, time) {
     _focusAxisPoint.copy(planet.position)
       .addScaledVector(_camToStar, orbitR * 0.25) // same as lookAt point
 
-    _focusOrbitAngle += 0.004 // ~0.24 rad/s at 60fps, one rotation in ~26s
+    _focusOrbitAngle += 0.0004 // ~260s per rotation, subtle breathing
     _focusOrbitQuat.setFromAxisAngle(_camToStar, _focusOrbitAngle)
     _focusBaseOffset.subVectors(_targetCamPos, _focusAxisPoint)
     _focusBaseOffset.applyQuaternion(_focusOrbitQuat)
