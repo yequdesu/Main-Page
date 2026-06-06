@@ -59,6 +59,10 @@ const _targetCamPos = new THREE.Vector3(0, 0.25, 8)
 const _targetLookAt = new THREE.Vector3(0, -0.65, -24)
 const _currentLookAt = new THREE.Vector3(0, -0.65, -24)
 const _camOffsetDir = new THREE.Vector3()
+const _camToStar = new THREE.Vector3()
+const _camLeftDir = new THREE.Vector3()
+const _camUp = new THREE.Vector3(0, 1, 0)
+const _starPos = new THREE.Vector3(0, -1.0, SCENE_CENTER_Z)
 
 // ---- pre-allocated reusable objects for hot paths (eliminates per-frame GC) ----
 const _bgBaseColor = new THREE.Color('#050811')
@@ -741,10 +745,19 @@ function updateCameraFocus(sp) {
   const hoveredPlanet = (_hoveredIdx >= 0) ? dustParticles[_hoveredIdx] : null
 
   if (hoveredPlanet && hoveredPlanet.userData.isMainPlanet) {
-    // Focus on hovered planet: camera dolly toward it
+    // Framing: star (right half) ← camera → planet (left side)
+    // Camera behind planet (away from star), shifted left
+    _camToStar.subVectors(_starPos, hoveredPlanet.position).normalize()
+    _camLeftDir.crossVectors(_camUp, _camToStar).normalize()
+
+    const orbitR = hoveredPlanet.userData.orbitR || 4.5
+    _targetCamPos.copy(hoveredPlanet.position)
+      .addScaledVector(_camToStar, -orbitR * 1.35)  // behind planet
+      .addScaledVector(_camLeftDir, orbitR * 0.55)   // shift left
+
+    // Look between star and planet, biased 60% toward star
     _targetLookAt.copy(hoveredPlanet.position)
-    _camOffsetDir.copy(_defaultCamPos).sub(hoveredPlanet.position).normalize()
-    _targetCamPos.copy(hoveredPlanet.position).addScaledVector(_camOffsetDir, 5.5)
+      .addScaledVector(_camToStar, orbitR * 0.55)
   } else {
     // Return to default
     _targetCamPos.copy(_defaultCamPos)
@@ -909,6 +922,8 @@ let _hoveredIdx = -1
 let _orbitLines = []
 let _gyroGroups = []
 let _planetLabels = []
+let _starGroup = null
+let _starGlow = null
 let _raycaster = null
 let _lastTimeSec = 0
 
@@ -1024,6 +1039,61 @@ act3.build = () => {
     _gyroGroups.push(group)
   }
 
+  // --- central star (sun) at orbit center ---
+  _starGroup = new THREE.Group()
+  _starGroup.position.set(0, -1.0, SCENE_CENTER_Z)
+  _starGroup.renderOrder = 1
+
+  // Core: warm bright sphere
+  const coreGeo = new THREE.SphereGeometry(0.22, 32, 32)
+  const coreMat = new THREE.MeshBasicMaterial({ color: '#fff8e7' })
+  const core = new THREE.Mesh(coreGeo, coreMat)
+  _starGroup.add(core)
+
+  // Inner glow: larger transparent envelope
+  const glowGeo = new THREE.SphereGeometry(0.40, 32, 32)
+  const glowMat = new THREE.MeshBasicMaterial({
+    color: '#ffe8c0',
+    transparent: true,
+    opacity: 0.30,
+    depthWrite: false
+  })
+  _starGlow = new THREE.Mesh(glowGeo, glowMat)
+  _starGroup.add(_starGlow)
+
+  // Outer halo: sprite for soft radial falloff
+  const haloSprite = (() => {
+    const size = 128
+    const c = document.createElement('canvas')
+    c.width = c.height = size
+    const ctx = c.getContext('2d')
+    const gradient = ctx.createRadialGradient(size/2, size/2, 0, size/2, size/2, size/2)
+    gradient.addColorStop(0, 'rgba(255,240,210,0.6)')
+    gradient.addColorStop(0.15, 'rgba(255,220,170,0.35)')
+    gradient.addColorStop(0.4, 'rgba(255,180,100,0.08)')
+    gradient.addColorStop(0.7, 'rgba(255,140,60,0.01)')
+    gradient.addColorStop(1, 'rgba(0,0,0,0)')
+    ctx.fillStyle = gradient
+    ctx.fillRect(0, 0, size, size)
+    const tex = new THREE.CanvasTexture(c)
+    tex.minFilter = THREE.LinearFilter
+    const sprite = new THREE.Sprite(new THREE.SpriteMaterial({
+      map: tex,
+      blending: THREE.AdditiveBlending,
+      transparent: true,
+      opacity: 0,
+      depthWrite: false,
+      depthTest: true
+    }))
+    sprite.scale.set(3.5, 3.5, 1)
+    sprite.renderOrder = 1
+    return sprite
+  })()
+  _starGroup.add(haloSprite)
+  _starGroup.userData = { haloSprite }
+
+  scene.add(_starGroup)
+
   for (let t = 0; t < ORBIT_COUNT; t++) {
     const link = _planetLinks[t]
     const sprite = createPlanetLabel(link.label, link.accent)
@@ -1051,6 +1121,18 @@ act3.animate = (time, tSp, sp) => {
   for (const g of _gyroGroups) {
     g.rotation.y += g.userData.rotSpeed * 0.016
     if (g.children[0]) g.children[0].material.opacity = smoothProgress * 0.28
+  }
+
+  // Star: fade in, subtle pulse
+  if (_starGroup) {
+    const pulse = 1 + Math.sin(time * 1.8) * 0.06 + Math.sin(time * 3.3) * 0.04
+    if (_starGlow) {
+      _starGlow.material.opacity = smoothProgress * 0.30 * pulse
+      _starGlow.scale.setScalar(pulse)
+    }
+    if (_starGroup.userData.haloSprite) {
+      _starGroup.userData.haloSprite.material.opacity = smoothProgress * 0.55 * pulse
+    }
   }
 
   _mainPlanetsPreFiltered.sort((a, b) => _mainPlanetIndices.indexOf(dustParticles.indexOf(a)) - _mainPlanetIndices.indexOf(dustParticles.indexOf(b)))
@@ -1085,6 +1167,18 @@ act3.dispose = () => {
     sprite.material.dispose()
   }
   _planetLabels = []
+
+  if (_starGroup) {
+    _starGroup.traverse(c => {
+      if (c.geometry) c.geometry.dispose()
+      if (c.material) {
+        if (Array.isArray(c.material)) c.material.forEach(m => m.dispose())
+        else c.material.dispose()
+      }
+    })
+    _starGroup = null
+    _starGlow = null
+  }
 
   _raycaster = null
   act3Initialized = false
