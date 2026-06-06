@@ -742,21 +742,21 @@ function updateCameraFocus(sp) {
   const isAct3 = sp >= GRID_SHIFT_START
   if (!isAct3) return
 
-  const hoveredPlanet = (_hoveredIdx >= 0) ? dustParticles[_hoveredIdx] : null
+  const focusedPlanet = (_focusedPlanetIdx >= 0) ? dustParticles[_focusedPlanetIdx] : null
 
-  if (hoveredPlanet && hoveredPlanet.userData.isMainPlanet) {
+  if (focusedPlanet && focusedPlanet.userData.isMainPlanet) {
     // Framing: star (right half) ← camera → planet (left side)
     // Camera behind planet (away from star), shifted left
-    _camToStar.subVectors(_starPos, hoveredPlanet.position).normalize()
+    _camToStar.subVectors(_starPos, focusedPlanet.position).normalize()
     _camLeftDir.crossVectors(_camUp, _camToStar).normalize()
 
-    const orbitR = hoveredPlanet.userData.orbitR || 4.5
-    _targetCamPos.copy(hoveredPlanet.position)
+    const orbitR = focusedPlanet.userData.orbitR || 4.5
+    _targetCamPos.copy(focusedPlanet.position)
       .addScaledVector(_camToStar, -orbitR * 1.35)  // behind planet
       .addScaledVector(_camLeftDir, orbitR * 0.55)   // shift left
 
     // Look between star and planet, biased 60% toward star
-    _targetLookAt.copy(hoveredPlanet.position)
+    _targetLookAt.copy(focusedPlanet.position)
       .addScaledVector(_camToStar, orbitR * 0.55)
   } else {
     // Return to default
@@ -916,8 +916,9 @@ const act3 = { name: 'ContentPhase', start: GRID_SHIFT_START, end: 1.00 }
 
 let act3Initialized = false
 let _mouseNDC = { x: 999, y: 999 }
-let _ringFreeze = 0          
+let _ringFreeze = 0
 let _hoveredIdx = -1
+let _focusedPlanetIdx = -1
 
 let _orbitLines = []
 let _gyroGroups = []
@@ -1259,10 +1260,20 @@ const onClickCanvas = (e) => {
   const hits = _raycaster.intersectObjects(mainPlanets, false)
   if (hits.length > 0) {
     const planet = hits[0].object
-    const trackIdx = _mainPlanetIndices.indexOf(dustParticles.indexOf(planet))
+    const planetIdx = dustParticles.indexOf(planet)
+    const trackIdx = _mainPlanetIndices.indexOf(planetIdx)
     if (trackIdx >= 0 && trackIdx < _planetLinks.length) {
-      window.open(_planetLinks[trackIdx].url, '_blank', 'noopener')
+      if (_focusedPlanetIdx === planetIdx) {
+        // Already focused — open URL
+        window.open(_planetLinks[trackIdx].url, '_blank', 'noopener')
+      } else {
+        // Focus this planet
+        _focusedPlanetIdx = planetIdx
+      }
     }
+  } else {
+    // Clicked empty space — unfocus
+    _focusedPlanetIdx = -1
   }
 }
 
