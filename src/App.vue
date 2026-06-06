@@ -125,17 +125,10 @@ watch(scrollProgress, () => {
   ensureCapture()
 })
 
-// ---- act3 focus handler (sticky: once focused, text stays hidden) ----
+// ---- act3 focus handler ----
 function onFocusChange(focused) {
-  if (focused) textDismissed.value = true
+  textDismissed.value = focused
 }
-
-// Reset textDismissed when user scrolls back before Act 3
-watch(scrollProgress, (sp) => {
-  if (sp < 0.85 && textDismissed.value) {
-    textDismissed.value = false
-  }
-})
 
 onMounted(() => {
   document.body.style.height = window.innerHeight * SCROLL_VH + 'px'
@@ -200,9 +193,9 @@ onUnmounted(() => {
   </Transition>
 
   <div
-    v-if="brandTextVisible"
+    v-if="scrollProgress >= 0.70"
     class="brand-text"
-    :class="{ 'no-transition': isClickPlaying }"
+    :class="{ 'no-transition': isClickPlaying, 'focused-out': textDismissed }"
     aria-hidden="true"
   >
     <div class="brand-text-row">
@@ -278,6 +271,11 @@ onUnmounted(() => {
 .brand-text.no-transition,
 .brand-text.no-transition * {
   transition: none !important;
+}
+.brand-text.focused-out {
+  opacity: 0;
+  transform: translateY(calc(var(--text-offset-y, 0px) - 6vh));
+  transition: opacity 0.5s ease-out, transform 0.5s ease-out;
 }
 .brand-text-row {
   display: flex;
