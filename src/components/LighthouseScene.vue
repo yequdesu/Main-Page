@@ -65,6 +65,11 @@ const _camToStar = new THREE.Vector3()
 const _camLeftDir = new THREE.Vector3()
 const _camUp = new THREE.Vector3(0, 1, 0)
 const _starPos = new THREE.Vector3(0, -1.0, SCENE_CENTER_Z)
+const _focusAxisPoint = new THREE.Vector3()
+const _focusBaseOffset = new THREE.Vector3()
+const _focusOrbitQuat = new THREE.Quaternion()
+let _focusStartTime = 0
+let _focusOrbitAngle = 0
 
 // ---- pre-allocated reusable objects for hot paths (eliminates per-frame GC) ----
 const _bgBaseColor = new THREE.Color('#050811')
@@ -739,12 +744,15 @@ function animateDust(time, sp) {
   }
 }
 
-// ---- camera focus system (Act 3 planet hover) ----
-function updateCameraFocus(sp) {
+// ---- camera focus system (Act 3 planet focus with orbit + auto-unfocus) ----
+const FOCUS_TIMEOUT = 30 // seconds before auto-unfocus
+
+function updateCameraFocus(sp, time) {
   const isAct3 = sp >= GRID_SHIFT_START
   if (!isAct3) {
     if (_focusedPlanetIdx >= 0) {
       _focusedPlanetIdx = -1
+      _focusStartTime = 0
       emit('focusChange', false)
     }
     return
@@ -752,30 +760,46 @@ function updateCameraFocus(sp) {
 
   const focusedPlanet = (_focusedPlanetIdx >= 0) ? dustParticles[_focusedPlanetIdx] : null
 
-  if (focusedPlanet && focusedPlanet.userData.isMainPlanet) {
-    // Framing: star (right) ··· camera ··· planet (left)
-    // Camera at fixed distance from planet for consistent planet size
-    _camToStar.subVectors(_starPos, focusedPlanet.position).normalize()
+  // Auto-unfocus after timeout
+  if (focusedPlanet && _focusStartTime > 0 && time - _focusStartTime > FOCUS_TIMEOUT) {
+    _focusedPlanetIdx = -1
+    _focusStartTime = 0
+    emit('focusChange', false)
+    // Fall through to unfocused path
+  }
+
+  const isFocused = _focusedPlanetIdx >= 0
+  const planet = isFocused ? dustParticles[_focusedPlanetIdx] : null
+
+  if (planet && planet.userData.isMainPlanet) {
+    _camToStar.subVectors(_starPos, planet.position).normalize()
     _camLeftDir.crossVectors(_camUp, _camToStar).normalize()
 
-    const behindDist = 2.5  // fixed distance behind planet (away from star)
-    const sideDist = 2.2     // lateral offset for viewing angle
+    const behindDist = 2.5
+    const sideDist = 2.2
+    const orbitR = planet.userData.orbitR || 4.5
 
-    _targetCamPos.copy(focusedPlanet.position)
+    // Base camera position (before orbit)
+    _targetCamPos.copy(planet.position)
       .addScaledVector(_camToStar, -behindDist)
       .addScaledVector(_camLeftDir, sideDist)
 
-    // Look ~25% toward star from planet, keeping both in frame
-    const orbitR = focusedPlanet.userData.orbitR || 4.5
-    _targetLookAt.copy(focusedPlanet.position)
-      .addScaledVector(_camToStar, orbitR * 0.25)
+    // Orbit: rotate camera around planet-star axis
+    _focusAxisPoint.copy(planet.position)
+      .addScaledVector(_camToStar, orbitR * 0.25) // same as lookAt point
+
+    _focusOrbitAngle += 0.004 // ~0.24 rad/s at 60fps, one rotation in ~26s
+    _focusOrbitQuat.setFromAxisAngle(_camToStar, _focusOrbitAngle)
+    _focusBaseOffset.subVectors(_targetCamPos, _focusAxisPoint)
+    _focusBaseOffset.applyQuaternion(_focusOrbitQuat)
+    _targetCamPos.copy(_focusAxisPoint).add(_focusBaseOffset)
+
+    _targetLookAt.copy(_focusAxisPoint)
   } else {
-    // Return to default
     _targetCamPos.copy(_defaultCamPos)
     _targetLookAt.copy(_defaultLookAt)
   }
 
-  // Smooth lerp camera position
   camera.position.lerp(_targetCamPos, 0.06)
   _currentLookAt.lerp(_targetLookAt, 0.06)
   camera.lookAt(_currentLookAt)
@@ -1242,7 +1266,7 @@ function animate(time) {
   animateVerticalGrid(sp)
   animateDust(t, sp)
   animateBeam(t, sp)
-  updateCameraFocus(sp)
+  updateCameraFocus(sp, t)
 
   const activeActs = resolveActiveActs(sp)
   for (const act of activeActs) {
@@ -1269,6 +1293,11 @@ const onClickCanvas = (e) => {
   const sp = props.scrollProgress
   if (sp < GRID_SHIFT_START) return
 
+  // Reset auto-unfocus timer on any click
+  if (_focusedPlanetIdx >= 0) {
+    _focusStartTime = performance.now() * 0.001
+  }
+
   const rect = canvasRef.value.getBoundingClientRect()
   const ndcX = ((e.clientX - rect.left) / rect.width) * 2 - 1
   const ndcY = -((e.clientY - rect.top) / rect.height) * 2 + 1
@@ -1292,6 +1321,8 @@ const onClickCanvas = (e) => {
         window.open(_planetLinks[trackIdx].url, '_blank', 'noopener')
       } else {
         _focusedPlanetIdx = bestIdx
+        _focusStartTime = performance.now() * 0.001 // seconds
+        _focusOrbitAngle = 0
         emit('focusChange', true)
       }
     }
