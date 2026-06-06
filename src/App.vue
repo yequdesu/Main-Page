@@ -23,12 +23,10 @@ const clickProgress = ref(0)
 const isClickPlaying = ref(false)
 const hintVisible = ref(true)
 const lighthouseImage = ref(null)
-const textDismissed = ref(false)
-
 const sceneRef = ref(null)
-const brandTextVisible = computed(() =>
-  scrollProgress.value >= 0.70 && !textDismissed.value
-)
+const brandTextRef = ref(null)
+const brandTextVisible = computed(() => scrollProgress.value >= 0.70)
+let _focusTween = null
 const effectiveProgress = computed(() =>
   isClickPlaying.value ? clickProgress.value : scrollProgress.value
 )
@@ -125,9 +123,18 @@ watch(scrollProgress, () => {
   ensureCapture()
 })
 
-// ---- act3 focus handler ----
+// ---- act3 focus handler (GSAP-driven fade + slide) ----
 function onFocusChange(focused) {
-  textDismissed.value = focused
+  const el = brandTextRef.value
+  if (!el) return
+  if (_focusTween) _focusTween.kill()
+  _focusTween = gsap.to(el, {
+    opacity: focused ? 0 : 1,
+    marginTop: focused ? -24 : 0,
+    duration: 0.5,
+    ease: 'power2.out',
+    overwrite: 'auto'
+  })
 }
 
 onMounted(() => {
@@ -193,9 +200,10 @@ onUnmounted(() => {
   </Transition>
 
   <div
-    v-if="scrollProgress >= 0.70"
+    v-if="brandTextVisible"
+    ref="brandTextRef"
     class="brand-text"
-    :class="{ 'no-transition': isClickPlaying, 'focused-out': textDismissed }"
+    :class="{ 'no-transition': isClickPlaying }"
     aria-hidden="true"
   >
     <div class="brand-text-row">
@@ -267,15 +275,10 @@ onUnmounted(() => {
   justify-content: center;
   pointer-events: none;
   transform: translateY(calc(var(--text-offset-y, 0px) - 4vh));
-  transition: opacity 0.5s ease-out, margin-top 0.5s ease-out;
 }
 .brand-text.no-transition,
 .brand-text.no-transition * {
   transition: none !important;
-}
-.brand-text.focused-out {
-  opacity: 0;
-  margin-top: -24px;
 }
 .brand-text-row {
   display: flex;
