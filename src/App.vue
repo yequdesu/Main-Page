@@ -23,13 +23,14 @@ function onClick() {
   if (isClickPlaying.value) return
   if (scrollProgress.value >= 0.995) return
 
+  clickProgress.value = scrollProgress.value
   isClickPlaying.value = true
   _maxScroll = document.body.scrollHeight - window.innerHeight
 
   const tweenObj = { val: scrollProgress.value }
   _clickTween = gsap.to(tweenObj, {
     val: 1.0,
-    duration: 1.4,
+    duration: 2.5,
     ease: 'power2.inOut',
     onUpdate: () => {
       clickProgress.value = tweenObj.val

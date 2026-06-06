@@ -5,13 +5,13 @@
 
 ## Goal
 
-Allow users to skip the scroll-driven animation by left-clicking anywhere on the page. Clicking fast-forwards the scene to completion (scrollProgress 0→1) in 1.4s with smooth easing. Scroll wheel input during fast-forward interrupts the tween and resumes normal scroll-driven control.
+Allow users to skip the scroll-driven animation by left-clicking anywhere on the page. Clicking fast-forwards the scene to completion (scrollProgress 0→1) in 2.5s with smooth easing. Scroll wheel input during fast-forward interrupts the tween and resumes normal scroll-driven control.
 
 ## Design
 
 ### Core approach
 
-Use GSAP to tween a synthetic `clickProgress` value from current scroll position to 1.0 over 1.4s. While tweening, synchronize the page's real `scrollTop` to match, so ScrollTrigger stays in a consistent state. When the tween ends or is interrupted, the system seamlessly switches between scroll-driven and click-driven progress.
+Use GSAP to tween a synthetic `clickProgress` value from current scroll position to 1.0 over 2.5s. While tweening, synchronize the page's real `scrollTop` to match, so ScrollTrigger stays in a consistent state. When the tween ends or is interrupted, the system seamlessly switches between scroll-driven and click-driven progress.
 
 ### Data flow
 
