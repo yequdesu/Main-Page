@@ -1108,7 +1108,7 @@ act3.build = () => {
 
   // Core: warm bright sphere (writes depth to occlude objects behind)
   const coreGeo = new THREE.SphereGeometry(0.42, 32, 32)
-  const coreMat = new THREE.MeshBasicMaterial({ color: '#fff8e7', transparent: true, opacity: 0, depthWrite: true, depthTest: true })
+  const coreMat = new THREE.MeshBasicMaterial({ color: '#ffcc66', transparent: true, opacity: 0, depthWrite: true, depthTest: true })
   _starCore = new THREE.Mesh(coreGeo, coreMat)
   _starCore.renderOrder = 0
   _starGroup.add(_starCore)
