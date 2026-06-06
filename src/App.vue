@@ -23,9 +23,9 @@ const clickProgress = ref(0)
 const isClickPlaying = ref(false)
 const hintVisible = ref(true)
 const lighthouseImage = ref(null)
+const isAct3Focused = ref(false)
 
 const sceneRef = ref(null)
-const brandTextVisible = computed(() => scrollProgress.value >= 0.70)
 const effectiveProgress = computed(() =>
   isClickPlaying.value ? clickProgress.value : scrollProgress.value
 )
@@ -122,6 +122,11 @@ watch(scrollProgress, () => {
   ensureCapture()
 })
 
+// ---- act3 focus handler ----
+function onFocusChange(focused) {
+  isAct3Focused.value = focused
+}
+
 onMounted(() => {
   document.body.style.height = window.innerHeight * SCROLL_VH + 'px'
 
@@ -174,7 +179,7 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <LighthouseScene ref="sceneRef" :scrollProgress="effectiveProgress" />
+  <LighthouseScene ref="sceneRef" :scrollProgress="effectiveProgress" @focus-change="onFocusChange" />
 
   <Transition name="hint-fade">
     <div v-if="hintVisible" class="scroll-hint" aria-hidden="true">
@@ -185,9 +190,9 @@ onUnmounted(() => {
   </Transition>
 
   <div
-    v-if="brandTextVisible"
+    v-if="scrollProgress >= 0.70"
     class="brand-text"
-    :class="{ 'no-transition': isClickPlaying }"
+    :class="{ 'no-transition': isClickPlaying, 'focused-out': isAct3Focused }"
     aria-hidden="true"
   >
     <div class="brand-text-row">
@@ -263,6 +268,11 @@ onUnmounted(() => {
 .brand-text.no-transition,
 .brand-text.no-transition * {
   transition: none !important;
+}
+.brand-text.focused-out {
+  opacity: 0;
+  transform: translateY(calc(var(--text-offset-y, 0px) - 4vh - 24px));
+  transition: opacity 0.45s ease-out, transform 0.45s ease-out;
 }
 .brand-text-row {
   display: flex;

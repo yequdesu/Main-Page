@@ -6,6 +6,8 @@ const props = defineProps({
   scrollProgress: { type: Number, default: 0 }
 })
 
+const emit = defineEmits(['focusChange'])
+
 const canvasRef = ref(null)
 
 // ============================================================
@@ -740,7 +742,13 @@ function animateDust(time, sp) {
 // ---- camera focus system (Act 3 planet hover) ----
 function updateCameraFocus(sp) {
   const isAct3 = sp >= GRID_SHIFT_START
-  if (!isAct3) return
+  if (!isAct3) {
+    if (_focusedPlanetIdx >= 0) {
+      _focusedPlanetIdx = -1
+      emit('focusChange', false)
+    }
+    return
+  }
 
   const focusedPlanet = (_focusedPlanetIdx >= 0) ? dustParticles[_focusedPlanetIdx] : null
 
@@ -935,20 +943,21 @@ const _planetLinks = [
 ]
 
 function createPlanetLabel(text, accentColor) {
-  const size = 256
+  const size = 512
   const canvas = document.createElement('canvas')
   canvas.width = size
-  canvas.height = 64
+  canvas.height = 128
   const ctx = canvas.getContext('2d')
 
-  ctx.font = '600 24px "Inter", "Segoe UI", system-ui, sans-serif'
+  // Pill background
+  ctx.font = '500 40px "Georgia", "Times New Roman", serif'
   const tw = ctx.measureText(text).width
-  const padX = 20, padH = 12
-  const pillW = Math.max(72, tw + padX * 2)
-  const pillH = 32
+  const padX = 28, padY = 16
+  const pillW = Math.max(100, tw + padX * 2)
+  const pillH = 56
   const pillX = (size - pillW) / 2
-  const pillY = (64 - pillH) / 2
-  const pillR = 8
+  const pillY = (128 - pillH) / 2
+  const pillR = 10
 
   ctx.beginPath()
   ctx.moveTo(pillX + pillR, pillY)
@@ -961,33 +970,36 @@ function createPlanetLabel(text, accentColor) {
   ctx.lineTo(pillX, pillY + pillR)
   ctx.arcTo(pillX, pillY, pillX + pillR, pillY, pillR)
   ctx.closePath()
-  ctx.fillStyle = 'rgba(15, 23, 42, 0.72)'
+  ctx.fillStyle = 'rgba(15, 23, 42, 0.78)'
   ctx.fill()
 
+  // Subtle border
+  ctx.strokeStyle = 'rgba(255,255,255,0.12)'
+  ctx.lineWidth = 1.5
+  ctx.stroke()
+
   ctx.fillStyle = '#f1f5f9'
-  ctx.font = '600 22px "Inter", "Segoe UI", system-ui, sans-serif'
+  ctx.font = '500 38px "Georgia", "Times New Roman", serif'
   ctx.textAlign = 'center'
   ctx.textBaseline = 'middle'
-  ctx.fillText(text, size / 2, 64 / 2)
+  ctx.fillText(text, size / 2, 128 / 2)
 
   const tex = new THREE.CanvasTexture(canvas)
   tex.minFilter = THREE.LinearFilter
   tex.magFilter = THREE.LinearFilter
-  
-  // 关键优化：关闭标签的深度测试（depthTest: false），使其渲染时忽略物理阻挡
+
   const spriteMat = new THREE.SpriteMaterial({
     map: tex,
     transparent: true,
     opacity: 0,
-    depthTest: false, 
+    depthTest: false,
     depthWrite: false,
   })
   const sprite = new THREE.Sprite(spriteMat)
   sprite.scale.set(1.8, 0.45, 1)
-  
-  // 关键优化：将标签设为极高的渲染顺序，确保其始终位于最前景
+
   sprite.renderOrder = 9999
-  
+
   return sprite
 }
 
@@ -1136,13 +1148,14 @@ act3.animate = (time, tSp, sp) => {
     }
   }
 
+  const isFocused = _focusedPlanetIdx >= 0
   _mainPlanetsPreFiltered.sort((a, b) => _mainPlanetIndices.indexOf(dustParticles.indexOf(a)) - _mainPlanetIndices.indexOf(dustParticles.indexOf(b)))
   for (let t = 0; t < _planetLabels.length && t < _mainPlanetsPreFiltered.length; t++) {
     const label = _planetLabels[t]
     const planet = _mainPlanetsPreFiltered[t]
     label.position.copy(planet.position)
     label.position.y += 0.45
-    label.material.opacity = smoothProgress * 0.82
+    label.material.opacity = isFocused ? 0 : smoothProgress * 0.82
   }
 }
 
@@ -1269,11 +1282,13 @@ const onClickCanvas = (e) => {
       } else {
         // Focus this planet
         _focusedPlanetIdx = planetIdx
+        emit('focusChange', true)
       }
     }
   } else {
     // Clicked empty space — unfocus
     _focusedPlanetIdx = -1
+    emit('focusChange', false)
   }
 }
 
