@@ -195,6 +195,7 @@ onUnmounted(() => {
         v-if="lighthouseImage"
         :src="lighthouseImage"
         class="lighthouse-icon"
+        :style="{ opacity: line1Opacity }"
         alt=""
       />
       <div class="brand-text-inner">
@@ -257,7 +258,7 @@ onUnmounted(() => {
   align-items: center;
   justify-content: center;
   pointer-events: none;
-  transform: translateY(var(--text-offset-y, 0px));
+  transform: translateY(calc(var(--text-offset-y, 0px) - 4vh));
 }
 .brand-text.no-transition,
 .brand-text.no-transition * {
@@ -266,19 +267,19 @@ onUnmounted(() => {
 .brand-text-row {
   display: flex;
   align-items: flex-end;
-  gap: 0.35em;
+  gap: 0.12em;
 }
 .brand-text-inner {
   display: flex;
   flex-direction: column;
   align-items: flex-end;
-  gap: 0.15rem;
+  gap: 0.05rem;
 }
 .brand-line-1 {
   margin: 0;
   font-family: 'Georgia', 'Times New Roman', serif;
   font-size: clamp(1.8rem, 4.5vw, 3.5rem);
-  font-weight: 400;
+  font-weight: 600;
   color: #222;
   letter-spacing: 0.05em;
   white-space: nowrap;
