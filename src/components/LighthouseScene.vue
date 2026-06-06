@@ -979,6 +979,7 @@ let _orbitLines = []
 let _gyroGroups = []
 let _planetLabels = []
 let _starGroup = null
+let _starCore = null
 let _starGlow = null
 let _labelOpacityCurrent = 0
 let _raycaster = null
@@ -1107,9 +1108,9 @@ act3.build = () => {
 
   // Core: warm bright sphere
   const coreGeo = new THREE.SphereGeometry(0.42, 32, 32)
-  const coreMat = new THREE.MeshBasicMaterial({ color: '#fff8e7' })
-  const core = new THREE.Mesh(coreGeo, coreMat)
-  _starGroup.add(core)
+  const coreMat = new THREE.MeshBasicMaterial({ color: '#fff8e7', transparent: true, opacity: 0 })
+  _starCore = new THREE.Mesh(coreGeo, coreMat)
+  _starGroup.add(_starCore)
 
   // Inner glow: larger transparent envelope
   const glowGeo = new THREE.SphereGeometry(0.70, 32, 32)
@@ -1189,6 +1190,7 @@ act3.animate = (time, tSp, sp) => {
   // Star: fade in, subtle pulse
   if (_starGroup) {
     const pulse = 1 + Math.sin(time * 1.8) * 0.06 + Math.sin(time * 3.3) * 0.04
+    if (_starCore) _starCore.material.opacity = smoothProgress * pulse
     if (_starGlow) {
       _starGlow.material.opacity = smoothProgress * 0.30 * pulse
       _starGlow.scale.setScalar(pulse)
@@ -1256,6 +1258,7 @@ act3.dispose = () => {
       }
     })
     _starGroup = null
+    _starCore = null
     _starGlow = null
   }
 
