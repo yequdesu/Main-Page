@@ -1457,7 +1457,7 @@ onMounted(() => {
         if (act.exit && builtActs.has(act.name)) act.exit()
       }
     }
-    prevActiveNames = activeNames
+    prevActiveNames = activeNames.slice()
     origAnimate(time)
   }
 
