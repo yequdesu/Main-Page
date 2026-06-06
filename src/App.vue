@@ -83,11 +83,12 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <LighthouseScene :scrollProgress="scrollProgress" />
+  <LighthouseScene :scrollProgress="effectiveProgress" />
 
   <Transition name="hint-fade">
     <div v-if="hintVisible" class="scroll-hint" aria-hidden="true">
       <span>Scroll</span>
+      <span class="click-hint">or click to skip</span>
       <div class="scroll-arrow" />
     </div>
   </Transition>
@@ -126,6 +127,12 @@ onUnmounted(() => {
   transform: rotate(45deg);
   opacity: 0.5;
   animation: sc-bounce 2s ease-in-out infinite;
+}
+.click-hint {
+  font-size: 0.58rem;
+  color: #778;
+  opacity: 0.7;
+  letter-spacing: 0.08em;
 }
 @keyframes sc-bounce {
   0%, 100% { transform: rotate(45deg) translateY(0); }
