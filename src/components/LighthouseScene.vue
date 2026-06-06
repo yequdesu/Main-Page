@@ -933,6 +933,7 @@ let _gyroGroups = []
 let _planetLabels = []
 let _starGroup = null
 let _starGlow = null
+let _labelOpacityCurrent = 0
 let _raycaster = null
 let _lastTimeSec = 0
 
@@ -1149,13 +1150,15 @@ act3.animate = (time, tSp, sp) => {
   }
 
   const isFocused = _focusedPlanetIdx >= 0
+  const targetLabelOpacity = isFocused ? 0 : smoothProgress * 0.82
+  _labelOpacityCurrent += (targetLabelOpacity - _labelOpacityCurrent) * 0.12
   _mainPlanetsPreFiltered.sort((a, b) => _mainPlanetIndices.indexOf(dustParticles.indexOf(a)) - _mainPlanetIndices.indexOf(dustParticles.indexOf(b)))
   for (let t = 0; t < _planetLabels.length && t < _mainPlanetsPreFiltered.length; t++) {
     const label = _planetLabels[t]
     const planet = _mainPlanetsPreFiltered[t]
     label.position.copy(planet.position)
     label.position.y += 0.45
-    label.material.opacity = isFocused ? 0 : smoothProgress * 0.82
+    label.material.opacity = _labelOpacityCurrent
   }
 }
 
