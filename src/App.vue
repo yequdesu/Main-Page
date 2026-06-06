@@ -111,15 +111,19 @@ function updateLighthousePos() {
     return
   }
   const sr = slot.getBoundingClientRect()
+  // Empty inline-block with vertical-align:baseline has its bottom at text baseline
+  const baselineY = sr.bottom
+  // Image height: ~2.8× the line-height (slot height), lighthouse is tall
+  const imgHeight = sr.height * 2.8
   const t = lighthouseDescentT.value
   const descentPx = -40 * (1 - t)
   lighthouseCharStyle.value = {
     position: 'fixed',
     left: sr.left + 'px',
-    top: (sr.top + descentPx) + 'px',
+    top: (baselineY - imgHeight + descentPx) + 'px',
     width: (sr.width * 1.05) + 'px',
-    height: 'auto',
-    opacity: t,
+    height: imgHeight + 'px',
+    opacity: t * line1Opacity.value,
     zIndex: 11,
     pointerEvents: 'none'
   }
@@ -298,6 +302,7 @@ onUnmounted(() => {
   align-items: center;
   justify-content: center;
   pointer-events: none;
+  transform: translateY(var(--text-offset-y, 0px));
 }
 .brand-text.no-transition,
 .brand-text.no-transition * {
@@ -307,7 +312,7 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 0.6rem;
+  gap: 0.15rem;
 }
 .brand-line-1 {
   margin: 0;
@@ -322,7 +327,7 @@ onUnmounted(() => {
 .brand-line-2 {
   margin: 0;
   font-family: 'Georgia', 'Times New Roman', serif;
-  font-size: clamp(0.8rem, 1.6vw, 1.1rem);
+  font-size: clamp(0.55rem, 1.0vw, 0.75rem);
   font-weight: 400;
   color: #888;
   letter-spacing: 0.04em;
