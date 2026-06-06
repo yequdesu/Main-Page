@@ -52,6 +52,14 @@ const _currentColor = new THREE.Color()
 
 const _clickNDC = new THREE.Vector2()
 
+// ---- camera-focus system pre-allocated ----
+const _defaultCamPos = new THREE.Vector3(0, 0.25, 8)
+const _defaultLookAt = new THREE.Vector3(0, -0.65, -24)
+const _targetCamPos = new THREE.Vector3(0, 0.25, 8)
+const _targetLookAt = new THREE.Vector3(0, -0.65, -24)
+const _currentLookAt = new THREE.Vector3(0, -0.65, -24)
+const _camOffsetDir = new THREE.Vector3()
+
 // ---- pre-allocated reusable objects for hot paths (eliminates per-frame GC) ----
 const _bgBaseColor = new THREE.Color('#050811')
 const _bgTargetColor = new THREE.Color('#f1f5f9')
@@ -721,6 +729,30 @@ function animateDust(time, sp) {
   }
 }
 
+// ---- camera focus system (Act 3 planet hover) ----
+function updateCameraFocus(sp) {
+  const isAct3 = sp >= GRID_SHIFT_START
+  if (!isAct3) return
+
+  const hoveredPlanet = (_hoveredIdx >= 0) ? dustParticles[_hoveredIdx] : null
+
+  if (hoveredPlanet && hoveredPlanet.userData.isMainPlanet) {
+    // Focus on hovered planet: camera dolly toward it
+    _targetLookAt.copy(hoveredPlanet.position)
+    _camOffsetDir.copy(_defaultCamPos).sub(hoveredPlanet.position).normalize()
+    _targetCamPos.copy(hoveredPlanet.position).addScaledVector(_camOffsetDir, 5.5)
+  } else {
+    // Return to default
+    _targetCamPos.copy(_defaultCamPos)
+    _targetLookAt.copy(_defaultLookAt)
+  }
+
+  // Smooth lerp camera position
+  camera.position.lerp(_targetCamPos, 0.06)
+  _currentLookAt.lerp(_targetLookAt, 0.06)
+  camera.lookAt(_currentLookAt)
+}
+
 act1.exit = () => {
   ctx.set('oceanLines', oceanLines)
   ctx.set('waveData', waveData)
@@ -1092,6 +1124,7 @@ function animate(time) {
   animateVerticalGrid(sp)
   animateDust(t, sp)
   animateBeam(t, sp)
+  updateCameraFocus(sp)
 
   const activeActs = resolveActiveActs(sp)
   for (const act of activeActs) {
@@ -1158,9 +1191,10 @@ function captureLighthouse() {
   const clone = lighthouseGroup.clone(true)
   const tempScene = new THREE.Scene()
 
-  // Position clone so lighthouse center is at origin
-  // Local y extent: ~-0.63 to ~2.56 (after 0.7 scale), center ~0.96
-  clone.position.set(0, -0.96, 0)
+  // Center lighthouse clone at origin (includes base/foundation)
+  // Local y extent after 0.7 scale: ~-0.63 (foundation) to ~2.56 (spire tip)
+  // Center = (-0.63 + 2.56) / 2 ≈ 0.965
+  clone.position.set(0, -0.965, 0)
   clone.scale.copy(lighthouseGroup.scale)
   tempScene.add(clone)
 
@@ -1174,8 +1208,8 @@ function captureLighthouse() {
   tempScene.add(fill)
 
   const capCam = new THREE.PerspectiveCamera(25, captureW / captureH, 0.1, 50)
-  capCam.position.set(0, 0.96, 8)
-  capCam.lookAt(0, 0.96, 0)
+  capCam.position.set(0, 0, 9)
+  capCam.lookAt(0, 0, 0)
 
   offRenderer.render(tempScene, capCam)
   const dataUrl = offRenderer.domElement.toDataURL('image/png')
