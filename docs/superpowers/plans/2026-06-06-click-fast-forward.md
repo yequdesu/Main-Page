@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Allow users to click anywhere to fast-forward the scroll animation to completion in 0.7s, with scroll-wheel interrupt support.
+**Goal:** Allow users to click anywhere to fast-forward the scroll animation to completion in 1.4s, with scroll-wheel interrupt support.
 
 **Architecture:** Single-file change to `src/App.vue`. Add `clickProgress` and `isClickPlaying` refs, a `effectiveProgress` computed that picks between click-driven and scroll-driven progress, a GSAP tween on click, a wheel listener that kills the tween on interruption, and a click-hint text next to the existing scroll hint.
 
@@ -73,7 +73,7 @@ function onClick() {
   const tweenObj = { val: scrollProgress.value }
   _clickTween = gsap.to(tweenObj, {
     val: 1.0,
-    duration: 0.7,
+    duration: 1.4,
     ease: 'power2.inOut',
     onUpdate: () => {
       clickProgress.value = tweenObj.val
@@ -197,7 +197,7 @@ Open `http://localhost:5173` in a browser. Scroll with mouse wheel — animation
 
 - [ ] **Step 3: Verify click fast-forward**
 
-Refresh the page. Click anywhere on the page. Animation should fast-forward to the end in ~0.7s. Brand text and Act 3 orbits should appear.
+Refresh the page. Click anywhere on the page. Animation should fast-forward to the end in ~1.4s. Brand text and Act 3 orbits should appear.
 
 - [ ] **Step 4: Verify wheel interrupt during fast-forward**
 

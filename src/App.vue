@@ -29,7 +29,7 @@ function onClick() {
   const tweenObj = { val: scrollProgress.value }
   _clickTween = gsap.to(tweenObj, {
     val: 1.0,
-    duration: 0.7,
+    duration: 1.4,
     ease: 'power2.inOut',
     onUpdate: () => {
       clickProgress.value = tweenObj.val
