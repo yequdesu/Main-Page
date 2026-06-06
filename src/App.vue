@@ -23,7 +23,6 @@ const clickProgress = ref(0)
 const isClickPlaying = ref(false)
 const hintVisible = ref(true)
 const lighthouseImage = ref(null)
-const lighthouseCharStyle = ref({})
 
 const sceneRef = ref(null)
 const brandTextVisible = computed(() => scrollProgress.value >= 0.70)
@@ -45,7 +44,6 @@ function syncScrollbar() {
 
 // ---- character visibility ----
 const line1Opacity = computed(() => smoothstep(clamped(scrollProgress.value, 0.70, 0.82)))
-const lighthouseDescentT = computed(() => smoothstep(clamped(scrollProgress.value, 0.78, 0.88)))
 const line2Opacity = computed(() => smoothstep(clamped(scrollProgress.value, 0.82, 0.92)))
 
 // ---- click fast-forward ----
@@ -103,32 +101,6 @@ function ensureCapture() {
   }
 }
 
-// ---- lighthouse char position ----
-function updateLighthousePos() {
-  const slot = document.querySelector('.char-i-slot')
-  if (!slot) {
-    lighthouseCharStyle.value = { opacity: 0 }
-    return
-  }
-  const sr = slot.getBoundingClientRect()
-  // Empty inline-block with vertical-align:baseline has its bottom at text baseline
-  const baselineY = sr.bottom
-  // Image height: ~2.8× the line-height (slot height), lighthouse is tall
-  const imgHeight = sr.height * 2.8
-  const t = lighthouseDescentT.value
-  const descentPx = -40 * (1 - t)
-  lighthouseCharStyle.value = {
-    position: 'fixed',
-    left: sr.left + 'px',
-    top: (baselineY - imgHeight + descentPx) + 'px',
-    width: (sr.width * 1.05) + 'px',
-    height: imgHeight + 'px',
-    opacity: t * line1Opacity.value,
-    zIndex: 11,
-    pointerEvents: 'none'
-  }
-}
-
 // ---- ScrollTrigger (native scrollbar → direct position) ----
 let st
 function onScrollTrigger(self) {
@@ -145,10 +117,9 @@ function onScrollTrigger(self) {
   }
 }
 
-// ---- watch scrollProgress to drive capture & lighthouse position ----
+// ---- watch scrollProgress to drive capture ----
 watch(scrollProgress, () => {
   ensureCapture()
-  updateLighthousePos()
 })
 
 onMounted(() => {
@@ -190,7 +161,6 @@ onMounted(() => {
 
   window.addEventListener('click', onClick)
   window.addEventListener('wheel', onWheel, { passive: false })
-  window.addEventListener('resize', updateLighthousePos)
 })
 
 onUnmounted(() => {
@@ -200,7 +170,6 @@ onUnmounted(() => {
   document.body.style.height = ''
   window.removeEventListener('click', onClick)
   window.removeEventListener('wheel', onWheel)
-  window.removeEventListener('resize', updateLighthousePos)
 })
 </script>
 
@@ -223,31 +192,17 @@ onUnmounted(() => {
   >
     <div class="brand-text-inner">
       <p class="brand-line-1" :style="{ opacity: line1Opacity }">
-        <span class="char">P</span>
-        <span class="char">e</span>
-        <span class="char">r</span>
-        <span class="char">s</span>
-        <span class="char">o</span>
-        <span class="char">n</span>
-        <span class="char">a</span>
-        <span class="char">l</span>
-        <span class="char char-space">&nbsp;</span>
-        <span class="char">S</span>
-        <span class="char char-i-slot"></span>
-        <span class="char">t</span>
-        <span class="char">e</span>
+        <img
+          v-if="lighthouseImage"
+          :src="lighthouseImage"
+          class="lighthouse-icon"
+          alt=""
+        />
+        Personal Site
       </p>
       <p class="brand-line-2" :style="{ opacity: line2Opacity }">By YeQuDesu</p>
     </div>
   </div>
-
-  <img
-    v-if="lighthouseImage && brandTextVisible"
-    :src="lighthouseImage"
-    class="lighthouse-char-img"
-    :style="lighthouseCharStyle"
-    alt=""
-  />
 
   <AppFooter />
 </template>
@@ -334,20 +289,12 @@ onUnmounted(() => {
   font-style: italic;
   text-align: left;
 }
-.char {
+.lighthouse-icon {
   display: inline;
-}
-.char-space {
-  /* space between "Personal" and "Site" */
-}
-.char-i-slot {
-  display: inline-block;
-  width: 0.45em;
-  height: 1em;
+  height: 0.95em;
+  width: auto;
   vertical-align: baseline;
-}
-.lighthouse-char-img {
-  transition: none;
-  will-change: left, top, opacity;
+  margin-right: 0.15em;
+  object-fit: contain;
 }
 </style>
