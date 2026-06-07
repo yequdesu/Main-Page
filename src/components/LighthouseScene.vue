@@ -6,7 +6,7 @@ const props = defineProps({
   scrollProgress: { type: Number, default: 0 }
 })
 
-const emit = defineEmits(['focusChange'])
+const emit = defineEmits(['focusChange', 'overlayData'])
 
 const canvasRef = ref(null)
 
@@ -73,6 +73,11 @@ const _focusBaseOffset = new THREE.Vector3()
 const _focusOrbitQuat = new THREE.Quaternion()
 let _focusStartTime = 0
 let _focusOrbitAngle = 0
+
+// Scratch for screen-space overlay projection
+const _ssStar = new THREE.Vector3()
+const _ssPlanet = new THREE.Vector3()
+const _ssStarEdge = new THREE.Vector3()
 
 // ---- pre-allocated reusable objects for hot paths (eliminates per-frame GC) ----
 const _bgBaseColor = new THREE.Color('#050811')
@@ -824,6 +829,37 @@ function updateCameraFocus(sp, time) {
   _currentLookAt.lerp(_targetLookAt, 0.06)
   camera.position.lerp(_targetCamPos, 0.06)
   camera.lookAt(_currentLookAt)
+
+  // Emit screen-space overlay data for focused planet + star
+  if (isFocused && planet) {
+    const canvas = renderer.domElement
+    const w = canvas.width, h = canvas.height
+    const fovRad = camera.fov * Math.PI / 180
+
+    // Star screen position
+    _ssStar.copy(_starPos).project(camera)
+    const starSx = (_ssStar.x * 0.5 + 0.5) * w
+    const starSy = (-_ssStar.y * 0.5 + 0.5) * h
+    // Star screen radius (approximate)
+    const starDist = camera.position.distanceTo(_starPos)
+    const starSR = (0.42 / starDist) * (h / (2 * Math.tan(fovRad / 2)))
+
+    // Planet screen position
+    _ssPlanet.copy(planet.position).project(camera)
+    const planetSx = (_ssPlanet.x * 0.5 + 0.5) * w
+    const planetSy = (-_ssPlanet.y * 0.5 + 0.5) * h
+    const planetDist = camera.position.distanceTo(planet.position)
+    const planetScale = planet.userData.scaleMult || 1
+    const planetSR = (0.15 * planetScale / planetDist) * (h / (2 * Math.tan(fovRad / 2)))
+
+    emit('overlayData', {
+      focused: true,
+      star:   { x: starSx,   y: starSy,   r: starSR },
+      planet: { x: planetSx, y: planetSy, r: planetSR },
+    })
+  } else {
+    emit('overlayData', { focused: false })
+  }
 }
 
 act1.exit = () => {

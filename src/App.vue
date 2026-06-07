@@ -29,9 +29,14 @@ const brandTextRef = ref(null)
 const brandTextVisible = computed(() => scrollProgress.value >= 0.70)
 let _focusTween = null
 const isAct3Focused = ref(false)
+const overlayData = ref({ focused: false })
 const effectiveProgress = computed(() =>
   isClickPlaying.value ? clickProgress.value : scrollProgress.value
 )
+
+function onOverlayData(data) {
+  overlayData.value = data
+}
 
 // ---- helpers ----
 function smoothstep(t) {
@@ -197,7 +202,34 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <LighthouseScene ref="sceneRef" :scrollProgress="effectiveProgress" @focus-change="onFocusChange" />
+  <LighthouseScene ref="sceneRef" :scrollProgress="effectiveProgress" @focus-change="onFocusChange" @overlay-data="onOverlayData" />
+
+  <!-- Focus overlay: SVG line art connecting star and focused planet -->
+  <svg
+    v-if="overlayData.focused"
+    class="focus-overlay"
+    width="100%" height="100%"
+  >
+    <!-- Star outline circle -->
+    <circle
+      :cx="overlayData.star.x" :cy="overlayData.star.y" :r="overlayData.star.r + 14"
+      fill="none" stroke="#64748b" stroke-width="1" stroke-dasharray="4 6"
+      class="overlay-ring"
+    />
+    <!-- Planet outline circle -->
+    <circle
+      :cx="overlayData.planet.x" :cy="overlayData.planet.y" :r="overlayData.planet.r + 14"
+      fill="none" stroke="#64748b" stroke-width="1" stroke-dasharray="4 6"
+      class="overlay-ring"
+    />
+    <!-- Connecting ray: star edge to planet edge -->
+    <line
+      :x1="overlayData.star.x" :y1="overlayData.star.y"
+      :x2="overlayData.planet.x" :y2="overlayData.planet.y"
+      stroke="#94a3b8" stroke-width="0.5" stroke-dasharray="3 5"
+      class="overlay-line"
+    />
+  </svg>
 
   <Transition name="hint-fade">
     <div v-if="hintVisible" class="scroll-hint" aria-hidden="true">
@@ -322,6 +354,28 @@ onUnmounted(() => {
   font-style: italic;
   text-align: left;
 }
+/* ---- focus overlay SVG ---- */
+.focus-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 5;
+  pointer-events: none;
+}
+.overlay-ring {
+  animation: ring-in 0.6s ease-out both;
+}
+@keyframes ring-in {
+  from { opacity: 0; stroke-dashoffset: 30; }
+  to   { opacity: 1; stroke-dashoffset: 0; }
+}
+.overlay-line {
+  animation: line-in 0.8s ease-out 0.2s both;
+}
+@keyframes line-in {
+  from { opacity: 0; stroke-dashoffset: 20; }
+  to   { opacity: 1; stroke-dashoffset: 0; }
+}
+
 .lighthouse-icon {
   font-size: clamp(1.8rem, 4.5vw, 3.5rem);
   height: 2.8em;
