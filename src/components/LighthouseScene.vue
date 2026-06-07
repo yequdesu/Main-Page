@@ -791,6 +791,7 @@ function updateCameraFocus(sp, time) {
   const isFocused = _focusedPlanetIdx >= 0
   const planet = isFocused ? dustParticles[_focusedPlanetIdx] : null
 
+  // Compute desired camera position (raw — we smooth it below)
   if (planet && planet.userData.isMainPlanet) {
     _camToStar.subVectors(_starPos, planet.position).normalize()
     _camLeftDir.crossVectors(_camUp, _camToStar).normalize()
@@ -799,29 +800,29 @@ function updateCameraFocus(sp, time) {
     const sideDist = 2.2
     const orbitR = planet.userData.orbitR || 4.5
 
-    // Base camera position (before orbit)
-    _targetCamPos.copy(planet.position)
+    _focusAxisPoint.copy(planet.position)
+      .addScaledVector(_camToStar, orbitR * 0.25)
+
+    _focusOrbitAngle = (time - _focusStartTime) * 0.024
+    _focusOrbitQuat.setFromAxisAngle(_camToStar, _focusOrbitAngle)
+
+    _camOffsetDir.copy(planet.position)
       .addScaledVector(_camToStar, -behindDist)
       .addScaledVector(_camLeftDir, sideDist)
-
-    // Orbit: rotate camera around planet-star axis
-    _focusAxisPoint.copy(planet.position)
-      .addScaledVector(_camToStar, orbitR * 0.25) // same as lookAt point
-
-    _focusOrbitAngle = (time - _focusStartTime) * 0.024 // time-based, ~262s/rotation
-    _focusOrbitQuat.setFromAxisAngle(_camToStar, _focusOrbitAngle)
-    _focusBaseOffset.subVectors(_targetCamPos, _focusAxisPoint)
+    _focusBaseOffset.subVectors(_camOffsetDir, _focusAxisPoint)
     _focusBaseOffset.applyQuaternion(_focusOrbitQuat)
-    _targetCamPos.copy(_focusAxisPoint).add(_focusBaseOffset)
+    _camOffsetDir.copy(_focusAxisPoint).add(_focusBaseOffset)
 
-    _targetLookAt.copy(_focusAxisPoint)
+    _targetCamPos.lerp(_camOffsetDir, 0.04)
+    _targetLookAt.lerp(_focusAxisPoint, 0.04)
   } else {
-    _targetCamPos.copy(_defaultCamPos)
-    _targetLookAt.copy(_defaultLookAt)
+    _targetCamPos.lerp(_defaultCamPos, 0.04)
+    _targetLookAt.lerp(_defaultLookAt, 0.04)
   }
 
-  camera.position.lerp(_targetCamPos, 0.06)
+  // Camera follows the smoothed target
   _currentLookAt.lerp(_targetLookAt, 0.06)
+  camera.position.lerp(_targetCamPos, 0.06)
   camera.lookAt(_currentLookAt)
 }
 
