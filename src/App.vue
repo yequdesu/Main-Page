@@ -204,7 +204,7 @@ onUnmounted(() => {
 <template>
   <LighthouseScene ref="sceneRef" :scrollProgress="effectiveProgress" @focus-change="onFocusChange" @overlay-data="onOverlayData" />
 
-  <!-- Focus overlay: SVG line art connecting star and focused planet -->
+  <!-- Focus overlay: SVG line art — tangent lines between star and planet -->
   <svg
     v-if="overlayData.focused"
     class="focus-overlay"
@@ -212,21 +212,21 @@ onUnmounted(() => {
   >
     <!-- Star outline circle -->
     <circle
-      :cx="overlayData.star.x" :cy="overlayData.star.y" :r="overlayData.star.r + 14"
+      :cx="overlayData.star.x" :cy="overlayData.star.y" :r="overlayData.star.r + 10"
       fill="none" stroke="#64748b" stroke-width="1" stroke-dasharray="4 6"
       class="overlay-ring"
     />
     <!-- Planet outline circle -->
     <circle
-      :cx="overlayData.planet.x" :cy="overlayData.planet.y" :r="overlayData.planet.r + 14"
+      :cx="overlayData.planet.x" :cy="overlayData.planet.y" :r="overlayData.planet.r + 8"
       fill="none" stroke="#64748b" stroke-width="1" stroke-dasharray="4 6"
       class="overlay-ring"
     />
-    <!-- Connecting ray: star edge to planet edge -->
+    <!-- Tangent lines -->
     <line
-      :x1="overlayData.star.x" :y1="overlayData.star.y"
-      :x2="overlayData.planet.x" :y2="overlayData.planet.y"
-      stroke="#94a3b8" stroke-width="0.5" stroke-dasharray="3 5"
+      v-for="(t, i) in overlayData.tangents" :key="i"
+      :x1="t.x1" :y1="t.y1" :x2="t.x2" :y2="t.y2"
+      stroke="#94a3b8" stroke-width="0.5"
       class="overlay-line"
     />
   </svg>

@@ -78,6 +78,7 @@ let _focusOrbitAngle = 0
 const _ssStar = new THREE.Vector3()
 const _ssPlanet = new THREE.Vector3()
 const _ssStarEdge = new THREE.Vector3()
+const _ssScratch = new THREE.Vector3()
 
 // ---- pre-allocated reusable objects for hot paths (eliminates per-frame GC) ----
 const _bgBaseColor = new THREE.Color('#050811')
@@ -833,29 +834,78 @@ function updateCameraFocus(sp, time) {
   // Emit screen-space overlay data for focused planet + star
   if (isFocused && planet) {
     const canvas = renderer.domElement
-    const w = canvas.width, h = canvas.height
-    const fovRad = camera.fov * Math.PI / 180
+    // Use CSS pixels (client size), not internal canvas resolution
+    const w = canvas.clientWidth, h = canvas.clientHeight
 
-    // Star screen position
-    _ssStar.copy(_starPos).project(camera)
-    const starSx = (_ssStar.x * 0.5 + 0.5) * w
-    const starSy = (-_ssStar.y * 0.5 + 0.5) * h
-    // Star screen radius (approximate)
-    const starDist = camera.position.distanceTo(_starPos)
-    const starSR = (0.42 / starDist) * (h / (2 * Math.tan(fovRad / 2)))
+    // Helper: project a 3D point to CSS pixel coords
+    function toScreen(v3, out) {
+      out.copy(v3).project(camera)
+      out.x = (out.x * 0.5 + 0.5) * w
+      out.y = (-out.y * 0.5 + 0.5) * h
+      return out
+    }
 
-    // Planet screen position
-    _ssPlanet.copy(planet.position).project(camera)
-    const planetSx = (_ssPlanet.x * 0.5 + 0.5) * w
-    const planetSy = (-_ssPlanet.y * 0.5 + 0.5) * h
-    const planetDist = camera.position.distanceTo(planet.position)
-    const planetScale = planet.userData.scaleMult || 1
-    const planetSR = (0.15 * planetScale / planetDist) * (h / (2 * Math.tan(fovRad / 2)))
+    // Star — project center + edge point along camera right for accurate screen radius
+    toScreen(_starPos, _ssStar)
+    _ssScratch.set(1, 0, 0).applyQuaternion(camera.quaternion)
+    _ssStarEdge.copy(_starPos).addScaledVector(_ssScratch, 0.42)
+    toScreen(_ssStarEdge, _ssStarEdge)
+    const starSR = Math.hypot(_ssStarEdge.x - _ssStar.x, _ssStarEdge.y - _ssStar.y)
+
+    // Planet
+    toScreen(planet.position, _ssPlanet)
+    const pScale = planet.userData.scaleMult || 1
+    _ssStarEdge.copy(planet.position).addScaledVector(_ssScratch, 0.15 * pScale)
+    toScreen(_ssStarEdge, _ssStarEdge)
+    const planetSR = Math.hypot(_ssStarEdge.x - _ssPlanet.x, _ssStarEdge.y - _ssPlanet.y)
+
+    // Compute outer tangents: two lines touching both circles
+    const dx = _ssPlanet.x - _ssStar.x
+    const dy = _ssPlanet.y - _ssStar.y
+    const dist = Math.hypot(dx, dy)
+    const theta = Math.atan2(dy, dx)  // angle from star to planet
+
+    // sin(φ) = (sr - pr) / dist — outer tangent angle offset
+    const dr = starSR - planetSR
+    const phi = dist > Math.abs(dr) ? Math.asin(dr / dist) : 0
+
+    // Two tangent angles (perpendicular to center line ± φ)
+    const alpha1 = theta + Math.PI / 2 + phi
+    const alpha2 = theta + Math.PI / 2 - phi
+
+    // Tangent points on star
+    const ts1x = _ssStar.x + starSR * Math.cos(alpha1)
+    const ts1y = _ssStar.y + starSR * Math.sin(alpha1)
+    const ts2x = _ssStar.x + starSR * Math.cos(alpha2)
+    const ts2y = _ssStar.y + starSR * Math.sin(alpha2)
+
+    // Tangent points on planet
+    const tp1x = _ssPlanet.x + planetSR * Math.cos(alpha1)
+    const tp1y = _ssPlanet.y + planetSR * Math.sin(alpha1)
+    const tp2x = _ssPlanet.x + planetSR * Math.cos(alpha2)
+    const tp2y = _ssPlanet.y + planetSR * Math.sin(alpha2)
+
+    // Extend lines: direction from star→planet along tangent
+    const extLen = Math.max(dist * 0.5, 150)
+    const tdx1 = tp1x - ts1x, tdy1 = tp1y - ts1y
+    const tl1 = Math.hypot(tdx1, tdy1) || 1
+    const tdx2 = tp2x - ts2x, tdy2 = tp2y - ts2y
+    const tl2 = Math.hypot(tdx2, tdy2) || 1
+
+    // Extended endpoints
+    const l1_start = { x: ts1x - (tdx1/tl1) * extLen, y: ts1y - (tdy1/tl1) * extLen }
+    const l1_end   = { x: tp1x + (tdx1/tl1) * extLen, y: tp1y + (tdy1/tl1) * extLen }
+    const l2_start = { x: ts2x - (tdx2/tl2) * extLen, y: ts2y - (tdy2/tl2) * extLen }
+    const l2_end   = { x: tp2x + (tdx2/tl2) * extLen, y: tp2y + (tdy2/tl2) * extLen }
 
     emit('overlayData', {
       focused: true,
-      star:   { x: starSx,   y: starSy,   r: starSR },
-      planet: { x: planetSx, y: planetSy, r: planetSR },
+      star:   { x: _ssStar.x,   y: _ssStar.y,   r: Math.max(starSR, 8) },
+      planet: { x: _ssPlanet.x, y: _ssPlanet.y, r: Math.max(planetSR, 6) },
+      tangents: [
+        { x1: l1_start.x, y1: l1_start.y, x2: l1_end.x, y2: l1_end.y },
+        { x1: l2_start.x, y1: l2_start.y, x2: l2_end.x, y2: l2_end.y },
+      ],
     })
   } else {
     emit('overlayData', { focused: false })
