@@ -1,0 +1,64 @@
+<h2>恒星抽象设计方向 — Abstract Star Design Directions</h2>
+<p class="subtitle">当前实现：简单的色彩球体 → 目标：几何线框 + 粒子辐射 + 着色器效果</p>
+
+<div class="section">
+  <h3>当前状态 (Current)</h3>
+  <div class="mockup">
+    <div class="mockup-header">Act 3 Star — 纯色球体 + 渐变光晕 Sprite</div>
+    <div class="mockup-body" style="display:flex;align-items:center;justify-content:center;gap:24px;padding:24px;background:#0a0f1a;">
+      <div style="width:80px;height:80px;border-radius:50%;background:radial-gradient(circle at 40% 35%, #d4a45a, #8b6914 60%, transparent 100%);box-shadow:0 0 30px rgba(212,164,90,0.5);"></div>
+      <div style="color:#94a3b8;font-size:13px;text-align:left;">
+        • MeshBasicMaterial 纯色球体<br>
+        • Canvas 径向渐变 Sprite 光晕<br>
+        • 无几何结构，无着色器特效<br>
+        • 缺少"恒星"的视觉说服力
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>三个设计方向 — 请选择一个偏好</h3>
+  <p class="subtitle">每个方向都包含几何线框 + 粒子辐射 + 着色器扭曲/色散，但侧重不同</p>
+</div>
+
+<div class="options">
+  <div class="option" data-choice="a" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>极简线框主义 — Minimalist Wireframe</h3>
+      <p>干净、优雅的几何球体线框（经纬线），周围环绕稀疏的射线粒子。着色器提供<strong>微妙的色散边缘</strong>（chromatic fringe），如同透过热浪观看。整体氛围克制、精致、建筑感。</p>
+      <div style="display:flex;gap:12px;margin-top:8px;">
+        <span class="label">线框密度：中等 (16经线 × 12纬线)</span>
+        <span class="label">粒子：稀疏射线 (~60条)</span>
+        <span class="label">色散：边缘微红移</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="b" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>能量粒子风暴 — Energetic Particle Storm</h3>
+      <p>密集的粒子碎片和射线从线框球体表面爆发，模拟恒星辐射和日冕物质抛射。着色器提供<strong>画面扭曲和红移</strong>，让恒星周围空间看起来被高温弯曲。氛围激烈、动态、燃烧感。</p>
+      <div style="display:flex;gap:12px;margin-top:8px;">
+        <span class="label">线框密度：稀疏 (8经线 × 6纬线)</span>
+        <span class="label">粒子：密集碎片 (~200+粒子)</span>
+        <span class="label">色散：整体红移+扭曲</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="c" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>数据崩解 — Data Fragmentation / Glitch</h3>
+      <p>线框球体不断地在"完整几何体"和"崩解碎片"之间振荡。经纬线断裂、重组，粒子像数据流一样逃离。着色器提供<strong>RGB通道分离和扫描线扭曲</strong>，营造数字/故障美学。氛围前卫、实验性、科技感。</p>
+      <div style="display:flex;gap:12px;margin-top:8px;">
+        <span class="label">线框密度：动态变化</span>
+        <span class="label">粒子：数据碎片流</span>
+        <span class="label">色散：RGB通道分离+扫描线</span>
+      </div>
+    </div>
+  </div>
+</div>

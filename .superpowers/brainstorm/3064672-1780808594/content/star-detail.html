@@ -1,0 +1,72 @@
+<h2>极简线框恒星 — 视觉细化</h2>
+<p class="subtitle">方向 A 确认。现在确定线框风格、粒子形态、着色器效果的具体参数。</p>
+
+<div class="section">
+  <h3>问题 1：线框风格</h3>
+</div>
+
+<div class="options">
+  <div class="option" data-choice="wire-smooth" onclick="toggleSelect(this)">
+    <div class="letter">A1</div>
+    <div class="content">
+      <h3>光滑球体线框 (Smooth Sphere Wireframe)</h3>
+      <p>标准经纬球线框，线条连续流畅，如同精密的天文仪器。外观接近天文馆的抽象恒星模型。使用 <code>THREE.SphereGeometry</code> 的线框模式或自定义 LineSegments。</p>
+    </div>
+  </div>
+  <div class="option" data-choice="wire-icosa" onclick="toggleSelect(this)">
+    <div class="letter">A2</div>
+    <div class="content">
+      <h3>多面体测地线框 (Geodesic / Icosahedral Wireframe)</h3>
+      <p>基于二十面体的测地线结构，线条形成三角形网络而非四边形网格。外观更接近 Buckminster Fuller 的测地穹顶，更有"结构感"和现代主义气质。</p>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>问题 2：粒子辐射形态</h3>
+</div>
+
+<div class="options">
+  <div class="option" data-choice="particle-rays" onclick="toggleSelect(this)">
+    <div class="letter">B1</div>
+    <div class="content">
+      <h3>细长射线 (Thin Rays / Streaks)</h3>
+      <p>从线框表面向外延伸的细长光线，长度不一，类似日冕的流线。使用细长的 THREE.Line 或拉伸的粒子，带有微弱的透明度渐变。</p>
+    </div>
+  </div>
+  <div class="option" data-choice="particle-dots" onclick="toggleSelect(this)">
+    <div class="letter">B2</div>
+    <div class="content">
+      <h3>漂浮微粒子 (Floating Micro-particles)</h3>
+      <p>大量微小光点悬浮在线框周围，缓慢移动、明灭，如同恒星周围的等离子体微粒。PointsMaterial + 自定义大小衰减。</p>
+    </div>
+  </div>
+  <div class="option" data-choice="particle-both" onclick="toggleSelect(this)">
+    <div class="letter">B3</div>
+    <div class="content">
+      <h3>射线 + 微粒混合 (Rays + Particles)</h3>
+      <p>主要的长射线（~40条）+ 背景漂浮微粒（~100个）。射线提供结构，微粒提供氛围。这是最丰富但不嘈杂的选项。</p>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>问题 3：着色器色散效果</h3>
+</div>
+
+<div class="options">
+  <div class="option" data-choice="shader-fringe" onclick="toggleSelect(this)">
+    <div class="letter">C1</div>
+    <div class="content">
+      <h3>边缘色散 (Chromatic Fringe)</h3>
+      <p>仅在线框球体<strong>边缘</strong>可见微弱的红-蓝偏移，模拟大气色散/热浪折射。中心保持清晰，边缘向红色漂移。这需要自定义 ShaderMaterial 替换标准线框材质。</p>
+    </div>
+  </div>
+  <div class="option" data-choice="shader-screen" onclick="toggleSelect(this)">
+    <div class="letter">C2</div>
+    <div class="content">
+      <h3>全屏后处理色散 (Full-screen Post-processing)</h3>
+      <p>对整个 Act 3 画面应用轻微的 RGB 通道分离 + 径向模糊，以恒星位置为中心。这会影响到轨道环和星球——需要 EffectComposer + 自定义 pass，性能开销更大。</p>
+    </div>
+  </div>
+</div>

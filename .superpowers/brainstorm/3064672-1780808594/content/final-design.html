@@ -1,0 +1,47 @@
+<h2>几何恒星 — 最终设计方案</h2>
+<p class="subtitle">测地线框 + 射线 + 微粒 | 暂不实现色散 | 方案1纯 ShaderMaterial (标准材质)</p>
+
+<div class="section">
+  <h3>架构总览</h3>
+  <div class="mockup">
+    <div class="mockup-header">_starGroup 组件树 (替换当前色球+光晕)</div>
+    <div class="mockup-body" style="padding:20px;font-family:monospace;font-size:13px;line-height:1.8;">
+      <div style="color:#e8c888;">_starGroup <span style="color:#94a3b8;">← position (0, -1.0, -16) / renderOrder=0</span></div>
+      <div style="margin-left:24px;color:#d4a45a;">├── geodesicWire <span style="color:#94a3b8;">← LineSegments / 二十面体线框</span></div>
+      <div style="margin-left:36px;color:#64748b;">│   Geometry: IcosahedronGeometry(0.55, 4)</div>
+      <div style="margin-left:36px;color:#64748b;">│   Material: LineBasicMaterial(#e8c888, opacity→1.0)</div>
+      <div style="margin-left:24px;color:#d4a45a;">├── rayGroup <span style="color:#94a3b8;">← Group / ~40条射线</span></div>
+      <div style="margin-left:36px;color:#64748b;">│   每条: BufferGeometry(2点) Line, 长度 0.3~1.5</div>
+      <div style="margin-left:36px;color:#64748b;">│   起点 in 球面, 终点沿法线延伸</div>
+      <div style="margin-left:36px;color:#64748b;">│   Material: LineBasicMaterial, opacity 按长度渐变</div>
+      <div style="margin-left:24px;color:#d4a45a;">└── particlePoints <span style="color:#94a3b8;">← THREE.Points / ~100微粒</span></div>
+      <div style="margin-left:36px;color:#64748b;">    Geometry: BufferGeometry, 球壳内随机分布</div>
+      <div style="margin-left:36px;color:#64748b;">    Material: PointsMaterial, 小圆点, AdditiveBlending</div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>关键参数</h3>
+  <table style="width:100%;border-collapse:collapse;">
+    <tr style="border-bottom:1px solid #334155;"><td style="padding:8px;color:#e8c888;">测地线框</td><td style="padding:8px;">IcosahedronGeometry(0.55, 4) → EdgeGeometry → LineSegments</td></tr>
+    <tr style="border-bottom:1px solid #334155;"><td style="padding:8px;color:#e8c888;">线框颜色</td><td style="padding:8px;">#e8c888 (暖金) → Act 3 fade in 至 opacity 0.85</td></tr>
+    <tr style="border-bottom:1px solid #334155;"><td style="padding:8px;color:#e8c888;">射线数量</td><td style="padding:8px;">~40条，球面均匀分布 (斐波那契球)</td></tr>
+    <tr style="border-bottom:1px solid #334155;"><td style="padding:8px;color:#e8c888;">射线长度</td><td style="padding:8px;">0.3 ~ 1.5 单位，随机 + 时间微动</td></tr>
+    <tr style="border-bottom:1px solid #334155;"><td style="padding:8px;color:#e8c888;">微粒数量</td><td style="padding:8px;">~100个，分布在半径 0.55~1.2 球壳</td></tr>
+    <tr style="border-bottom:1px solid #334155;"><td style="padding:8px;color:#e8c888;">微粒大小</td><td style="padding:8px;">2~4px，AdditiveBlending 柔和发光</td></tr>
+    <tr style="border-bottom:1px solid #334155;"><td style="padding:8px;color:#e8c888;">动画</td><td style="padding:8px;">线框绕 Y 轴慢旋 (~0.15 rad/s)，射线长度呼吸，微粒漂浮</td></tr>
+    <tr><td style="padding:8px;color:#e8c888;">色散</td><td style="padding:8px;color:#f59e0b;">暂不实现，预留 fragment shader 接口</td></tr>
+  </table>
+</div>
+
+<div class="section">
+  <h3>与现有代码的集成</h3>
+  <p>替换 <code>act3.build()</code> 中 lines 1104-1158 的当前 <code>_starGroup</code> 创建逻辑。对外接口不变：</p>
+  <ul>
+    <li><code>_starGroup.visible</code> toggle 保持一致</li>
+    <li>透明度通过各子组件的 <code>material.opacity</code> 控制</li>
+    <li><code>act3.dispose()</code> 中遍历清理所有子对象</li>
+    <li>不引入新的依赖或渲染 pass</li>
+  </ul>
+</div>

@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Geometric Star Demo v3 — Flying Rays + Trailing Particles</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #080c14; overflow: hidden; font-family: system-ui, sans-serif; }
+  canvas { display: block; }
+  #info {
+    position: fixed; bottom: 24px; left: 0; right: 0; text-align: center;
+    color: #64748b; font-size: 13px; pointer-events: none; z-index: 10;
+  }
+  #info span { color: #9ca3af; }
+</style>
+</head>
+<body>
+<div id="info">深灰线框 <span>·</span> 射线飞出 <span>·</span> 粒子拖尾飞出 <span>·</span> 低初速高加速</div>
+
+<script type="importmap">
+{ "imports": { "three": "https://unpkg.com/three@0.170.0/build/three.module.js" } }
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color('#080c14');
+const camera = new THREE.PerspectiveCamera(45, innerWidth/innerHeight, 0.5, 80);
+camera.position.set(0, 0.25, 8);
+camera.lookAt(0, -1.0, -16);
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(innerWidth, innerHeight);
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+document.body.appendChild(renderer.domElement);
+
+// Orbit rings
+const cx=0, cy=-1.0, cz=-16;
+[3.6, 5.0, 6.4].forEach(r => {
+  const pts=[];
+  for(let i=0;i<=128;i++){ const a=(i/128)*Math.PI*2; pts.push(new THREE.Vector3(cx+Math.cos(a)*r, cy, cz+Math.sin(a)*r)); }
+  scene.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts),
+    new THREE.LineBasicMaterial({color:'#1e293b',transparent:true,opacity:0.3,depthTest:true})));
+});
+
+const COLOR_WIRE  = '#6b7280';
+const COLOR_RAY   = '#9ca3af';
+const COLOR_PARTICLE = '#a8b4c0';
+
+// ══════════════════════════════════════════════════
+//  STAR GROUP
+// ══════════════════════════════════════════════════
+const starGroup = new THREE.Group();
+starGroup.position.set(0, -1.0, -16);
+starGroup.renderOrder = 0;
+scene.add(starGroup);
+
+// Geodesic wireframe
+const icoGeo = new THREE.IcosahedronGeometry(0.55, 4);
+const wireMat = new THREE.LineBasicMaterial({ color: COLOR_WIRE, transparent: true, opacity: 0.75, depthTest: true });
+const geodesicWire = new THREE.LineSegments(new THREE.EdgesGeometry(icoGeo), wireMat);
+geodesicWire.renderOrder = 1;
+starGroup.add(geodesicWire);
+
+// Subtle dark core
+const coreGeo = new THREE.SphereGeometry(0.50, 32, 32);
+const coreMat = new THREE.MeshBasicMaterial({ color: '#1f2937', transparent: true, opacity: 0.2, depthWrite: true, depthTest: true });
+starGroup.add(new THREE.Mesh(coreGeo, coreMat));
+
+// Fibonacci directions
+const phi_g = Math.PI * (3 - Math.sqrt(5));
+const fiboDirs = [];
+const FIBO_N = 120;
+for (let i = 0; i < FIBO_N; i++) {
+  const y = 1 - (i / (FIBO_N - 1)) * 2;
+  const rAtY = Math.sqrt(1 - y * y);
+  const theta = phi_g * i;
+  fiboDirs.push(new THREE.Vector3(Math.cos(theta)*rAtY, y, Math.sin(theta)*rAtY).normalize());
+}
+
+// ══════════════════════════════════════════════════
+//  RAY SYSTEM — fly outward, low v0, high acceleration
+// ══════════════════════════════════════════════════
+const RAY_COUNT = 55;
+const RAY_SPHERE_R = 0.57;
+const RAY_MAX_DIST = 14.0;     // fly far out
+const RAY_MAX_AGE = 3.5;       // seconds to reach max dist
+
+const rayGroup = new THREE.Group();
+rayGroup.renderOrder = 2;
+starGroup.add(rayGroup);
+
+// easeInQuart: t^4 — very slow start, explosive acceleration
+function easeInQuart(t) { return t * t * t * t; }
+
+const rays = [];
+const _rStart = new THREE.Vector3();
+const _rEnd = new THREE.Vector3();
+
+function spawnRay(i) {
+  const dir = fiboDirs[i % FIBO_N].clone();
+  dir.x += (Math.random()-0.5)*0.25;
+  dir.y += (Math.random()-0.5)*0.25;
+  dir.z += (Math.random()-0.5)*0.25;
+  dir.normalize();
+
+  const geo = new THREE.BufferGeometry().setFromPoints([
+    dir.clone().multiplyScalar(RAY_SPHERE_R),
+    dir.clone().multiplyScalar(RAY_SPHERE_R + 0.01)
+  ]);
+  const mat = new THREE.LineBasicMaterial({
+    color: COLOR_RAY, transparent: true, opacity: 0.0, depthTest: true
+  });
+  const line = new THREE.Line(geo, mat);
+  line.renderOrder = 2;
+  line.frustumCulled = false;
+  rayGroup.add(line);
+  return { line, mat, dir, age: Math.random() * RAY_MAX_AGE, maxAge: RAY_MAX_AGE * (0.8 + Math.random()*0.4) };
+}
+for (let i = 0; i < RAY_COUNT; i++) rays.push(spawnRay(i));
+
+// ══════════════════════════════════════════════════
+//  PARTICLE SYSTEM — fly outward with trails
+// ══════════════════════════════════════════════════
+const PARTICLE_COUNT = 50;
+const PARTICLE_MAX_DIST = 12.0;
+const PARTICLE_MAX_AGE = 3.2;
+const TRAIL_LENGTH = 12;
+
+const particleGroup = new THREE.Group();
+particleGroup.renderOrder = 3;
+starGroup.add(particleGroup);
+
+// Soft dot
+const dotCanvas = document.createElement('canvas');
+dotCanvas.width=32; dotCanvas.height=32;
+const dctx=dotCanvas.getContext('2d');
+const dgrad=dctx.createRadialGradient(16,16,0,16,16,16);
+dgrad.addColorStop(0,'rgba(200,210,220,1.0)');
+dgrad.addColorStop(0.2,'rgba(180,190,200,0.7)');
+dgrad.addColorStop(0.5,'rgba(150,160,170,0.2)');
+dgrad.addColorStop(1,'rgba(0,0,0,0)');
+dctx.fillStyle=dgrad; dctx.fillRect(0,0,32,32);
+const dotTex=new THREE.CanvasTexture(dotCanvas);
+
+const particles = [];
+
+function spawnParticle(i) {
+  const dir = fiboDirs[i % FIBO_N].clone();
+  dir.x += (Math.random()-0.5)*0.4;
+  dir.y += (Math.random()-0.5)*0.4;
+  dir.z += (Math.random()-0.5)*0.4;
+  dir.normalize();
+
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array([0,0,0]), 3));
+  const mat = new THREE.PointsMaterial({
+    map: dotTex, color: COLOR_PARTICLE, size: 0.06,
+    blending: THREE.AdditiveBlending, transparent: true, opacity: 0.0,
+    depthWrite: false, depthTest: true
+  });
+  const point = new THREE.Points(geo, mat);
+  point.renderOrder = 3;
+  point.frustumCulled = false;
+  particleGroup.add(point);
+
+  const trailArr = new Float32Array(TRAIL_LENGTH * 3);
+  const s = dir.clone().multiplyScalar(RAY_SPHERE_R);
+  for (let j=0;j<TRAIL_LENGTH;j++) { trailArr[j*3]=s.x; trailArr[j*3+1]=s.y; trailArr[j*3+2]=s.z; }
+  const trailGeo = new THREE.BufferGeometry();
+  trailGeo.setAttribute('position', new THREE.BufferAttribute(trailArr, 3));
+  const trailMat = new THREE.LineBasicMaterial({
+    color: COLOR_PARTICLE, transparent: true, opacity: 0.0, depthTest: true
+  });
+  const trail = new THREE.Line(trailGeo, trailMat);
+  trail.renderOrder = 2;
+  trail.frustumCulled = false;
+  particleGroup.add(trail);
+
+  return {
+    point, trail, trailArr, trailMat, dir,
+    age: Math.random() * PARTICLE_MAX_AGE,
+    maxAge: PARTICLE_MAX_AGE * (0.8 + Math.random()*0.4)
+  };
+}
+for (let i = 0; i < PARTICLE_COUNT; i++) particles.push(spawnParticle(i));
+
+// ══════════════════════════════════════════════════
+//  ANIMATION
+// ══════════════════════════════════════════════════
+const clock = new THREE.Clock();
+
+function animate() {
+  requestAnimationFrame(animate);
+  const dt = Math.min(clock.getDelta(), 0.1);
+
+  starGroup.rotation.y += dt * 0.10;
+
+  // ── Rays ───────────────────────────────────────
+  for (const ray of rays) {
+    ray.age += dt;
+    if (ray.age >= ray.maxAge) {
+      ray.age = 0;
+      ray.maxAge = RAY_MAX_AGE * (0.8 + Math.random()*0.4);
+      const idx = Math.floor(Math.random() * FIBO_N);
+      ray.dir.copy(fiboDirs[idx]);
+      ray.dir.x += (Math.random()-0.5)*0.25;
+      ray.dir.y += (Math.random()-0.5)*0.25;
+      ray.dir.z += (Math.random()-0.5)*0.25;
+      ray.dir.normalize();
+    }
+
+    const t = ray.age / ray.maxAge;
+    const eased = easeInQuart(t);  // t^4: very slow start, explosive end
+    const dist = RAY_SPHERE_R + eased * RAY_MAX_DIST;
+
+    // Opacity: bright near surface, fades with distance (inverse square-ish)
+    const distFade = 1 / (1 + eased * 4.0);
+    const lifeFade = t > 0.85 ? 1 - (t-0.85)/0.15 : 1;
+    ray.mat.opacity = distFade * lifeFade * 0.7;
+
+    _rStart.copy(ray.dir).multiplyScalar(RAY_SPHERE_R);
+    _rEnd.copy(ray.dir).multiplyScalar(dist);
+    ray.line.geometry.dispose();
+    ray.line.geometry = new THREE.BufferGeometry().setFromPoints([_rStart.clone(), _rEnd.clone()]);
+  }
+
+  // ── Particles ──────────────────────────────────
+  for (const p of particles) {
+    p.age += dt;
+    if (p.age >= p.maxAge) {
+      p.age = 0;
+      p.maxAge = PARTICLE_MAX_AGE * (0.8 + Math.random()*0.4);
+      const idx = Math.floor(Math.random() * FIBO_N);
+      p.dir.copy(fiboDirs[idx]);
+      p.dir.x += (Math.random()-0.5)*0.4;
+      p.dir.y += (Math.random()-0.5)*0.4;
+      p.dir.z += (Math.random()-0.5)*0.4;
+      p.dir.normalize();
+      const s = p.dir.clone().multiplyScalar(RAY_SPHERE_R);
+      for (let j=0;j<TRAIL_LENGTH;j++){ p.trailArr[j*3]=s.x; p.trailArr[j*3+1]=s.y; p.trailArr[j*3+2]=s.z; }
+    }
+
+    const t = p.age / p.maxAge;
+    const eased = easeInQuart(t);
+    const dist = RAY_SPHERE_R + eased * PARTICLE_MAX_DIST;
+
+    const px = p.dir.x * dist, py = p.dir.y * dist, pz = p.dir.z * dist;
+    p.point.geometry.attributes.position.array[0] = px;
+    p.point.geometry.attributes.position.array[1] = py;
+    p.point.geometry.attributes.position.array[2] = pz;
+    p.point.geometry.attributes.position.needsUpdate = true;
+
+    // Shift trail
+    for (let j=TRAIL_LENGTH-1; j>0; j--) {
+      p.trailArr[j*3]=p.trailArr[(j-1)*3];
+      p.trailArr[j*3+1]=p.trailArr[(j-1)*3+1];
+      p.trailArr[j*3+2]=p.trailArr[(j-1)*3+2];
+    }
+    p.trailArr[0]=px; p.trailArr[1]=py; p.trailArr[2]=pz;
+    p.trail.geometry.attributes.position.needsUpdate = true;
+
+    const distFade = 1 / (1 + eased * 3.5);
+    const lifeFade = t > 0.85 ? 1-(t-0.85)/0.15 : 1;
+    p.point.material.opacity = distFade * lifeFade * 0.8;
+    p.trailMat.opacity = distFade * lifeFade * 0.4;
+  }
+
+  renderer.render(scene, camera);
+}
+animate();
+
+window.addEventListener('resize', () => {
+  camera.aspect=innerWidth/innerHeight; camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth,innerHeight);
+});
+</script>
+</body>
+</html>

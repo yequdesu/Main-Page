@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Geometric Star Demo v5 — Cylinder Rays + Black Core + Gentle Corona</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #080c14; overflow: hidden; font-family: system-ui, sans-serif; }
+  canvas { display: block; }
+  #info {
+    position: fixed; bottom: 24px; left: 0; right: 0; text-align: center;
+    color: #64748b; font-size: 13px; pointer-events: none; z-index: 10;
+  }
+  #info span { color: #9ca3af; }
+</style>
+</head>
+<body>
+<div id="info">纯黑星核 <span>·</span> 透明球 <span>·</span> 柔缓日冕曲线 <span>·</span> 柱体射线 <span>·</span> 稀疏粒子拖尾</div>
+
+<script type="importmap">
+{ "imports": { "three": "https://unpkg.com/three@0.170.0/build/three.module.js" } }
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color('#080c14');
+const camera = new THREE.PerspectiveCamera(45, innerWidth/innerHeight, 0.5, 80);
+camera.position.set(0, 0.25, 8);
+camera.lookAt(0, -1.0, -16);
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(innerWidth, innerHeight);
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+document.body.appendChild(renderer.domElement);
+
+// Orbit rings
+const cx=0, cy=-1.0, cz=-16;
+[3.6, 5.0, 6.4].forEach(r => {
+  const pts=[];
+  for(let i=0;i<=128;i++){ const a=(i/128)*Math.PI*2; pts.push(new THREE.Vector3(cx+Math.cos(a)*r, cy, cz+Math.sin(a)*r)); }
+  scene.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts),
+    new THREE.LineBasicMaterial({color:'#1e293b',transparent:true,opacity:0.3,depthTest:true})));
+});
+
+const COLOR_CORE   = '#000000';
+const COLOR_CURVE  = '#9ca3af';
+const COLOR_RAY    = '#a8b4c0';
+const COLOR_PARTICLE = '#bcc7d4';
+
+// ══════════════════════════════════════════════════
+//  STAR GROUP
+// ══════════════════════════════════════════════════
+const starGroup = new THREE.Group();
+starGroup.position.set(0, -1.0, -16);
+starGroup.renderOrder = 0;
+scene.add(starGroup);
+
+const SPHERE_R = 0.55;
+const CORE_R = 0.35;
+
+// ── Solid black core sphere ──────────────────────
+const coreGeo = new THREE.SphereGeometry(CORE_R, 48, 36);
+const coreMat = new THREE.MeshBasicMaterial({ color: COLOR_CORE, depthWrite: true, depthTest: true });
+const coreMesh = new THREE.Mesh(coreGeo, coreMat);
+coreMesh.renderOrder = 0;
+starGroup.add(coreMesh);
+
+// ── Fully transparent reference sphere ───────────
+const refGeo = new THREE.SphereGeometry(SPHERE_R, 64, 48);
+const refMat = new THREE.MeshBasicMaterial({
+  color: '#374151', transparent: true, opacity: 0.0, depthWrite: false, depthTest: true
+});
+const refSphere = new THREE.Mesh(refGeo, refMat);
+refSphere.renderOrder = 0;
+starGroup.add(refSphere);
+
+// Subtle structural wireframe — very faint, only visible up close
+const structWire = new THREE.LineSegments(
+  new THREE.EdgesGeometry(new THREE.IcosahedronGeometry(SPHERE_R, 3)),
+  new THREE.LineBasicMaterial({ color: '#374151', transparent: true, opacity: 0.12, depthTest: true })
+);
+structWire.renderOrder = 1;
+starGroup.add(structWire);
+
+// ══════════════════════════════════════════════════
+//  CHAOTIC SURFACE CURVES — gentle, mostly on-surface
+// ══════════════════════════════════════════════════
+const CURVE_COUNT = 14;
+const CURVE_PTS = 50;
+const curveLines = [];
+const curveData = [];
+
+function hash3D(x,y,z){
+  let h=x*374761393+y*668265263+z*1440676273;
+  h=(h^(h>>13))*1274126177;
+  h=h^(h>>16);
+  return (h&0x7fffffff)/0x7fffffff;
+}
+function noise3D(x,y,z){
+  const ix=Math.floor(x),iy=Math.floor(y),iz=Math.floor(z);
+  const fx=x-ix,fy=y-iy,fz=z-iz;
+  const sx=fx*fx*(3-2*fx),sy=fy*fy*(3-2*fy),sz=fz*fz*(3-2*fz);
+  const c000=hash3D(ix,iy,iz),c100=hash3D(ix+1,iy,iz),c010=hash3D(ix,iy+1,iz),c110=hash3D(ix+1,iy+1,iz);
+  const c001=hash3D(ix,iy,iz+1),c101=hash3D(ix+1,iy,iz+1),c011=hash3D(ix,iy+1,iz+1),c111=hash3D(ix+1,iy+1,iz+1);
+  const a=c000+sx*(c100-c000),b=c010+sx*(c110-c010),c=c000+sy*(b-a);
+  const d=c001+sx*(c101-c001),e=c011+sx*(c111-c011),f=d+sy*(e-d);
+  return c+sz*(f-c);
+}
+function fbm(x,y,z,octaves=3){
+  let val=0,amp=1,freq=1,max=0;
+  for(let o=0;o<octaves;o++){val+=noise3D(x*freq,y*freq,z*freq)*amp;max+=amp;amp*=0.5;freq*=2.0;}
+  return val/max;
+}
+
+for(let ci=0;ci<CURVE_COUNT;ci++){
+  const axis=new THREE.Vector3(Math.random()*2-1,Math.random()*2-1,Math.random()*2-1).normalize();
+  const perp=new THREE.Vector3(1,0,0);
+  if(Math.abs(axis.dot(perp))>0.9) perp.set(0,1,0);
+  const u=new THREE.Vector3().crossVectors(axis,perp).normalize();
+  const v=new THREE.Vector3().crossVectors(axis,u).normalize();
+  const phase=Math.random()*Math.PI*2;
+  const speed=0.15+Math.random()*0.4;
+  const noiseScale=0.6+Math.random()*0.8;
+  const perturbStrength=0.015+Math.random()*0.04;  // gentle: was 0.08-0.22
+  const noiseSpeed=0.2+Math.random()*0.5;
+
+  const positions=new Float32Array(CURVE_PTS*3);
+  const geo=new THREE.BufferGeometry();
+  geo.setAttribute('position',new THREE.BufferAttribute(positions,3));
+  const mat=new THREE.LineBasicMaterial({color:COLOR_CURVE,transparent:true,opacity:0.35+Math.random()*0.25,depthTest:true});
+  const line=new THREE.Line(geo,mat);
+  line.renderOrder=2; line.frustumCulled=false;
+  starGroup.add(line);
+  curveLines.push(line);
+  curveData.push({axis,u,v,phase,speed,noiseScale,perturbStrength,noiseSpeed,positions});
+}
+
+// ══════════════════════════════════════════════════
+//  RAY SYSTEM — thin cylinders (not lines)
+// ══════════════════════════════════════════════════
+const RAY_COUNT = 22;  // reduced from 50
+const RAY_SPHERE_R = SPHERE_R + 0.02;
+const RAY_MAX_DIST = 14.0;
+const RAY_MAX_AGE = 3.8;
+const RAY_RADIUS = 0.012;  // very thin cylinder
+
+const rayGroup = new THREE.Group();
+rayGroup.renderOrder = 3;
+starGroup.add(rayGroup);
+
+// Fibonacci directions
+const fiboDirs=[];
+const phi_g=Math.PI*(3-Math.sqrt(5));
+for(let i=0;i<80;i++){
+  const y=1-(i/79)*2, rAtY=Math.sqrt(1-y*y), theta=phi_g*i;
+  fiboDirs.push(new THREE.Vector3(Math.cos(theta)*rAtY, y, Math.sin(theta)*rAtY).normalize());
+}
+
+function easeInQuart(t){return t*t*t*t;}
+
+const rays=[];
+const _quat=new THREE.Quaternion();
+const _yAxis=new THREE.Vector3(0,1,0);
+const _tempM=new THREE.Matrix4();
+const _tempP=new THREE.Vector3();
+const _tempS=new THREE.Vector3();
+
+// Create a unit-length cylinder template (along Y, height=1, origin at center)
+const cylTemplateGeo = new THREE.CylinderGeometry(RAY_RADIUS, RAY_RADIUS, 1, 6, 1);
+
+function spawnRay(i){
+  const dir=fiboDirs[i%80].clone();
+  dir.x+=(Math.random()-0.5)*0.15; dir.y+=(Math.random()-0.5)*0.15; dir.z+=(Math.random()-0.5)*0.15;
+  dir.normalize();
+
+  const mat=new THREE.MeshBasicMaterial({color:COLOR_RAY,transparent:true,opacity:0,depthTest:true});
+  const mesh=new THREE.Mesh(cylTemplateGeo, mat);
+  mesh.renderOrder=3; mesh.frustumCulled=false;
+  rayGroup.add(mesh);
+  return {mesh,mat,dir,age:Math.random()*RAY_MAX_AGE,maxAge:RAY_MAX_AGE*(0.8+Math.random()*0.4)};
+}
+for(let i=0;i<RAY_COUNT;i++) rays.push(spawnRay(i));
+
+// ══════════════════════════════════════════════════
+//  PARTICLE SYSTEM — no edge thickening, simpler
+// ══════════════════════════════════════════════════
+const PARTICLE_COUNT = 20;  // reduced from 50
+const PARTICLE_MAX_DIST = 12.0;
+const PARTICLE_MAX_AGE = 3.2;
+const TRAIL_LENGTH = 14;
+
+const particleGroup = new THREE.Group();
+particleGroup.renderOrder = 4;
+starGroup.add(particleGroup);
+
+// Soft dot canvas
+const dotCanvas=document.createElement('canvas');
+dotCanvas.width=32; dotCanvas.height=32;
+const dctx=dotCanvas.getContext('2d');
+const dgrad=dctx.createRadialGradient(16,16,0,16,16,16);
+dgrad.addColorStop(0,'rgba(200,210,220,1.0)');
+dgrad.addColorStop(0.2,'rgba(180,190,200,0.7)');
+dgrad.addColorStop(0.5,'rgba(140,150,160,0.15)');
+dgrad.addColorStop(1,'rgba(0,0,0,0)');
+dctx.fillStyle=dgrad; dctx.fillRect(0,0,32,32);
+const dotTex=new THREE.CanvasTexture(dotCanvas);
+
+const particles=[];
+
+function spawnParticle(i){
+  const dir=fiboDirs[i%80].clone();
+  dir.x+=(Math.random()-0.5)*0.3; dir.y+=(Math.random()-0.5)*0.3; dir.z+=(Math.random()-0.5)*0.3;
+  dir.normalize();
+
+  const geo=new THREE.BufferGeometry();
+  geo.setAttribute('position',new THREE.BufferAttribute(new Float32Array([dir.x*RAY_SPHERE_R,dir.y*RAY_SPHERE_R,dir.z*RAY_SPHERE_R]),3));
+  const mat=new THREE.PointsMaterial({
+    map:dotTex,color:COLOR_PARTICLE,size:0.06,
+    blending:THREE.AdditiveBlending,transparent:true,opacity:0,
+    depthWrite:false,depthTest:true
+  });
+  const point=new THREE.Points(geo,mat);
+  point.renderOrder=4; point.frustumCulled=false;
+  particleGroup.add(point);
+
+  const trailArr=new Float32Array(TRAIL_LENGTH*3);
+  const s=dir.clone().multiplyScalar(RAY_SPHERE_R);
+  for(let j=0;j<TRAIL_LENGTH;j++){trailArr[j*3]=s.x;trailArr[j*3+1]=s.y;trailArr[j*3+2]=s.z;}
+  const trailGeo=new THREE.BufferGeometry();
+  trailGeo.setAttribute('position',new THREE.BufferAttribute(trailArr,3));
+  const trailMat=new THREE.LineBasicMaterial({color:COLOR_PARTICLE,transparent:true,opacity:0,depthTest:true});
+  const trail=new THREE.Line(trailGeo,trailMat);
+  trail.renderOrder=3; trail.frustumCulled=false;
+  particleGroup.add(trail);
+
+  return {point,trail,trailArr,trailMat,dir,age:Math.random()*PARTICLE_MAX_AGE,maxAge:PARTICLE_MAX_AGE*(0.8+Math.random()*0.4)};
+}
+for(let i=0;i<PARTICLE_COUNT;i++) particles.push(spawnParticle(i));
+
+// ══════════════════════════════════════════════════
+//  ANIMATION
+// ══════════════════════════════════════════════════
+const clock=new THREE.Clock();
+const _ptOnSphere=new THREE.Vector3(), _ptNormal=new THREE.Vector3(), _ptOffset=new THREE.Vector3();
+
+function animate(){
+  requestAnimationFrame(animate);
+  const dt=Math.min(clock.getDelta(),0.1);
+  const t=clock.getElapsedTime();
+
+  starGroup.rotation.y += dt * 0.06;
+
+  // ── Chaotic surface curves (gentle) ──────────
+  for(let ci=0;ci<CURVE_COUNT;ci++){
+    const cd=curveData[ci];
+    const {axis,u,v,phase,speed,noiseScale,perturbStrength,noiseSpeed,positions}=cd;
+    const arr=positions;
+
+    for(let i=0;i<CURVE_PTS;i++){
+      const frac=i/(CURVE_PTS-1);
+      const angle=frac*Math.PI*2;
+      const cosA=Math.cos(angle), sinA=Math.sin(angle);
+
+      _ptOnSphere.set(u.x*cosA+v.x*sinA, u.y*cosA+v.y*sinA, u.z*cosA+v.z*sinA).normalize();
+
+      const nx=_ptOnSphere.x, ny=_ptOnSphere.y, nz=_ptOnSphere.z;
+      const noiseVal=fbm(nx*noiseScale+t*noiseSpeed*0.3, ny*noiseScale, nz*noiseScale+t*0.15, 2);
+
+      _ptNormal.copy(_ptOnSphere).normalize();
+      // Gentle perturbation: slow, small
+      const perturb=(noiseVal-0.5)*2.0*perturbStrength;
+      // Rare, gentle bursts — much less frequent
+      const burst=Math.max(0, Math.sin(t*0.8+ci*1.3+frac*4.0+phase))*0.04;
+      const totalPerturb=perturb+burst*perturbStrength*1.5;
+
+      _ptOffset.copy(_ptOnSphere).multiplyScalar(SPHERE_R).addScaledVector(_ptNormal, totalPerturb);
+
+      // Subtle tangential drift
+      const wobble=Math.sin(t*1.5+frac*7.0+phase)*0.012;
+      const tangent=new THREE.Vector3().crossVectors(_ptNormal,u).normalize();
+      _ptOffset.addScaledVector(tangent,wobble);
+
+      arr[i*3]=_ptOffset.x; arr[i*3+1]=_ptOffset.y; arr[i*3+2]=_ptOffset.z;
+    }
+    curveLines[ci].geometry.attributes.position.needsUpdate=true;
+    curveLines[ci].material.opacity=0.28+Math.sin(t*speed+phase)*0.1+Math.abs(Math.sin(t*0.9+ci))*0.08;
+  }
+
+  // ── Rays (cylinders) ────────────────────────
+  for(const ray of rays){
+    ray.age+=dt;
+    if(ray.age>=ray.maxAge){
+      ray.age=0; ray.maxAge=RAY_MAX_AGE*(0.8+Math.random()*0.4);
+      const idx=Math.floor(Math.random()*80);
+      ray.dir.copy(fiboDirs[idx]);
+      ray.dir.x+=(Math.random()-0.5)*0.15; ray.dir.y+=(Math.random()-0.5)*0.15; ray.dir.z+=(Math.random()-0.5)*0.15;
+      ray.dir.normalize();
+    }
+    const tN=ray.age/ray.maxAge;
+    const eased=easeInQuart(tN);
+    const dist=RAY_SPHERE_R+eased*RAY_MAX_DIST;
+    const len=dist-RAY_SPHERE_R;
+
+    const distFade=1/(1+eased*4.5);
+    const lifeFade=tN>0.85?1-(tN-0.85)/0.15:1;
+    ray.mat.opacity=distFade*lifeFade*0.55;
+
+    // Position cylinder: midpoint at sphere_surface + len/2 along dir
+    _tempP.copy(ray.dir).multiplyScalar(RAY_SPHERE_R+len*0.5);
+    ray.mesh.position.copy(_tempP);
+
+    // Scale: Y = length
+    ray.mesh.scale.set(1, Math.max(len, 0.001), 1);
+
+    // Orient cylinder (which is along Y) to ray direction
+    _quat.setFromUnitVectors(_yAxis, ray.dir);
+    ray.mesh.setRotationFromQuaternion(_quat);
+  }
+
+  // ── Particles (no edge thickening) ──────────
+  for(const p of particles){
+    p.age+=dt;
+    if(p.age>=p.maxAge){
+      p.age=0; p.maxAge=PARTICLE_MAX_AGE*(0.8+Math.random()*0.4);
+      const idx=Math.floor(Math.random()*80);
+      p.dir.copy(fiboDirs[idx]);
+      p.dir.x+=(Math.random()-0.5)*0.3; p.dir.y+=(Math.random()-0.5)*0.3; p.dir.z+=(Math.random()-0.5)*0.3;
+      p.dir.normalize();
+      const s=p.dir.clone().multiplyScalar(RAY_SPHERE_R);
+      for(let j=0;j<TRAIL_LENGTH;j++){p.trailArr[j*3]=s.x;p.trailArr[j*3+1]=s.y;p.trailArr[j*3+2]=s.z;}
+    }
+    const tN=p.age/p.maxAge;
+    const eased=easeInQuart(tN);
+    const dist=RAY_SPHERE_R+eased*PARTICLE_MAX_DIST;
+
+    const px=p.dir.x*dist, py=p.dir.y*dist, pz=p.dir.z*dist;
+    p.point.geometry.attributes.position.array[0]=px;
+    p.point.geometry.attributes.position.array[1]=py;
+    p.point.geometry.attributes.position.array[2]=pz;
+    p.point.geometry.attributes.position.needsUpdate=true;
+
+    // Shift trail
+    for(let j=TRAIL_LENGTH-1;j>0;j--){
+      p.trailArr[j*3]=p.trailArr[(j-1)*3];
+      p.trailArr[j*3+1]=p.trailArr[(j-1)*3+1];
+      p.trailArr[j*3+2]=p.trailArr[(j-1)*3+2];
+    }
+    p.trailArr[0]=px; p.trailArr[1]=py; p.trailArr[2]=pz;
+    p.trail.geometry.attributes.position.needsUpdate=true;
+
+    const distFade=1/(1+eased*3.8);
+    const lifeFade=tN>0.85?1-(tN-0.85)/0.15:1;
+    p.point.material.opacity=distFade*lifeFade*0.65;
+    p.trailMat.opacity=distFade*lifeFade*0.28;
+  }
+
+  renderer.render(scene,camera);
+}
+animate();
+
+window.addEventListener('resize',()=>{
+  camera.aspect=innerWidth/innerHeight; camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth,innerHeight);
+});
+</script>
+</body>
+</html>

@@ -791,6 +791,7 @@ function updateCameraFocus(sp, time) {
   const isFocused = _focusedPlanetIdx >= 0
   const planet = isFocused ? dustParticles[_focusedPlanetIdx] : null
 
+  // Compute desired camera position (can jump — we smooth it below)
   if (planet && planet.userData.isMainPlanet) {
     _camToStar.subVectors(_starPos, planet.position).normalize()
     _camLeftDir.crossVectors(_camUp, _camToStar).normalize()
@@ -799,29 +800,29 @@ function updateCameraFocus(sp, time) {
     const sideDist = 2.2
     const orbitR = planet.userData.orbitR || 4.5
 
-    // Base camera position (before orbit)
-    _targetCamPos.copy(planet.position)
+    _focusAxisPoint.copy(planet.position)
+      .addScaledVector(_camToStar, orbitR * 0.25)
+
+    _focusOrbitAngle = (time - _focusStartTime) * 0.024
+    _focusOrbitQuat.setFromAxisAngle(_camToStar, _focusOrbitAngle)
+
+    _camOffsetDir.copy(planet.position)
       .addScaledVector(_camToStar, -behindDist)
       .addScaledVector(_camLeftDir, sideDist)
-
-    // Orbit: rotate camera around planet-star axis
-    _focusAxisPoint.copy(planet.position)
-      .addScaledVector(_camToStar, orbitR * 0.25) // same as lookAt point
-
-    _focusOrbitAngle = (time - _focusStartTime) * 0.024 // time-based, ~262s/rotation
-    _focusOrbitQuat.setFromAxisAngle(_camToStar, _focusOrbitAngle)
-    _focusBaseOffset.subVectors(_targetCamPos, _focusAxisPoint)
+    _focusBaseOffset.subVectors(_camOffsetDir, _focusAxisPoint)
     _focusBaseOffset.applyQuaternion(_focusOrbitQuat)
-    _targetCamPos.copy(_focusAxisPoint).add(_focusBaseOffset)
+    _camOffsetDir.copy(_focusAxisPoint).add(_focusBaseOffset)
 
-    _targetLookAt.copy(_focusAxisPoint)
+    _targetCamPos.lerp(_camOffsetDir, 0.04)
+    _targetLookAt.lerp(_focusAxisPoint, 0.04)
   } else {
-    _targetCamPos.copy(_defaultCamPos)
-    _targetLookAt.copy(_defaultLookAt)
+    _targetCamPos.lerp(_defaultCamPos, 0.04)
+    _targetLookAt.lerp(_defaultLookAt, 0.04)
   }
 
-  camera.position.lerp(_targetCamPos, 0.06)
+  // Camera follows the smoothed target
   _currentLookAt.lerp(_targetLookAt, 0.06)
+  camera.position.lerp(_targetCamPos, 0.06)
   camera.lookAt(_currentLookAt)
 }
 
@@ -979,11 +980,26 @@ let _orbitLines = []
 let _gyroGroups = []
 let _planetLabels = []
 let _starGroup = null
-let _starCore = null
-let _starGlow = null
+// Geometric star: tiny black core + chaotic surface curves
+let _starCoreMesh = null
+let _curveLines = []       // chaotic surface curves
+let _curveData = []        // per-curve animation data
+// Geometric star: cylinder rays
+let _rayGroup = null
+let _rayMeshes = []        // { mesh, mat, dir, birthOffset, maxAge }
+// Geometric star: trailing particles
+let _particleGroup = null
+let _particleData = []     // { point, trail, trailArr, trailMat, dir, birthOffset, maxAge }
+// Geometric star: wedge rings
+let _wedgeRings = []       // { mesh, rotSpeed, tiltX, tiltZ }
+let _wedgeRingData = []    // static config for rebuild
 let _labelOpacityCurrent = 0
 let _raycaster = null
 let _lastTimeSec = 0
+
+// Local time accumulator for ray/particle animation (only advances during Act 3)
+let _geoAnimTime = 0
+let _geoLastCall = 0
 
 const _planetLinks = [
   { label: 'FS',     accent: '#94a3b8', url: 'https://fs.yequdesu.top' },
@@ -1052,6 +1068,104 @@ function createPlanetLabel(text, accentColor) {
   return sprite
 }
 
+// ============================================================
+//  GEOMETRIC STAR — constants & helpers
+// ============================================================
+const GEO_SPHERE_R = 0.275
+const GEO_CORE_R = 0.12
+const GEO_CURVE_COUNT = 6
+const GEO_CURVE_TRAIL = 300  // trail length: 300pts × 0.1s = 30s history
+const GEO_RAY_COUNT = 22
+const GEO_RAY_MAX_DIST = 14.0
+const GEO_RAY_MAX_AGE = 3.8
+const GEO_RAY_RADIUS = 0.012
+const GEO_PARTICLE_COUNT = 20
+const GEO_PARTICLE_MAX_DIST = 12.0
+const GEO_PARTICLE_MAX_AGE = 3.2
+const GEO_TRAIL_LENGTH = 14
+const GEO_COLOR_CURVE = '#0f172a'  // darker for visibility
+const GEO_COLOR_RAY = '#334155'
+const GEO_COLOR_PARTICLE = '#334155'
+
+function easeInQuart(t) { return t * t * t * t }
+
+// Smoothstep fade helper
+function _fadeIn(p, start, end) {
+  if (p <= start) return 0
+  if (p >= end) return 1
+  return (p - start) / (end - start)
+}
+
+// Smooth sinusoidal "noise" — perfectly continuous
+function _smoothNoise3D(x, y, z, harmonics) {
+  let v = 0
+  for (const h of harmonics) v += Math.sin(x * h.fx + y * h.fy + z * h.fz + h.phase) * h.amp
+  return v
+}
+
+function _makeHarmonics(seed) {
+  const h = []
+  for (let i = 0; i < 4; i++) {
+    h.push({
+      fx: 1.3 + seed * 0.7 + i * 0.5, fy: 2.1 + seed * 1.1 + i * 0.3,
+      fz: 1.7 + seed * 0.9 + i * 0.7, phase: seed * 6.28 + i * 1.57,
+      amp: 0.35 + Math.random() * 0.4
+    })
+  }
+  return h
+}
+
+// Fibonacci sphere directions (shared by rays & particles)
+const _fiboDirs = []
+;(() => {
+  const phi_g = Math.PI * (3 - Math.sqrt(5))
+  for (let i = 0; i < 80; i++) {
+    const y = 1 - (i / 79) * 2, rAtY = Math.sqrt(1 - y * y), theta = phi_g * i
+    _fiboDirs.push(new THREE.Vector3(Math.cos(theta) * rAtY, y, Math.sin(theta) * rAtY).normalize())
+  }
+})()
+
+// Wedge ring canvas texture
+function _createWedgeTexture(sectorCount, size) {
+  const c = document.createElement('canvas')
+  c.width = c.height = size
+  const ctx = c.getContext('2d')
+  const cx = size / 2, cy = size / 2, R = size / 2
+  ctx.clearRect(0, 0, size, size)
+  const sectorAngle = (Math.PI * 2) / sectorCount
+  const wedgeFraction = 0.45
+  ctx.fillStyle = '#000000'
+  for (let s = 0; s < sectorCount; s++) {
+    const baseAngle = s * sectorAngle
+    const halfWedge = sectorAngle * wedgeFraction / 2
+    ctx.beginPath()
+    ctx.arc(cx, cy, 0, baseAngle - halfWedge, baseAngle + halfWedge)
+    ctx.arc(cx, cy, R, baseAngle + halfWedge, baseAngle - halfWedge, true)
+    ctx.closePath()
+    ctx.fill()
+  }
+  const tex = new THREE.CanvasTexture(c)
+  tex.minFilter = THREE.LinearFilter
+  tex.magFilter = THREE.LinearFilter
+  tex.colorSpace = THREE.SRGBColorSpace
+  return tex
+}
+
+// Scratch vectors for curve animation (reused across curves)
+const __ptOnSphere = new THREE.Vector3()
+const __ptNormal = new THREE.Vector3()
+const __ptOffset = new THREE.Vector3()
+const __crossCache = new THREE.Vector3()
+const __tangent = new THREE.Vector3()
+
+// Scratch for ray animation
+const __rayQuat = new THREE.Quaternion()
+const __rayYAxis = new THREE.Vector3(0, 1, 0)
+const __rayTempP = new THREE.Vector3()
+
+// Pre-allocated cylinder template (all rays share geometry)
+let __cylTemplateGeo = null
+
 act3.build = () => {
   if (act3Initialized) return
 
@@ -1101,63 +1215,195 @@ act3.build = () => {
     _gyroGroups.push(group)
   }
 
-  // --- central star (sun) at orbit center ---
+  // --- geometric star: black core + chaotic curves + rays + particles ---
   _starGroup = new THREE.Group()
   _starGroup.position.set(0, -1.0, SCENE_CENTER_Z)
-  _starGroup.renderOrder = 0  // render before orbits/labels
+  _starGroup.renderOrder = 0
 
-  // Core: warm bright sphere (writes depth to occlude objects behind)
-  const coreGeo = new THREE.SphereGeometry(0.42, 32, 32)
-  const coreMat = new THREE.MeshBasicMaterial({ color: '#d4a45a', transparent: true, opacity: 0, depthWrite: true, depthTest: true })
-  _starCore = new THREE.Mesh(coreGeo, coreMat)
-  _starCore.renderOrder = 0
-  _starGroup.add(_starCore)
+  // Tiny black core sphere
+  _starCoreMesh = new THREE.Mesh(
+    new THREE.SphereGeometry(GEO_CORE_R, 32, 24),
+    new THREE.MeshBasicMaterial({ color: '#000000', transparent: true, opacity: 0, depthWrite: true, depthTest: true })
+  )
+  _starCoreMesh.renderOrder = 0
+  _starGroup.add(_starCoreMesh)
 
-  // Inner glow: larger transparent envelope
-  const glowGeo = new THREE.SphereGeometry(0.70, 32, 32)
-  const glowMat = new THREE.MeshBasicMaterial({
-    color: '#e8c888',
-    transparent: true,
-    opacity: 0.30,
-    depthWrite: false,
-    depthTest: true
-  })
-  _starGlow = new THREE.Mesh(glowGeo, glowMat)
-  _starGlow.renderOrder = 0
-  _starGroup.add(_starGlow)
+  // Wandering surface curves: leader point + trail
+  // Leader position is driven directly by animT for smooth, frame-rate-independent motion
+  for (let ci = 0; ci < GEO_CURVE_COUNT; ci++) {
+    const startTheta = Math.random() * Math.PI * 2
+    const startPhi = Math.acos(2 * Math.random() - 1)
 
-  // Outer halo: sprite for soft radial falloff
-  const haloSprite = (() => {
-    const size = 128
-    const c = document.createElement('canvas')
-    c.width = c.height = size
-    const ctx = c.getContext('2d')
-    const gradient = ctx.createRadialGradient(size/2, size/2, 0, size/2, size/2, size/2)
-    gradient.addColorStop(0, 'rgba(220,180,130,0.5)')
-    gradient.addColorStop(0.15, 'rgba(210,165,110,0.3)')
-    gradient.addColorStop(0.4, 'rgba(190,140,80,0.06)')
-    gradient.addColorStop(0.7, 'rgba(160,110,50,0.01)')
-    gradient.addColorStop(1, 'rgba(0,0,0,0)')
-    ctx.fillStyle = gradient
-    ctx.fillRect(0, 0, size, size)
-    const tex = new THREE.CanvasTexture(c)
-    tex.minFilter = THREE.LinearFilter
-    const sprite = new THREE.Sprite(new THREE.SpriteMaterial({
-      map: tex,
-      blending: THREE.AdditiveBlending,
-      transparent: true,
-      opacity: 0,
-      depthWrite: false,
-      depthTest: false
-    }))
-    sprite.scale.set(5.5, 5.5, 1)
-    sprite.renderOrder = 0
-    return sprite
-  })()
-  _starGroup.add(haloSprite)
-  _starGroup.userData = { haloSprite }
+    const trailArr = new Float32Array(GEO_CURVE_TRAIL * 3)
+    const dtStep = 0.10  // time step between trail points (matches animate)
+
+    const freqT = 0.2 + Math.random() * 0.4
+    const freqP = 0.2 + Math.random() * 0.4
+    const phaseT = Math.random() * Math.PI * 2
+    const phaseP = Math.random() * Math.PI * 2
+    const ampT = 0.5 + Math.random() * 1.0
+    const ampP = 0.3 + Math.random() * 0.5
+    const perturbPhase = Math.random() * Math.PI * 2
+    const perturbStrength = 0.04 + Math.random() * 0.07
+
+    // Pre-seed trail: simulate backward from t=0
+    for (let j = 0; j < GEO_CURVE_TRAIL; j++) {
+      const tBack = -(GEO_CURVE_TRAIL - 1 - j) * dtStep
+      const th = startTheta + Math.sin(tBack * freqT + phaseT) * ampT
+      const ph = startPhi + Math.cos(tBack * freqP + phaseP) * ampP
+      const phClamped = Math.max(0.05, Math.min(Math.PI - 0.05, ph))
+      const sp = Math.sin(phClamped)
+      trailArr[j*3]     = sp * Math.cos(th) * GEO_SPHERE_R
+      trailArr[j*3 + 1] = Math.cos(phClamped) * GEO_SPHERE_R
+      trailArr[j*3 + 2] = sp * Math.sin(th) * GEO_SPHERE_R
+    }
+
+    const geo = new THREE.BufferGeometry()
+    geo.setAttribute('position', new THREE.BufferAttribute(trailArr, 3))
+    const mat = new THREE.LineBasicMaterial({
+      color: GEO_COLOR_CURVE, transparent: true, opacity: 0, depthTest: true
+    })
+    const line = new THREE.Line(geo, mat)
+    line.renderOrder = 2; line.frustumCulled = false
+    _starGroup.add(line)
+    _curveLines.push(line)
+    _curveData.push({
+      startTheta, startPhi, freqT, freqP, phaseT, phaseP, ampT, ampP,
+      perturbPhase, perturbStrength, trailArr,
+    })
+  }
+
+  // Reset local animation clock
+  _geoAnimTime = 0
+  _geoLastCall = 0
+
+  // Cylinder rays (22, start from core center, fly outward)
+  _rayGroup = new THREE.Group()
+  _rayGroup.renderOrder = 3
+  _starGroup.add(_rayGroup)
+  if (!__cylTemplateGeo) {
+    __cylTemplateGeo = new THREE.CylinderGeometry(GEO_RAY_RADIUS, GEO_RAY_RADIUS, 1, 6, 1)
+  }
+  for (let i = 0; i < GEO_RAY_COUNT; i++) {
+    const dir = _fiboDirs[Math.floor(Math.random() * 80)].clone()
+    dir.x += (Math.random()-0.5)*0.15; dir.y += (Math.random()-0.5)*0.15; dir.z += (Math.random()-0.5)*0.15
+    dir.normalize()
+    const mat = new THREE.MeshBasicMaterial({ color: GEO_COLOR_RAY, transparent: true, opacity: 0, depthTest: true })
+    const mesh = new THREE.Mesh(__cylTemplateGeo, mat)
+    mesh.renderOrder = 3; mesh.frustumCulled = false
+    _rayGroup.add(mesh)
+    // All rays start near center: birthOffset ≈ 0, slight stagger so they desync
+    _rayMeshes.push({ mesh, mat, dir, birthOffset: -Math.random() * 0.4, maxAge: GEO_RAY_MAX_AGE * (0.8 + Math.random() * 0.4) })
+  }
+
+  // Trailing particles (20, fly outward with trail lines)
+  _particleGroup = new THREE.Group()
+  _particleGroup.renderOrder = 4
+  _starGroup.add(_particleGroup)
+
+  // Soft dot texture
+  const dotCanvas = document.createElement('canvas')
+  dotCanvas.width = 32; dotCanvas.height = 32
+  const dctx = dotCanvas.getContext('2d')
+  const dgrad = dctx.createRadialGradient(16,16,0,16,16,16)
+  dgrad.addColorStop(0, 'rgba(30,40,50,1.0)')
+  dgrad.addColorStop(0.2, 'rgba(25,35,45,0.7)')
+  dgrad.addColorStop(0.5, 'rgba(20,28,38,0.15)')
+  dgrad.addColorStop(1, 'rgba(0,0,0,0)')
+  dctx.fillStyle = dgrad; dctx.fillRect(0,0,32,32)
+  const dotTex = new THREE.CanvasTexture(dotCanvas)
+
+  for (let i = 0; i < GEO_PARTICLE_COUNT; i++) {
+    const dir = _fiboDirs[Math.floor(Math.random() * 80)].clone()
+    dir.x += (Math.random()-0.5)*0.3; dir.y += (Math.random()-0.5)*0.3; dir.z += (Math.random()-0.5)*0.3
+    dir.normalize()
+
+    const geo = new THREE.BufferGeometry()
+    geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array([0,0,0]), 3))
+    const mat = new THREE.PointsMaterial({
+      map: dotTex, color: GEO_COLOR_PARTICLE, size: 0.06,
+      blending: THREE.AdditiveBlending, transparent: true, opacity: 0,
+      depthWrite: false, depthTest: true
+    })
+    const point = new THREE.Points(geo, mat)
+    point.renderOrder = 4; point.frustumCulled = false
+    _particleGroup.add(point)
+
+    const trailArr = new Float32Array(GEO_TRAIL_LENGTH * 3)
+    for (let j = 0; j < GEO_TRAIL_LENGTH; j++) { trailArr[j*3]=0; trailArr[j*3+1]=0; trailArr[j*3+2]=0 }
+    const trailGeo = new THREE.BufferGeometry()
+    trailGeo.setAttribute('position', new THREE.BufferAttribute(trailArr, 3))
+    const trailMat = new THREE.LineBasicMaterial({ color: GEO_COLOR_PARTICLE, transparent: true, opacity: 0, depthTest: true })
+    const trail = new THREE.Line(trailGeo, trailMat)
+    trail.renderOrder = 3; trail.frustumCulled = false
+    _particleGroup.add(trail)
+
+    _particleData.push({ point, trail, trailArr, trailMat, dir,
+      birthOffset: -Math.random() * 0.5,
+      maxAge: GEO_PARTICLE_MAX_AGE * (0.8 + Math.random() * 0.4),
+      prevAge: 0 })
+  }
 
   scene.add(_starGroup)
+
+  // Inner wedge ring — textured RingGeometry (same as before)
+  const innerDef = { innerR: 0.72, outerR: 1.10, sectors: 24, tiltX: 0.40, tiltZ: -0.25, rotSpeed: 0.11, texSize: 1024, geoSegs: 128 }
+  const innerTex = _createWedgeTexture(innerDef.sectors, innerDef.texSize)
+  const innerGeo = new THREE.RingGeometry(innerDef.innerR, innerDef.outerR, innerDef.geoSegs)
+  innerGeo.rotateX(-Math.PI / 2)
+  const innerMat = new THREE.MeshBasicMaterial({
+    map: innerTex, side: THREE.DoubleSide, transparent: true, opacity: 0,
+    depthWrite: false, depthTest: true
+  })
+  const innerMesh = new THREE.Mesh(innerGeo, innerMat)
+  innerMesh.position.copy(_starGroup.position)
+  innerMesh.rotation.x = innerDef.tiltX
+  innerMesh.rotation.z = innerDef.tiltZ
+  innerMesh.renderOrder = 1
+  scene.add(innerMesh)
+  _wedgeRings.push({ mesh: innerMesh, rotSpeed: innerDef.rotSpeed, tiltX: innerDef.tiltX, tiltZ: innerDef.tiltZ, isIndividual: false })
+
+  // Outer wedge ring — individual rotating wedge planes with invert blending
+  const outerSectors = 240
+  const outerMidR = 82.5
+  const outerWidth = 9.0
+  const outerArcLen = outerMidR * (Math.PI * 2) / outerSectors
+  const wedgeWidth = outerArcLen * 0.5  // 50% arc → 50% gap between wedges
+  const outerTiltX = 0.55, outerTiltZ = -0.65, outerRotSpeed = 0.04
+  const wedgeGeo = new THREE.PlaneGeometry(wedgeWidth, outerWidth)
+  const wedgeMatTemplate = new THREE.MeshBasicMaterial({
+    color: '#ffffff', side: THREE.DoubleSide, transparent: true, opacity: 0,
+    blending: THREE.CustomBlending,
+    blendEquation: THREE.AddEquation,
+    blendSrc: THREE.OneMinusDstColorFactor,
+    blendDst: THREE.ZeroFactor,
+    depthWrite: false, depthTest: true
+  })
+
+  const outerRingGroup = new THREE.Group()
+  outerRingGroup.position.copy(_starGroup.position)
+  outerRingGroup.rotation.x = outerTiltX
+  outerRingGroup.rotation.z = outerTiltZ
+  outerRingGroup.renderOrder = 1
+  scene.add(outerRingGroup)
+
+  const outerWedgeGroups = []
+  const phaseDelta = (Math.PI * 2) / outerSectors  // one full rotation spread across wedges
+  for (let i = 0; i < outerSectors; i++) {
+    const angle = (i / outerSectors) * Math.PI * 2
+    const wg = new THREE.Group()
+    // Position at ring radius, facing tangentially
+    wg.position.set(Math.cos(angle) * outerMidR, 0, Math.sin(angle) * outerMidR)
+    wg.rotation.y = -angle + Math.PI / 2  // face outward along tangent
+
+    const wMat = wedgeMatTemplate.clone()
+    const wMesh = new THREE.Mesh(wedgeGeo, wMat)
+    wMesh.renderOrder = 1
+    wg.add(wMesh)
+    outerRingGroup.add(wg)
+    outerWedgeGroups.push({ group: wg, mesh: wMesh, phase: i * phaseDelta * 3.0 })
+  }
+  _wedgeRings.push({ isIndividual: true, outerRingGroup, outerWedgeGroups, rotSpeed: outerRotSpeed, tiltX: outerTiltX, tiltZ: outerTiltZ })
 
   for (let t = 0; t < ORBIT_COUNT; t++) {
     const link = _planetLinks[t]
@@ -1176,6 +1422,17 @@ act3.build = () => {
 }
 
 act3.animate = (time, tSp, sp) => {
+  // Accumulate local animation time (only advances while Act 3 is active)
+  // _geoLastCall === 0 signals re-entry after exit — reset animation clock
+  if (_geoLastCall === 0) {
+    _geoAnimTime = 0
+  } else {
+    const dt = Math.min(time - _geoLastCall, 0.1)
+    _geoAnimTime += dt
+  }
+  _geoLastCall = time
+  const animT = _geoAnimTime
+
   const progress = Math.max(0, Math.min(1, (sp - GRID_SHIFT_START) / (1.0 - GRID_SHIFT_START)))
   const smoothProgress = progress * progress * (3 - 2 * progress)
 
@@ -1190,12 +1447,116 @@ act3.animate = (time, tSp, sp) => {
 
   if (_starGroup) _starGroup.visible = true
 
-  // Star: static fade in
-  if (_starGroup) {
-    if (_starCore) _starCore.material.opacity = smoothProgress
-    if (_starGlow) _starGlow.material.opacity = smoothProgress * 0.30
-    if (_starGroup.userData.haloSprite) {
-      _starGroup.userData.haloSprite.material.opacity = smoothProgress * 0.55
+  // ── Geometric star animation ──────────────────
+  // Core: immediate fade
+  if (_starCoreMesh) {
+    _starCoreMesh.material.opacity = _fadeIn(progress, 0.0, 0.15)
+  }
+
+  // Surface curves: compute full trail each frame from animT
+  const curveOpacity = _fadeIn(progress, 0.05, 0.30)
+  const dtTrail = 0.10  // time spacing between trail points (100pts = 10s)
+  for (let ci = 0; ci < _curveLines.length; ci++) {
+    const cd = _curveData[ci]
+    if (!cd) continue
+    const { startTheta, startPhi, freqT, freqP, phaseT, phaseP, ampT, ampP, perturbPhase, perturbStrength, trailArr } = cd
+
+    for (let j = 0; j < GEO_CURVE_TRAIL; j++) {
+      const tPt = animT - j * dtTrail
+      const th = startTheta + Math.sin(tPt * freqT + phaseT) * ampT
+      const ph = startPhi + Math.cos(tPt * freqP + phaseP) * ampP
+      const phClamped = Math.max(0.05, Math.min(Math.PI - 0.05, ph))
+      const sp = Math.sin(phClamped)
+      trailArr[j*3]     = sp * Math.cos(th) * GEO_SPHERE_R
+      trailArr[j*3 + 1] = Math.cos(phClamped) * GEO_SPHERE_R
+      trailArr[j*3 + 2] = sp * Math.sin(th) * GEO_SPHERE_R
+    }
+    _curveLines[ci].geometry.attributes.position.needsUpdate = true
+    _curveLines[ci].material.opacity = curveOpacity * (0.55 + Math.sin(animT * 0.4 + perturbPhase) * 0.06)
+  }
+
+  // Cylinder rays: fly outward with easeInQuart, fade in
+  const rayOpacity = _fadeIn(progress, 0.15, 0.50)
+  for (const ray of _rayMeshes) {
+    const age = ((animT - ray.birthOffset) % ray.maxAge + ray.maxAge) % ray.maxAge
+    const tN = age / ray.maxAge
+    const eased = easeInQuart(tN)
+    const dist = eased * GEO_RAY_MAX_DIST
+    const len = dist
+
+    const distFade = 1 / (1 + eased * 4.5)
+    const lifeFade = tN > 0.85 ? 1 - (tN - 0.85) / 0.15 : 1
+    ray.mat.opacity = rayOpacity * distFade * lifeFade * 0.5
+
+    __rayTempP.copy(ray.dir).multiplyScalar(len * 0.5)
+    ray.mesh.position.copy(__rayTempP)
+    ray.mesh.scale.set(1, Math.max(len, 0.001), 1)
+    __rayQuat.setFromUnitVectors(__rayYAxis, ray.dir)
+    ray.mesh.setRotationFromQuaternion(__rayQuat)
+  }
+
+  // Trailing particles: fly outward with trails, fade in
+  const particleOpacity = _fadeIn(progress, 0.25, 0.60)
+  for (const p of _particleData) {
+    const age = ((animT - p.birthOffset) % p.maxAge + p.maxAge) % p.maxAge
+
+    // Detect cycle wrap — reset trail to prevent flash from old positions
+    if (age < p.prevAge) {
+      for (let j = 0; j < GEO_TRAIL_LENGTH; j++) {
+        p.trailArr[j*3] = 0; p.trailArr[j*3+1] = 0; p.trailArr[j*3+2] = 0
+      }
+    }
+    p.prevAge = age
+
+    const tN = age / p.maxAge
+    const eased = easeInQuart(tN)
+    const dist = eased * GEO_PARTICLE_MAX_DIST
+
+    const px = p.dir.x * dist, py = p.dir.y * dist, pz = p.dir.z * dist
+    p.point.geometry.attributes.position.array[0] = px
+    p.point.geometry.attributes.position.array[1] = py
+    p.point.geometry.attributes.position.array[2] = pz
+    p.point.geometry.attributes.position.needsUpdate = true
+
+    // Shift trail
+    for (let j = GEO_TRAIL_LENGTH - 1; j > 0; j--) {
+      p.trailArr[j*3] = p.trailArr[(j-1)*3]
+      p.trailArr[j*3+1] = p.trailArr[(j-1)*3+1]
+      p.trailArr[j*3+2] = p.trailArr[(j-1)*3+2]
+    }
+    p.trailArr[0] = px; p.trailArr[1] = py; p.trailArr[2] = pz
+    p.trail.geometry.attributes.position.needsUpdate = true
+
+    const distFade = 1 / (1 + eased * 3.8)
+    const lifeFade = tN > 0.85 ? 1 - (tN - 0.85) / 0.15 : 1
+    p.point.material.opacity = particleOpacity * distFade * lifeFade * 0.55
+    p.trailMat.opacity = particleOpacity * distFade * lifeFade * 0.22
+  }
+
+  // Wedge rings: fade in, rotate independently
+  const ringOpacities = [
+    _fadeIn(progress, 0.10, 0.35),
+    _fadeIn(progress, 0.30, 0.55),
+  ]
+  for (let ri = 0; ri < _wedgeRings.length; ri++) {
+    const rd = _wedgeRings[ri]
+    const opacity = ringOpacities[ri] * 0.85
+
+    if (rd.isIndividual) {
+      // Outer ring: individual wedges with self-rotation
+      rd.outerRingGroup.visible = true
+      rd.outerRingGroup.position.copy(_starGroup.position)
+      rd.outerRingGroup.rotation.set(rd.tiltX, time * rd.rotSpeed, rd.tiltZ)
+      for (const wg of rd.outerWedgeGroups) {
+        wg.mesh.material.opacity = opacity
+        wg.group.rotation.z = time * 0.15 + wg.phase  // self-spin with phase offset
+      }
+    } else {
+      // Inner ring: textured ring mesh
+      rd.mesh.visible = true
+      rd.mesh.position.copy(_starGroup.position)
+      rd.mesh.rotation.set(rd.tiltX, time * rd.rotSpeed, rd.tiltZ)
+      rd.mesh.material.opacity = opacity
     }
   }
 
@@ -1219,6 +1580,12 @@ act3.exit = () => {
   for (const g of _gyroGroups) g.visible = false
   for (const label of _planetLabels) label.visible = false
   if (_starGroup) _starGroup.visible = false
+  for (const rd of _wedgeRings) {
+    if (rd.isIndividual) rd.outerRingGroup.visible = false
+    else rd.mesh.visible = false
+  }
+  // Reset animation clock so re-entry starts fresh
+  _geoLastCall = 0
   // Reset focus state
   if (_focusedPlanetIdx >= 0) {
     _focusedPlanetIdx = -1
@@ -1248,18 +1615,52 @@ act3.dispose = () => {
   }
   _planetLabels = []
 
+  // Dispose wedge rings
+  for (const rd of _wedgeRings) {
+    if (rd.isIndividual) {
+      for (const wg of rd.outerWedgeGroups) {
+        wg.mesh.material.dispose()
+      }
+      // Shared geometry — dispose once
+      if (rd.outerWedgeGroups.length > 0) {
+        rd.outerWedgeGroups[0].mesh.geometry.dispose()
+      }
+      scene.remove(rd.outerRingGroup)
+    } else {
+      scene.remove(rd.mesh)
+      rd.mesh.geometry.dispose()
+      if (rd.mesh.material.map) rd.mesh.material.map.dispose()
+      rd.mesh.material.dispose()
+    }
+  }
+  _wedgeRings = []
+  _wedgeRingData = []
+
+  // Dispose geometric star
   if (_starGroup) {
     _starGroup.traverse(c => {
       if (c.geometry) c.geometry.dispose()
       if (c.material) {
-        if (Array.isArray(c.material)) c.material.forEach(m => m.dispose())
-        else c.material.dispose()
+        if (Array.isArray(c.material)) c.material.forEach(m => {
+          if (m.map) m.map.dispose()
+          m.dispose()
+        })
+        else {
+          if (c.material.map) c.material.map.dispose()
+          c.material.dispose()
+        }
       }
     })
+    scene.remove(_starGroup)
     _starGroup = null
-    _starCore = null
-    _starGlow = null
+    _starCoreMesh = null
   }
+  _curveLines = []
+  _curveData = []
+  _rayMeshes = []
+  _rayGroup = null
+  _particleData = []
+  _particleGroup = null
 
   _raycaster = null
   act3Initialized = false

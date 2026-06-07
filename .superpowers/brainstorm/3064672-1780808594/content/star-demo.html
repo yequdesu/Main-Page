@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Geometric Star Demo</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #0a0f1a; overflow: hidden; font-family: system-ui, sans-serif; }
+  canvas { display: block; }
+  #info {
+    position: fixed; bottom: 24px; left: 0; right: 0; text-align: center;
+    color: #94a3b8; font-size: 13px; pointer-events: none; z-index: 10;
+  }
+  #info span { color: #e8c888; }
+</style>
+</head>
+<body>
+<div id="info">测地线框 <span>·</span> 射线 <span>·</span> 微粒 <span>·</span> 慢旋</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.170.0/build/three.module.js"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+
+// ── Scene setup ──────────────────────────────────
+const scene = new THREE.Scene();
+scene.background = new THREE.Color('#0a0f1a');
+
+const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.5, 60);
+camera.position.set(0, 0.25, 8);
+camera.lookAt(0, -1.0, -16);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+document.body.appendChild(renderer.domElement);
+
+// ── Ambient light (subtle scene illumination) ────
+scene.add(new THREE.AmbientLight('#1a1a2e', 0.3));
+
+// ── Orbit ring helpers (context) ─────────────────
+const ringRadii = [3.6, 5.0, 6.4];
+const cx = 0, cy = -1.0, cz = -16;
+ringRadii.forEach(r => {
+  const pts = [];
+  for (let i = 0; i <= 128; i++) {
+    const a = (i / 128) * Math.PI * 2;
+    pts.push(new THREE.Vector3(cx + Math.cos(a) * r, cy, cz + Math.sin(a) * r));
+  }
+  const geo = new THREE.BufferGeometry().setFromPoints(pts);
+  const mat = new THREE.LineBasicMaterial({ color: '#334155', transparent: true, opacity: 0.35, depthTest: true });
+  scene.add(new THREE.Line(geo, mat));
+});
+
+// ══════════════════════════════════════════════════
+//  STAR GROUP
+// ══════════════════════════════════════════════════
+const starGroup = new THREE.Group();
+starGroup.position.set(0, -1.0, -16);
+starGroup.renderOrder = 0;
+scene.add(starGroup);
+
+// ── 1. Geodesic Wireframe Sphere ─────────────────
+// IcosahedronGeometry → EdgesGeometry for geodesic look
+const icoGeo = new THREE.IcosahedronGeometry(0.55, 4);
+const edgeGeo = new THREE.EdgesGeometry(icoGeo);
+const wireMat = new THREE.LineBasicMaterial({
+  color: '#e8c888',
+  transparent: true,
+  opacity: 0.85,
+  linewidth: 1,
+  depthTest: true
+});
+const geodesicWire = new THREE.LineSegments(edgeGeo, wireMat);
+geodesicWire.renderOrder = 1;
+starGroup.add(geodesicWire);
+
+// ── 2. Ray System (~40 rays) ─────────────────────
+const RAY_COUNT = 40;
+const rayGroup = new THREE.Group();
+rayGroup.renderOrder = 2;
+starGroup.add(rayGroup);
+
+// Fibonacci sphere for uniform distribution
+const rayDirections = [];
+const phi_g = Math.PI * (3 - Math.sqrt(5));
+for (let i = 0; i < RAY_COUNT; i++) {
+  const y = 1 - (i / (RAY_COUNT - 1)) * 2;
+  const radiusAtY = Math.sqrt(1 - y * y);
+  const theta = phi_g * i;
+  rayDirections.push(new THREE.Vector3(
+    Math.cos(theta) * radiusAtY,
+    y,
+    Math.sin(theta) * radiusAtY
+  ).normalize());
+}
+
+// Create ray lines
+const rayLines = [];
+const rayBaseLengths = [];
+for (let i = 0; i < RAY_COUNT; i++) {
+  const dir = rayDirections[i];
+  const baseLen = 0.3 + Math.random() * 1.2;
+  rayBaseLengths.push(baseLen);
+
+  const start = dir.clone().multiplyScalar(0.57); // start just outside sphere
+  const end = dir.clone().multiplyScalar(0.57 + baseLen);
+
+  const geo = new THREE.BufferGeometry().setFromPoints([start, end]);
+  const mat = new THREE.LineBasicMaterial({
+    color: '#e8c888',
+    transparent: true,
+    opacity: 0.45 + Math.random() * 0.35,
+    depthTest: true
+  });
+  const line = new THREE.Line(geo, mat);
+  line.renderOrder = 2;
+  rayGroup.add(line);
+  rayLines.push({ line, dir, baseLen, mat, phase: Math.random() * Math.PI * 2 });
+}
+
+// ── 3. Micro-particles (~100) ────────────────────
+const PARTICLE_COUNT = 100;
+const particleGeo = new THREE.BufferGeometry();
+const particlePositions = new Float32Array(PARTICLE_COUNT * 3);
+const particleSizes = new Float32Array(PARTICLE_COUNT);
+
+for (let i = 0; i < PARTICLE_COUNT; i++) {
+  // Random distribution in spherical shell: r ∈ [0.58, 1.2]
+  const dir = new THREE.Vector3(
+    Math.random() * 2 - 1,
+    Math.random() * 2 - 1,
+    Math.random() * 2 - 1
+  ).normalize();
+  const r = 0.58 + Math.random() * 0.65;
+  particlePositions[i * 3] = dir.x * r;
+  particlePositions[i * 3 + 1] = dir.y * r;
+  particlePositions[i * 3 + 2] = dir.z * r;
+  particleSizes[i] = 1.5 + Math.random() * 3.0;
+}
+particleGeo.setAttribute('position', new THREE.BufferAttribute(particlePositions, 3));
+particleGeo.setAttribute('size', new THREE.BufferAttribute(particleSizes, 1));
+
+// Canvas texture for soft dot
+const dotCanvas = document.createElement('canvas');
+dotCanvas.width = 32; dotCanvas.height = 32;
+const ctx = dotCanvas.getContext('2d');
+const grad = ctx.createRadialGradient(16, 16, 0, 16, 16, 16);
+grad.addColorStop(0, 'rgba(255,220,160,0.9)');
+grad.addColorStop(0.3, 'rgba(240,200,130,0.5)');
+grad.addColorStop(0.7, 'rgba(200,150,80,0.08)');
+grad.addColorStop(1, 'rgba(0,0,0,0)');
+ctx.fillStyle = grad;
+ctx.fillRect(0, 0, 32, 32);
+const dotTex = new THREE.CanvasTexture(dotCanvas);
+
+const particleMat = new THREE.PointsMaterial({
+  map: dotTex,
+  color: '#e8c888',
+  size: 0.12,
+  blending: THREE.AdditiveBlending,
+  transparent: true,
+  opacity: 0.6,
+  depthWrite: false,
+  depthTest: true
+});
+const particlePoints = new THREE.Points(particleGeo, particleMat);
+particlePoints.renderOrder = 3;
+starGroup.add(particlePoints);
+
+// Store particle data for animation
+const particleData = [];
+for (let i = 0; i < PARTICLE_COUNT; i++) {
+  particleData.push({
+    baseR: 0.58 + Math.random() * 0.65,
+    dir: new THREE.Vector3(
+      particlePositions[i * 3],
+      particlePositions[i * 3 + 1],
+      particlePositions[i * 3 + 2]
+    ).normalize(),
+    phase: Math.random() * Math.PI * 2,
+    speed: 0.2 + Math.random() * 0.6
+  });
+}
+
+// ── Animation ────────────────────────────────────
+const clock = new THREE.Clock();
+
+function animate() {
+  requestAnimationFrame(animate);
+  const t = clock.getElapsedTime();
+
+  // Rotate entire star group slowly
+  starGroup.rotation.y = t * 0.15;
+
+  // Ray breathing — vary length with sin
+  for (let i = 0; i < rayLines.length; i++) {
+    const { line, dir, baseLen, phase } = rayLines[i];
+    const breathe = 1 + Math.sin(t * 1.5 + phase) * 0.25;
+    const len = baseLen * breathe;
+
+    const start = dir.clone().multiplyScalar(0.57);
+    const end = dir.clone().multiplyScalar(0.57 + len);
+
+    const geo = new THREE.BufferGeometry().setFromPoints([start, end]);
+    line.geometry.dispose();
+    line.geometry = geo;
+
+    // Fade opacity with length
+    line.material.opacity = 0.35 + (len / 2.0) * 0.5;
+  }
+
+  // Particle floating — slight radial oscillation
+  const posArr = particleGeo.attributes.position.array;
+  for (let i = 0; i < PARTICLE_COUNT; i++) {
+    const pd = particleData[i];
+    const r = pd.baseR + Math.sin(t * pd.speed + pd.phase) * 0.12;
+    posArr[i * 3] = pd.dir.x * r;
+    posArr[i * 3 + 1] = pd.dir.y * r;
+    posArr[i * 3 + 2] = pd.dir.z * r;
+  }
+  particleGeo.attributes.position.needsUpdate = true;
+
+  // Subtle particle opacity pulse
+  particleMat.opacity = 0.45 + Math.sin(t * 0.7) * 0.15;
+
+  renderer.render(scene, camera);
+}
+
+animate();
+
+// ── Resize ───────────────────────────────────────
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+</script>
+</body>
+</html>

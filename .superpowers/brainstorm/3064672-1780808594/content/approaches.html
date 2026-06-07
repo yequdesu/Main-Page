@@ -1,0 +1,65 @@
+<h2>技术实现方案对比</h2>
+<p class="subtitle">确认需求：测地线框 + 射线+微粒混合 + 边缘色散。两种实现路径可选。</p>
+
+<div class="options">
+  <div class="option" data-choice="approach-1" onclick="toggleSelect(this)">
+    <div class="letter">方案 1</div>
+    <div class="content">
+      <h3>纯 ShaderMaterial 方案 (推荐)</h3>
+      <p>所有效果都在恒星自身的材质着色器中完成，不引入任何后处理管线。</p>
+
+      <div class="section"><h4>架构</h4>
+        <ul>
+          <li><strong>测地线框球体</strong> — 自定义 ShaderMaterial，fragment shader 中基于视线角度计算红-蓝色散偏移</li>
+          <li><strong>射线 (40条)</strong> — BufferGeometry LineSegments，ShaderMaterial 按长度渐变透明度 + 末端微红</li>
+          <li><strong>微粒 (~100个)</strong> — THREE.Points + 自定义 ShaderMaterial，离球体越远越暗</li>
+        </ul>
+      </div>
+
+      <div class="pros-cons">
+        <div class="pros"><h4>优点</h4><ul>
+          <li>零额外渲染 pass，性能最优</li>
+          <li>不需要 EffectComposer / 后处理</li>
+          <li>色散效果精确控制在恒星上，不影响轨道环和星球</li>
+          <li>实现简单，改动集中在 ~150 行内</li>
+          <li>与现有 Act 系统完美契合</li>
+        </ul></div>
+        <div class="cons"><h4>缺点</h4><ul>
+          <li>色散仅限恒星本身，无全屏"热浪扭曲"</li>
+          <li>无法做跨物体的屏幕空间效果</li>
+        </ul></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="approach-2" onclick="toggleSelect(this)">
+    <div class="letter">方案 2</div>
+    <div class="content">
+      <h3>ShaderMaterial + 局部热浪扭曲层</h3>
+      <p>方案 1 的全部内容 + 一个额外的全屏透明 Quad，在恒星屏幕位置产生径向热浪扭曲。</p>
+
+      <div class="section"><h4>架构</h4>
+        <ul>
+          <li>方案 1 的所有组件保持不变</li>
+          <li><strong>新增：HeatDistortQuad</strong> — 全屏透明平面，渲染顺序在场景最后</li>
+          <li>Quad 的 fragment shader 采样场景深度/颜色，只在恒星投影位置周围做径向 UV 偏移 + 微红移</li>
+          <li>需要将恒星 3D 位置投影到屏幕 UV 坐标传入 uniform</li>
+        </ul>
+      </div>
+
+      <div class="pros-cons">
+        <div class="pros"><h4>优点</h4><ul>
+          <li>真正的"高温扭曲空间"效果，恒星周围画面轻微变形</li>
+          <li>视觉上更接近真实恒星的热辐射感</li>
+          <li>不需要完整的 EffectComposer 管线</li>
+        </ul></div>
+        <div class="cons"><h4>缺点</h4><ul>
+          <li>额外的渲染 pass，性能开销约 +15-20%</li>
+          <li>扭曲影响轨道环和星球——可能干扰可读性</li>
+          <li>实现更复杂（屏幕投影、深度采样）</li>
+          <li>边缘情况处理（恒星在屏幕外时的 fallback）</li>
+        </ul></div>
+      </div>
+    </div>
+  </div>
+</div>
