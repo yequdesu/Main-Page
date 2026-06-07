@@ -1,0 +1,133 @@
+<h2>2D 叠加层的库选择</h2>
+<p class="subtitle">GSAP 驱动动画 + 选择合适的渲染层</p>
+
+<div class="section">
+  <h3>GSAP 怎么用在这个场景？</h3>
+  <p style="font-size: 0.72rem; color: #aaa;">GSAP 不只是 DOM 动画库——它可以 tween 任意 JS 对象属性。用 GSAP Timeline + ScrollTrigger 来驱动 Canvas 2D 的绘制参数（线位置、透明度、旋转角、阵列相位），效果完全可控。</p>
+</div>
+
+<div class="cards" style="margin-top: 1rem;">
+
+  <div class="card" data-choice="lib-gsap-canvas" onclick="toggleSelect(this)">
+    <div class="card-image" style="background: #0f1117; padding: 1.2rem; min-height: 170px;">
+      <div style="display: flex; gap: 1rem; align-items: center; height: 100%;">
+        <div style="flex: 1; text-align: center;">
+          <div style="font-size: 2rem; margin-bottom: 0.3rem;">🎯</div>
+          <p style="color: #ccc; font-size: 0.7rem; font-weight: 700; margin: 0;">GSAP + Canvas 2D</p>
+          <p style="color: #666; font-size: 0.55rem; margin: 4px 0;">纯手绘，完全控制</p>
+        </div>
+        <div style="flex: 2; font-size: 0.58rem; color: #888; line-height: 1.6;">
+          <span style="color: #0f0;">✓</span> 零新依赖（GSAP 已在项目中）<br>
+          <span style="color: #0f0;">✓</span> GSAP tween 控制所有绘制参数<br>
+          <span style="color: #0f0;">✓</span> 完全自由——任何几何形、任何曲线<br>
+          <span style="color: #ff0;">△</span> 需要手写所有绘制逻辑<br>
+          <span style="color: #ff0;">△</span> 没有场景图，需要自己管理元素状态
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" data-choice="lib-p5" onclick="toggleSelect(this)">
+    <div class="card-image" style="background: #0f1117; padding: 1.2rem; min-height: 170px;">
+      <div style="display: flex; gap: 1rem; align-items: center; height: 100%;">
+        <div style="flex: 1; text-align: center;">
+          <div style="font-size: 2rem; margin-bottom: 0.3rem;">🎨</div>
+          <p style="color: #ccc; font-size: 0.7rem; font-weight: 700; margin: 0;">p5.js</p>
+          <p style="color: #666; font-size: 0.55rem; margin: 4px;">创意编程标准库</p>
+        </div>
+        <div style="flex: 2; font-size: 0.58rem; color: #888; line-height: 1.6;">
+          <span style="color: #0f0;">✓</span> 专为几何/阵列/生成艺术设计<br>
+          <span style="color: #0f0;">✓</span> push()/pop() 变换栈—天然适合阵列旋转<br>
+          <span style="color: #0f0;">✓</span> map()/lerp() 等工具函数<br>
+          <span style="color: #ff0;">△</span> 新增依赖 (~800KB)<br>
+          <span style="color: #f00;">✗</span> 自带 draw 循环，需与项目 rAF 协调
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" data-choice="lib-gsap-svg" onclick="toggleSelect(this)">
+    <div class="card-image" style="background: #0f1117; padding: 1.2rem; min-height: 170px;">
+      <div style="display: flex; gap: 1rem; align-items: center; height: 100%;">
+        <div style="flex: 1; text-align: center;">
+          <div style="font-size: 2rem; margin-bottom: 0.3rem;">📐</div>
+          <p style="color: #ccc; font-size: 0.7rem; font-weight: 700; margin: 0;">GSAP + SVG</p>
+          <p style="color: #666; font-size: 0.55rem; margin: 4px;">声明式矢量，DOM可检视</p>
+        </div>
+        <div style="flex: 2; font-size: 0.58rem; color: #888; line-height: 1.6;">
+          <span style="color: #0f0;">✓</span> GSAP 直接操作 SVG 元素属性<br>
+          <span style="color: #0f0;">✓</span> 元素可检视、可调试<br>
+          <span style="color: #0f0;">✓</span> 天然响应式缩放<br>
+          <span style="color: #ff0;">△</span> 阵列元素多时 DOM 节点开销大<br>
+          <span style="color: #ff0;">△</span> 复杂曲线排布需要 &lt;animateMotion&gt; 或 JS 计算
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" data-choice="lib-two" onclick="toggleSelect(this)">
+    <div class="card-image" style="background: #0f1117; padding: 1.2rem; min-height: 170px;">
+      <div style="display: flex; gap: 1rem; align-items: center; height: 100%;">
+        <div style="flex: 1; text-align: center;">
+          <div style="font-size: 2rem; margin-bottom: 0.3rem;">🖼️</div>
+          <p style="color: #ccc; font-size: 0.7rem; font-weight: 700; margin: 0;">Two.js</p>
+          <p style="color: #666; font-size: 0.55rem; margin: 4px;">轻量 2D 场景图</p>
+        </div>
+        <div style="flex: 2; font-size: 0.58rem; color: #888; line-height: 1.6;">
+          <span style="color: #0f0;">✓</span> 有场景图——不需要手动管理状态<br>
+          <span style="color: #0f0;">✓</span> 支持旋转/缩放/平移变换<br>
+          <span style="color: #0f0;">✓</span> 轻量 (~100KB)，Canvas/SVG/WebGL 多后端<br>
+          <span style="color: #ff0;">△</span> 新增依赖<br>
+          <span style="color: #ff0;">△</span> GSAP 需通过 tween 对象间接控制 Two.js 属性
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<div class="section" style="margin-top: 1rem;">
+  <h3>组合方案对比</h3>
+  <table style="width: 100%; font-size: 0.7rem; border-collapse: collapse;">
+    <tr style="border-bottom: 1px solid #333;">
+      <th style="text-align: left; padding: 0.4rem; color: #888;">方案</th>
+      <th style="text-align: center; padding: 0.4rem; color: #888;">新依赖</th>
+      <th style="text-align: center; padding: 0.4rem; color: #888;">阵列表现力</th>
+      <th style="text-align: center; padding: 0.4rem; color: #888;">开发效率</th>
+      <th style="text-align: center; padding: 0.4rem; color: #888;">性能</th>
+    </tr>
+    <tr style="border-bottom: 1px solid #222;">
+      <td style="padding: 0.4rem; color: #e2e8f0;">GSAP + Canvas 2D</td>
+      <td style="text-align: center; padding: 0.4rem; color: #0f0;">零</td>
+      <td style="text-align: center; padding: 0.4rem; color: #aaa;">★★★★★</td>
+      <td style="text-align: center; padding: 0.4rem; color: #e8b81a;">★★★</td>
+      <td style="text-align: center; padding: 0.4rem; color: #0f0;">★★★★★</td>
+    </tr>
+    <tr style="border-bottom: 1px solid #222;">
+      <td style="padding: 0.4rem; color: #e2e8f0;">p5.js</td>
+      <td style="text-align: center; padding: 0.4rem; color: #f00;">~800KB</td>
+      <td style="text-align: center; padding: 0.4rem; color: #aaa;">★★★★★</td>
+      <td style="text-align: center; padding: 0.4rem; color: #0f0;">★★★★★</td>
+      <td style="text-align: center; padding: 0.4rem; color: #e8b81a;">★★★★</td>
+    </tr>
+    <tr style="border-bottom: 1px solid #222;">
+      <td style="padding: 0.4rem; color: #e2e8f0;">GSAP + SVG</td>
+      <td style="text-align: center; padding: 0.4rem; color: #0f0;">零</td>
+      <td style="text-align: center; padding: 0.4rem; color: #e8b81a;">★★★</td>
+      <td style="text-align: center; padding: 0.4rem; color: #aaa;">★★★★</td>
+      <td style="text-align: center; padding: 0.4rem; color: #e8b81a;">★★★</td>
+    </tr>
+    <tr>
+      <td style="padding: 0.4rem; color: #e2e8f0;">GSAP + Two.js</td>
+      <td style="text-align: center; padding: 0.4rem; color: #e8b81a;">~100KB</td>
+      <td style="text-align: center; padding: 0.4rem; color: #aaa;">★★★★</td>
+      <td style="text-align: center; padding: 0.4rem; color: #aaa;">★★★★</td>
+      <td style="text-align: center; padding: 0.4rem; color: #aaa;">★★★★</td>
+    </tr>
+  </table>
+</div>
+
+<div style="margin-top: 1rem; padding: 0.8rem; background: #141820; border-radius: 6px; border-left: 3px solid #888;">
+  <p style="color: #ccc; font-size: 0.7rem; margin: 0;"><strong>我的建议：GSAP + Canvas 2D</strong></p>
+  <p style="color: #999; font-size: 0.62rem; margin: 4px 0 0;">零新依赖，GSAP Timeline 把 scrollProgress 映射到 Canvas 绘制参数。阵列的旋转/位移直接用 GSAP tween 驱动 JS 对象，Canvas 每帧读取这些对象的值来绘制。这个模式在创意编程中非常常见，完全够用。</p>
+</div>

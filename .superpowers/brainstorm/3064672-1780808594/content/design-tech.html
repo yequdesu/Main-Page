@@ -1,0 +1,119 @@
+<h2>细化设计③ — 技术实现 &amp; 最终确认</h2>
+<p class="subtitle">如何在代码中落地这个叠加层</p>
+
+<div class="section">
+  <h3>技术方案：第二 Canvas (2D Context)</h3>
+</div>
+
+<div style="background: #141820; border-radius: 8px; padding: 1.2rem; margin-bottom: 1rem;">
+
+  <div style="display: flex; gap: 1rem; align-items: stretch;">
+    <!-- Architecture diagram -->
+    <div style="flex: 1; background: #0a0d12; border-radius: 6px; padding: 1rem;">
+
+      <div style="text-align: center; position: relative; height: 200px;">
+
+        <!-- Browser viewport -->
+        <div style="position: absolute; inset: 0; border: 1px solid #333; background: #000;">
+
+          <!-- Layer: 2D Composition Overlay Canvas -->
+          <div style="position: absolute; inset: 0; z-index: 3; background: rgba(40,40,50,0.15); display: flex; align-items: center; justify-content: center; border-bottom: 1px dashed rgba(204,51,51,0.3);">
+            <span style="color: #aaa; font-size: 0.6rem;">&lt;canvas&gt; 叠加层 · 2D Context · z-index: 1</span>
+            <!-- Simulated construction lines -->
+            <div style="position: absolute; inset: 0; overflow: hidden; opacity: 0.4;">
+              <div style="position:absolute;top:20%;left:0;right:0;height:0.5px;background:#888;"></div>
+              <div style="position:absolute;top:50%;left:0;right:0;height:0.5px;background:#666;"></div>
+              <div style="position:absolute;top:0;bottom:0;left:33%;width:0.5px;background:#888;"></div>
+              <div style="position:absolute;top:0;left:0;width:60px;height:60px;border:1px solid #555;bottom:auto;right:auto;"></div>
+            </div>
+          </div>
+
+          <!-- Layer: Three.js Canvas -->
+          <div style="position: absolute; inset: 0; z-index: 1; background: linear-gradient(135deg, #0d1520, #1a2a3a); display: flex; align-items: center; justify-content: center;">
+            <span style="color: #555; font-size: 0.55rem;">&lt;canvas&gt; Three.js · z-index: 0</span>
+          </div>
+
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Key decisions -->
+    <div style="flex: 1; font-size: 0.65rem; color: #aaa; line-height: 1.8;">
+      <h4 style="color: #ccc; font-size: 0.75rem; margin: 0 0 0.5rem;">为什么不用 SVG？</h4>
+      <ul style="margin: 0; padding-left: 1.2rem;">
+        <li>阵列动画需要大量元素，SVG DOM 节点太重</li>
+        <li>Canvas 2D 的 <code style="color:#888;">globalCompositeOperation</code> 天然支持混合模式</li>
+        <li>与 Three.js 同样的 <code style="color:#888;">requestAnimationFrame</code> 循环</li>
+      </ul>
+      <h4 style="color: #ccc; font-size: 0.75rem; margin: 0.8rem 0 0.5rem;">为什么不用 CSS？</h4>
+      <ul style="margin: 0; padding-left: 1.2rem;">
+        <li>复杂的几何阵列（沿曲线排列 + 相位旋转）CSS 无法表达</li>
+        <li>构造线的精确像素级绘制需要 Canvas</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>组件结构</h3>
+</div>
+
+<div style="background: #1a1a1a; border-radius: 6px; padding: 1rem; font-family: monospace; font-size: 0.65rem; line-height: 1.8; color: #aaa;">
+
+<div style="color: #666;">src/</div>
+<div>├── App.vue                    <span style="color: #555;">← 传递 scrollProgress 给叠加层</span></div>
+<div>├── components/</div>
+<div>│   ├── LighthouseScene.vue   <span style="color: #555;">← 现有 3D 场景（不动）</span></div>
+<div>│   ├── <span style="color: #e2e8f0;">CompositionOverlay.vue</span>   <span style="color: #cc3333;">← ★ 新增：平面构成叠加层</span></div>
+<div>│   └── AppFooter.vue</div>
+<div>└── <span style="color: #e2e8f0;">composition/</span>               <span style="color: #cc3333;">← ★ 新增目录</span></div>
+<div>    ├── <span style="color: #e2e8f0;">constructionLines.js</span>   <span style="color: #555;">构造线：对角/三分/模数/准星/角度标记</span></div>
+<div>    ├── <span style="color: #e2e8f0;">geometricArrays.js</span>    <span style="color: #555;">几何阵列：长方体阵列/点阵/线组/角标</span></div>
+<div>    ├── <span style="color: #e2e8f0;">postEffects.js</span>        <span style="color: #555;">后效果：反色/混合模式/遮罩</span></div>
+<div>    └── <span style="color: #e2e8f0;">actBehavior.js</span>        <span style="color: #555;">各 Act 的出场/动画/离场逻辑</span></div>
+
+</div>
+
+<div class="section" style="margin-top: 1rem;">
+  <h3>数据流</h3>
+  <p style="font-size: 0.7rem; color: #aaa;"><code>App.vue</code> 已有 <code>scrollProgress</code> (0–1)，直接作为 prop 传入 <code>CompositionOverlay.vue</code>，无需新增状态管理。</p>
+</div>
+
+<div style="background: #0f1117; border-radius: 6px; padding: 1rem; font-size: 0.65rem; color: #888; text-align: center; letter-spacing: 0.03em;">
+  scrollProgress: 0.00 ──── Act 1 ──── 0.45 ──── Act 2 ──── 0.85 ──── Act 3 ──── 1.00<br>
+  <span style="color: #555;">构造线:</span> 淡入 → <span style="color: #888;">渐显</span> → <span style="color: #ccc;">完整</span><br>
+  <span style="color: #555;">几何阵列:</span> 无 → <span style="color: #888;">长方体阵列沿水平</span> → <span style="color: #ccc;">长方体沿轨道曲线 + 径向线组</span>
+</div>
+
+<hr style="border-color: #333; margin: 1rem 0;">
+
+<h3>最终确认清单</h3>
+
+<div style="display: flex; flex-direction: column; gap: 0.5rem; font-size: 0.72rem; color: #aaa;">
+  <div style="display: flex; align-items: center; gap: 0.5rem;">
+    <span style="color: #666;">1.</span> 新增 <code>CompositionOverlay.vue</code> — 第二 Canvas，覆盖 3D 场景上方
+  </div>
+  <div style="display: flex; align-items: center; gap: 0.5rem;">
+    <span style="color: #666;">2.</span> 构造线系统：对角基线、三分法则、模数节奏线、十字准星、角度标记
+  </div>
+  <div style="display: flex; align-items: center; gap: 0.5rem;">
+    <span style="color: #666;">3.</span> 几何阵列：长方体沿曲线排布+等差相位自转、点阵、径向线组
+  </div>
+  <div style="display: flex; align-items: center; gap: 0.5rem;">
+    <span style="color: #666;">4.</span> 纯灰阶调色板，无高饱和色，色彩点缀留到后续
+  </div>
+  <div style="display: flex; align-items: center; gap: 0.5rem;">
+    <span style="color: #666;">5.</span> Act 1 (隐约结构) → Act 2 (秩序涌现) → Act 3 (完整构成)
+  </div>
+  <div style="display: flex; align-items: center; gap: 0.5rem;">
+    <span style="color: #666;">6.</span> 后效果：局部反色、混合模式叠加（作为可选增强）
+  </div>
+  <div style="display: flex; align-items: center; gap: 0.5rem;">
+    <span style="color: #666;">7.</span> 现有 3D 场景不动，叠加层独立渲染循环
+  </div>
+</div>
+
+<div class="section" style="margin-top: 1.2rem;">
+  <p style="color: #ccc; font-size: 0.78rem;">以上全部确认后，我写入设计文档，然后制定实现计划。</p>
+</div>

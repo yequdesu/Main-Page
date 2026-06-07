@@ -1,0 +1,527 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>构成叠加层 Demo — GSAP + Canvas 2D</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #050811;
+    font-family: system-ui, sans-serif;
+    overflow-x: hidden;
+  }
+
+  /* Simulated 3D scene background */
+  .scene-bg {
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    background: linear-gradient(
+      180deg,
+      #050811 0%,
+      #0a1628 30%,
+      #111d33 60%,
+      #f1f5f9 85%,
+      #e2e8f0 100%
+    );
+    transition: background 0.05s linear;
+  }
+
+  /* Star dots to simulate dust particles */
+  .scene-bg::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background-image:
+      radial-gradient(1px 1px at 15% 25%, rgba(255,255,255,0.6), transparent),
+      radial-gradient(1px 1px at 28% 40%, rgba(255,255,255,0.4), transparent),
+      radial-gradient(1.5px 1.5px at 42% 18%, rgba(255,255,255,0.5), transparent),
+      radial-gradient(1px 1px at 55% 35%, rgba(255,255,255,0.3), transparent),
+      radial-gradient(1px 1px at 68% 28%, rgba(255,255,255,0.5), transparent),
+      radial-gradient(1.5px 1.5px at 78% 42%, rgba(255,255,255,0.4), transparent),
+      radial-gradient(1px 1px at 22% 55%, rgba(255,255,255,0.3), transparent),
+      radial-gradient(1px 1px at 48% 50%, rgba(255,255,255,0.5), transparent),
+      radial-gradient(1.5px 1.5px at 72% 48%, rgba(255,255,255,0.6), transparent),
+      radial-gradient(1px 1px at 85% 38%, rgba(255,255,255,0.4), transparent),
+      radial-gradient(1px 1px at 12% 62%, rgba(255,255,255,0.3), transparent),
+      radial-gradient(1px 1px at 35% 58%, rgba(255,255,255,0.5), transparent),
+      radial-gradient(1.5px 1.5px at 60% 55%, rgba(255,255,255,0.4), transparent),
+      radial-gradient(1px 1px at 92% 52%, rgba(255,255,255,0.3), transparent),
+      radial-gradient(1px 1px at 18% 72%, rgba(255,255,255,0.2), transparent),
+      radial-gradient(1px 1px at 40% 68%, rgba(255,255,255,0.4), transparent),
+      radial-gradient(1px 1px at 65% 70%, rgba(255,255,255,0.3), transparent),
+      radial-gradient(1.5px 1.5px at 80% 65%, rgba(255,255,255,0.4), transparent);
+  }
+
+  /* Lighthouse silhouette */
+  .lighthouse {
+    position: fixed;
+    left: 50%;
+    bottom: 25%;
+    transform: translateX(-50%);
+    z-index: 1;
+    width: 24px;
+    height: 160px;
+    opacity: 0.6;
+  }
+  .lighthouse::before {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 4px;
+    height: 140px;
+    background: linear-gradient(to top, rgba(180,190,200,0.4), rgba(220,230,240,0.8), rgba(255,255,255,0.3));
+    border-radius: 2px 2px 0 0;
+  }
+
+  /* Composition overlay canvas */
+  #overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 10;
+    pointer-events: none;
+  }
+
+  /* Scroll info */
+  .info-bar {
+    position: fixed;
+    top: 1rem;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 20;
+    background: rgba(10,12,18,0.85);
+    color: #888;
+    padding: 0.4rem 1.2rem;
+    border-radius: 20px;
+    font-size: 0.7rem;
+    letter-spacing: 0.08em;
+    border: 1px solid rgba(255,255,255,0.08);
+    pointer-events: none;
+  }
+  .info-bar span { color: #ccc; }
+
+  .act-label {
+    position: fixed;
+    top: 4rem;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 20;
+    font-size: 0.65rem;
+    letter-spacing: 0.12em;
+    color: #666;
+    pointer-events: none;
+  }
+
+  /* Scroll hint */
+  .scroll-hint {
+    position: fixed;
+    bottom: 2rem;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 20;
+    color: #667;
+    font-size: 0.6rem;
+    letter-spacing: 0.1em;
+    pointer-events: none;
+    animation: fadeInOut 2s ease-in-out infinite;
+  }
+  @keyframes fadeInOut {
+    0%, 100% { opacity: 0.3; }
+    50% { opacity: 0.8; }
+  }
+</style>
+</head>
+<body>
+
+<div class="scene-bg" id="sceneBg"></div>
+<div class="lighthouse" id="lighthouse"></div>
+
+<canvas id="overlay"></canvas>
+
+<div class="info-bar">
+  scrollProgress: <span id="spValue">0.000</span>
+  &nbsp;|&nbsp; Act: <span id="actLabel">1 · 海洋</span>
+</div>
+<div class="scroll-hint">↓ 滚动查看效果 ↓</div>
+
+<!-- GSAP + ScrollTrigger from CDN -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>
+
+<script>
+// ============================================================
+//  Scroll setup — 15x viewport height, same as production
+// ============================================================
+const SCROLL_VH = 15;
+document.body.style.height = (window.innerHeight * SCROLL_VH) + 'px';
+
+gsap.registerPlugin(ScrollTrigger);
+
+// ============================================================
+//  Canvas setup
+// ============================================================
+const canvas = document.getElementById('overlay');
+const ctx = canvas.getContext('2d');
+
+function resize() {
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+}
+window.addEventListener('resize', resize);
+resize();
+
+// ============================================================
+//  Shared state — tweened by GSAP
+// ============================================================
+const state = {
+  sp: 0,                         // scrollProgress 0-1
+
+  // Construction lines
+  diagonalOpacity: 0,
+  thirdsOpacity: 0,
+  rhythmOpacity: 0,
+  crosshairOpacity: 0,
+  angleMarkOpacity: 0,
+
+  // Geometric arrays
+  cuboidArrayOpacity: 0,
+  cuboidArrayPhase: 0,           // global phase offset for precession
+  cuboidArrayY: 0,               // vertical position of the array
+
+  dotGridOpacity: 0,
+  radialLinesOpacity: 0,
+
+  // Background
+  bgWhiteOut: 0                  // 0=dark, 1=white
+};
+
+// GSAP timeline driven by ScrollTrigger
+const tl = gsap.timeline({
+  scrollTrigger: {
+    trigger: document.body,
+    start: 'top top',
+    end: 'bottom bottom',
+    scrub: 0.5,
+    onUpdate: (self) => {
+      state.sp = self.progress;
+
+      // Update all state values from the timeline's progress
+      // We use the timeline's totalProgress to drive sub-animations
+      updateStateFromProgress(self.progress);
+
+      // Update UI
+      document.getElementById('spValue').textContent = self.progress.toFixed(3);
+      updateActLabel(self.progress);
+    }
+  }
+});
+
+function updateActLabel(sp) {
+  const el = document.getElementById('actLabel');
+  if (sp < 0.40) el.textContent = '1 · 海洋 — 隐约结构';
+  else if (sp < 0.85) el.textContent = '2 · 网格过渡 — 秩序涌现';
+  else el.textContent = '3 · 内容 — 完整构成';
+}
+
+// Manual state interpolation based on scrollProgress
+// (simpler than individual GSAP tweens for this demo)
+function updateStateFromProgress(sp) {
+  // --- Act boundaries ---
+  const ACT1_END = 0.40;
+  const ACT2_START = 0.40;
+  const ACT2_MID = 0.55;    // white-out end
+  const ACT2_END = 0.85;
+  const ACT3_START = 0.85;
+
+  // Smoothstep helper
+  const smooth = t => t * t * (3 - 2 * t);
+
+  // --- Background white-out (0.40-0.55) ---
+  const wof = Math.max(0, Math.min(1, (sp - 0.40) / 0.15));
+  state.bgWhiteOut = wof;
+
+  // --- Construction lines ---
+  // Diagonal lines: start faint in Act 1, grow through Act 2, full in Act 3
+  const act1Fade = Math.max(0, Math.min(1, sp / 0.40));
+  state.diagonalOpacity = 0.03 + act1Fade * 0.05 + wof * 0.08;
+
+  // Thirds grid: appears during white-out
+  state.thirdsOpacity = Math.max(0, Math.min(1, (sp - 0.45) / 0.10)) * 0.12;
+
+  // Rhythm lines: appear in Act 2
+  state.rhythmOpacity = Math.max(0, Math.min(1, (sp - 0.50) / 0.15)) * 0.14;
+
+  // Crosshair: Act 3
+  state.crosshairOpacity = Math.max(0, Math.min(1, (sp - 0.85) / 0.08)) * 0.18;
+
+  // Angle marks: Act 3
+  state.angleMarkOpacity = Math.max(0, Math.min(1, (sp - 0.88) / 0.08)) * 0.15;
+
+  // --- Geometric arrays ---
+  // Cuboid array along horizontal curve: emerges in Act 2
+  state.cuboidArrayOpacity = Math.max(0, Math.min(1, (sp - 0.52) / 0.12));
+  // Phase precession: accelerates through scroll
+  state.cuboidArrayPhase += 0.003 * (1 + sp * 3);
+  // Y position: rises from bottom in Act 2, shifts up in Act 3
+  const act3Progress = Math.max(0, Math.min(1, (sp - ACT3_START) / 0.15));
+  state.cuboidArrayY = canvas.height * 0.72 - sp * canvas.height * 0.25;
+
+  // Dot grid: appears late Act 2
+  state.dotGridOpacity = Math.max(0, Math.min(1, (sp - 0.58) / 0.12)) * 0.5;
+
+  // Radial lines: Act 3 only
+  state.radialLinesOpacity = Math.max(0, Math.min(1, (sp - 0.88) / 0.08)) * 0.35;
+
+  // Update scene background
+  updateSceneBg(wof);
+}
+
+function updateSceneBg(wof) {
+  const bg = document.getElementById('sceneBg');
+  // Interpolate between dark and light
+  const r = Math.round(5 + wof * 236);
+  const g = Math.round(8 + wof * 237);
+  const b = Math.round(17 + wof * 232);
+  bg.style.background = `linear-gradient(180deg, rgb(${r},${g},${b}) 0%, rgb(${Math.min(255,r+10)},${Math.min(255,g+10)},${Math.min(255,b+20)}) 60%, #f1f5f9 85%, #e2e8f0 100%)`;
+
+  // Fade lighthouse
+  const lh = document.getElementById('lighthouse');
+  lh.style.opacity = Math.max(0, 0.6 - wof * 0.6);
+}
+
+// ============================================================
+//  RENDER LOOP — Canvas 2D drawing
+// ============================================================
+function drawConstructionLines() {
+  const w = canvas.width;
+  const h = canvas.height;
+
+  // --- Diagonal baselines ---
+  if (state.diagonalOpacity > 0.001) {
+    ctx.strokeStyle = `rgba(255,255,255,${state.diagonalOpacity.toFixed(3)})`;
+    ctx.lineWidth = 0.5;
+    // Main diagonal
+    ctx.beginPath();
+    ctx.moveTo(0, h);
+    ctx.lineTo(w, 0);
+    ctx.stroke();
+    // Counter diagonal (fainter)
+    ctx.strokeStyle = `rgba(255,255,255,${(state.diagonalOpacity * 0.4).toFixed(3)})`;
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.lineTo(w, h);
+    ctx.stroke();
+  }
+
+  // --- Thirds grid ---
+  if (state.thirdsOpacity > 0.001) {
+    ctx.strokeStyle = `rgba(255,255,255,${state.thirdsOpacity.toFixed(3)})`;
+    ctx.lineWidth = 0.3;
+    ctx.setLineDash([2, 8]);
+    // Vertical thirds
+    ctx.beginPath();
+    ctx.moveTo(w * 0.333, 0); ctx.lineTo(w * 0.333, h);
+    ctx.moveTo(w * 0.666, 0); ctx.lineTo(w * 0.666, h);
+    // Horizontal thirds
+    ctx.moveTo(0, h * 0.333); ctx.lineTo(w, h * 0.333);
+    ctx.moveTo(0, h * 0.666); ctx.lineTo(w, h * 0.666);
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
+  // --- Modular rhythm lines (horizontal) ---
+  if (state.rhythmOpacity > 0.001) {
+    ctx.strokeStyle = `rgba(255,255,255,${state.rhythmOpacity.toFixed(3)})`;
+    // Fibonacci-ish spacing
+    const spacings = [0.10, 0.18, 0.29, 0.47, 0.66, 0.78, 0.88];
+    spacings.forEach((frac, i) => {
+      ctx.lineWidth = 0.2 + (i % 3) * 0.15;
+      const y = h * frac;
+      const xStart = w * 0.08;
+      const xEnd = w * (0.85 + (i % 2) * 0.08);
+      ctx.beginPath();
+      ctx.moveTo(xStart, y);
+      ctx.lineTo(xEnd, y);
+      ctx.stroke();
+    });
+  }
+
+  // --- Crosshair ---
+  if (state.crosshairOpacity > 0.001) {
+    const cx = w * 0.5, cy = h * 0.45;
+    ctx.strokeStyle = `rgba(255,255,255,${state.crosshairOpacity.toFixed(3)})`;
+    ctx.lineWidth = 0.3;
+    ctx.beginPath();
+    ctx.moveTo(cx, cy - 25); ctx.lineTo(cx, cy + 25);
+    ctx.moveTo(cx - 25, cy); ctx.lineTo(cx + 25, cy);
+    ctx.stroke();
+    // Tiny center dot
+    ctx.fillStyle = `rgba(255,255,255,${(state.crosshairOpacity * 1.5).toFixed(3)})`;
+    ctx.beginPath();
+    ctx.arc(cx, cy, 2, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // --- Angle marks ---
+  if (state.angleMarkOpacity > 0.001) {
+    const cx = w * 0.5;
+    const cy = h * 0.82;
+    ctx.strokeStyle = `rgba(255,255,255,${state.angleMarkOpacity.toFixed(3)})`;
+    ctx.lineWidth = 0.3;
+    ctx.beginPath();
+    ctx.arc(cx, cy, 28, 0, Math.PI * 2);
+    ctx.stroke();
+    // Tick marks
+    for (let i = 0; i < 8; i++) {
+      const angle = (i / 8) * Math.PI * 2;
+      const inner = 24, outer = 30;
+      ctx.beginPath();
+      ctx.moveTo(cx + Math.cos(angle) * inner, cy + Math.sin(angle) * inner);
+      ctx.lineTo(cx + Math.cos(angle) * outer, cy + Math.sin(angle) * outer);
+      ctx.stroke();
+    }
+  }
+}
+
+function drawCuboidArray() {
+  if (state.cuboidArrayOpacity < 0.001) return;
+
+  const w = canvas.width;
+  const h = canvas.height;
+  const count = 18;
+
+  // Curve: gentle S-curve from left to right
+  const curveY = state.cuboidArrayY;
+  const startX = w * 0.08;
+  const endX = w * 0.92;
+
+  for (let i = 0; i < count; i++) {
+    const frac = i / (count - 1);
+    const x = startX + frac * (endX - startX);
+
+    // S-curve vertical offset
+    const curveOffset = Math.sin(frac * Math.PI * 1.6) * h * 0.04;
+    const y = curveY + curveOffset;
+
+    // Arithmetic phase difference for rotation
+    const phase = state.cuboidArrayPhase + i * 0.4;
+    const rotation = Math.sin(phase) * 0.35;
+
+    // Size gradient: smaller → larger
+    const boxW = 4 + frac * 10;
+    const boxH = 14 + frac * 8;
+
+    // Opacity gradient
+    const individualOpacity = state.cuboidArrayOpacity * (0.4 + frac * 0.6);
+
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(rotation);
+
+    // Fill
+    ctx.fillStyle = `rgba(200,200,210,${individualOpacity.toFixed(3)})`;
+    ctx.fillRect(-boxW / 2, -boxH / 2, boxW, boxH);
+
+    // Stroke
+    ctx.strokeStyle = `rgba(255,255,255,${(individualOpacity * 0.5).toFixed(3)})`;
+    ctx.lineWidth = 0.4;
+    ctx.strokeRect(-boxW / 2, -boxH / 2, boxW, boxH);
+
+    ctx.restore();
+  }
+}
+
+function drawDotGrid() {
+  if (state.dotGridOpacity < 0.001) return;
+
+  const w = canvas.width;
+  const h = canvas.height;
+  const cols = 18, rows = 10;
+  const gapX = w * 0.84 / cols;
+  const gapY = h * 0.6 / rows;
+  const offsetX = w * 0.08;
+  const offsetY = h * 0.2;
+
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const alpha = state.dotGridOpacity * (0.15 + (r / rows) * 0.5 + (c / cols) * 0.35);
+      const size = 0.6 + (c / cols) * 1.8;
+      const x = offsetX + c * gapX + gapX / 2;
+      const y = offsetY + r * gapY + gapY / 2;
+
+      ctx.fillStyle = `rgba(210,210,220,${alpha.toFixed(3)})`;
+      ctx.beginPath();
+      ctx.arc(x, y, size, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+}
+
+function drawRadialLines() {
+  if (state.radialLinesOpacity < 0.001) return;
+
+  const w = canvas.width;
+  const h = canvas.height;
+  // Center roughly where the star/sun would be in Act 3
+  const cx = w * 0.5;
+  const cy = h * 0.58;
+  const count = 36;
+
+  for (let i = 0; i < count; i++) {
+    const angle = (i / count) * Math.PI * 2;
+    const len = 60 + (i % 3) * 35;
+    const alpha = state.radialLinesOpacity * (0.3 + (i % 3) * 0.35);
+    const lw = 0.25 + (i % 3) * 0.2;
+
+    ctx.strokeStyle = `rgba(220,220,230,${alpha.toFixed(3)})`;
+    ctx.lineWidth = lw;
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+    ctx.lineTo(
+      cx + Math.cos(angle) * len,
+      cy + Math.sin(angle) * len
+    );
+    ctx.stroke();
+  }
+
+  // Center circle
+  ctx.strokeStyle = `rgba(255,255,255,${(state.radialLinesOpacity * 0.8).toFixed(3)})`;
+  ctx.lineWidth = 0.5;
+  ctx.beginPath();
+  ctx.arc(cx, cy, 8, 0, Math.PI * 2);
+  ctx.stroke();
+}
+
+function render() {
+  // Updated via GSAP ScrollTrigger, so we just draw each frame
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  drawConstructionLines();
+  drawCuboidArray();
+  drawDotGrid();
+  drawRadialLines();
+
+  requestAnimationFrame(render);
+}
+
+// Initialize state
+updateStateFromProgress(0);
+updateSceneBg(0);
+
+// Start render loop
+requestAnimationFrame(render);
+
+// ============================================================
+//  Handle resize
+// ============================================================
+window.addEventListener('resize', () => {
+  resize();
+  // Recalculate cuboid array Y for new height
+  updateStateFromProgress(state.sp);
+});
+</script>
+</body>
+</html>

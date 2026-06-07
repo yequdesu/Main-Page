@@ -1,0 +1,196 @@
+<h2>细化设计② — 几何阵列 &amp; 与场景的融合</h2>
+<p class="subtitle">灰调 · 阵列 · 秩序 · 进动 — 融入当前三幕结构</p>
+
+<div class="section">
+  <h3>几何阵列的类型</h3>
+  <p class="subtitle">不是孤立图形，而是成组出现——重复排列产生秩序感</p>
+</div>
+
+<!-- Array type 1: Cuboids along curve -->
+<div class="mockup" style="margin-bottom: 1rem;">
+  <div class="mockup-header">阵列① — 长方体沿曲线排布 + 等差相位自转</div>
+  <div class="mockup-body" style="background: #0f1117; padding: 1.5rem; min-height: 180px; position: relative; overflow: hidden;">
+    <canvas id="cuboidArray" width="700" height="180" style="width: 100%; height: 180px;"></canvas>
+    <script>
+    (function(){
+      const c = document.getElementById('cuboidArray');
+      if(!c) return;
+      const ctx = c.getContext('2d');
+      const w = c.width, h = c.height;
+      const t = Date.now() * 0.001;
+      ctx.clearRect(0,0,w,h);
+
+      // S-curve for array
+      const cx = w * 0.15, cy = h * 0.5;
+      const points = [];
+      for(let i = 0; i < 22; i++){
+        const frac = i / 21;
+        const x = cx + frac * w * 0.7;
+        const y = cy + Math.sin(frac * Math.PI * 1.8) * h * 0.35;
+        points.push({x, y, frac});
+      }
+
+      // Draw cuboids
+      points.forEach((p, i) => {
+        const phase = i * 0.35 + t * 0.4; // arithmetic phase difference
+        const rot = Math.sin(phase) * 0.4;
+        const ww = 6 + (i/21) * 8;  // gradient: smaller → larger
+        const hh = 18 + (i/21) * 6;
+        const alpha = 0.25 + (i/21) * 0.25; // opacity gradient
+
+        ctx.save();
+        ctx.translate(p.x, p.y);
+        ctx.rotate(rot);
+        ctx.fillStyle = `rgba(220,220,225,${alpha.toFixed(2)})`;
+        ctx.fillRect(-ww/2, -hh/2, ww, hh);
+        ctx.strokeStyle = `rgba(255,255,255,${(alpha*0.5).toFixed(2)})`;
+        ctx.lineWidth = 0.4;
+        ctx.strokeRect(-ww/2, -hh/2, ww, hh);
+        ctx.restore();
+      });
+
+      // annotation
+      ctx.fillStyle = '#666';
+      ctx.font = '10px sans-serif';
+      ctx.fillText('22个长方体 · 等差相位自转 · 尺寸递增', cx + 20, h - 12);
+    })();
+    </script>
+  </div>
+</div>
+
+<!-- Array type 2 & 3 -->
+<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
+  <div class="mockup" style="margin-bottom: 0;">
+    <div class="mockup-header">阵列② — 点阵沿网格骨骼排布</div>
+    <div class="mockup-body" style="background: #0f1117; padding: 1rem; min-height: 150px;">
+      <canvas id="dotGrid" width="320" height="150" style="width: 100%; height: 150px;"></canvas>
+      <script>
+      (function(){
+        const c = document.getElementById('dotGrid');
+        if(!c) return;
+        const ctx = c.getContext('2d');
+        ctx.clearRect(0,0,c.width,c.height);
+        const cols=16, rows=8, gapX=c.width/cols, gapY=c.height/rows;
+        for(let r=0;r<rows;r++){
+          for(let col=0;col<cols;col++){
+            const alpha = 0.08 + (r/rows)*0.2 + (col/cols)*0.1;
+            const size = 1 + (col/cols)*2;
+            ctx.fillStyle = `rgba(220,220,225,${alpha.toFixed(3)})`;
+            ctx.beginPath();
+            ctx.arc(col*gapX+gapX/2, r*gapY+gapY/2, size, 0, Math.PI*2);
+            ctx.fill();
+          }
+        }
+        ctx.fillStyle = '#444';
+        ctx.font = '8px sans-serif';
+        ctx.fillText('16×8点阵 · 双向密度渐变', 8, c.height-6);
+      })();
+      </script>
+    </div>
+  </div>
+  <div class="mockup" style="margin-bottom: 0;">
+    <div class="mockup-header">阵列③ — 线组沿径向发射</div>
+    <div class="mockup-body" style="background: #0f1117; padding: 1rem; min-height: 150px;">
+      <canvas id="radialLines" width="320" height="150" style="width: 100%; height: 150px;"></canvas>
+      <script>
+      (function(){
+        const c = document.getElementById('radialLines');
+        if(!c) return;
+        const ctx = c.getContext('2d');
+        ctx.clearRect(0,0,c.width,c.height);
+        const cx=c.width/2, cy=c.height/2;
+        for(let i=0;i<36;i++){
+          const angle = (i/36)*Math.PI*2;
+          const len = 40 + (i%3)*25;
+          const alpha = 0.06 + (i%3)*0.08;
+          ctx.strokeStyle = `rgba(220,220,225,${alpha.toFixed(3)})`;
+          ctx.lineWidth = 0.3 + (i%3)*0.2;
+          ctx.beginPath();
+          ctx.moveTo(cx, cy);
+          ctx.lineTo(cx+Math.cos(angle)*len, cy+Math.sin(angle)*len);
+          ctx.stroke();
+        }
+        ctx.fillStyle = '#444';
+        ctx.font = '8px sans-serif';
+        ctx.fillText('36线 · 3组粗细交替 · 径向发射', 6, c.height-6);
+      })();
+      </script>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>与三幕场景的融合方案</h3>
+</div>
+
+<!-- Act-by-act integration mockup -->
+<div class="mockup" style="margin-bottom: 1rem;">
+  <div class="mockup-header">各 Act 的叠加层行为</div>
+  <div class="mockup-body" style="background: #0f1117; padding: 0.8rem;">
+
+    <div style="background: #141820; border-radius: 6px; padding: 0.8rem; margin-bottom: 0.6rem; border-left: 2px solid #1e3a5f;">
+      <h4 style="color: #94a3b8; margin: 0 0 0.4rem; font-size: 0.75rem;">Act 1 · 海洋 (0.00–0.45) — 微弱显现</h4>
+      <div style="display: flex; gap: 0.8rem; align-items: flex-start;">
+        <div style="flex: 1; font-size: 0.62rem; color: #888; line-height: 1.6;">
+          <p style="margin:0; color: #aaa; font-weight: 700;">场景状态：暗蓝色深海，有机波浪，光束旋转</p>
+          <p style="margin: 3px 0;">
+            <span style="color:#666;">构造线：</span>仅两条极淡对角基线 (opacity 0.03→0.08)<br>
+            <span style="color:#666;">几何阵列：</span>无<br>
+            <span style="color:#666;">逻辑：</span>"秩序尚未诞生，仅有隐约的结构暗示"
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <div style="background: #141820; border-radius: 6px; padding: 0.8rem; margin-bottom: 0.6rem; border-left: 2px solid #475569;">
+      <h4 style="color: #cbd5e1; margin: 0 0 0.4rem; font-size: 0.75rem;">Act 2 · 网格过渡 (0.40–0.85) — 秩序涌现</h4>
+      <div style="font-size: 0.62rem; color: #888; line-height: 1.6;">
+        <p style="margin:0; color: #aaa; font-weight: 700;">场景状态：白出过渡，波浪→网格，垂直网格线</p>
+        <p style="margin: 3px 0;">
+          <span style="color:#666;">构造线：</span>模数节奏线逐步出现 (opacity 0→0.15)，三分法则线在 0.55 显现<br>
+          <span style="color:#666;">几何阵列：</span>①长方体阵列沿底部水平线出现，相位差自转启动 ②点阵在网格交叉点浮现<br>
+          <span style="color:#666;">逻辑：</span>"随着白出，秩序从混沌中浮现——线→网格→阵列"
+        </p>
+      </div>
+    </div>
+
+    <div style="background: #141820; border-radius: 6px; padding: 0.8rem; border-left: 2px solid #e2e8f0;">
+      <h4 style="color: #f1f5f9; margin: 0 0 0.4rem; font-size: 0.75rem;">Act 3 · 内容 (0.85–1.00) — 完整构成</h4>
+      <div style="font-size: 0.62rem; color: #888; line-height: 1.6;">
+        <p style="margin:0; color: #aaa; font-weight: 700;">场景状态：轨道环、行星、星体、标签文字</p>
+        <p style="margin: 3px 0;">
+          <span style="color:#666;">构造线：</span>全系统激活——对角基线 + 三分法则 + 模数节奏 + 十字准星<br>
+          <span style="color:#666;">几何阵列：</span>①长方体阵列沿轨道外缘曲线排布，等差相位缓慢自转 ②径向线组从星体向外发射 ③角标标记行星位置<br>
+          <span style="color:#666;">逻辑：</span>"秩序成熟——构造线+阵列+3D轨道形成完整的构成画面"
+        </p>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<div class="section">
+  <h3>色调约束</h3>
+</div>
+
+<div style="background: #141820; border-radius: 6px; padding: 1rem; display: flex; gap: 1rem; align-items: center; flex-wrap: wrap;">
+  <div style="display: flex; gap: 4px; align-items: flex-end;">
+    <div style="width: 24px; height: 24px; background: #ffffff; border-radius: 2px; border: 1px solid #333;"></div>
+    <div style="width: 24px; height: 24px; background: #d0d0d5; border-radius: 2px;"></div>
+    <div style="width: 24px; height: 24px; background: #a0a0a8; border-radius: 2px;"></div>
+    <div style="width: 24px; height: 24px; background: #707078; border-radius: 2px;"></div>
+    <div style="width: 24px; height: 24px; background: #484850; border-radius: 2px;"></div>
+    <div style="width: 24px; height: 24px; background: #282830; border-radius: 2px;"></div>
+    <div style="width: 24px; height: 24px; background: #141418; border-radius: 2px;"></div>
+    <div style="width: 24px; height: 24px; background: #0a0a0e; border-radius: 2px;"></div>
+  </div>
+  <div style="font-size: 0.65rem; color: #888;">
+    <strong style="color: #ccc;">纯灰阶：</strong>#fff → #0a0a0e<br>
+    <span style="color: #666;">无饱和度 · 无高明度色相 · 色彩点缀后续设计</span>
+  </div>
+</div>
+
+<hr style="border-color: #333; margin: 1rem 0;">
+
+<h3>确认</h3>
+<p style="color: #aaa; font-size: 0.72rem;">这个阵列语言和三幕融合方案符合你的想象吗？特别是 Act 2 的"秩序涌现"和 Act 3 的"完整构成"——这个节奏对吗？</p>

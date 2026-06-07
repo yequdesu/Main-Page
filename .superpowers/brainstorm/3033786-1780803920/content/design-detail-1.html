@@ -1,0 +1,156 @@
+<h2>细化设计① — 构造线系统 &amp; 几何形语言</h2>
+<p class="subtitle">叠加层的基础视觉词汇</p>
+
+<div class="section">
+  <h3>一、构造线系统</h3>
+  <p class="subtitle">贯穿全动画的"骨骼"——不是装饰，是秩序本身的可视化</p>
+</div>
+
+<div class="mockup" style="margin-bottom: 1.2rem;">
+  <div class="mockup-header">构造线类型</div>
+  <div class="mockup-body" style="background: #0f1117; padding: 1.5rem; position: relative; min-height: 240px;">
+    <svg width="100%" height="220" style="position: absolute; inset: 0;">
+      <!-- 1. Diagonal construction lines -->
+      <line x1="0%" y1="100%" x2="100%" y2="0%" stroke="rgba(204,51,51,0.25)" stroke-width="0.5"/>
+      <line x1="0%" y1="0%" x2="100%" y2="100%" stroke="rgba(255,255,255,0.06)" stroke-width="0.3"/>
+      <!-- 2. Rule of thirds -->
+      <line x1="33.3%" y1="0%" x2="33.3%" y2="100%" stroke="rgba(255,255,255,0.08)" stroke-width="0.3" stroke-dasharray="2,6"/>
+      <line x1="66.6%" y1="0%" x2="66.6%" y2="100%" stroke="rgba(255,255,255,0.08)" stroke-width="0.3" stroke-dasharray="2,6"/>
+      <line x1="0%" y1="33.3%" x2="100%" y2="33.3%" stroke="rgba(255,255,255,0.08)" stroke-width="0.3" stroke-dasharray="2,6"/>
+      <line x1="0%" y1="66.6%" x2="100%" y2="66.6%" stroke="rgba(255,255,255,0.08)" stroke-width="0.3" stroke-dasharray="2,6"/>
+      <!-- 3. Modular rhythm lines — horizontal -->
+      <line x1="10%" y1="15%" x2="90%" y2="15%" stroke="rgba(255,255,255,0.1)" stroke-width="0.5"/>
+      <line x1="10%" y1="25%" x2="85%" y2="25%" stroke="rgba(255,255,255,0.06)" stroke-width="0.3"/>
+      <line x1="10%" y1="45%" x2="90%" y2="45%" stroke="rgba(255,255,255,0.1)" stroke-width="0.5"/>
+      <line x1="10%" y1="55%" x2="80%" y2="55%" stroke="rgba(255,255,255,0.06)" stroke-width="0.3"/>
+      <line x1="10%" y1="75%" x2="90%" y2="75%" stroke="rgba(255,255,255,0.1)" stroke-width="0.5"/>
+      <line x1="10%" y1="85%" x2="88%" y2="85%" stroke="rgba(255,255,255,0.06)" stroke-width="0.3"/>
+      <!-- 4. Center crosshair -->
+      <line x1="50%" y1="40%" x2="50%" y2="60%" stroke="rgba(204,51,51,0.15)" stroke-width="0.3"/>
+      <line x1="45%" y1="50%" x2="55%" y2="50%" stroke="rgba(204,51,51,0.15)" stroke-width="0.3"/>
+      <!-- 5. Angle marks at bottom -->
+      <circle cx="50%" cy="88%" r="15" fill="none" stroke="rgba(255,255,255,0.06)" stroke-width="0.3"/>
+      <line x1="50%" y1="88%" x2="65%" y2="88%" stroke="rgba(255,255,255,0.08)" stroke-width="0.3"/>
+    </svg>
+
+    <!-- Labels -->
+    <div style="position: absolute; top: 8px; left: 12px; color: #cc3333; font-size: 0.55rem; font-weight: 700;">① 对角基线</div>
+    <div style="position: absolute; top: 30px; right: 15px; color: #666; font-size: 0.5rem;">② 三分法则</div>
+    <div style="position: absolute; bottom: 30px; left: 15px; color: #666; font-size: 0.5rem;">③ 模数节奏线</div>
+    <div style="position: absolute; bottom: 15px; right: 20px; color: #555; font-size: 0.5rem;">⑤ 角度标记</div>
+    <div style="position: absolute; top: 48%; left: 48%; color: #444; font-size: 0.45rem;">④ 十字准星</div>
+  </div>
+</div>
+
+<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1.2rem;">
+  <div>
+    <h4 style="color: #e2e8f0; font-size: 0.78rem;">线的构成原则</h4>
+    <ul style="font-size: 0.68rem; color: #aaa; line-height: 1.8;">
+      <li><strong>粗细对比</strong> — 0.3px ∼ 1px 之间变化，产生层级</li>
+      <li><strong>疏密节奏</strong> — 模数线间距递增/递减（斐波那契比例可选）</li>
+      <li><strong>虚实交替</strong> — 实线 + 虚线组合</li>
+      <li><strong>透明度分层</strong> — 0.04 ∼ 0.25 opacity，最深的不超过 30%</li>
+    </ul>
+  </div>
+  <div>
+    <h4 style="color: #e2e8f0; font-size: 0.78rem;">颜色策略</h4>
+    <ul style="font-size: 0.68rem; color: #aaa; line-height: 1.8;">
+      <li><strong>白色线</strong> — 通用结构（opacity 0.04-0.12）</li>
+      <li><strong>红色强调线</strong> — 关键对角线/交点（opacity 0.15-0.25）</li>
+      <li>参考色：<span style="color:#cc3333;">■ #cc3333</span> · <span style="color:#888;">■ #888888</span></li>
+    </ul>
+  </div>
+</div>
+
+<div class="section">
+  <h3>二、几何形语言</h3>
+  <p class="subtitle">叠加的"面"——出现在关键位置，形成视觉锚点</p>
+</div>
+
+<div class="mockup" style="margin-bottom: 1.2rem;">
+  <div class="mockup-header">几何形词汇表</div>
+  <div class="mockup-body" style="background: #0f1117; padding: 1.2rem; display: flex; gap: 1.5rem; align-items: center; justify-content: center; flex-wrap: wrap;">
+    <!-- Rectangle -->
+    <div style="text-align: center;">
+      <div style="width: 28px; height: 28px; border: 1px solid rgba(255,255,255,0.35); margin: 0 auto 4px;"></div>
+      <span style="color: #999; font-size: 0.5rem;">矩形框</span>
+    </div>
+    <!-- Filled rectangle -->
+    <div style="text-align: center;">
+      <div style="width: 22px; height: 22px; background: rgba(204,51,51,0.3); margin: 0 auto 4px;"></div>
+      <span style="color: #999; font-size: 0.5rem;">色块</span>
+    </div>
+    <!-- Triangle -->
+    <div style="text-align: center;">
+      <div style="width: 0; height: 0; border-left: 12px solid transparent; border-right: 12px solid transparent; border-bottom: 22px solid rgba(255,255,255,0.2); margin: 0 auto 4px;"></div>
+      <span style="color: #999; font-size: 0.5rem;">三角</span>
+    </div>
+    <!-- Circle -->
+    <div style="text-align: center;">
+      <div style="width: 20px; height: 20px; border: 1px solid rgba(255,255,255,0.3); border-radius: 50%; margin: 0 auto 4px;"></div>
+      <span style="color: #999; font-size: 0.5rem;">圆形</span>
+    </div>
+    <!-- Dot grid -->
+    <div style="text-align: center;">
+      <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 3px; width: 24px; margin: 0 auto 4px;">
+        <div style="width:3px;height:3px;background:rgba(255,255,255,0.4);border-radius:50%;"></div>
+        <div style="width:3px;height:3px;background:rgba(255,255,255,0.4);border-radius:50%;"></div>
+        <div style="width:3px;height:3px;background:rgba(255,255,255,0.4);border-radius:50%;"></div>
+        <div style="width:3px;height:3px;background:rgba(255,255,255,0.4);border-radius:50%;"></div>
+        <div style="width:3px;height:3px;background:rgba(255,255,255,0.4);border-radius:50%;"></div>
+        <div style="width:3px;height:3px;background:rgba(255,255,255,0.4);border-radius:50%;"></div>
+        <div style="width:3px;height:3px;background:rgba(255,255,255,0.4);border-radius:50%;"></div>
+        <div style="width:3px;height:3px;background:rgba(255,255,255,0.4);border-radius:50%;"></div>
+        <div style="width:3px;height:3px;background:rgba(255,255,255,0.4);border-radius:50%;"></div>
+      </div>
+      <span style="color: #999; font-size: 0.5rem;">点阵</span>
+    </div>
+    <!-- Angle bracket -->
+    <div style="text-align: center;">
+      <div style="width: 20px; height: 20px; border-left: 1px solid rgba(255,255,255,0.3); border-bottom: 1px solid rgba(255,255,255,0.3); margin: 0 auto 4px;"></div>
+      <span style="color: #999; font-size: 0.5rem;">角标</span>
+    </div>
+    <!-- Line group -->
+    <div style="text-align: center;">
+      <div style="display: flex; flex-direction: column; gap: 2px; width: 24px; margin: 0 auto 4px;">
+        <div style="height:1px;background:rgba(255,255,255,0.5);width:100%;"></div>
+        <div style="height:1px;background:rgba(255,255,255,0.3);width:80%;"></div>
+        <div style="height:1px;background:rgba(255,255,255,0.15);width:60%;"></div>
+      </div>
+      <span style="color: #999; font-size: 0.5rem;">线组（渐变）</span>
+    </div>
+    <!-- Cross mark -->
+    <div style="text-align: center;">
+      <div style="position: relative; width: 16px; height: 16px; margin: 0 auto 4px;">
+        <div style="position:absolute;top:50%;left:0;right:0;height:1px;background:rgba(255,255,255,0.35);"></div>
+        <div style="position:absolute;left:50%;top:0;bottom:0;width:1px;background:rgba(255,255,255,0.35);"></div>
+      </div>
+      <span style="color: #999; font-size: 0.5rem;">十字标</span>
+    </div>
+  </div>
+</div>
+
+<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
+  <div>
+    <h4 style="color: #e2e8f0; font-size: 0.78rem;">几何形的构成法则</h4>
+    <ul style="font-size: 0.68rem; color: #aaa; line-height: 1.8;">
+      <li><strong>重复</strong> — 同形元素以规律间距重复出现</li>
+      <li><strong>渐变</strong> — 大小/透明度/间距逐步变化</li>
+      <li><strong>对比</strong> — 框 vs 实心、大 vs 小、直 vs 斜</li>
+      <li><strong>特异</strong> — 在规律中出现一个例外（红色方块）</li>
+    </ul>
+  </div>
+  <div>
+    <h4 style="color: #e2e8f0; font-size: 0.78rem;">后效果（可选强化）</h4>
+    <ul style="font-size: 0.68rem; color: #aaa; line-height: 1.8;">
+      <li><strong>局部反色</strong> — 在几何形内翻转下方 3D 场景颜色</li>
+      <li><strong>叠加混合</strong> — Multiply / Screen 模式融入底层</li>
+      <li><strong>半透遮罩</strong> — 大面积低透明度几何形统一色调</li>
+    </ul>
+  </div>
+</div>
+
+<hr style="border-color: #333; margin: 1rem 0;">
+
+<h3>先确认：这些视觉词汇和原则</h3>
+<p style="color: #aaa; font-size: 0.72rem;">下一屏会讲每个 Act 中这些元素如何出现和演变。这个视觉语言方向对吗？有需要调整的元素吗？</p>

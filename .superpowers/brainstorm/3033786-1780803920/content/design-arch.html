@@ -1,0 +1,107 @@
+<h2>设计方案：平面构成叠加层</h2>
+<p class="subtitle">在现有 3D 场景之上，新增一个平面设计层 — 构造骨骼 + 几何元素 + 后效果</p>
+
+<div class="section">
+  <h3>架构：两图层分离</h3>
+</div>
+
+<div style="background: #1a1a1a; border-radius: 8px; padding: 1.5rem; text-align: center; position: relative;">
+  <!-- Z-stack visualization -->
+  <div style="position: relative; height: 260px; max-width: 380px; margin: 0 auto; perspective: 400px;">
+
+    <!-- Layer 3: 2D Composition Overlay (top) -->
+    <div style="position: absolute; inset: 0; z-index: 3; background: rgba(255,255,255,0.03); border: 2px solid #cc3333; border-radius: 6px; transform: translateZ(30px); display: flex; flex-direction: column; align-items: center; justify-content: center;">
+      <span style="color: #cc3333; font-weight: 700; font-size: 0.85rem; letter-spacing: 0.05em; margin-bottom: 8px;">平面构成叠加层</span>
+      <span style="color: #999; font-size: 0.6rem;">Canvas / CSS · 构造线 · 几何形 · 反色 · 排版</span>
+      <!-- Decorative elements -->
+      <div style="position: absolute; top: 12px; left: 15px; width: 20px; height: 1.5px; background: #cc3333;"></div>
+      <div style="position: absolute; top: 8px; right: 20px; width: 8px; height: 8px; border: 1.5px solid #cc3333;"></div>
+      <div style="position: absolute; bottom: 15px; left: 25px; width: 10px; height: 10px; background: #cc3333; opacity: 0.5;"></div>
+      <div style="position: absolute; bottom: 12px; right: 30px; width: 15px; height: 1px; background: #888;"></div>
+    </div>
+
+    <!-- Layer 2: 3D Scene (middle, slightly transparent to show it's behind) -->
+    <div style="position: absolute; inset: 8px; z-index: 2; background: linear-gradient(135deg, rgba(15,23,42,0.9), rgba(30,41,59,0.7), rgba(241,245,249,0.4)); border-radius: 4px; transform: translateZ(15px); display: flex; align-items: center; justify-content: center; border: 1px solid rgba(255,255,255,0.1);">
+      <span style="color: rgba(255,255,255,0.6); font-size: 0.7rem;">3D Three.js 场景</span>
+    </div>
+
+    <!-- Layer 1: Background (bottom) -->
+    <div style="position: absolute; inset: 16px; z-index: 1; background: #0a0f18; border-radius: 3px; transform: translateZ(0);"></div>
+
+  </div>
+
+  <!-- Depth indicator arrows -->
+  <div style="display: flex; justify-content: space-between; max-width: 400px; margin: 0.5rem auto 0; color: #666; font-size: 0.55rem;">
+    <span>← 纵深 (Z)</span>
+    <span style="color: #cc3333;">叠加层 (最前)</span>
+  </div>
+</div>
+
+<div class="section" style="margin-top: 1.5rem;">
+  <h3>叠加层核心元素</h3>
+</div>
+
+<div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.8rem; margin-bottom: 1rem;">
+
+  <div style="background: #1a1a1a; border-radius: 6px; padding: 1rem; text-align: center;">
+    <div style="font-size: 1.5rem; margin-bottom: 0.5rem;">📏</div>
+    <h4 style="color: #e2e8f0; margin: 0 0 0.3rem;">构造线</h4>
+    <p style="color: #888; font-size: 0.6rem; margin: 0;">对角辅助线 · 黄金分割 · 模数网格 · 比例标记 · 准星记号</p>
+  </div>
+
+  <div style="background: #1a1a1a; border-radius: 6px; padding: 1rem; text-align: center;">
+    <div style="font-size: 1.5rem; margin-bottom: 0.5rem;">⬛</div>
+    <h4 style="color: #e2e8f0; margin: 0 0 0.3rem;">几何形</h4>
+    <p style="color: #888; font-size: 0.6rem; margin: 0;">矩形 · 三角 · 圆 · 点阵 · 线组 · 正负形切换</p>
+  </div>
+
+  <div style="background: #1a1a1a; border-radius: 6px; padding: 1rem; text-align: center;">
+    <div style="font-size: 1.5rem; margin-bottom: 0.5rem;">🔄</div>
+    <h4 style="color: #e2e8f0; margin: 0 0 0.3rem;">后效果</h4>
+    <p style="color: #888; font-size: 0.6rem; margin: 0;">局部反色 · 混合模式 · 色彩滤镜 · 透明度叠化</p>
+  </div>
+
+</div>
+
+<div>
+  <h3>设计原则</h3>
+  <table style="width: 100%; font-size: 0.75rem; border-collapse: collapse;">
+    <tr style="border-bottom: 1px solid #222;">
+      <td style="padding: 0.5rem 0; color: #cc3333; font-weight: 700; width: 100px;">不喧宾夺主</td>
+      <td style="padding: 0.5rem 0; color: #ccc;">叠加层是"骨架"，3D 场景仍是主体。线条纤细，几何形半透明，仅起结构暗示作用</td>
+    </tr>
+    <tr style="border-bottom: 1px solid #222;">
+      <td style="padding: 0.5rem 0; color: #cc3333; font-weight: 700;">随滚动演化</td>
+      <td style="padding: 0.5rem 0; color: #ccc;">构造元素随 Act 1→2→3 变换——出现/消失/重组，与 3D 场景的秩序递增同步</td>
+    </tr>
+    <tr style="border-bottom: 1px solid #222;">
+      <td style="padding: 0.5rem 0; color: #cc3333; font-weight: 700;">构成逻辑先行</td>
+      <td style="padding: 0.5rem 0; color: #ccc;">每条线、每个几何形都有构成逻辑——重复/渐变/对比/发射——不是随机装饰</td>
+    </tr>
+    <tr>
+      <td style="padding: 0.5rem 0; color: #cc3333; font-weight: 700;">颜色克制</td>
+      <td style="padding: 0.5rem 0; color: #ccc;">只用黑/白/灰 + 单一强调色（深红或暖金），与现有场景色调协调</td>
+    </tr>
+  </table>
+</div>
+
+<hr style="border-color: #333; margin: 1.2rem 0;">
+
+<h3>先确认大方向</h3>
+
+<div class="options">
+  <div class="option" data-choice="go-ahead" onclick="toggleSelect(this)">
+    <div class="letter">✓</div>
+    <div class="content">
+      <h3>方向正确，继续细化</h3>
+      <p>进入具体元素设计：构造线系统 / 几何形语言 / 各 Act 的叠加层行为</p>
+    </div>
+  </div>
+  <div class="option" data-choice="adjust" onclick="toggleSelect(this)">
+    <div class="letter">△</div>
+    <div class="content">
+      <h3>方向对但有调整</h3>
+      <p>我需要补充或修正某些方面</p>
+    </div>
+  </div>
+</div>
