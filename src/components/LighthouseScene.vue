@@ -354,7 +354,7 @@ function buildLighthouse() {
   lighthouseGroup.add(spireTip)
 
   // 关键优化：调整灯塔位置至 SCENE_CENTER_Z，使其处于公转轨道的中心
-  lighthouseGroup.position.set(0,-2.3,SCENE_CENTER_Z)
+  lighthouseGroup.position.set(0,-2.5,SCENE_CENTER_Z)
   lighthouseGroup.scale.setScalar(0.7)
   scene.add(lighthouseGroup)
 }
