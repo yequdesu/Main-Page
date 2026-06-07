@@ -329,6 +329,6 @@ onUnmounted(() => {
   margin-bottom: -0.08em;
   vertical-align: baseline;
   object-fit: contain;
-  transform: translateY(-10px);
+  transform: translateY(-6px);
 }
 </style>
