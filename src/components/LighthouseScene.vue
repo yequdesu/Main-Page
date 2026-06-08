@@ -34,8 +34,13 @@ const SCENE_CENTER_Z      = -16.0
 // ============================================================
 //  ACT 3 CONSTANTS
 // ============================================================
-const ORBIT_COUNT = 3
-const ORBIT_RADII = [3.6, 5.0, 6.4]
+const ORBIT_COUNT = 4
+const ORBIT_RADII = [3.6, 5.0, 6.4, 22.0]
+// Elliptical orbit for 4th (menu) planet
+const ELLIPSE_A = 22.0, ELLIPSE_E = 0.65
+const ELLIPSE_B = ELLIPSE_A * Math.sqrt(1 - ELLIPSE_E * ELLIPSE_E)
+const ELLIPSE_C = ELLIPSE_A * ELLIPSE_E
+const ELLIPSE_INCL = 0.45
 let _mainPlanetIndices = []
 
 // ============================================================
@@ -486,9 +491,11 @@ function buildDust() {
     if (isMain) {
       const trackIdx = _mainPlanetIndices.indexOf(i)
       p.userData.orbitR     = ORBIT_RADII[trackIdx]
-      p.userData.orbitSpeed = -0.04 - trackIdx * 0.015
+      // 4th planet (menu): smaller, slower, distant orbit
+      const isMenu = trackIdx === 3
+      p.userData.orbitSpeed = isMenu ? -0.015 : (-0.04 - trackIdx * 0.015)
       p.userData._baseSpeed = p.userData.orbitSpeed
-      p.userData.scaleMult  = 2.4 + trackIdx * 0.2
+      p.userData.scaleMult  = isMenu ? 2.8 : (2.4 + trackIdx * 0.2)
       p.name = `planet_${trackIdx}`
     } else {
       p.userData.orbitR     = 2.5 + Math.random() * 4.5
@@ -713,9 +720,20 @@ function animateDust(time, sp) {
     d.orbitAngle += dt * effectiveSpeed
 
     const wobbleR = d.isMainPlanet ? d.orbitR : d.orbitR + Math.sin(time * d.wobbleFreq + d.ph) * d.wobbleAmp
-    const ox = cx + Math.cos(d.orbitAngle) * wobbleR
-    const oy = cy
-    const oz = cz + Math.sin(d.orbitAngle) * wobbleR
+    let ox, oy, oz
+    if (d.isMainPlanet && d.orbitR > 20) {
+      // Elliptical orbit (menu planet): star at focus, inclined
+      const a = ELLIPSE_A, b = ELLIPSE_B, c = ELLIPSE_C
+      const ex = a * Math.cos(d.orbitAngle) - c
+      const ez = b * Math.sin(d.orbitAngle)
+      ox = cx + ex
+      oy = cy + ez * Math.sin(ELLIPSE_INCL)
+      oz = cz + ez * Math.cos(ELLIPSE_INCL)
+    } else {
+      ox = cx + Math.cos(d.orbitAngle) * wobbleR
+      oy = cy
+      oz = cz + Math.sin(d.orbitAngle) * wobbleR
+    }
 
     p.position.set(
       THREE.MathUtils.lerp(bx, ox, smoothProgress3),
@@ -809,8 +827,9 @@ function updateCameraFocus(sp, time) {
     _camToStar.subVectors(_starPos, planet.position).normalize()
     _camLeftDir.crossVectors(_camUp, _camToStar).normalize()
 
-    const behindDist = 2.5
-    const sideDist = 2.2
+    const isMenu = (planet.userData.orbitR || 0) > 20
+    const behindDist = isMenu ? 3.2 : 2.5
+    const sideDist = isMenu ? 2.8 : 2.2
     const orbitR = planet.userData.orbitR || 4.5
 
     _focusAxisPoint.copy(planet.position)
@@ -874,7 +893,7 @@ function updateCameraFocus(sp, time) {
       const _getPS = (sp, r, oc) => {
         _vCamToPlanet.subVectors(camera.position, sp)
         const d = _vCamToPlanet.length()
-        if (d <= r) { toScreen(sp, oc); return 0 }
+        if (d <= r) { toScreen(sp, oc); return { rx: 0, ry: 0 } }
         _vCamToPlanet.divideScalar(d)
         _uRight.set(1,0,0).applyQuaternion(camera.quaternion)
         const dr = _uRight.dot(_vCamToPlanet)
@@ -891,25 +910,26 @@ function updateCameraFocus(sp, time) {
         toScreen(_tRight,_ssTRight); toScreen(_tLeft,_ssTLeft)
         toScreen(_tTop,_ssTTop); toScreen(_tBottom,_ssTBottom)
         oc.x=(_ssTRight.x+_ssTLeft.x)*0.5; oc.y=(_ssTTop.y+_ssTBottom.y)*0.5
-        return (_ssTRight.distanceTo(_ssTLeft)+_ssTTop.distanceTo(_ssTBottom))*0.25
+        return { rx: _ssTRight.distanceTo(_ssTLeft)*0.5, ry: _ssTTop.distanceTo(_ssTBottom)*0.5 }
       }
 
-      const starSR = _getPS(_starPos, 0.42, _ssStar)
+      const starRes = _getPS(_starPos, 0.42, _ssStar)
       planet.updateMatrixWorld(true)
       planet.getWorldPosition(_planetWorldPos)
-      const planetSR = _getPS(_planetWorldPos, 0.015*planet.scale.x, _ssPlanet)
+      const planetRes = _getPS(_planetWorldPos, 0.015*planet.scale.x, _ssPlanet)
 
-      const starDR = starSR + 8, planetDR = planetSR + 6
+      const starDRX = starRes.rx + 8, starDRY = starRes.ry + 8
+      const planetDRX = planetRes.rx + 6, planetDRY = planetRes.ry + 6
       const dx = _ssPlanet.x-_ssStar.x, dy = _ssPlanet.y-_ssStar.y
       const dist = Math.hypot(dx,dy), theta = Math.atan2(dy,dx)
-      const dr = starDR-planetDR
-      const phi = dist>Math.abs(dr) ? Math.asin(dr/dist) : 0
+      const drVal = starDRX-planetDRX
+      const phi = (dist > Math.abs(drVal) && isFinite(dist)) ? Math.asin(Math.max(-1, Math.min(1, drVal/dist))) : 0
       const a1 = theta+Math.PI/2-phi, a2 = theta-Math.PI/2+phi
 
-      const ts1x=_ssStar.x+starDR*Math.cos(a1), ts1y=_ssStar.y+starDR*Math.sin(a1)
-      const ts2x=_ssStar.x+starDR*Math.cos(a2), ts2y=_ssStar.y+starDR*Math.sin(a2)
-      const tp1x=_ssPlanet.x+planetDR*Math.cos(a1), tp1y=_ssPlanet.y+planetDR*Math.sin(a1)
-      const tp2x=_ssPlanet.x+planetDR*Math.cos(a2), tp2y=_ssPlanet.y+planetDR*Math.sin(a2)
+      const ts1x=_ssStar.x+starDRX*Math.cos(a1), ts1y=_ssStar.y+starDRY*Math.sin(a1)
+      const ts2x=_ssStar.x+starDRX*Math.cos(a2), ts2y=_ssStar.y+starDRY*Math.sin(a2)
+      const tp1x=_ssPlanet.x+planetDRX*Math.cos(a1), tp1y=_ssPlanet.y+planetDRY*Math.sin(a1)
+      const tp2x=_ssPlanet.x+planetDRX*Math.cos(a2), tp2y=_ssPlanet.y+planetDRY*Math.sin(a2)
 
       const tdx1=tp1x-ts1x, tdy1=tp1y-ts1y, tl1=Math.hypot(tdx1,tdy1)||1
       const tdx2=tp2x-ts2x, tdy2=tp2y-ts2y, tl2=Math.hypot(tdx2,tdy2)||1
@@ -929,7 +949,7 @@ function updateCameraFocus(sp, time) {
       invCtx.beginPath()
       invCtx.moveTo(es1x, es1y)
       invCtx.lineTo(ts1x, ts1y)
-      invCtx.arc(_ssStar.x, _ssStar.y, starDR, a1, a2, false)
+      invCtx.ellipse(_ssStar.x, _ssStar.y, starDRX, starDRY, 0, a1, a2, false)
       invCtx.lineTo(es2x, es2y)
       invCtx.closePath()
       invCtx.fill()
@@ -938,7 +958,7 @@ function updateCameraFocus(sp, time) {
       invCtx.beginPath()
       invCtx.moveTo(ep2x, ep2y)
       invCtx.lineTo(tp2x, tp2y)
-      invCtx.arc(_ssPlanet.x, _ssPlanet.y, planetDR, a2, a1, false)
+      invCtx.ellipse(_ssPlanet.x, _ssPlanet.y, planetDRX, planetDRY, 0, a2, a1, false)
       invCtx.lineTo(ep1x, ep1y)
       invCtx.closePath()
       invCtx.fill()
@@ -1070,7 +1090,7 @@ function updateCameraFocus(sp, time) {
       function getPreciseProjectedSphere(sphereWorldPos, radius, outScreenCenter) {
         _vCamToPlanet.subVectors(camera.position, sphereWorldPos)
         const d = _vCamToPlanet.length()
-        if (d <= radius) { toScreen(sphereWorldPos, outScreenCenter); return 0 }
+        if (d <= radius) { toScreen(sphereWorldPos, outScreenCenter); return { rx: 0, ry: 0 } }
         _vCamToPlanet.divideScalar(d)
 
         _uRight.set(1, 0, 0).applyQuaternion(camera.quaternion)
@@ -1099,33 +1119,34 @@ function updateCameraFocus(sp, time) {
         outScreenCenter.y = (_ssTTop.y + _ssTBottom.y) * 0.5
         const radiusX = _ssTRight.distanceTo(_ssTLeft) * 0.5
         const radiusY = _ssTTop.distanceTo(_ssTBottom) * 0.5
-        return (radiusX + radiusY) * 0.5
+        return { rx: radiusX, ry: radiusY }
       }
 
       // 获取恒星及行星精确数据
-      const starSR = getPreciseProjectedSphere(_starPos, 0.42, _ssStar)
+      const starRes = getPreciseProjectedSphere(_starPos, 0.42, _ssStar)
 
       planet.updateMatrixWorld(true)
       planet.getWorldPosition(_planetWorldPos)
-      const planetSR = getPreciseProjectedSphere(_planetWorldPos, 0.015 * planet.scale.x, _ssPlanet)
+      const planetRes = getPreciseProjectedSphere(_planetWorldPos, 0.015 * planet.scale.x, _ssPlanet)
 
-      const starDrawR = starSR + 8
-      const planetDrawR = planetSR + 6
+      const starDrawRX = starRes.rx + 8, starDrawRY = starRes.ry + 8
+      const planetDrawRX = planetRes.rx + 6, planetDrawRY = planetRes.ry + 6
 
       // 外公切线方程
       const dx = _ssPlanet.x - _ssStar.x, dy = _ssPlanet.y - _ssStar.y
       const dist = Math.hypot(dx, dy)
       const theta = Math.atan2(dy, dx)
-      const dr = starDrawR - planetDrawR
-      const phi = dist > Math.abs(dr) ? Math.asin(dr / dist) : 0
-      
+      const dr = starDrawRX - planetDrawRX
+      const phi = (dist > Math.abs(dr) && isFinite(dist) && dist > 0)
+        ? Math.asin(Math.max(-1, Math.min(1, dr / dist))) : 0
+
       const alpha1 = theta + Math.PI / 2 - phi
       const alpha2 = theta - Math.PI / 2 + phi
 
-      const ts1x = _ssStar.x + starDrawR * Math.cos(alpha1), ts1y = _ssStar.y + starDrawR * Math.sin(alpha1)
-      const ts2x = _ssStar.x + starDrawR * Math.cos(alpha2), ts2y = _ssStar.y + starDrawR * Math.sin(alpha2)
-      const tp1x = _ssPlanet.x + planetDrawR * Math.cos(alpha1), tp1y = _ssPlanet.y + planetDrawR * Math.sin(alpha1)
-      const tp2x = _ssPlanet.x + planetDrawR * Math.cos(alpha2), tp2y = _ssPlanet.y + planetDrawR * Math.sin(alpha2)
+      const ts1x = _ssStar.x + starDrawRX * Math.cos(alpha1), ts1y = _ssStar.y + starDrawRY * Math.sin(alpha1)
+      const ts2x = _ssStar.x + starDrawRX * Math.cos(alpha2), ts2y = _ssStar.y + starDrawRY * Math.sin(alpha2)
+      const tp1x = _ssPlanet.x + planetDrawRX * Math.cos(alpha1), tp1y = _ssPlanet.y + planetDrawRY * Math.sin(alpha1)
+      const tp2x = _ssPlanet.x + planetDrawRX * Math.cos(alpha2), tp2y = _ssPlanet.y + planetDrawRY * Math.sin(alpha2)
 
       const extLen = Math.max(w, h) * 2  
       const tdx1 = tp1x - ts1x, tdy1 = tp1y - ts1y, tl1 = Math.hypot(tdx1, tdy1) || 1
@@ -1134,8 +1155,8 @@ function updateCameraFocus(sp, time) {
       // 绘制恒星与行星视界圈
       ctx.strokeStyle = '#64748b'; ctx.lineWidth = 1
       ctx.setLineDash([4, 4])
-      ctx.beginPath(); ctx.arc(_ssStar.x, _ssStar.y, starDrawR, 0, Math.PI * 2); ctx.stroke()
-      ctx.beginPath(); ctx.arc(_ssPlanet.x, _ssPlanet.y, planetDrawR, 0, Math.PI * 2); ctx.stroke()
+      ctx.beginPath(); ctx.ellipse(_ssStar.x, _ssStar.y, starDrawRX, starDrawRY, 0, 0, Math.PI * 2); ctx.stroke()
+      ctx.beginPath(); ctx.ellipse(_ssPlanet.x, _ssPlanet.y, planetDrawRX, planetDrawRY, 0, 0, Math.PI * 2); ctx.stroke()
 
       // 【核心改进】加深外切线条的颜色与不透明度，使其成为指引视觉流向的主干线
       ctx.setLineDash([])
@@ -1178,9 +1199,10 @@ function updateCameraFocus(sp, time) {
         const elapsed = Math.max(0, time - startT)
         const rawT = Math.min(1, elapsed / rayDuration)
         const eased = rawT * rawT * rawT * rawT
-        const rayLen = starDrawR + 4 + eased * rayMaxDist
+        const rayStartR = (starDrawRX + starDrawRY) * 0.5
+        const rayLen = rayStartR + 4 + eased * rayMaxDist
         ctx.beginPath()
-        ctx.moveTo(_ssStar.x + cosA * (starDrawR + 4), _ssStar.y + sinA * (starDrawR + 4))
+        ctx.moveTo(_ssStar.x + cosA * (rayStartR + 4), _ssStar.y + sinA * (rayStartR + 4))
         ctx.lineTo(_ssStar.x + cosA * rayLen, _ssStar.y + sinA * rayLen)
         ctx.stroke()
       }
@@ -1240,7 +1262,7 @@ function updateCameraFocus(sp, time) {
       ctx.font = '7.5px monospace'
       ctx.fillText(`SYS_LOC: [${_planetWorldPos.x.toFixed(1)}, ${_planetWorldPos.z.toFixed(1)}]`, blockX, blockY + 28)
       ctx.fillStyle = '#cbd5e1'
-      ctx.fillText(`GATEWAY: ${link.url.replace('https://', '')}`, blockX, blockY + 38)
+      ctx.fillText(`GATEWAY: ${(link.url || 'MENU_SYSTEM').replace('https://', '')}`, blockX, blockY + 38)
     }
   }
 }
@@ -1411,6 +1433,7 @@ const _planetLinks = [
   { label: 'FS',     accent: '#94a3b8', url: 'https://fs.yequdesu.top' },
   { label: 'Code',   accent: '#0ea5e9', url: 'https://code.yequdesu.top' },
   { label: 'GitHub', accent: '#818cf8', url: 'https://github.com/yequdesu' },
+  { label: 'Menu',   accent: '#64748b', url: null },
 ]
 
 function createPlanetLabel(text, accentColor) {
@@ -1476,16 +1499,34 @@ act3.build = () => {
   if (act3Initialized) return
 
   for (let t = 0; t < ORBIT_COUNT; t++) {
-    const r = ORBIT_RADII[t]
     const pts = []
-    for (let i = 0; i <= 128; i++) {
-      const theta = (i / 128) * Math.PI * 2
-      pts.push(new THREE.Vector3(Math.cos(theta) * r, 0, Math.sin(theta) * r))
+    if (t === 3) {
+      // Elliptical orbit with star at focus
+      for (let i = 0; i <= 200; i++) {
+        const theta = (i / 200) * Math.PI * 2
+        const ex = ELLIPSE_A * Math.cos(theta) - ELLIPSE_C
+        const ez = ELLIPSE_B * Math.sin(theta)
+        // Apply inclination (rotate around X)
+        const ey = ez * Math.sin(ELLIPSE_INCL)
+        const ez2 = ez * Math.cos(ELLIPSE_INCL)
+        pts.push(new THREE.Vector3(ex, ey, ez2))
+      }
+    } else {
+      const r = ORBIT_RADII[t]
+      for (let i = 0; i <= 128; i++) {
+        const theta = (i / 128) * Math.PI * 2
+        pts.push(new THREE.Vector3(Math.cos(theta) * r, 0, Math.sin(theta) * r))
+      }
     }
     const geo = new THREE.BufferGeometry().setFromPoints(pts)
-    const mat = new THREE.LineBasicMaterial({ color: '#cbd5e1', transparent: true, opacity: 0, depthWrite: false, depthTest: true })
+    const isElliptical = t === 3
+    const mat = new THREE.LineBasicMaterial({
+      color: isElliptical ? '#94a3b8' : '#cbd5e1',
+      transparent: true, opacity: 0, depthWrite: false, depthTest: true
+    })
     const line = new THREE.Line(geo, mat)
-    
+    line.userData.isElliptical = isElliptical
+
     line.position.set(0, -1.0, SCENE_CENTER_Z)
     line.renderOrder = 2
     
@@ -1645,14 +1686,18 @@ act3.animate = (time, tSp, sp) => {
   // 轨道线淡入
   for (const line of _orbitLines) {
     line.visible = sp >= GRID_SHIFT_START
-    // Focus: darker + more opaque orbit lines
-    const focusBoost = 0.35 + _focusUIProgress * 0.55
+    const isElliptical = line.userData.isElliptical
+    const baseOpacity = isElliptical ? 0.55 : 0.35
+    const focusBoost = baseOpacity + _focusUIProgress * 0.45
     line.material.opacity = smoothOrbitFocus * focusBoost
-    // Blend color from light grey (#cbd5e1) to dark slate (#334155) when focused
-    const r = Math.round(203 - _focusUIProgress * 152)
-    const g = Math.round(213 - _focusUIProgress * 148)
-    const b = Math.round(225 - _focusUIProgress * 140)
-    line.material.color.setRGB(r/255, g/255, b/255)
+    if (isElliptical) {
+      line.material.color.setRGB(148/255, 163/255, 184/255)
+    } else {
+      const r = Math.round(203 - _focusUIProgress * 152)
+      const g = Math.round(213 - _focusUIProgress * 148)
+      const b = Math.round(225 - _focusUIProgress * 140)
+      line.material.color.setRGB(r/255, g/255, b/255)
+    }
   }
 
   // 陀螺仪外环淡入
@@ -1885,7 +1930,8 @@ const onClickCanvas = (e) => {
     const trackIdx = _mainPlanetIndices.indexOf(bestIdx)
     if (trackIdx >= 0 && trackIdx < _planetLinks.length) {
       if (_focusedPlanetIdx === bestIdx) {
-        window.open(_planetLinks[trackIdx].url, '_blank', 'noopener')
+        const linkUrl = _planetLinks[trackIdx].url
+        if (linkUrl) window.open(linkUrl, '_blank', 'noopener')
       } else {
         _focusedPlanetIdx = bestIdx
         _focusStartTime = performance.now() * 0.001 
