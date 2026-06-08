@@ -7,6 +7,7 @@ import {
   ORBIT_COUNT, ORBIT_RADII, ELLIPSE_A, ELLIPSE_B, ELLIPSE_C, ELLIPSE_INCL,
   smoothstep, clamp, shortestDelta
 } from '../three/constants.js'
+import { ctx } from '../three/shared/stateContext.js'
 
 const props = defineProps({
   scrollProgress: { type: Number, default: 0 }
@@ -117,19 +118,6 @@ let gridLinesVisible = true
 // ============================================================
 //  UTILITY
 // ============================================================
-
-// ============================================================
-//  STATE CONTEXT
-// ============================================================
-class StateContext {
-  constructor() { this._store = new Map() }
-  set(key, val)  { this._store.set(key, val) }
-  get(key)       { return this._store.get(key) }
-  has(key)       { return this._store.has(key) }
-}
-
-const ctx = new StateContext()
-
 // ============================================================
 //  VOLUMETRIC BEAM SHADER
 // ============================================================
