@@ -26,6 +26,7 @@ const hintVisible = ref(true)
 const lighthouseImage = ref(null)
 const sceneRef = ref(null)
 const brandTextRef = ref(null)
+const overlayCanvas = ref(null)
 const brandTextVisible = computed(() => scrollProgress.value >= 0.70)
 let _focusTween = null
 const isAct3Focused = ref(false)
@@ -33,9 +34,69 @@ const overlayData = ref({ focused: false })
 const effectiveProgress = computed(() =>
   isClickPlaying.value ? clickProgress.value : scrollProgress.value
 )
+let _overlayRaf = 0
 
 function onOverlayData(data) {
   overlayData.value = data
+  drawOverlay()
+}
+
+function drawOverlay() {
+  const canvas = overlayCanvas.value
+  if (!canvas) return
+  const ctx = canvas.getContext('2d')
+  const d = overlayData.value
+
+  // Match Three.js canvas exactly: position, size, and DPR
+  const threeCanvas = sceneRef.value?.$el?.querySelector('canvas')
+  if (!threeCanvas) return
+  const rect = threeCanvas.getBoundingClientRect()
+  const dpr = window.devicePixelRatio || 1
+
+  // Set overlay canvas to same display position and internal resolution
+  canvas.style.position = 'fixed'
+  canvas.style.left = rect.left + 'px'
+  canvas.style.top = rect.top + 'px'
+  canvas.style.width = rect.width + 'px'
+  canvas.style.height = rect.height + 'px'
+  canvas.width = rect.width * dpr
+  canvas.height = rect.height * dpr
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
+
+  ctx.clearRect(0, 0, canvas.width, canvas.height)
+
+  if (!d.focused) return
+
+  const sr = d.star.r + 12, pr = d.planet.r + 8
+
+  // Star circle
+  ctx.beginPath()
+  ctx.arc(d.star.x, d.star.y, sr, 0, Math.PI * 2)
+  ctx.strokeStyle = '#64748b'
+  ctx.lineWidth = 1
+  ctx.setLineDash([4, 6])
+  ctx.stroke()
+
+  // Planet circle
+  ctx.beginPath()
+  ctx.arc(d.planet.x, d.planet.y, pr, 0, Math.PI * 2)
+  ctx.strokeStyle = '#64748b'
+  ctx.lineWidth = 1
+  ctx.setLineDash([4, 6])
+  ctx.stroke()
+
+  // Tangent lines
+  if (d.tangents) {
+    ctx.setLineDash([])
+    ctx.strokeStyle = '#94a3b8'
+    ctx.lineWidth = 0.5
+    for (const t of d.tangents) {
+      ctx.beginPath()
+      ctx.moveTo(t.x1, t.y1)
+      ctx.lineTo(t.x2, t.y2)
+      ctx.stroke()
+    }
+  }
 }
 
 // ---- helpers ----
@@ -204,32 +265,11 @@ onUnmounted(() => {
 <template>
   <LighthouseScene ref="sceneRef" :scrollProgress="effectiveProgress" @focus-change="onFocusChange" @overlay-data="onOverlayData" />
 
-  <!-- Focus overlay: SVG line art — tangent lines between star and planet -->
-  <svg
-    v-if="overlayData.focused"
+  <!-- Focus overlay: transparent canvas for 2D line art -->
+  <canvas
+    ref="overlayCanvas"
     class="focus-overlay"
-    width="100%" height="100%"
-  >
-    <!-- Star outline circle -->
-    <circle
-      :cx="overlayData.star.x" :cy="overlayData.star.y" :r="overlayData.star.r + 10"
-      fill="none" stroke="#64748b" stroke-width="1" stroke-dasharray="4 6"
-      class="overlay-ring"
-    />
-    <!-- Planet outline circle -->
-    <circle
-      :cx="overlayData.planet.x" :cy="overlayData.planet.y" :r="overlayData.planet.r + 8"
-      fill="none" stroke="#64748b" stroke-width="1" stroke-dasharray="4 6"
-      class="overlay-ring"
-    />
-    <!-- Tangent lines -->
-    <line
-      v-for="(t, i) in overlayData.tangents" :key="i"
-      :x1="t.x1" :y1="t.y1" :x2="t.x2" :y2="t.y2"
-      stroke="#94a3b8" stroke-width="0.5"
-      class="overlay-line"
-    />
-  </svg>
+  />
 
   <Transition name="hint-fade">
     <div v-if="hintVisible" class="scroll-hint" aria-hidden="true">
@@ -354,26 +394,12 @@ onUnmounted(() => {
   font-style: italic;
   text-align: left;
 }
-/* ---- focus overlay SVG ---- */
+/* ---- focus overlay canvas ---- */
 .focus-overlay {
   position: fixed;
   inset: 0;
-  z-index: 5;
+  z-index: 1;
   pointer-events: none;
-}
-.overlay-ring {
-  animation: ring-in 0.6s ease-out both;
-}
-@keyframes ring-in {
-  from { opacity: 0; stroke-dashoffset: 30; }
-  to   { opacity: 1; stroke-dashoffset: 0; }
-}
-.overlay-line {
-  animation: line-in 0.8s ease-out 0.2s both;
-}
-@keyframes line-in {
-  from { opacity: 0; stroke-dashoffset: 20; }
-  to   { opacity: 1; stroke-dashoffset: 0; }
 }
 
 .lighthouse-icon {

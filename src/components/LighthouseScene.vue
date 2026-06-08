@@ -9,6 +9,8 @@ const props = defineProps({
 const emit = defineEmits(['focusChange', 'overlayData'])
 
 const canvasRef = ref(null)
+const overlayRef = ref(null)
+const invertCanvasRef = ref(null)
 
 // ============================================================
 //  GLOBALS — shared by all acts, owned by the scene manager
@@ -26,7 +28,7 @@ const TEXT_START         = 0.70
 const GRID_SHIFT_START   = 0.85 
 const IDLE_RESET_DELAY   = 1.5
 
-// 统一的场景中心 Z 轴坐标，使灯塔与轨道完美契合
+// 统一的场景中心 Z 轴坐标，使灯塔与轨道合理契合
 const SCENE_CENTER_Z      = -16.0 
 
 // ============================================================
@@ -73,6 +75,7 @@ const _focusBaseOffset = new THREE.Vector3()
 const _focusOrbitQuat = new THREE.Quaternion()
 let _focusStartTime = 0
 let _focusOrbitAngle = 0
+let _focusUIProgress = 0 // 动态 UI 插值进度
 
 // Scratch for screen-space overlay projection
 const _ssStar = new THREE.Vector3()
@@ -80,7 +83,22 @@ const _ssPlanet = new THREE.Vector3()
 const _ssStarEdge = new THREE.Vector3()
 const _ssScratch = new THREE.Vector3()
 
-// ---- pre-allocated reusable objects for hot paths (eliminates per-frame GC) ----
+// ---- 几何切线与 HUD 精密投影专用的复用对象 (GC-Free) ----
+const _vCamToPlanet = new THREE.Vector3()
+const _uRight = new THREE.Vector3()
+const _uUp = new THREE.Vector3()
+const _sTangent = new THREE.Vector3()
+const _tRight = new THREE.Vector3()
+const _tLeft = new THREE.Vector3()
+const _tTop = new THREE.Vector3()
+const _tBottom = new THREE.Vector3()
+const _ssTRight = new THREE.Vector3()
+const _ssTLeft = new THREE.Vector3()
+const _ssTTop = new THREE.Vector3()
+const _ssTBottom = new THREE.Vector3()
+const _planetWorldPos = new THREE.Vector3()
+
+// ---- pre-allocated reusable objects for hot paths ----
 const _bgBaseColor = new THREE.Color('#050811')
 const _bgTargetColor = new THREE.Color('#f1f5f9')
 const _bgLerpColor = new THREE.Color()
@@ -88,7 +106,7 @@ const _dustProjectScratch = new THREE.Vector3()
 let _mainPlanetsPreFiltered = []
 
 // ============================================================
-//  FRAME CACHING GUARDS (Prevents redundant updates in a single frame)
+//  FRAME CACHING GUARDS
 // ============================================================
 let _lastWavesTime = -1, _lastWavesSp = -1
 let _lastGridSp = -1
@@ -359,7 +377,6 @@ function buildLighthouse() {
   spireTip.position.set(0,3.65,0)
   lighthouseGroup.add(spireTip)
 
-  // 关键优化：调整灯塔位置至 SCENE_CENTER_Z，使其处于公转轨道的中心
   lighthouseGroup.position.set(0,-2.5,SCENE_CENTER_Z)
   lighthouseGroup.scale.setScalar(0.7)
   scene.add(lighthouseGroup)
@@ -431,7 +448,6 @@ function buildDust() {
     const gray = Math.floor(100 + Math.random() * 60)
     const grayHex = '#' + gray.toString(16).padStart(2,'0').repeat(3)
     
-    // 大行星开启深度写入，普通行星碎片不开启
     const mat = new THREE.MeshBasicMaterial({ 
       color:'#f0f8ff', 
       transparent:true, 
@@ -441,7 +457,6 @@ function buildDust() {
     })
     const p = new THREE.Mesh(geo, mat)
     
-    // 大行星渲染层级为 1，小粒子为 2
     p.renderOrder = isMain ? 1 : 2
     
     const t = Math.random()
@@ -657,7 +672,7 @@ function animateDust(time, sp) {
       if (!d.isMainPlanet) continue
       
       _scratch.copy(p.position).project(camera)
-      const dx = (_scratch.x - _mouseNDC.x) * (window.innerWidth / window.innerHeight)
+      const dx = (_scratch.x - _mouseNDC.x) * (camera.aspect || 1)
       const dy = _scratch.y - _mouseNDC.y
       const dist = Math.hypot(dx, dy)
       if (dist < bestDist) {
@@ -665,7 +680,6 @@ function animateDust(time, sp) {
         bestIdx = i
       }
     }
-    // Hysteresis: harder to exit than enter, prevents focus-defocus oscillation
     const exitThreshold = (_hoveredIdx >= 0) ? 0.22 : 0.16
     _hoveredIdx = bestDist < exitThreshold ? bestIdx : -1
   } else {
@@ -680,7 +694,6 @@ function animateDust(time, sp) {
   const dt = Math.min(0.1, time - _lastTimeSec)
   _lastTimeSec = time
 
-  // 关键优化：将公转运动中心 Z 轴设为 SCENE_CENTER_Z
   const cx = 0, cy = -1.0, cz = SCENE_CENTER_Z
 
   for (let idx = 0; idx < dustParticles.length; idx++) {
@@ -695,7 +708,8 @@ function animateDust(time, sp) {
     const by = d.wy + Math.sin(time * 0.3 + d.ph + 1) * 0.18
     const bz = d.wz + Math.sin(time * 0.25 + d.ph + 2) * 0.15
 
-    const effectiveSpeed = d._baseSpeed * (1.0 - d.hoverFactor * 0.80)
+    const focusSlowdown = (!d.isMainPlanet && _focusedPlanetIdx >= 0) ? 0.05 : 1.0
+    const effectiveSpeed = d._baseSpeed * (1.0 - d.hoverFactor * 0.80) * focusSlowdown
     d.orbitAngle += dt * effectiveSpeed
 
     const wobbleR = d.isMainPlanet ? d.orbitR : d.orbitR + Math.sin(time * d.wobbleFreq + d.ph) * d.wobbleAmp
@@ -709,7 +723,6 @@ function animateDust(time, sp) {
       THREE.MathUtils.lerp(bz, oz, smoothProgress3)
     )
 
-    // Non-planet dust uses fixed reference distance so camera focus doesn't resize them
     const refPos = d.isMainPlanet ? camera.position : _defaultCamPos
     const cd = p.position.distanceTo(refPos)
     const ds = 22 / Math.max(5, cd)
@@ -740,14 +753,11 @@ function animateDust(time, sp) {
     if (cd > 42) opacityAct1 *= Math.max(0, 1 - (cd - 42) / 10)
 
     const opacityAct2 = 0.4
-    
-    // 关键优化：大行星（d.isMainPlanet）在 Act 3 中过渡为完全不透明（1.0）
     const opacityAct3 = d.isMainPlanet ? 1.0 : 0.55
 
     let currentOpacity = THREE.MathUtils.lerp(opacityAct1, opacityAct2, wof)
     p.material.opacity = THREE.MathUtils.lerp(currentOpacity, opacityAct3, smoothProgress3)
 
-    // Occlusion: fade particles blocking the view of the focused planet
     if (_focusedPlanetIdx >= 0 && idx !== _focusedPlanetIdx) {
       const fp = dustParticles[_focusedPlanetIdx]
       _occCamToPlanet.subVectors(fp.position, camera.position).normalize()
@@ -771,7 +781,7 @@ function animateDust(time, sp) {
 }
 
 // ---- camera focus system (Act 3 planet focus with orbit + auto-unfocus) ----
-const FOCUS_TIMEOUT = 30 // seconds before auto-unfocus
+const FOCUS_TIMEOUT = 30 
 
 function updateCameraFocus(sp, time) {
   const isAct3 = sp >= GRID_SHIFT_START
@@ -786,18 +796,15 @@ function updateCameraFocus(sp, time) {
 
   const focusedPlanet = (_focusedPlanetIdx >= 0) ? dustParticles[_focusedPlanetIdx] : null
 
-  // Auto-unfocus after timeout
   if (focusedPlanet && _focusStartTime > 0 && time - _focusStartTime > FOCUS_TIMEOUT) {
     _focusedPlanetIdx = -1
     _focusStartTime = 0
     emit('focusChange', false)
-    // Fall through to unfocused path
   }
 
   const isFocused = _focusedPlanetIdx >= 0
   const planet = isFocused ? dustParticles[_focusedPlanetIdx] : null
 
-  // Compute desired camera position (raw — we smooth it below)
   if (planet && planet.userData.isMainPlanet) {
     _camToStar.subVectors(_starPos, planet.position).normalize()
     _camLeftDir.crossVectors(_camUp, _camToStar).normalize()
@@ -826,89 +833,415 @@ function updateCameraFocus(sp, time) {
     _targetLookAt.lerp(_defaultLookAt, 0.04)
   }
 
-  // Camera follows the smoothed target
   _currentLookAt.lerp(_targetLookAt, 0.06)
   camera.position.lerp(_targetCamPos, 0.06)
   camera.lookAt(_currentLookAt)
 
-  // Emit screen-space overlay data for focused planet + star
-  if (isFocused && planet) {
-    const canvas = renderer.domElement
-    // Use CSS pixels (client size), not internal canvas resolution
-    const w = canvas.clientWidth, h = canvas.clientHeight
+  camera.updateMatrixWorld()
 
-    // Helper: project a 3D point to CSS pixel coords
-    function toScreen(v3, out) {
-      out.copy(v3).project(camera)
-      out.x = (out.x * 0.5 + 0.5) * w
-      out.y = (-out.y * 0.5 + 0.5) * h
-      return out
+  // 平滑插值左下角及左上角 HUD 的动效变化
+  _focusUIProgress += ((isFocused ? 1.0 : 0.0) - _focusUIProgress) * 0.12
+
+  // 独立反色层：mix-blend-mode: difference 实现硬件级像素反色
+  const invertCanvas = invertCanvasRef.value
+  if (invertCanvas) {
+    const invCtx = invertCanvas.getContext('2d')
+    const dpr = window.devicePixelRatio || 1
+    const rect = renderer.domElement.getBoundingClientRect()
+    const w = rect.width, h = rect.height
+
+    if (invertCanvas.width !== w * dpr || invertCanvas.height !== h * dpr) {
+      invertCanvas.width = w * dpr
+      invertCanvas.height = h * dpr
+      invertCanvas.style.width = w + 'px'
+      invertCanvas.style.height = h + 'px'
+      invertCanvas.style.left = rect.left + 'px'
+      invertCanvas.style.top = rect.top + 'px'
+    }
+    invCtx.clearRect(0, 0, invertCanvas.width, invertCanvas.height)
+    invCtx.setTransform(dpr, 0, 0, dpr, 0, 0)
+
+    if (isFocused && planet) {
+      // 复用已计算的切线与投影数据（来自后续 overlay 绘制中的 getPreciseProjectedSphere 与切线公式）
+      function toScreen(v3, out) {
+        out.copy(v3).project(camera)
+        out.x = (out.x * 0.5 + 0.5) * w
+        out.y = (-out.y * 0.5 + 0.5) * h
+        return out
+      }
+
+      // 获取与 overlay 相同的投影数据
+      const _getPS = (sp, r, oc) => {
+        _vCamToPlanet.subVectors(camera.position, sp)
+        const d = _vCamToPlanet.length()
+        if (d <= r) { toScreen(sp, oc); return 0 }
+        _vCamToPlanet.divideScalar(d)
+        _uRight.set(1,0,0).applyQuaternion(camera.quaternion)
+        const dr = _uRight.dot(_vCamToPlanet)
+        _uRight.addScaledVector(_vCamToPlanet, -dr).normalize()
+        _uUp.set(0,1,0).applyQuaternion(camera.quaternion)
+        const du = _uUp.dot(_vCamToPlanet)
+        _uUp.addScaledVector(_vCamToPlanet, -du).normalize()
+        const x = (r*r)/d, rT = Math.sqrt(Math.max(0,r*r-x*x))
+        _sTangent.copy(sp).addScaledVector(_vCamToPlanet, x)
+        _tRight.copy(_sTangent).addScaledVector(_uRight, rT)
+        _tLeft.copy(_sTangent).addScaledVector(_uRight, -rT)
+        _tTop.copy(_sTangent).addScaledVector(_uUp, rT)
+        _tBottom.copy(_sTangent).addScaledVector(_uUp, -rT)
+        toScreen(_tRight,_ssTRight); toScreen(_tLeft,_ssTLeft)
+        toScreen(_tTop,_ssTTop); toScreen(_tBottom,_ssTBottom)
+        oc.x=(_ssTRight.x+_ssTLeft.x)*0.5; oc.y=(_ssTTop.y+_ssTBottom.y)*0.5
+        return (_ssTRight.distanceTo(_ssTLeft)+_ssTTop.distanceTo(_ssTBottom))*0.25
+      }
+
+      const starSR = _getPS(_starPos, 0.42, _ssStar)
+      planet.updateMatrixWorld(true)
+      planet.getWorldPosition(_planetWorldPos)
+      const planetSR = _getPS(_planetWorldPos, 0.015*planet.scale.x, _ssPlanet)
+
+      const starDR = starSR + 8, planetDR = planetSR + 6
+      const dx = _ssPlanet.x-_ssStar.x, dy = _ssPlanet.y-_ssStar.y
+      const dist = Math.hypot(dx,dy), theta = Math.atan2(dy,dx)
+      const dr = starDR-planetDR
+      const phi = dist>Math.abs(dr) ? Math.asin(dr/dist) : 0
+      const a1 = theta+Math.PI/2-phi, a2 = theta-Math.PI/2+phi
+
+      const ts1x=_ssStar.x+starDR*Math.cos(a1), ts1y=_ssStar.y+starDR*Math.sin(a1)
+      const ts2x=_ssStar.x+starDR*Math.cos(a2), ts2y=_ssStar.y+starDR*Math.sin(a2)
+      const tp1x=_ssPlanet.x+planetDR*Math.cos(a1), tp1y=_ssPlanet.y+planetDR*Math.sin(a1)
+      const tp2x=_ssPlanet.x+planetDR*Math.cos(a2), tp2y=_ssPlanet.y+planetDR*Math.sin(a2)
+
+      const tdx1=tp1x-ts1x, tdy1=tp1y-ts1y, tl1=Math.hypot(tdx1,tdy1)||1
+      const tdx2=tp2x-ts2x, tdy2=tp2y-ts2y, tl2=Math.hypot(tdx2,tdy2)||1
+      const ux1=tdx1/tl1, uy1=tdy1/tl1, ux2=tdx2/tl2, uy2=tdy2/tl2
+
+      const extLen = Math.max(w,h)*2
+      const es1x=ts1x-ux1*extLen, es1y=ts1y-uy1*extLen
+      const es2x=ts2x-ux2*extLen, es2y=ts2y-uy2*extLen
+      const ep1x=tp1x+ux1*extLen, ep1y=tp1y+uy1*extLen
+      const ep2x=tp2x+ux2*extLen, ep2y=tp2y+uy2*extLen
+
+      invCtx.save()
+      invCtx.globalAlpha = _focusUIProgress
+      invCtx.fillStyle = '#ffffff'
+
+      // 左外侧反色区：上切线左延→恒星外弧→下切线左延 闭合
+      invCtx.beginPath()
+      invCtx.moveTo(es1x, es1y)
+      invCtx.lineTo(ts1x, ts1y)
+      invCtx.arc(_ssStar.x, _ssStar.y, starDR, a1, a2, false)
+      invCtx.lineTo(es2x, es2y)
+      invCtx.closePath()
+      invCtx.fill()
+
+      // 右外侧反色区：下切线右延→行星外弧→上切线右延 闭合
+      invCtx.beginPath()
+      invCtx.moveTo(ep2x, ep2y)
+      invCtx.lineTo(tp2x, tp2y)
+      invCtx.arc(_ssPlanet.x, _ssPlanet.y, planetDR, a2, a1, false)
+      invCtx.lineTo(ep1x, ep1y)
+      invCtx.closePath()
+      invCtx.fill()
+
+      invCtx.restore()
+    }
+  }
+
+  const overlay = overlayRef.value
+  if (overlay) {
+    const ctx = overlay.getContext('2d')
+    const dpr = window.devicePixelRatio || 1
+
+    const rect = renderer.domElement.getBoundingClientRect()
+    const w = rect.width
+    const h = rect.height
+
+    if (overlay.width !== w * dpr || overlay.height !== h * dpr) {
+      overlay.width = w * dpr
+      overlay.height = h * dpr
+      overlay.style.width = w + 'px'
+      overlay.style.height = h + 'px'
+      overlay.style.left = rect.left + 'px'
+      overlay.style.top = rect.top + 'px'
+    }
+    
+    ctx.clearRect(0, 0, overlay.width, overlay.height)
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
+
+    // ============================================================
+    //  HUD 常驻边框线框与比例尺 (放大)
+    // ============================================================
+    const margin = 30
+    const cornerLen = 18
+    const hudScale = 1.5
+    ctx.strokeStyle = 'rgba(15, 23, 42, 0.12)'
+    ctx.lineWidth = 1.2
+
+    // 定位拐角线框
+    ctx.beginPath(); ctx.moveTo(margin, margin + cornerLen); ctx.lineTo(margin, margin); ctx.lineTo(margin + cornerLen, margin); ctx.stroke()
+    ctx.beginPath(); ctx.moveTo(w - margin, margin + cornerLen); ctx.lineTo(w - margin, margin); ctx.lineTo(w - margin - cornerLen, margin); ctx.stroke()
+    ctx.beginPath(); ctx.moveTo(margin, h - margin - cornerLen); ctx.lineTo(margin, h - margin); ctx.lineTo(margin + cornerLen, h - margin); ctx.stroke()
+    ctx.beginPath(); ctx.moveTo(w - margin, h - margin - cornerLen); ctx.lineTo(w - margin, h - margin); ctx.lineTo(w - margin - cornerLen, h - margin); ctx.stroke()
+
+    // 绘制底部刻度尺
+    ctx.strokeStyle = 'rgba(15, 23, 42, 0.18)'
+    ctx.lineWidth = 1.2
+    ctx.beginPath()
+    ctx.moveTo(margin + 14, h - margin - 8)
+    ctx.lineTo(margin + 100, h - margin - 8)
+    ctx.moveTo(margin + 14, h - margin - 14); ctx.lineTo(margin + 14, h - margin - 2)
+    ctx.moveTo(margin + 100, h - margin - 14); ctx.lineTo(margin + 100, h - margin - 2)
+    ctx.stroke()
+    ctx.fillStyle = 'rgba(15, 23, 42, 0.5)'
+    ctx.font = `${10 * hudScale}px monospace`
+    ctx.textAlign = 'left'
+    ctx.fillText('GRID_UNIT: 50AU', margin + 18, h - margin - 16)
+
+    // ============================================================
+    //  左下角：聚焦后出现的动态编排版面 (Typographic Panel)
+    // ============================================================
+    if (_focusUIProgress > 0.01) {
+      const textX = margin + 14
+      const textY = h - margin - 110
+
+      ctx.save()
+      ctx.globalAlpha = _focusUIProgress
+
+      const titleYOffset = _focusUIProgress * -12
+
+      const titleSize = (18 + _focusUIProgress * 22) * hudScale
+      ctx.font = `bold ${titleSize.toFixed(1)}px "Georgia", "Times New Roman", serif`
+
+      const titleR = Math.round(100 - _focusUIProgress * 85)
+      const titleG = Math.round(116 - _focusUIProgress * 93)
+      const titleB = Math.round(139 - _focusUIProgress * 97)
+      ctx.fillStyle = `rgb(${titleR}, ${titleG}, ${titleB})`
+      ctx.fillText('Personal Site', textX, textY + titleYOffset)
+
+      ctx.font = `bold ${10 * hudScale}px monospace`
+      ctx.fillStyle = '#0f172a'
+      ctx.fillText('YEQU_DESU // RADAR_TERMINAL_LOCK', textX, textY + titleYOffset - 78)
+
+      ctx.font = `${10 * hudScale}px monospace`
+      ctx.fillStyle = '#475569'
+      ctx.fillText('PORTFOLIO DIRECTORY / SECURE GUIDANCE', textX, textY + titleYOffset + 44)
+      ctx.fillText(`SYS_COORD: TARGET_ACTIVE (F_INDEX: 0${_mainPlanetIndices.indexOf(_focusedPlanetIdx) + 1})`, textX, textY + titleYOffset + 62)
+
+      ctx.restore()
     }
 
-    // Star — project center + edge point along camera right for accurate screen radius
-    toScreen(_starPos, _ssStar)
-    _ssScratch.set(1, 0, 0).applyQuaternion(camera.quaternion)
-    _ssStarEdge.copy(_starPos).addScaledVector(_ssScratch, 0.42)
-    toScreen(_ssStarEdge, _ssStarEdge)
-    const starSR = Math.hypot(_ssStarEdge.x - _ssStar.x, _ssStarEdge.y - _ssStar.y)
+    // ============================================================
+    //  3. 左上角 HUD：放大 (聚焦后出现)
+    // ============================================================
+    const linkIdx = _mainPlanetIndices.indexOf(_focusedPlanetIdx)
+    const link = linkIdx >= 0 ? _planetLinks[linkIdx] : null
 
-    // Planet
-    toScreen(planet.position, _ssPlanet)
-    const pScale = planet.userData.scaleMult || 1
-    _ssStarEdge.copy(planet.position).addScaledVector(_ssScratch, 0.15 * pScale)
-    toScreen(_ssStarEdge, _ssStarEdge)
-    const planetSR = Math.hypot(_ssStarEdge.x - _ssPlanet.x, _ssStarEdge.y - _ssPlanet.y)
+    if (isFocused && planet && link) {
+      ctx.save()
+      ctx.globalAlpha = _focusUIProgress
 
-    // Compute outer tangents: two lines touching both circles
-    const dx = _ssPlanet.x - _ssStar.x
-    const dy = _ssPlanet.y - _ssStar.y
-    const dist = Math.hypot(dx, dy)
-    const theta = Math.atan2(dy, dx)  // angle from star to planet
+      const tlX = margin + 14
+      const tlY = margin + 22
 
-    // sin(φ) = (sr - pr) / dist — outer tangent angle offset
-    const dr = starSR - planetSR
-    const phi = dist > Math.abs(dr) ? Math.asin(dr / dist) : 0
+      ctx.fillStyle = '#0f172a'
+      ctx.font = `bold ${11 * hudScale}px monospace`
+      ctx.fillText('TARGET_AQUISITION_CONSOLE', tlX, tlY)
 
-    // Two tangent angles (perpendicular to center line ± φ)
-    const alpha1 = theta + Math.PI / 2 + phi
-    const alpha2 = theta + Math.PI / 2 - phi
+      ctx.fillStyle = '#64748b'
+      ctx.font = `${9 * hudScale}px monospace`
+      const lh = 16 * hudScale
+      ctx.fillText(`FOCUS_INDEX: 0${linkIdx + 1} // NOMINAL`, tlX, tlY + lh)
+      ctx.fillText(`CAM_XYZ: [${camera.position.x.toFixed(2)}, ${camera.position.y.toFixed(2)}, ${camera.position.z.toFixed(2)}]`, tlX, tlY + lh * 2)
+      ctx.fillText(`ORBIT_VEL: ${(Math.abs(planet.userData.orbitSpeed) * 100).toFixed(1)} AU/S`, tlX, tlY + lh * 3)
 
-    // Tangent points on star
-    const ts1x = _ssStar.x + starSR * Math.cos(alpha1)
-    const ts1y = _ssStar.y + starSR * Math.sin(alpha1)
-    const ts2x = _ssStar.x + starSR * Math.cos(alpha2)
-    const ts2y = _ssStar.y + starSR * Math.sin(alpha2)
+      ctx.restore()
 
-    // Tangent points on planet
-    const tp1x = _ssPlanet.x + planetSR * Math.cos(alpha1)
-    const tp1y = _ssPlanet.y + planetSR * Math.sin(alpha1)
-    const tp2x = _ssPlanet.x + planetSR * Math.cos(alpha2)
-    const tp2y = _ssPlanet.y + planetSR * Math.sin(alpha2)
+      // ============================================================
+      //  3D 星体投影连线与其视觉构成绘制
+      // ============================================================
+      function toScreen(v3, out) {
+        out.copy(v3).project(camera)
+        out.x = (out.x * 0.5 + 0.5) * w
+        out.y = (-out.y * 0.5 + 0.5) * h
+        return out
+      }
 
-    // Extend lines: direction from star→planet along tangent
-    const extLen = Math.max(dist * 0.5, 150)
-    const tdx1 = tp1x - ts1x, tdy1 = tp1y - ts1y
-    const tl1 = Math.hypot(tdx1, tdy1) || 1
-    const tdx2 = tp2x - ts2x, tdy2 = tp2y - ts2y
-    const tl2 = Math.hypot(tdx2, tdy2) || 1
+      // 计算精确边界半径（自适应透视拉伸）
+      function getPreciseProjectedSphere(sphereWorldPos, radius, outScreenCenter) {
+        _vCamToPlanet.subVectors(camera.position, sphereWorldPos)
+        const d = _vCamToPlanet.length()
+        if (d <= radius) { toScreen(sphereWorldPos, outScreenCenter); return 0 }
+        _vCamToPlanet.divideScalar(d)
 
-    // Extended endpoints
-    const l1_start = { x: ts1x - (tdx1/tl1) * extLen, y: ts1y - (tdy1/tl1) * extLen }
-    const l1_end   = { x: tp1x + (tdx1/tl1) * extLen, y: tp1y + (tdy1/tl1) * extLen }
-    const l2_start = { x: ts2x - (tdx2/tl2) * extLen, y: ts2y - (tdy2/tl2) * extLen }
-    const l2_end   = { x: tp2x + (tdx2/tl2) * extLen, y: tp2y + (tdy2/tl2) * extLen }
+        _uRight.set(1, 0, 0).applyQuaternion(camera.quaternion)
+        const dotR = _uRight.dot(_vCamToPlanet)
+        _uRight.addScaledVector(_vCamToPlanet, -dotR).normalize()
 
-    emit('overlayData', {
-      focused: true,
-      star:   { x: _ssStar.x,   y: _ssStar.y,   r: Math.max(starSR, 8) },
-      planet: { x: _ssPlanet.x, y: _ssPlanet.y, r: Math.max(planetSR, 6) },
-      tangents: [
-        { x1: l1_start.x, y1: l1_start.y, x2: l1_end.x, y2: l1_end.y },
-        { x1: l2_start.x, y1: l2_start.y, x2: l2_end.x, y2: l2_end.y },
-      ],
-    })
-  } else {
-    emit('overlayData', { focused: false })
+        _uUp.set(0, 1, 0).applyQuaternion(camera.quaternion)
+        const dotU = _uUp.dot(_vCamToPlanet)
+        _uUp.addScaledVector(_vCamToPlanet, -dotU).normalize()
+
+        const x = (radius * radius) / d
+        const rTangent = Math.sqrt(Math.max(0, radius * radius - x * x))
+
+        _sTangent.copy(sphereWorldPos).addScaledVector(_vCamToPlanet, x)
+        _tRight.copy(_sTangent).addScaledVector(_uRight, rTangent)
+        _tLeft.copy(_sTangent).addScaledVector(_uRight, -rTangent)
+        _tTop.copy(_sTangent).addScaledVector(_uUp, rTangent)
+        _tBottom.copy(_sTangent).addScaledVector(_uUp, -rTangent)
+
+        toScreen(_tRight, _ssTRight)
+        toScreen(_tLeft, _ssTLeft)
+        toScreen(_tTop, _ssTTop)
+        toScreen(_tBottom, _ssTBottom)
+
+        outScreenCenter.x = (_ssTRight.x + _ssTLeft.x) * 0.5
+        outScreenCenter.y = (_ssTTop.y + _ssTBottom.y) * 0.5
+        const radiusX = _ssTRight.distanceTo(_ssTLeft) * 0.5
+        const radiusY = _ssTTop.distanceTo(_ssTBottom) * 0.5
+        return (radiusX + radiusY) * 0.5
+      }
+
+      // 获取恒星及行星精确数据
+      const starSR = getPreciseProjectedSphere(_starPos, 0.42, _ssStar)
+
+      planet.updateMatrixWorld(true)
+      planet.getWorldPosition(_planetWorldPos)
+      const planetSR = getPreciseProjectedSphere(_planetWorldPos, 0.015 * planet.scale.x, _ssPlanet)
+
+      const starDrawR = starSR + 8
+      const planetDrawR = planetSR + 6
+
+      // 外公切线方程
+      const dx = _ssPlanet.x - _ssStar.x, dy = _ssPlanet.y - _ssStar.y
+      const dist = Math.hypot(dx, dy)
+      const theta = Math.atan2(dy, dx)
+      const dr = starDrawR - planetDrawR
+      const phi = dist > Math.abs(dr) ? Math.asin(dr / dist) : 0
+      
+      const alpha1 = theta + Math.PI / 2 - phi
+      const alpha2 = theta - Math.PI / 2 + phi
+
+      const ts1x = _ssStar.x + starDrawR * Math.cos(alpha1), ts1y = _ssStar.y + starDrawR * Math.sin(alpha1)
+      const ts2x = _ssStar.x + starDrawR * Math.cos(alpha2), ts2y = _ssStar.y + starDrawR * Math.sin(alpha2)
+      const tp1x = _ssPlanet.x + planetDrawR * Math.cos(alpha1), tp1y = _ssPlanet.y + planetDrawR * Math.sin(alpha1)
+      const tp2x = _ssPlanet.x + planetDrawR * Math.cos(alpha2), tp2y = _ssPlanet.y + planetDrawR * Math.sin(alpha2)
+
+      const extLen = Math.max(w, h) * 2  
+      const tdx1 = tp1x - ts1x, tdy1 = tp1y - ts1y, tl1 = Math.hypot(tdx1, tdy1) || 1
+      const tdx2 = tp2x - ts2x, tdy2 = tp2y - ts2y, tl2 = Math.hypot(tdx2, tdy2) || 1
+
+      // 绘制恒星与行星视界圈
+      ctx.strokeStyle = '#64748b'; ctx.lineWidth = 1
+      ctx.setLineDash([4, 4])
+      ctx.beginPath(); ctx.arc(_ssStar.x, _ssStar.y, starDrawR, 0, Math.PI * 2); ctx.stroke()
+      ctx.beginPath(); ctx.arc(_ssPlanet.x, _ssPlanet.y, planetDrawR, 0, Math.PI * 2); ctx.stroke()
+
+      // 【核心改进】加深外切线条的颜色与不透明度，使其成为指引视觉流向的主干线
+      ctx.setLineDash([])
+      ctx.strokeStyle = '#475569'; ctx.lineWidth = 1.0
+      ctx.beginPath(); ctx.moveTo(ts1x - (tdx1 / tl1) * extLen, ts1y - (tdy1 / tl1) * extLen)
+      ctx.lineTo(tp1x + (tdx1 / tl1) * extLen, tp1y + (tdy1 / tl1) * extLen); ctx.stroke()
+      ctx.beginPath(); ctx.moveTo(ts2x - (tdx2 / tl2) * extLen, ts2y - (tdy2 / tl2) * extLen)
+      ctx.lineTo(tp2x + (tdx2 / tl2) * extLen, tp2y + (tdy2 / tl2) * extLen); ctx.stroke()
+
+      // 绘制球体中心十字定位点
+      const drawAnchor = (x, y, sz = 5) => {
+        ctx.strokeStyle = 'rgba(15, 23, 42, 0.4)'
+        ctx.lineWidth = 0.75
+        ctx.beginPath()
+        ctx.moveTo(x - sz, y); ctx.lineTo(x + sz, y)
+        ctx.moveTo(x, y - sz); ctx.lineTo(x, y + sz)
+        ctx.stroke()
+      }
+      drawAnchor(_ssStar.x, _ssStar.y, 6)
+      drawAnchor(_ssPlanet.x, _ssPlanet.y, 4)
+
+      // 沿切线流动的能量游标
+      const flowT = (time * 0.4) % 1.0
+      ctx.fillStyle = '#475569'
+      ctx.beginPath()
+      ctx.arc(ts1x + tdx1 * flowT, ts1y + tdy1 * flowT, 1.5, 0, Math.PI * 2)
+      ctx.arc(ts2x + tdx2 * flowT, ts2y + tdy2 * flowT, 1.5, 0, Math.PI * 2)
+      ctx.fill()
+
+      // 恒星扫描射线
+      const rayCount = 16
+      const rayMaxDist = Math.hypot(w, h)
+      const rayDuration = 1.2
+      const rayStagger = 0.04
+      ctx.strokeStyle = 'rgba(15, 23, 42, 0.22)'; ctx.lineWidth = 0.5
+      for (let i = 0; i < rayCount; i++) {
+        const angle = (i / rayCount) * Math.PI * 2
+        const cosA = Math.cos(angle), sinA = Math.sin(angle)
+        const startT = _focusStartTime + i * rayStagger
+        const elapsed = Math.max(0, time - startT)
+        const rawT = Math.min(1, elapsed / rayDuration)
+        const eased = rawT * rawT * rawT * rawT
+        const rayLen = starDrawR + 4 + eased * rayMaxDist
+        ctx.beginPath()
+        ctx.moveTo(_ssStar.x + cosA * (starDrawR + 4), _ssStar.y + sinA * (starDrawR + 4))
+        ctx.lineTo(_ssStar.x + cosA * rayLen, _ssStar.y + sinA * rayLen)
+        ctx.stroke()
+      }
+
+      // ============================================================
+      //  自适应引线面板 (深色高对比卡片)
+      // ============================================================
+      const sideSign = (_ssPlanet.x >= _ssStar.x) ? 1 : -1
+      const leadLen = 75
+      const elbowX = _ssPlanet.x + 25 * sideSign
+      const elbowY = _ssPlanet.y - 45
+      const endX = _ssPlanet.x + leadLen * sideSign
+      const endY = elbowY
+
+      // 绘制自适应引导引线
+      ctx.strokeStyle = '#475569'
+      ctx.lineWidth = 0.75
+      ctx.beginPath()
+      ctx.moveTo(_ssPlanet.x, _ssPlanet.y)
+      ctx.lineTo(elbowX, elbowY)
+      ctx.lineTo(endX, endY)
+      ctx.stroke()
+
+      // 装饰小方块
+      ctx.fillStyle = link.accent
+      ctx.fillRect(endX - (sideSign > 0 ? 0 : 2), endY - 2, 2, 4)
+
+      const panelW = 125
+      const panelH = 54
+      const panelX = (sideSign > 0) ? endX + 8 : endX - panelW - 8
+      const panelY = endY - 22
+
+      ctx.fillStyle = 'rgba(15, 23, 42, 0.94)' 
+      ctx.fillRect(panelX, panelY, panelW, panelH)
+
+      // 坚实的卡片边框
+      ctx.strokeStyle = '#475569'
+      ctx.lineWidth = 1.0
+      ctx.strokeRect(panelX, panelY, panelW, panelH)
+
+      // 行星强调色跳转按钮
+      const blockW = 113
+      const blockH = 17
+      const blockX = panelX + 6
+      const blockY = panelY + 6
+      ctx.fillStyle = link.accent
+      ctx.fillRect(blockX, blockY, blockW, blockH)
+
+      // 镂空跳转文字
+      ctx.fillStyle = '#0f172a' 
+      ctx.font = 'bold 8px monospace'
+      ctx.textAlign = 'left'
+      ctx.fillText(`LAUNCH ➔ ${link.label}`, blockX + 6, blockY + 11.5)
+
+      // 技术辅助元数据
+      ctx.fillStyle = '#f1f5f9'
+      ctx.font = '7.5px monospace'
+      ctx.fillText(`SYS_LOC: [${_planetWorldPos.x.toFixed(1)}, ${_planetWorldPos.z.toFixed(1)}]`, blockX, blockY + 28)
+      ctx.fillStyle = '#cbd5e1'
+      ctx.fillText(`GATEWAY: ${link.url.replace('https://', '')}`, blockX, blockY + 38)
+    }
   }
 }
 
@@ -969,6 +1302,7 @@ function buildVerticalGridLines() {
     const g=new THREE.BufferGeometry().setFromPoints(pts)
     const nearColor = new THREE.Color('#94a3b8')
     const farColor  = new THREE.Color('#f1f5f9')
+    g.setAttribute('color', new THREE.Color('#aed2ff'))
     g.setAttribute('color', new THREE.BufferAttribute(new Float32Array([
       farColor.r, farColor.g, farColor.b,
       nearColor.r, nearColor.g, nearColor.b
@@ -1054,7 +1388,8 @@ act2.dispose = () => {}
 // ============================================================
 //  ACT 3  DOUBLE RING & GRID DESCENT
 // ============================================================
-const act3 = { name: 'ContentPhase', start: GRID_SHIFT_START, end: 1.00 }
+// 关键优化：调整 Act 3 的起点至 TEXT_START (0.70)，使恒星和环带在第二幕文字出现时同步渐变出现
+const act3 = { name: 'ContentPhase', start: TEXT_START, end: 1.00 }
 
 let act3Initialized = false
 let _mouseNDC = { x: 999, y: 999 }
@@ -1067,6 +1402,7 @@ let _gyroGroups = []
 let _planetLabels = []
 let _starGroup = null
 let _starGlow = null
+let _wedgeRings = []
 let _labelOpacityCurrent = 0
 let _raycaster = null
 let _lastTimeSec = 0
@@ -1084,7 +1420,6 @@ function createPlanetLabel(text, accentColor) {
   canvas.height = 128
   const ctx = canvas.getContext('2d')
 
-  // Pill background
   ctx.font = '500 40px "Georgia", "Times New Roman", serif'
   const tw = ctx.measureText(text).width
   const padX = 28, padY = 16
@@ -1108,7 +1443,6 @@ function createPlanetLabel(text, accentColor) {
   ctx.fillStyle = 'rgba(15, 23, 42, 0.78)'
   ctx.fill()
 
-  // Subtle border
   ctx.strokeStyle = 'rgba(255,255,255,0.12)'
   ctx.lineWidth = 1.5
   ctx.stroke()
@@ -1152,7 +1486,6 @@ act3.build = () => {
     const mat = new THREE.LineBasicMaterial({ color: '#cbd5e1', transparent: true, opacity: 0, depthWrite: false, depthTest: true })
     const line = new THREE.Line(geo, mat)
     
-    // 关键优化：将轨道中心 Z 轴对齐到灯塔中心 SCENE_CENTER_Z
     line.position.set(0, -1.0, SCENE_CENTER_Z)
     line.renderOrder = 2
     
@@ -1176,7 +1509,6 @@ act3.build = () => {
     const group = new THREE.Group()
     group.add(ring)
     
-    // 关键优化：外环轨道中心也对齐到灯塔中心 SCENE_CENTER_Z
     group.position.set(0, -1.0, SCENE_CENTER_Z)
     group.userData = { rotSpeed: 0.08 + g * 0.05 }
     
@@ -1187,18 +1519,16 @@ act3.build = () => {
     _gyroGroups.push(group)
   }
 
-  // --- central star (sun) at orbit center ---
   _starGroup = new THREE.Group()
   _starGroup.position.set(0, -1.0, SCENE_CENTER_Z)
   _starGroup.renderOrder = 1
 
-  // Core: warm bright sphere
+  // 关键优化：使恒星实心球体材质透明并设不透明度为0，准备渐变淡入
   const coreGeo = new THREE.SphereGeometry(0.42, 32, 32)
-  const coreMat = new THREE.MeshBasicMaterial({ color: '#fff8e7' })
+  const coreMat = new THREE.MeshBasicMaterial({ color: '#fff8e7', transparent: true, opacity: 0 })
   const core = new THREE.Mesh(coreGeo, coreMat)
   _starGroup.add(core)
 
-  // Inner glow: larger transparent envelope
   const glowGeo = new THREE.SphereGeometry(0.70, 32, 32)
   const glowMat = new THREE.MeshBasicMaterial({
     color: '#ffe8c0',
@@ -1209,7 +1539,6 @@ act3.build = () => {
   _starGlow = new THREE.Mesh(glowGeo, glowMat)
   _starGroup.add(_starGlow)
 
-  // Outer halo: sprite for soft radial falloff
   const haloSprite = (() => {
     const size = 128
     const c = document.createElement('canvas')
@@ -1242,6 +1571,52 @@ act3.build = () => {
 
   scene.add(_starGroup)
 
+  // 初始化动态羽化纹理并应用
+  const outerSectors = 240
+  const outerMidR = 82.5
+  const outerWidth = 9.0
+  const outerArcLen = outerMidR * (Math.PI * 2) / outerSectors
+  const wedgeWidth = outerArcLen * 0.5
+  const outerTiltX = 0.55, outerTiltZ = -0.65, outerRotSpeed = 0.04
+  const wedgeGeo = new THREE.PlaneGeometry(wedgeWidth, outerWidth)
+  
+  const wedgeMatTemplate = new THREE.MeshBasicMaterial({
+    color: '#ffffff',
+    side: THREE.DoubleSide,
+    transparent: true,
+    opacity: 0,
+    blending: THREE.CustomBlending,
+    blendEquation: THREE.AddEquation,
+    blendSrc: THREE.OneMinusDstColorFactor,
+    blendDst: THREE.OneMinusSrcAlphaFactor,
+    depthWrite: false, 
+    depthTest: true
+  })
+
+  const outerRingGroup = new THREE.Group()
+  outerRingGroup.position.copy(_starGroup.position)
+  outerRingGroup.rotation.x = outerTiltX
+  outerRingGroup.rotation.z = outerTiltZ
+  outerRingGroup.renderOrder = 1
+  scene.add(outerRingGroup)
+
+  const outerWedgeGroups = []
+  const phaseDelta = (Math.PI * 2) / outerSectors
+  for (let i = 0; i < outerSectors; i++) {
+    const angle = (i / outerSectors) * Math.PI * 2
+    const wg = new THREE.Group()
+    wg.position.set(Math.cos(angle) * outerMidR, 0, Math.sin(angle) * outerMidR)
+    wg.rotation.y = -angle + Math.PI / 2
+
+    const wMat = wedgeMatTemplate.clone()
+    const wMesh = new THREE.Mesh(wedgeGeo, wMat)
+    wMesh.renderOrder = 1
+    wg.add(wMesh)
+    outerRingGroup.add(wg)
+    outerWedgeGroups.push({ group: wg, mesh: wMesh, phase: i * phaseDelta * 3.0 })
+  }
+  _wedgeRings.push({ isIndividual: true, outerRingGroup, outerWedgeGroups, rotSpeed: outerRotSpeed, tiltX: outerTiltX, tiltZ: outerTiltZ })
+
   for (let t = 0; t < ORBIT_COUNT; t++) {
     const link = _planetLinks[t]
     const sprite = createPlanetLabel(link.label, link.accent)
@@ -1259,41 +1634,90 @@ act3.build = () => {
 }
 
 act3.animate = (time, tSp, sp) => {
-  const progress = Math.max(0, Math.min(1, (sp - GRID_SHIFT_START) / (1.0 - GRID_SHIFT_START)))
-  const smoothProgress = progress * progress * (3 - 2 * progress)
+  // 1. 恒星和楔形环：在第二幕文字出现后（TEXT_START 0.70 到 GRID_SHIFT_START 0.85 之间）平滑淡入 [0 -> 1]
+  const starWedgeProgress = Math.max(0, Math.min(1, (sp - TEXT_START) / (GRID_SHIFT_START - TEXT_START)))
+  const smoothStarWedge = starWedgeProgress * starWedgeProgress * (3 - 2 * starWedgeProgress)
 
+  // 2. 轨道与聚焦系统：在第三幕开始后（GRID_SHIFT_START 0.85 到 1.00 之间）平滑淡入 [0 -> 1]
+  const orbitFocusProgress = Math.max(0, Math.min(1, (sp - GRID_SHIFT_START) / (1.0 - GRID_SHIFT_START)))
+  const smoothOrbitFocus = orbitFocusProgress * orbitFocusProgress * (3 - 2 * orbitFocusProgress)
+
+  // 轨道线淡入
   for (const line of _orbitLines) {
-    line.visible = true
-    line.material.opacity = smoothProgress * 0.35
+    line.visible = sp >= GRID_SHIFT_START
+    // Focus: darker + more opaque orbit lines
+    const focusBoost = 0.35 + _focusUIProgress * 0.55
+    line.material.opacity = smoothOrbitFocus * focusBoost
+    // Blend color from light grey (#cbd5e1) to dark slate (#334155) when focused
+    const r = Math.round(203 - _focusUIProgress * 152)
+    const g = Math.round(213 - _focusUIProgress * 148)
+    const b = Math.round(225 - _focusUIProgress * 140)
+    line.material.color.setRGB(r/255, g/255, b/255)
   }
 
+  // 陀螺仪外环淡入
   for (const g of _gyroGroups) {
-    g.visible = true
+    g.visible = sp >= GRID_SHIFT_START
     g.rotation.y = time * g.userData.rotSpeed * 0.96
-    if (g.children[0]) g.children[0].material.opacity = smoothProgress * 0.28
+    if (g.children[0]) g.children[0].material.opacity = smoothOrbitFocus * 0.28
   }
 
-  // Star: fade in, subtle pulse
+  // 中心恒星淡入（包含核心球体、发光和外光晕）
   if (_starGroup) {
     _starGroup.visible = true
-    const pulse = 1 + Math.sin(time * 1.8) * 0.06 + Math.sin(time * 3.3) * 0.04
+    const pulse = 1 + Math.sin(time * 0.18) * 0.06 + Math.sin(time * 0.33) * 0.04
+    
+    // 平滑淡入恒星核心
+    const coreMesh = _starGroup.children[0]
+    if (coreMesh && coreMesh.material) {
+      coreMesh.material.opacity = smoothStarWedge
+    }
+    
     if (_starGlow) {
-      _starGlow.material.opacity = smoothProgress * 0.30 * pulse
+      _starGlow.material.opacity = smoothStarWedge * 0.30 * pulse
       _starGlow.scale.setScalar(pulse)
     }
     if (_starGroup.userData.haloSprite) {
-      _starGroup.userData.haloSprite.material.opacity = smoothProgress * 0.55 * pulse
+      _starGroup.userData.haloSprite.material.opacity = smoothStarWedge * 0.55 * pulse
+    }
+  }
+
+  // 楔形环带渐变淡入与景深空间构件过滤
+  const ringOpacity = smoothStarWedge * 0.85
+  for (let ri = 0; ri < _wedgeRings.length; ri++) {
+    const rd = _wedgeRings[ri]
+    if (rd.isIndividual) {
+      rd.outerRingGroup.visible = true
+      rd.outerRingGroup.position.copy(_starGroup.position)
+      rd.outerRingGroup.rotation.set(rd.tiltX, time * rd.rotSpeed, rd.tiltZ)
+      
+      for (const wg of rd.outerWedgeGroups) {
+        // Screen-space distance from center: edges = pure black, center = subtle fade
+        _ssScratch.setFromMatrixPosition(wg.group.matrixWorld)
+        _ssScratch.project(camera)
+        const screenDist = Math.hypot(_ssScratch.x, _ssScratch.y) // NDC 0→~1.4
+        const centerFade = Math.max(0, 1.0 - screenDist * 0.65)
+        const lensFade = 1.0 - centerFade * centerFade * 0.85
+
+        wg.mesh.material.opacity = ringOpacity * lensFade
+        wg.group.rotation.z = time * 0.15 + wg.phase
+      }
+    } else {
+      rd.mesh.visible = true
+      rd.mesh.position.copy(_starGroup.position)
+      rd.mesh.rotation.set(rd.tiltX, time * rd.rotSpeed, rd.tiltZ)
+      rd.mesh.material.opacity = ringOpacity
     }
   }
 
   const isFocused = _focusedPlanetIdx >= 0
-  const targetLabelOpacity = isFocused ? 0 : smoothProgress * 0.82
+  const targetLabelOpacity = isFocused ? 0 : smoothOrbitFocus * 0.82
   _labelOpacityCurrent += (targetLabelOpacity - _labelOpacityCurrent) * 0.12
   _mainPlanetsPreFiltered.sort((a, b) => _mainPlanetIndices.indexOf(dustParticles.indexOf(a)) - _mainPlanetIndices.indexOf(dustParticles.indexOf(b)))
   for (let t = 0; t < _planetLabels.length && t < _mainPlanetsPreFiltered.length; t++) {
     const label = _planetLabels[t]
     const planet = _mainPlanetsPreFiltered[t]
-    label.visible = true
+    label.visible = sp >= GRID_SHIFT_START
     label.position.copy(planet.position)
     label.position.y += 0.45
     label.material.opacity = _labelOpacityCurrent
@@ -1301,16 +1725,20 @@ act3.animate = (time, tSp, sp) => {
 }
 
 act3.exit = () => {
-  // Hide all Act 3 elements when leaving this act
   for (const line of _orbitLines) { line.visible = false; line.material.opacity = 0 }
   for (const g of _gyroGroups) { g.visible = false; if (g.children[0]) g.children[0].material.opacity = 0 }
   for (const label of _planetLabels) { label.visible = false; label.material.opacity = 0 }
+  for (const rd of _wedgeRings) {
+    if (rd.isIndividual) rd.outerRingGroup.visible = false
+    else rd.mesh.visible = false
+  }
   if (_starGroup) {
     _starGroup.visible = false
+    const coreMesh = _starGroup.children[0]
+    if (coreMesh && coreMesh.material) coreMesh.material.opacity = 0
     if (_starGlow) _starGlow.material.opacity = 0
     if (_starGroup.userData.haloSprite) _starGroup.userData.haloSprite.material.opacity = 0
   }
-  // Reset focus state
   if (_focusedPlanetIdx >= 0) {
     _focusedPlanetIdx = -1
     _focusStartTime = 0
@@ -1338,6 +1766,20 @@ act3.dispose = () => {
     sprite.material.dispose()
   }
   _planetLabels = []
+
+  for (const rd of _wedgeRings) {
+    if (rd.isIndividual) {
+      for (const wg of rd.outerWedgeGroups) { wg.mesh.material.dispose() }
+      if (rd.outerWedgeGroups.length > 0) rd.outerWedgeGroups[0].mesh.geometry.dispose()
+      scene.remove(rd.outerRingGroup)
+    } else {
+      scene.remove(rd.mesh)
+      rd.mesh.geometry.dispose()
+      if (rd.mesh.material.map) rd.mesh.material.map.dispose()
+      rd.mesh.material.dispose()
+    }
+  }
+  _wedgeRings = []
 
   if (_starGroup) {
     _starGroup.traverse(c => {
@@ -1384,7 +1826,6 @@ function animate(time) {
   updateTextOffsetCSS(sp)
   sceneApplyWhiteOut(sp)
 
-  // Hide 3D lighthouse once white-out fully covers it
   if (lighthouseGroup) {
     lighthouseGroup.visible = sp < WHITE_OUT_END
   }
@@ -1393,13 +1834,14 @@ function animate(time) {
   animateVerticalGrid(sp)
   animateDust(t, sp)
   animateBeam(t, sp)
-  updateCameraFocus(sp, t)
 
   const activeActs = resolveActiveActs(sp)
   for (const act of activeActs) {
     const tSp = Math.max(0, Math.min(1, (sp - act.start) / (act.end - act.start)))
     if (act.animate) act.animate(t, tSp, sp)
   }
+
+  updateCameraFocus(sp, t)
 
   renderer.render(scene, camera)
 }
@@ -1420,7 +1862,6 @@ const onClickCanvas = (e) => {
   const sp = props.scrollProgress
   if (sp < GRID_SHIFT_START) return
 
-  // Reset auto-unfocus timer on any click
   if (_focusedPlanetIdx >= 0) {
     _focusStartTime = performance.now() * 0.001
   }
@@ -1429,13 +1870,12 @@ const onClickCanvas = (e) => {
   const ndcX = ((e.clientX - rect.left) / rect.width) * 2 - 1
   const ndcY = -((e.clientY - rect.top) / rect.height) * 2 + 1
 
-  // Use screen-space distance (same as hover) for reliable click detection
   let bestDist = 1e9, bestIdx = -1
   for (let i = 0; i < dustParticles.length; i++) {
     const p = dustParticles[i]
     if (!p.userData.isMainPlanet) continue
     _dustProjectScratch.copy(p.position).project(camera)
-    const dx = (_dustProjectScratch.x - ndcX) * (window.innerWidth / window.innerHeight)
+    const dx = (_dustProjectScratch.x - ndcX) * (camera.aspect || 1)
     const dy = _dustProjectScratch.y - ndcY
     const dist = Math.hypot(dx, dy)
     if (dist < bestDist) { bestDist = dist; bestIdx = i }
@@ -1448,7 +1888,7 @@ const onClickCanvas = (e) => {
         window.open(_planetLinks[trackIdx].url, '_blank', 'noopener')
       } else {
         _focusedPlanetIdx = bestIdx
-        _focusStartTime = performance.now() * 0.001 // seconds
+        _focusStartTime = performance.now() * 0.001 
         _focusOrbitAngle = 0
         emit('focusChange', true)
       }
@@ -1482,14 +1922,10 @@ function captureLighthouse() {
   const clone = lighthouseGroup.clone(true)
   const tempScene = new THREE.Scene()
 
-  // Center lighthouse clone at origin (includes base/foundation)
-  // Local y extent after 0.7 scale: ~-0.63 (foundation) to ~2.56 (spire tip)
-  // Center = (-0.63 + 2.56) / 2 ≈ 0.965
   clone.position.set(0, -0.965, 0)
   clone.scale.copy(lighthouseGroup.scale)
   tempScene.add(clone)
 
-  // Lighting for MeshStandardMaterials
   tempScene.add(new THREE.AmbientLight('#ffffff', 1.8))
   const key = new THREE.DirectionalLight('#ffffff', 2.2)
   key.position.set(4, 6, 8)
@@ -1505,7 +1941,6 @@ function captureLighthouse() {
   offRenderer.render(tempScene, capCam)
   const dataUrl = offRenderer.domElement.toDataURL('image/png')
 
-  // Cleanup
   offRenderer.dispose()
   clone.traverse(c => {
     if (c.geometry) c.geometry.dispose()
@@ -1579,5 +2014,7 @@ onUnmounted(() => {
 <template>
   <div style="position:fixed;inset:0;z-index:0">
     <canvas ref="canvasRef" style="position:absolute;inset:0" />
+    <canvas ref="invertCanvasRef" style="position:absolute;inset:0;pointer-events:none;mix-blend-mode:difference;" />
+    <canvas ref="overlayRef" style="position:absolute;inset:0;pointer-events:none" />
   </div>
 </template>
