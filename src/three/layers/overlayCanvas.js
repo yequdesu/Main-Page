@@ -16,8 +16,8 @@ const FOCUS_TIMEOUT = 30
 let _smoothStarX = 0, _smoothStarY = 0, _smoothStarRX = 0, _smoothStarRY = 0
 let _smoothPlanetX = 0, _smoothPlanetY = 0, _smoothPlanetRX = 0, _smoothPlanetRY = 0
 let _smoothInvertInit = false
-let _focusStableFrames = 0
 let _lastFocusTarget = -1
+const _focusDepartPos = new THREE.Vector3()
 
 export function updateOverlayCanvas(sp, time, ctx) {
   const isAct3 = sp >= GRID_SHIFT_START
@@ -95,22 +95,20 @@ export function updateOverlayCanvas(sp, time, ctx) {
 
   ctx._focusUIProgress += ((isFocused ? 1.0 : 0.0) - ctx._focusUIProgress) * 0.12
 
-  // Prevent first-frame flash: stabilization is artificially high on frame 1
-  // because both camera and target start at similar positions.
-  // Require a few frames of settling before showing UI elements.
+  // Prevent first-frame flash: on the initial frame after focus,
+  // _targetCamPos and camera are still near each other (both at default),
+  // making stabilization artificially ~1. Suppress UI until the camera
+  // has actually departed from its focus-start position by a meaningful distance.
   const currentFocusTarget = isFocused ? ctx._focusedPlanetIdx : -1
   if (currentFocusTarget !== _lastFocusTarget) {
-    _focusStableFrames = 0
+    _focusDepartPos.copy(camera.position)
     _lastFocusTarget = currentFocusTarget
-  }
-  if (isFocused && _focusStableFrames < 5) {
-    _focusStableFrames++
   }
 
   let activeUIAlpha = ctx._focusUIProgress * stabilization * stabilization
   if (!starInFront || !planetInFront) activeUIAlpha = 0
-  // Gate: suppress UI during initial camera departure (frame counter)
-  if (isFocused && _focusStableFrames < 4) activeUIAlpha = 0
+  // Gate: suppress UI until camera has genuinely departed from start position
+  if (isFocused && camera.position.distanceTo(_focusDepartPos) < 0.25) activeUIAlpha = 0
 
   // ---- invert canvas ----
   const invertCanvas = ctx.invertCanvasRef?.value
