@@ -9,12 +9,15 @@ import { animateBeam } from '../layers/lightBeam.js'
 import { updateOverlayCanvas } from '../layers/overlayCanvas.js'
 
 const builtActs = new Set()
+let _prevActiveNames = []
 
 export function resolveActiveActs(sp, acts, ctx) {
+  const activeNames = []
   const active = []
   for (const act of acts) {
     const inRange = sp >= act.start - 0.01 && sp <= act.end + 0.01
     if (inRange) {
+      activeNames.push(act.name)
       if (!builtActs.has(act.name)) {
         if (act.build) act.build(ctx)
         builtActs.add(act.name)
@@ -22,6 +25,13 @@ export function resolveActiveActs(sp, acts, ctx) {
       active.push(act)
     }
   }
+  // Call exit() on acts that just left range
+  for (const act of acts) {
+    if (_prevActiveNames.includes(act.name) && !activeNames.includes(act.name)) {
+      if (act.exit && builtActs.has(act.name)) act.exit(ctx)
+    }
+  }
+  _prevActiveNames = activeNames
   return active
 }
 
