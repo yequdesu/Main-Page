@@ -1,6 +1,12 @@
 <script setup>
 import { ref, onMounted, onUnmounted, computed } from 'vue'
 import * as THREE from 'three'
+import {
+  WHITE_OUT_THRESHOLD, WHITE_OUT_END, GRID_START, VERTICAL_START,
+  TEXT_START, GRID_SHIFT_START, IDLE_RESET_DELAY, SCENE_CENTER_Z,
+  ORBIT_COUNT, ORBIT_RADII, ELLIPSE_A, ELLIPSE_B, ELLIPSE_C, ELLIPSE_INCL,
+  smoothstep, clamp, shortestDelta
+} from '../three/constants.js'
 
 const props = defineProps({
   scrollProgress: { type: Number, default: 0 }
@@ -17,30 +23,6 @@ const invertCanvasRef = ref(null)
 // ============================================================
 let renderer, scene, camera, animationId
 
-// ============================================================
-//  SHARED CONSTANTS — act boundary thresholds & unified center
-// ============================================================
-const WHITE_OUT_THRESHOLD = 0.40 
-const WHITE_OUT_END      = 0.55 
-const GRID_START         = 0.45 
-const VERTICAL_START     = 0.58 
-const TEXT_START         = 0.70 
-const GRID_SHIFT_START   = 0.85 
-const IDLE_RESET_DELAY   = 1.5
-
-// 统一的场景中心 Z 轴坐标，使灯塔与轨道合理契合
-const SCENE_CENTER_Z      = -16.0 
-
-// ============================================================
-//  ACT 3 CONSTANTS
-// ============================================================
-const ORBIT_COUNT = 4
-const ORBIT_RADII = [3.6, 5.0, 6.4, 22.0]
-// Elliptical orbit for 4th (menu) planet
-const ELLIPSE_A = 22.0, ELLIPSE_E = 0.65
-const ELLIPSE_B = ELLIPSE_A * Math.sqrt(1 - ELLIPSE_E * ELLIPSE_E)
-const ELLIPSE_C = ELLIPSE_A * ELLIPSE_E
-const ELLIPSE_INCL = 0.45
 let _mainPlanetIndices = []
 
 // ============================================================
@@ -135,16 +117,6 @@ let gridLinesVisible = true
 // ============================================================
 //  UTILITY
 // ============================================================
-function shortestDelta(from, to) {
-  let d = to - from
-  while (d > Math.PI)  d -= Math.PI * 2
-  while (d < -Math.PI) d += Math.PI * 2
-  return d
-}
-
-function smoothstep(t) {
-  return t * t * (3 - 2 * t)
-}
 
 // ============================================================
 //  STATE CONTEXT
