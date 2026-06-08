@@ -26,82 +26,34 @@ let renderer, scene, camera, animationId
 
 let _mainPlanetIndices = []
 
-// ============================================================
-//  PRE-ALLOCATED REUSABLE OBJECTS (GC-FREE)
-// ============================================================
-const _waveBeamOrigin = new THREE.Vector3()
-const _waveBeamDir = new THREE.Vector3()
-const _targetCol = new THREE.Color('#94a3b8')
+import {
+  _waveBeamOrigin, _waveBeamDir, _targetCol,
+  _dustBwo, _dustBeamDir, _dustToP, _dustPp,
+  _colorAct1, _colorAct3, _colorAct2, _currentColor,
+  _clickNDC,
+  _defaultCamPos, _defaultLookAt, _targetCamPos, _targetLookAt,
+  _currentLookAt, _camOffsetDir, _camToStar, _camLeftDir, _camUp, _starPos,
+  _occCamToPlanet, _occToParticle, _occProj,
+  _focusAxisPoint, _focusBaseOffset, _focusOrbitQuat,
+  _orbitNearCol, _orbitFarCol, _orbitTempCol, _orbitTempV,
+  _ssStar, _ssPlanet, _ssStarEdge, _ssScratch,
+  _vCamToPlanet, _uRight, _uUp, _sTangent,
+  _tRight, _tLeft, _tTop, _tBottom,
+  _ssTRight, _ssTLeft, _ssTTop, _ssTBottom, _planetWorldPos,
+  _bgBaseColor, _bgTargetColor, _bgLerpColor,
+  _dustProjectScratch
+} from '../three/shared/reusableObjects.js'
 
-const _dustBwo = new THREE.Vector3()
-const _dustBeamDir = new THREE.Vector3()
-const _dustToP = new THREE.Vector3()
-const _dustPp = new THREE.Vector3()
-const _colorAct1 = new THREE.Color('#f0f8ff')
-const _colorAct3 = new THREE.Color('#64748b')
-const _colorAct2 = new THREE.Color()
-const _currentColor = new THREE.Color()
-
-const _clickNDC = new THREE.Vector2()
-
-// ---- camera-focus system pre-allocated ----
-const _defaultCamPos = new THREE.Vector3(0, 0.25, 8)
-const _defaultLookAt = new THREE.Vector3(0, -0.65, -24)
-const _targetCamPos = new THREE.Vector3(0, 0.25, 8)
-const _targetLookAt = new THREE.Vector3(0, -0.65, -24)
-const _currentLookAt = new THREE.Vector3(0, -0.65, -24)
-const _camOffsetDir = new THREE.Vector3()
-const _camToStar = new THREE.Vector3()
-const _camLeftDir = new THREE.Vector3()
-const _camUp = new THREE.Vector3(0, 1, 0)
-const _starPos = new THREE.Vector3(0, -1.0, SCENE_CENTER_Z)
-const _occCamToPlanet = new THREE.Vector3()
-const _occToParticle = new THREE.Vector3()
-const _occProj = new THREE.Vector3()
-const _focusAxisPoint = new THREE.Vector3()
-const _focusBaseOffset = new THREE.Vector3()
-const _focusOrbitQuat = new THREE.Quaternion()
+// ---- state variables (non-reusable) ----
 let _focusStartTime = 0
 let _focusOrbitAngle = 0
-let _focusUIProgress = 0 // 动态 UI 插值进度
+let _focusUIProgress = 0
 
-// Temporal smoothing for inversion region stability (prevents flicker during camera move)
+// Temporal smoothing for inversion region stability
 let _smoothStarX = 0, _smoothStarY = 0, _smoothStarRX = 0, _smoothStarRY = 0
 let _smoothPlanetX = 0, _smoothPlanetY = 0, _smoothPlanetRX = 0, _smoothPlanetRY = 0
 let _smoothInvertInit = false
 
-// ---- 第三幕环线顶点级深度暗示复用变量 ----
-const _orbitNearCol = new THREE.Color('#475569')
-const _orbitFarCol  = new THREE.Color('#f1f5f9')
-const _orbitTempCol = new THREE.Color()
-const _orbitTempV   = new THREE.Vector3()
-
-// Scratch for screen-space overlay projection
-const _ssStar = new THREE.Vector3()
-const _ssPlanet = new THREE.Vector3()
-const _ssStarEdge = new THREE.Vector3()
-const _ssScratch = new THREE.Vector3()
-
-// ---- 几何切线与 HUD 精密投影专用的复用对象 (GC-Free) ----
-const _vCamToPlanet = new THREE.Vector3()
-const _uRight = new THREE.Vector3()
-const _uUp = new THREE.Vector3()
-const _sTangent = new THREE.Vector3()
-const _tRight = new THREE.Vector3()
-const _tLeft = new THREE.Vector3()
-const _tTop = new THREE.Vector3()
-const _tBottom = new THREE.Vector3()
-const _ssTRight = new THREE.Vector3()
-const _ssTLeft = new THREE.Vector3()
-const _ssTTop = new THREE.Vector3()
-const _ssTBottom = new THREE.Vector3()
-const _planetWorldPos = new THREE.Vector3()
-
-// ---- pre-allocated reusable objects for hot paths ----
-const _bgBaseColor = new THREE.Color('#050811')
-const _bgTargetColor = new THREE.Color('#f1f5f9')
-const _bgLerpColor = new THREE.Color()
-const _dustProjectScratch = new THREE.Vector3()
 let _mainPlanetsPreFiltered = []
 
 // ============================================================
