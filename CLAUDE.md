@@ -1,83 +1,68 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+本文件为 Claude Code 在此仓库中工作时提供指导。项目介绍、交互说明、技术栈等面向人类的文档见 `README.md`。
 
-## Commands
+## 语言协定
+
+无论用户使用中文还是英文提问，默认使用中文回复。新增或修改面向维护者的文档时，也应优先使用中文；代码标识符、命令、报错文本和第三方 API 名称保持原文。
+
+## 命令
 
 ```bash
-npm run dev      # Start Vite dev server with HMR on port 5173 (binds 0.0.0.0)
-npm run build    # Production build → dist/
-npm run preview  # Preview production build locally
+npm run dev      # Vite 开发服务器，:5173，绑定 0.0.0.0
+npm run build    # 生产构建 → dist/
+npm run preview  # 本地预览生产构建
 ```
 
-The dev server proxies `/api/*` → `http://127.0.0.1:9999` (strips `/api` prefix).
+开发服务器将 `/api/*` 代理至 `http://127.0.0.1:9999`（去除 `/api` 前缀）。项目无测试/检查工具。
 
-There are no tests or linters configured in this project.
+## 架构要点
 
-## Architecture
+- **单页、无路由** — 全视口 `<canvas>`，GSAP ScrollTrigger 驱动，body 高 `15vh`，`scrollProgress`（0–1）贯穿所有动画
+- **组件分工** — `App.vue` 管滚动/物理/品牌文字/聚焦 SVG 叠加层；`LighthouseScene.vue` 管整个 Three.js 场景、动画循环、act 调度
+- **自定义物理滚动** — `App.vue` 中 `gsap.ticker` 驱动动量 + 摩擦力（`FRICTION=0.955`），点击快进是 2s GSAP tween。聚焦行星时阻止滚动
 
-This is a **single-page personal site** (no router) built with **Vue 3 + Vite + Three.js + GSAP**. The entire experience is a scroll-driven 3D scene rendered on a full-viewport `<canvas>`.
-
-### Scroll-driven scene model
-
-GSAP ScrollTrigger drives everything. The page body is stretched to `15 × viewport height` via JS (`SCROLL_VH = 15` in `App.vue`). A single `scrollProgress` value (0–1) is passed down to `LighthouseScene.vue` and drives all animation logic — there are no DOM-based scroll sections.
-
-### Three.js scene structure (LighthouseScene.vue)
-
-The scene is organized into three "Acts" that build/exit as `scrollProgress` crosses thresholds:
-
-| Act | Range | What happens |
-|-----|-------|--------------|
-| Act 1 "OceanVoyage" | 0.00–0.45 | Dark ocean with animated wave lines, lighthouse with rotating light beam, 135 dust/particle objects |
-| Act 2 "GridTransition" | 0.40–0.85 | White-out fog transition (background lerps from dark to light), vertical grid lines rise from the ocean, ocean waves flatten into grid |
-| Act 3 "ContentPhase" | 0.85–1.00 | Grid descends, 3 orbit rings appear around the lighthouse, 3 main planets orbit on those rings with clickable labels (FS, Code, GitHub), gyroscope ring decorations spin |
-
-Key thresholds (constants in `LighthouseScene.vue`):
-- `WHITE_OUT_THRESHOLD = 0.40` — background/fog start transitioning to white
-- `WHITE_OUT_END = 0.55` — white-out complete, fog begins fading
-- `GRID_START = 0.45` — ocean waves start flattening into grid lines
-- `VERTICAL_START = 0.58` — vertical grid lines begin extending
-- `TEXT_START = 0.70` — brand text appears
-- `GRID_SHIFT_START = 0.85` — everything shifts down, Act 3 orbits appear
-
-Unified scene center Z is `SCENE_CENTER_Z = -16.0` — the lighthouse, orbits, and planets all align to this depth.
-
-### Performance patterns
-
-The code uses several deliberate performance optimizations:
-- **Pre-allocated `THREE.Vector3`/`THREE.Color` objects** (prefixed `_`) reused across frames to avoid GC pressure
-- **Frame caching guards** (`_lastWavesTime`, `_lastBeamTime`, etc.) — update functions bail out if called with the same `(time, scrollProgress)` pair within a single frame
-- **Visibility toggles** — ocean lines and grid lines are bulk-hidden when their contribution is mathematically zero (opacity < 0.001), skipping per-vertex updates
-
-### Particle system ("dust")
-
-135 particles are created in Act 1. The 3 largest (by `totalSize` sort) become "main planets" with higher-poly geometry, depth write enabled, and `renderOrder = 1`. The rest are small `renderOrder = 2` particles. In Act 3, main planets transition to orbiting around `SCENE_CENTER_Z` and become clickable — clicking opens the associated URL in a new tab. Planet labels are Canvas-generated sprite textures (pill-shaped semi-transparent backgrounds with text).
-
-### Component tree
+## Three.js 场景关键常量
 
 ```
-App.vue
-├── LighthouseScene.vue  (entire Three.js scene, receives scrollProgress prop)
-├── scroll hint overlay  (visibility driven by scrollProgress)
-├── brand text overlay   (visibility driven by scrollProgress)
-└── AppFooter.vue        (static footer with ICP备案 link)
+SCENE_CENTER_Z       = -16.0   # 灯塔、轨道、恒星、行星的统一 Z 深度
+WHITE_OUT_THRESHOLD  = 0.40    # 背景/雾开始白化
+WHITE_OUT_END        = 0.55    # 白化完成
+GRID_START           = 0.45    # 海浪展平为网格
+VERTICAL_START       = 0.58    # 垂直网格线开始延伸
+TEXT_START           = 0.70    # 品牌文字出现
+GRID_SHIFT_START     = 0.85    # Act 3 轨道出现，全部元素下移 32Y
 ```
 
-`App.vue` owns the scroll trigger, computes `scrollProgress`, and passes it as a prop. `LighthouseScene.vue` owns all Three.js objects, the animation loop, and all act management.
+轨道中心位于 `(0, -1.0, SCENE_CENTER_Z)`。三颗主行星轨道半径 `[3.6, 5.0, 6.4]`。
 
-### Backend stats server
+## Act 生命周期
 
-`stats_server.py` runs on `127.0.0.1:9999` and serves system metrics (CPU, memory, disk, load, uptime, Docker containers) as JSON at `/stats`. It reads from `/proc/*` and runs `docker ps`. It is NOT a Python project dependency — it's a standalone companion process for the `/api/stats` endpoint.
+每个 act 有 `build()`、`animate()`、`exit()`、`dispose()` 四个钩子。Act 首次进入区间时延迟构建（`builtActs` Set 跟踪）。动画循环通过比较前后帧活跃 act 名检测切换，离开时调用 `exit()`（隐藏而非移除）。修改 act 逻辑时务必保持此模式。
 
-### Nginx configs
+## 性能模式（务必保持）
 
-- `mainpage.nginx.dev.conf` — proxies all `/` traffic to Vite dev server on `:5173`, `/api/stats` to Python backend
-- `mainpage.nginx.prod.conf` — serves static `dist/` with SPA fallback (`try_files $uri /index.html`), `/api/stats` to Python backend
-- `mainpage.nginx.conf` — serves the project root directly (no build step, no dev proxy), `/api/stats` to Python backend
+- **预分配对象** — `_` 前缀的 `Vector3`/`Color`/`Quaternion` 跨帧复用，禁止在热路径中 `new`
+- **帧缓存** — `_lastWavesTime` / `_lastBeamTime` / `_lastDustSp` 等守卫，同帧同参数跳过整个更新
+- **批量可见性** — opacity < 0.001 时 `visible = false`，跳过逐顶点更新
+- **CSS 变量节流** — `updateTextOffsetCSS` 用舍入到千分位的键值
+- **预筛选数组** — `_mainPlanetsPreFiltered` 避免循环中 `.filter()`
 
-### Dependencies
+## 粒子系统要点
 
-- **three** (`^0.170.0`) — 3D rendering
-- **gsap** (`^3.12.5`) — scroll-driven animation via ScrollTrigger plugin
-- **vue** (`^3.5.13`) — UI framework
-- **vite** (`^6.0.0`) + **@vitejs/plugin-vue** — build tooling
+135 个粒子，最大的 3 个按 `totalSize` 排序成为主行星（高面数、深度写入、`renderOrder=1`），其余为小碎片（`renderOrder=2`）。Act 3 过渡到轨道运动。遮挡聚焦行星的粒子淡化至 `opacity * 0.12`。非行星粒子用 `_defaultCamPos` 计算缩放以避免相机聚焦影响。
+
+## 行星聚焦与叠加层
+
+- 点击检测用**屏幕空间 NDC 投影**（非 Raycaster），迟滞阈值 0.16 进 / 0.22 出
+- 相机双层平滑：`_targetCamPos` 对目标 lerp(0.04)，`camera.position` 对 target lerp(0.06)
+- 30s 自动取消聚焦，点击重置计时器，聚焦时相机沿恒星→行星轴绕行
+- 聚焦时 `App.vue` 渲染 SVG 叠加层（虚线圆 + 外公切线），屏幕空间半径用相机右向量投影计算
+
+## 行星标签
+
+Canvas 生成的 `THREE.Sprite`，512×128，半透明胶囊背景 + Georgia 白色文字，`renderOrder = 9999`。标签跟随行星位置，聚焦时淡出。
+
+## 灯塔截图
+
+`LighthouseScene.vue` 通过 `defineExpose` 暴露 `captureLighthouse()`，`App.vue` 在 `scrollProgress >= 0.54` 时调用。离屏渲染克隆灯塔为 512×1024 PNG，用作品牌文字旁图标。修改灯塔几何体时需同步检查此函数。
