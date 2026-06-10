@@ -237,9 +237,7 @@ export default function DustField() {
           _scale.set(appearance.scale, appearance.scale, appearance.scale),
         )
         debrisRef.current.setMatrixAt(debrisIdx, _matrix)
-        // Per-instance color: lerp act1 → gray → act3 (逐字保留自原版)
-        _color2.set(d.grayHex)
-        _scratch2.copy(_colorAct1).lerp(_color2, wof).lerp(_colorAct3, smooth3)
+        // Per-instance color: computed at line 208-209 above (shared with main planets)
         debrisRef.current.setColorAt(debrisIdx, _scratch2)
         debrisIdx++
       }
