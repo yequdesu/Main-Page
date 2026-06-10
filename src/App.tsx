@@ -33,7 +33,6 @@ export default function App() {
   // ---- Physics state (refs — no re-render) ----
   const physRef = useRef({ target: 0, velocity: 0, lastScrollbar: 0, lastPhysics: 0, active: true })
   const clickTweenRef = useRef<gsap.core.Tween | null>(null)
-  const focusTweenRef = useRef<gsap.core.Tween | null>(null)
   const lighthouseCapturedRef = useRef(false)
   const stRef = useRef<ScrollTrigger | null>(null)
 
@@ -153,6 +152,11 @@ export default function App() {
       window.removeEventListener('click', onClick)
     }
   }, [onWheel, onClick])
+
+  // ---- Act 3 focus state (block scroll wheel) ----
+  useEffect(() => {
+    setIsAct3Focused(overlayData.focused && scrollProgress >= GRID_SHIFT_START)
+  }, [overlayData.focused, scrollProgress])
 
   // ---- brand text visibility ----
   useEffect(() => {

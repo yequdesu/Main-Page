@@ -22,10 +22,17 @@ interface PlanetLabelProps {
 
 export default function PlanetLabel({ trackIdx, planetData, getWorldPosition }: PlanetLabelProps) {
   const matRef = useRef<SpriteMaterial | null>(null)
+  const prevTexRef = useRef<CanvasTexture | null>(null)
   const _labelOffset = useRef(new Vector3(0, 0.35, 0)).current
 
   // ---- Build sprite once (useMemo for render-ready on first frame) ----
   const sprite = useMemo(() => {
+    // Dispose previous texture on re-creation
+    if (prevTexRef.current) {
+      prevTexRef.current.dispose()
+      prevTexRef.current = null
+    }
+
     const size = 512
     const canvas = document.createElement('canvas')
     canvas.width = size
@@ -68,6 +75,7 @@ export default function PlanetLabel({ trackIdx, planetData, getWorldPosition }: 
     const tex = new CanvasTexture(canvas)
     tex.minFilter = LinearFilter
     tex.magFilter = LinearFilter
+    prevTexRef.current = tex
 
     const spriteMat = new SpriteMaterial({
       map: tex,

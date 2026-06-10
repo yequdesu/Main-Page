@@ -8,7 +8,7 @@ import { useScrollStore } from '../stores/scrollStore'
 import { useFrameCache } from '../behaviors/useFrameCache'
 import { smoothstep, clamped, GRID_SHIFT_START } from '../r3f/ScrollRig'
 import { updateCameraFocus } from '../behaviors/useCameraFocus'
-import { _planetWorldPositions } from '../actors/DustField'
+import { _planetWorldPositions, _mainPlanetIndices } from '../actors/DustField'
 import { PLANET_LINKS } from '../types'
 
 /**
@@ -24,8 +24,10 @@ const Act3ContentPhase = memo(function Act3ContentPhase({ visible }: Act3Props) 
   const { camera } = useThree()
   const { shouldSkip } = useFrameCache()
 
-  const getPlanetPosition = useCallback((idx: number): Vector3 | null => {
-    return _planetWorldPositions[idx] || null
+  const getPlanetPosition = useCallback((particleIdx: number): Vector3 | null => {
+    const trackIdx = _mainPlanetIndices.indexOf(particleIdx)
+    if (trackIdx === -1) return null
+    return _planetWorldPositions[trackIdx] || null
   }, [])
 
   useFrame((state, _delta) => {

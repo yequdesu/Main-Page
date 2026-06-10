@@ -95,7 +95,6 @@ export default function LightBeam({ lighthouseY = -0.428 }: LightBeamProps) {
 
     let targetY = 0
     let targetX = 0.08
-    let beamMult = 1.0
 
     if (!isScrolling) {
       // ---- Idle roaming ----
@@ -150,16 +149,16 @@ export default function LightBeam({ lighthouseY = -0.428 }: LightBeamProps) {
 
     const baseVals = [0.85, 0.45, 0.15]
     coneMatsRef.current.forEach((mat, i) => {
-      mat.uniforms.uOpacity.value = (baseVals[i] + beamBoost * (i === 2 ? 1.8 : 1.2) + wof * 1.5) * beamMult * beamFade
+      mat.uniforms.uOpacity.value = (baseVals[i] + beamBoost * (i === 2 ? 1.8 : 1.2) + wof * 1.5) * beamFade
     })
     rayMatsRef.current.forEach((mat) => {
-      mat.opacity = (0.45 + sp * 0.35 + wof * 0.5) * beamMult * beamFade
+      mat.opacity = (0.45 + sp * 0.35 + wof * 0.5) * beamFade
     })
     if (glowMatRef.current) {
       glowMatRef.current.opacity = 0.95 * beamFade
     }
     if (ptLightRef.current) {
-      ptLightRef.current.intensity = (3.0 + Math.pow(sp, 1.5) * 12 + wof * 50) * beamMult * beamFade
+      ptLightRef.current.intensity = (3.0 + Math.pow(sp, 1.5) * 12 + wof * 50) * beamFade
     }
   })
 

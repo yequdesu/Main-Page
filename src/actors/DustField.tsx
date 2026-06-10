@@ -14,6 +14,9 @@ import { PLANET_LINKS, type ParticleData } from '../types'
 export const _planetWorldPositions: (Vector3 | null)[] = [null, null, null]
 export let _mainPlanetIndices: number[] = []
 
+// Pre-allocated default camera position for debris distance calc
+const _defaultCamPos = new Vector3(0, 0.25, 8)
+
 /**
  * 尘埃/粒子场 — 3 主行星 + InstancedMesh(132 碎片)。
  *
@@ -38,10 +41,6 @@ export default function DustField() {
   const _position = useRef(new Vector3()).current
   const _quaternion = useRef({ x: 0, y: 0, z: 0, w: 1 } as any).current
   const _scale = useRef(new Vector3()).current
-  const _dustBwo = useRef(new Vector3()).current
-  const _dustBeamDir = useRef(new Vector3()).current
-  const _dustToP = useRef(new Vector3()).current
-  const _dustPp = useRef(new Vector3()).current
 
   // ---- Create particle data + meshes (one-time, like useMemo) ----
   const { mainPlanets, particleData, mainPlanetIndices } = useMemo(() => {
@@ -58,12 +57,10 @@ export default function DustField() {
       .sort((a, b) => b.size - a.size)
     const planetIndices = sorted.slice(0, ORBIT_COUNT).map(s => s.idx)
 
-    const lowPolyGeo = new SphereGeometry(0.015, 10, 8)
     const highPolyGeo = new SphereGeometry(0.015, 32, 32)
 
     const planets: Mesh[] = []
     const data: ParticleData[] = []
-    const debrisMatrices: number[] = [] // flat matrix16 per debris
 
     for (let i = 0; i < count; i++) {
       const isMain = planetIndices.includes(i)
@@ -126,9 +123,6 @@ export default function DustField() {
         const trackIdx = planetIndices.indexOf(i)
         mesh.name = `planet_${trackIdx}`
         planets.push(mesh)
-      } else {
-        // Debris — stored for InstancedMesh
-        debrisMatrices.push(wx, 0, 0, 0, 0, wy, 0, 0, 0, 0, wz, 0, 0, 0, 0, 1) // simplified — full matrix built per-frame
       }
     }
 
@@ -170,6 +164,8 @@ export default function DustField() {
     const cx = 0, cy = -1.0, cz = SCENE_CENTER_Z
     const { hoveredIdx } = useScrollStore.getState()
 
+    let debrisIdx = 0
+
     for (let i = 0; i < particleData.length; i++) {
       const d = particleData[i]
 
@@ -181,7 +177,7 @@ export default function DustField() {
       const { x: px, y: py, z: pz } = calcOrbitPosition(d, time, delta, cx, cy, cz, smooth3)
 
       // Distance for appearance calc
-      const refPos = d.isMainPlanet ? camera.position : new Vector3(0, 0.25, 8)
+      const refPos = d.isMainPlanet ? camera.position : _defaultCamPos
       _scratch.set(px, py, pz)
       const cd = _scratch.distanceTo(refPos)
 
@@ -213,13 +209,13 @@ export default function DustField() {
           mat.color.copy(_scratch2)
         }
       } else if (debrisRef.current) {
-        const debrisIdx = i - mainPlanetIndices.filter(idx => idx < i).length
         _matrix.compose(
           _position.set(px, py, pz),
           _quaternion,
           _scale.set(appearance.scale, appearance.scale, appearance.scale),
         )
         debrisRef.current.setMatrixAt(debrisIdx, _matrix)
+        debrisIdx++
       }
     }
 
