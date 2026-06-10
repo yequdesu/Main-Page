@@ -29,7 +29,7 @@
 | 滚动驱动 | GSAP ScrollTrigger（命令式）+ R3F useFrame（声明式渲染） | Codrops 2025, Builder.io, Ringston 3D |
 | 状态管理 | Zustand v5（渲染状态）+ React useState（UI 状态） | R3F 官方"五类出口"，Galaxy Voyager |
 | 场景管理 | Act 组件 + `visible` prop（始终挂载，不 mount/unmount） | R3F Performance Pitfalls |
-| 粒子系统 | 3 主行星独立 Mesh + 132 碎片 InstancedMesh | Drei Sparkles, Galaxy Voyager |
+| 粒子系统 | 3 主行星独立 Mesh + 132 碎片 InstancedMesh2（逐实例透明度） | `@three.ez/instanced-mesh` |
 | 测试 | L1 纯函数全覆盖 (13 tests) + L2 场景图验证 | vitest + @react-three/test-renderer |
 | 语言 | TypeScript（`.tsx`） | R3F 自身以 TS 编写 |
 | 构建 | Vite 6 + tsc | — |
@@ -37,7 +37,7 @@
 **设计文档：** `docs/superpowers/specs/2026-06-10-r3f-refactor-design.md`
 **技术评估：** `docs/TECH_STACK_EVALUATION.md`
 **交接文档：** `docs/HANDOFF.md`
-**源码分析：** `docs/ARCHITECTURE.md`
+**调试记录：** `docs/dev-blog/`（色调映射、shader 编译、场景图可见性）
 
 ### 源文件结构（34 个文件）
 
@@ -47,28 +47,29 @@ src/
 ├── App.tsx / App.css               滚动物理 + DOM 叠加层 + SVG 聚焦 + CSS 变量
 ├── vite-env.d.ts
 ├── r3f/
-│   ├── Canvas.tsx                  R3F Canvas（frameloop: demand）
+│   ├── Canvas.tsx                  R3F Canvas（flat, frameloop: demand）
 │   ├── ScrollRig.ts                sp 阈值 + sceneApplyWhiteOut
-│   └── ScrollInvalidator.tsx       Zustand 订阅 → invalidate() 桥接
+│   ├── ScrollInvalidator.tsx       Zustand 订阅 → invalidate() + 全局雾更新
+│   └── PlanetClickHandler.tsx      NDC 投影行星点击检测
 ├── stores/
 │   └── scrollStore.ts             Zustand（scrollSlice + focusSlice + overlayData）
 ├── types/
 │   └── index.ts                   SCROLL_RIG + ParticleData + PlanetLink + OverlayData
 ├── acts/
-│   ├── Act1OceanVoyage.tsx         Lighthouse + LightBeam + OceanWaves + DustField + LighthouseCapture
+│   ├── Act1OceanVoyage.tsx         OceanWaves + Lighthouse + LightBeam + LighthouseCapture
 │   ├── Act2GridTransition.tsx      GridLines
 │   └── Act3ContentPhase.tsx        OrbitRings + CentralStar + PlanetLabel + 相机聚焦
 ├── actors/
 │   ├── Lighthouse.tsx             30 Mesh 声明式灯塔（暴露 ref 供离屏截图）
-│   ├── LightBeam.tsx              3 锥体 + 2 射线 + 辉光 + 3 模式动画 + 灯光
+│   ├── LightBeam.tsx              3 锥体 + 2 射线 + 辉光 + 3 模式动画 + 点光源
+│   ├── SceneLights.tsx            全局环境光 + 2x 方向光（始终挂载）
 │   ├── OceanWaves.tsx             50 条线，逐顶点波浪动画
-│   ├── DustField.tsx              3 Planet + InstancedMesh(132)，per-frame 全参数更新
-│   ├── Planet.tsx                 主行星（高面数 + onClick 聚焦/跳转）
+│   ├── DustField.tsx              3 Planet + InstancedMesh2(132)，per-frame 更新（Canvas 根层级）
 │   ├── CentralStar.tsx            核心 + 光晕 + Canvas 精灵 halo
 │   ├── OrbitRings.tsx             3 轨道环 + 3 陀螺仪环
 │   ├── GridLines.tsx              28 垂直线 + 210 节点
-│   ├── PlanetLabel.tsx            Canvas → Sprite React 组件（位置跟随 + 聚焦淡出）
-│   └── LighthouseCapture.tsx      离屏 WebGLRenderTarget → base64 PNG
+│   ├── PlanetLabel.tsx            Canvas → Sprite（位置跟随 + 聚焦淡出 lerp）
+│   └── LighthouseCapture.tsx      独立 WebGLRenderer 离屏渲染 → PNG（FOV=25，灯塔居中）
 ├── behaviors/
 │   ├── useCameraFocus.ts          相机双层平滑 + 绕行 + 30s 自动取消 + SVG overlay
 │   ├── useFrameCache.ts           帧缓存守卫（time + sp 重复跳过）

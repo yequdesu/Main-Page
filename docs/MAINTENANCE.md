@@ -96,13 +96,18 @@ Safari 需要在 **系统偏好设置** 中提前开启远程调试：
 | 调试目标 | 文件 | 打断点位置 |
 |----------|------|-----------|
 | 滚动进度值 | `src/App.tsx` | `setScrollProgress(self.progress)` 行 |
+| 雾/背景更新 | `src/r3f/ScrollInvalidator.tsx` | `sceneApplyWhiteOut(scene, sp)` 行 |
 | 粒子位置计算 | `src/actors/DustField.tsx` | useFrame 中 `mesh.position.set(px, py, pz)` 行 |
+| 碎片透明度 | `src/actors/DustField.tsx` | `setOpacityAt(debrisIdx, ...)` 行 |
 | 相机聚焦逻辑 | `src/behaviors/useCameraFocus.ts` | `updateCameraFocus` 函数入口 |
 | Act 可见性 | `src/App.tsx` | `needsAct1(sp)` / `needsAct2(sp)` / `needsAct3(sp)` |
 | 波浪动画 | `src/actors/OceanWaves.tsx` | useFrame 中 `pArr[idx + 1] = ...` 行 |
-| Zustand store 状态 | `src/stores/scrollStore.ts` | 各 `set` 函数 |
+| 光束动画 | `src/actors/LightBeam.tsx` | useFrame 中 `pivot.rotation.y = targetY` 行 |
+| 恒星脉冲 | `src/actors/CentralStar.tsx` | useFrame 中 `pulse` 计算行 |
+| Zustand store | `src/stores/scrollStore.ts` | 各 `set` 函数 |
+| 行星点击 | `src/r3f/PlanetClickHandler.tsx` | `onClickCanvas` 函数内 NDC 计算 |
 
-### 3.3 浏览器 DevTools 辅助
+### 3.4 浏览器 DevTools 辅助
 
 打开 Chrome DevTools（`F12`）→ **Console** 标签，可以直接检查 Three.js 场景：
 
@@ -163,7 +168,7 @@ Safari 需要在 **系统偏好设置** 中提前开启远程调试：
 
 ### 4.4 修改阈值
 
-所有滚动阈值集中定义在 `src/types/index.ts` 的 `SCROLL_RIG` 对象中：
+所有滚动阈值集中定义在 `src/types/index.ts` 的 `SCROLL_RIG` 对象中，由 `src/r3f/ScrollRig.ts` 统一导出：
 
 ```typescript
 export const SCROLL_RIG = {
@@ -231,19 +236,20 @@ git commit -m "feat: 描述你的修改"
 #    src/acts/Act4NewSection.tsx
 #    参考 src/acts/Act1OceanVoyage.tsx 的模式：
 #    - interface Act4Props { visible: boolean }
-#    - useFrame 中 early return if !visible
+#    - 返回 <group visible={visible}>，始终挂载，不 return null
 #    - 组装 actor 组件
 
 # 2. 在 src/types/index.ts 的 SCROLL_RIG 中添加新阈值（如需要）
 
 # 3. 在 src/App.tsx 中注册：
 #    import Act4NewSection from './acts/Act4NewSection'
-#    添加 {needsAct4(sp) && <Act4NewSection visible={needsAct4(sp)} />}
+#    <Act4NewSection visible={needsAct4(sp)} />
 
-# 4. 更新 src/README.md 中的 Act 描述表
+# 4. 更新 README.md 中的 Act 描述表
 
 # 5. 运行 npm run build 验证构建
 ```
+
 
 ### 5.2 新增 3D 对象（Actor）
 
@@ -308,9 +314,11 @@ npm install three@latest @react-three/fiber@latest
 | 可能原因 | 检查方法 | 解决 |
 |----------|----------|------|
 | TypeScript 编译错误 | 终端中 Vite 输出 | 修复错误后保存 |
-| React 渲染错误 | Chrome DevTools Console | 查看红色报错信息 |
+| R3F 运行时错误 | Chrome DevTools Console | 常见：未 `extend()` 注册的 class（`ThreeLine`、`InstancedMesh2`） |
 | Canvas 未挂载 | DevTools Elements 标签 | 确认 `<canvas>` 元素存在 |
-| scrollProgress 始终为 0 | 在 App.tsx 的 `useFrame` 中加 `console.log(sp)` | 检查 GSAP 是否正确注册 |
+| scrollProgress 始终为 0 | Zustand DevTools 或在 App.tsx 中 log | 检查 GSAP ScrollTrigger 是否正确注册 |
+| 元素不可见但存在 | 检查 `renderOrder` + `depthWrite`/`depthTest` 组合 | 见渲染约束章节 |
+| 行星/碎片消失 | 检查场景图层级（是否在 `visible={false}` 的 group 内） | `DustField` 必须在 Canvas 根层级 |
 
 ### 6.2 动画不流畅 / 卡顿
 
@@ -324,8 +332,9 @@ npm install three@latest @react-three/fiber@latest
 
 | 可能原因 | 检查方法 | 解决 |
 |----------|----------|------|
-| 条件渲染导致 remount | 确认 Act 使用 `visible` prop 而非条件渲染 | 检查 App.tsx 中 Act 的挂载方式 |
-| 几何体重新创建 | useMemo 依赖项变化 | 确认依赖数组正确 |
+| 条件渲染导致 remount | 确认 Act 使用 `<group visible>` 非 `return null` | Act 组件始终挂载 |
+| 几何体重新创建 | useMemo 依赖项变化 | 确认依赖数组为 `[]` |
+| 透明对象排序异常 | 检查 `depthWrite` + `renderOrder` | 透明对象 `depthWrite=false` |
 
 ### 6.4 HMR 不生效
 
@@ -349,9 +358,47 @@ npm ls @react-three/test-renderer
 
 ---
 
-## 七、浏览器兼容性
+## 七、R3F 渲染约束
 
-### 7.1 支持范围
+修改任何与渲染相关的代码时，务必遵守以下约束。完整说明见 `CLAUDE.md`。
+
+### 7.1 Canvas 配置
+
+```tsx
+// src/r3f/Canvas.tsx — 三个必须保留的 prop
+<R3FCanvas flat frameloop="demand" ...>
+```
+
+- **`flat`** — 禁用 ACES 色调映射，颜色与原版一致
+- **`frameloop="demand"`** — 仅在 `invalidate()` 时渲染一帧
+
+### 7.2 renderOrder 不继承
+
+`Object3D.renderOrder` 不传递给子对象。每个 Mesh/Line/Sprite 必须显式设置。不要依赖父 `<group renderOrder={...}>`。
+
+### 7.3 场景图层级
+
+跨 Act 存在的对象（`DustField`）必须挂载在 Canvas 根层级，不能放在 Act 的 `<group visible={...}>` 内。Act `visible` 会隐藏所有子对象。
+
+### 7.4 颜色校准
+
+所有颜色值（`#fff8e7`、`#f0f8ff` 等）来自原版 Three.js（`NoToneMapping`）。调整颜色时务必确认 `flat` prop 存在，并在实际渲染中验证。
+
+---
+
+## 八、调试记录索引
+
+| 问题 | 文件 | 摘要 |
+|------|------|------|
+| 恒星/行星颜色异常 | `docs/dev-blog/tone-mapping-debug.md` | R3F 默认 ACES 色调映射导致色偏 |
+| 碎片首次渲染不可见 | `docs/dev-blog/instanced-mesh-shader-compile.md` | InstancedMesh2 `setColorAt` 后需 `materialsNeedsUpdate()` |
+| 行星在 Act 2/3 中消失 | `docs/dev-blog/scene-graph-visibility.md` | DustField 嵌套在 Act1 group 内 |
+
+---
+
+## 九、浏览器兼容性
+
+### 9.1 支持范围
 
 | 浏览器 | 最低版本 | 调试工具 | VS Code 启动配置 |
 |--------|----------|----------|-----------------|
@@ -359,7 +406,7 @@ npm ls @react-three/test-renderer
 | **Edge** | 90+ | DevTools（F12） | `Debug — Edge` |
 | **Safari** | 15+ | Web 检查器（⌥⌘I） | `Debug — Safari` |
 
-### 7.2 WebGL 兼容性
+### 9.2 WebGL 兼容性
 
 项目使用 Three.js `^0.170.0`，WebGL 2.0 在主流浏览器中已原生支持：
 
@@ -371,7 +418,7 @@ npm ls @react-three/test-renderer
 
 若 Safari 中页面空白：Safari → 设置 → 功能 → 确保未关闭 WebGL。
 
-### 7.3 多浏览器测试流程
+### 9.3 多浏览器测试流程
 
 ```bash
 # 1. 启动开发服务器
@@ -385,7 +432,7 @@ npm run dev
 #    Safari: 开发 → 显示 JavaScript 时间线
 ```
 
-### 7.4 已知差异
+### 9.4 已知差异
 
 | 差异 | Chrome / Edge | Safari |
 |------|:---:|:---:|
