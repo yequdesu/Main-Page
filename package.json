@@ -8,6 +8,7 @@
     "build": "tsc -b && vite build",
     "preview": "vite preview",
     "clean": "rm -rf dist node_modules/.vite tsconfig.tsbuildinfo",
+    "mirror": "bash scripts/mirror.sh",
     "test": "vitest",
     "test:ui": "vitest --ui"
   },
