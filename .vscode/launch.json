@@ -4,13 +4,29 @@
     {
       "type": "chrome",
       "request": "launch",
-      "name": "Debug with Chrome",
+      "name": "Debug — Chrome",
       "url": "http://localhost:5173",
       "webRoot": "${workspaceFolder}/src",
       "sourceMapPathOverrides": {
         "webpack:///./src/*": "${webRoot}/*"
-      },
-      "preLaunchTask": ""
+      }
+    },
+    {
+      "type": "msedge",
+      "request": "launch",
+      "name": "Debug — Edge",
+      "url": "http://localhost:5173",
+      "webRoot": "${workspaceFolder}/src",
+      "sourceMapPathOverrides": {
+        "webpack:///./src/*": "${webRoot}/*"
+      }
+    },
+    {
+      "type": "node",
+      "request": "launch",
+      "name": "Debug — Safari (via WebKit adapter)",
+      "url": "http://localhost:5173",
+      "webRoot": "${workspaceFolder}/src"
     },
     {
       "type": "node",

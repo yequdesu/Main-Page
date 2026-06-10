@@ -61,35 +61,35 @@ VITE v6.4.2  ready in 158 ms
 
 ## 三、VS Code 调试配置
 
-### 3.1 浏览器调试（推荐）
+### 3.1 浏览器调试（已预置，`F5` 即可启动）
 
-在项目根目录创建 `.vscode/launch.json`：
+`.vscode/launch.json` 已预置三种浏览器配置：
 
-```json
-{
-  "version": "0.2.0",
-  "configurations": [
-    {
-      "type": "chrome",
-      "request": "launch",
-      "name": "Launch Chrome — localhost:5173",
-      "url": "http://localhost:5173",
-      "webRoot": "${workspaceFolder}/src",
-      "sourceMapPathOverrides": {
-        "webpack:///./src/*": "${webRoot}/*"
-      }
-    }
-  ]
-}
-```
+| 配置名称 | 调试器 | 适用场景 |
+|----------|--------|----------|
+| `Debug — Chrome` | Chrome DevTools Protocol | 默认推荐 |
+| `Debug — Edge` | Edge DevTools Protocol | Windows 环境 / Edge 用户 |
+| `Debug — Safari` | WebKit remote debug | macOS 原生调试 |
 
 **使用步骤：**
 
 1. 先在终端运行 `npm run dev`（开发服务器在后台运行）
-2. 按 `F5` 或点击 VS Code 左侧 "Run and Debug" → 选择 "Launch Chrome"
+2. 按 `F5` 或点击 VS Code 左侧 "Run and Debug" → 选择对应浏览器
 3. 浏览器自动打开 `http://localhost:5173`，断点命中的位置可在 VS Code 中查看
 
-### 3.2 断点调试要点
+### 3.2 Safari 调试特殊说明
+
+Safari 需要在 **系统偏好设置** 中提前开启远程调试：
+
+1. Safari → 设置 → 高级 → 勾选「在菜单栏中显示"开发"菜单」
+2. 在 Safari 中打开 `http://localhost:5173`
+3. VS Code 中按 `F5` 选择 `Debug — Safari`，或手动在 Safari 菜单：开发 → 本地主机 → 选择页面
+
+若 VS Code 的 Safari 适配器不可用，可直接使用 Safari 自带 Web 检查器：
+- Safari 菜单 → 开发 → 显示 Web 检查器（`⌥⌘I`）
+- 在「来源」标签中可设置断点，路径与 Chrome DevTools 相同
+
+### 3.3 断点调试要点
 
 | 调试目标 | 文件 | 打断点位置 |
 |----------|------|-----------|
@@ -344,3 +344,49 @@ npx vitest run src/utils/__tests__/smoothstep.test.ts
 # 如果测试涉及 Three.js 对象，确认 @react-three/test-renderer 已安装
 npm ls @react-three/test-renderer
 ```
+
+---
+
+## 七、浏览器兼容性
+
+### 7.1 支持范围
+
+| 浏览器 | 最低版本 | 调试工具 | VS Code 启动配置 |
+|--------|----------|----------|-----------------|
+| **Chrome** | 90+ | DevTools（F12） | `Debug — Chrome` |
+| **Edge** | 90+ | DevTools（F12） | `Debug — Edge` |
+| **Safari** | 15+ | Web 检查器（⌥⌘I） | `Debug — Safari` |
+
+### 7.2 WebGL 兼容性
+
+项目使用 Three.js `^0.170.0`，WebGL 2.0 在主流浏览器中已原生支持：
+
+| 浏览器 | WebGL 2.0 | 说明 |
+|--------|:---:|------|
+| Chrome 90+ | ✅ | 完全支持 |
+| Edge 90+ | ✅ | 与 Chrome 相同内核 |
+| Safari 15+ | ✅ | macOS Monterey 起默认启用 |
+
+若 Safari 中页面空白：Safari → 设置 → 功能 → 确保未关闭 WebGL。
+
+### 7.3 多浏览器测试流程
+
+```bash
+# 1. 启动开发服务器
+npm run dev
+
+# 2. 在 Chrome、Edge、Safari 中分别打开 http://localhost:5173
+
+# 3. 验证三幕动画、点击快进、行星聚焦
+
+# 4. Chrome/Edge: DevTools → Performance 录制
+#    Safari: 开发 → 显示 JavaScript 时间线
+```
+
+### 7.4 已知差异
+
+| 差异 | Chrome / Edge | Safari |
+|------|:---:|:---:|
+| devicePixelRatio | 无限制 | Retina 屏幕上限为 2 |
+| Canvas 2D 最大尺寸 | 与显存相关 | ~4096×4096 |
+| 字体渲染 | 标准 | Georgia 可能稍细 |
