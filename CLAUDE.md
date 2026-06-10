@@ -7,6 +7,7 @@
 - **方案修正或项目结构变更时，必须同步更新 `README.md`**——保持文档与实际架构一致
 - **每个 R3F 方案决策必须援引社区成熟方案并说明来源**——方便后续评估、维护与持续学习
 - 完整设计方案见 `docs/superpowers/specs/2026-06-10-r3f-refactor-design.md`，技术评估见 `docs/TECH_STACK_EVALUATION.md`
+- **`.superpowers/`、`.claude/`、`node_modules/`、`dist/`、`*.log`、`*.tsbuildinfo` 由 `.gitignore` 排除，禁止提交至 git**
 
 ## 语言协定
 
