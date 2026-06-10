@@ -30,9 +30,9 @@ export default function SceneCanvas({ children }: CanvasProps) {
       }}
       onCreated={({ camera, scene }) => {
         camera.lookAt(0, -0.65, SCENE_CENTER_Z - 8)
-        // buildSky(): 初始背景 + 雾（逐字保留自原 buildSky()）
+        // buildSky(): 初始背景（雾已禁用，排查渲染问题）
         scene.background = new Color('#050811')
-        scene.fog = new FogExp2('#050811', 0.02)
+        // scene.fog = new FogExp2('#050811', 0.02)  // 暂时禁用
       }}
       style={{ position: 'fixed', inset: 0, zIndex: 0 }}
     >
