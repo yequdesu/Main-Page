@@ -172,9 +172,9 @@ export default function App() {
   return (
     <>
       <SceneCanvas>
-        <Act1OceanVoyage visible={needsAct1(sp)} scrollProgress={sp} />
-        <Act2GridTransition visible={needsAct2(sp)} scrollProgress={sp} />
-        <Act3ContentPhase visible={needsAct3(sp)} scrollProgress={sp} />
+        <Act1OceanVoyage visible={needsAct1(sp)} />
+        <Act2GridTransition visible={needsAct2(sp)} />
+        <Act3ContentPhase visible={needsAct3(sp)} />
       </SceneCanvas>
 
       {/* 滚动提示 */}
