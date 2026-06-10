@@ -45,15 +45,17 @@ export default function OrbitRings() {
     const act3Progress = clamped(sp, GRID_SHIFT_START, 1.0)
     const smooth3 = smoothstep(act3Progress)
 
+    // Orbit rings: 0.35 (逐字保留自原 act3.animate)
     orbitMatRefs.current.forEach((mat) => {
-      if (mat) mat.opacity = smooth3 * 0.55
+      if (mat) mat.opacity = smooth3 * 0.35
     })
 
+    // Gyro rings: rotation + 0.28 opacity (逐字保留自原 act3.animate)
     gyroGroupRefs.current.forEach((group, i) => {
-      if (group) group.rotation.y += delta * gyroConfigs.speeds[i]
+      if (group) group.rotation.y += delta * gyroConfigs.speeds[i] * 0.96
     })
     gyroMatRefs.current.forEach((mat) => {
-      if (mat) mat.opacity = smooth3 * 0.35
+      if (mat) mat.opacity = smooth3 * 0.28
     })
   })
 
@@ -72,34 +74,21 @@ export default function OrbitRings() {
         </threeLine>
       ))}
 
-      {/* 3 个陀螺仪装饰环 — 使用 RingGeometry 的顶点构建 LineLoop */}
-      {gyroConfigs.radii.map((r, g) => {
-        const segCount = 96
-        const ringVerts = Array.from({ length: segCount + 1 }, (_, i) => {
-          const a = (i / segCount) * Math.PI * 2
-          return [Math.cos(a) * r, 0, Math.sin(a) * r]
-        })
-
-        return (
-          <group
-            key={`gyro-${g}`}
-            ref={(el) => { gyroGroupRefs.current[g] = el }}
-            position={[0, -1.0, SCENE_CENTER_Z]}
-            renderOrder={2}
-            rotation={[gyroConfigs.tilts[g].x, 0, gyroConfigs.tilts[g].z]}
-          >
-            <lineLoop>
-              <bufferGeometry>
-                <bufferAttribute
-                  attach="attributes-position"
-                  args={[new Float32Array(ringVerts.flat()), 3]}
-                />
-              </bufferGeometry>
-              <lineBasicMaterial ref={(mat) => { gyroMatRefs.current[g] = mat }} color="#cbd5e1" transparent opacity={0} depthWrite={false} depthTest />
-            </lineLoop>
-          </group>
-        )
-      })}
+      {/* 3 个陀螺仪装饰环 — RingGeometry (r-0.04, r) 逐字保留自原 act3.build() */}
+      {gyroConfigs.radii.map((r, g) => (
+        <group
+          key={`gyro-${g}`}
+          ref={(el) => { gyroGroupRefs.current[g] = el }}
+          position={[0, -1.0, SCENE_CENTER_Z]}
+          renderOrder={2}
+          rotation={[gyroConfigs.tilts[g].x, 0, gyroConfigs.tilts[g].z]}
+        >
+          <lineLoop>
+            <ringGeometry args={[r - 0.04, r, 96]} />
+            <lineBasicMaterial ref={(mat) => { gyroMatRefs.current[g] = mat }} color="#cbd5e1" transparent opacity={0} depthWrite={false} depthTest />
+          </lineLoop>
+        </group>
+      ))}
     </>
   )
 }

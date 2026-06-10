@@ -168,6 +168,16 @@ export default function App() {
     ? Math.round(((scrollProgress - GRID_SHIFT_START) / (1.0 - GRID_SHIFT_START)) * 32 * 10) / 10
     : 0
 
+  // Brand text opacity — 逐行渐进淡入（逐字保留自原 App.vue computed）
+  const brandLine1Opacity = (() => {
+    const t = Math.max(0, Math.min(1, (scrollProgress - 0.70) / (0.82 - 0.70)))
+    return t * t * (3 - 2 * t) // smoothstep
+  })()
+  const brandLine2Opacity = (() => {
+    const t = Math.max(0, Math.min(1, (scrollProgress - 0.82) / (0.92 - 0.82)))
+    return t * t * (3 - 2 * t) // smoothstep
+  })()
+
   // ---- lighthouse screenshot ----
   useEffect(() => {
     if (scrollProgress >= 0.54 && !lighthouseCapturedRef.current) {
@@ -211,15 +221,16 @@ export default function App() {
 
       {/* 品牌文字 */}
       {brandTextVisible && (
-        <div className="brand-text" aria-hidden="true"
+        <div className={`brand-text${isClickPlaying ? ' no-transition' : ''}`} aria-hidden="true"
           style={{ '--text-offset-y': `${textOffsetY}px` } as React.CSSProperties}>
           <div className="brand-text-row">
             {lighthouseImage && (
-              <img src={lighthouseImage} alt="" className="brand-lighthouse-icon" />
+              <img src={lighthouseImage} alt="" className="brand-lighthouse-icon"
+                style={{ opacity: brandLine1Opacity }} />
             )}
             <div className="brand-text-inner">
-              <p className="brand-line-1">Personal Site</p>
-              <p className="brand-line-2">By YeQuDesu</p>
+              <p className="brand-line-1" style={{ opacity: brandLine1Opacity }}>Personal Site</p>
+              <p className="brand-line-2" style={{ opacity: brandLine2Opacity }}>By YeQuDesu</p>
             </div>
           </div>
         </div>

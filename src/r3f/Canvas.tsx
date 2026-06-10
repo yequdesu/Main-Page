@@ -1,5 +1,6 @@
 import { Canvas as R3FCanvas } from '@react-three/fiber'
 import { type ReactNode } from 'react'
+import { Color, FogExp2 } from 'three'
 import { SCENE_CENTER_Z } from './ScrollRig'
 import ScrollInvalidator from './ScrollInvalidator'
 
@@ -25,8 +26,11 @@ export default function SceneCanvas({ children }: CanvasProps) {
         far: 150,
         position: [0, 0.25, 8],
       }}
-      onCreated={({ camera }) => {
+      onCreated={({ camera, scene }) => {
         camera.lookAt(0, -0.65, SCENE_CENTER_Z - 8)
+        // buildSky(): 初始背景 + 雾（逐字保留自原 buildSky()）
+        scene.background = new Color('#050811')
+        scene.fog = new FogExp2('#050811', 0.02)
       }}
       style={{ position: 'fixed', inset: 0, zIndex: 0 }}
     >

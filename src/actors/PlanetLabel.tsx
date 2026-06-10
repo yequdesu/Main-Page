@@ -6,6 +6,9 @@ import { clamped, smoothstep, GRID_SHIFT_START } from '../r3f/ScrollRig'
 import { _mainPlanetIndices } from './DustField'
 import type { PlanetLink } from '../types'
 
+// Smooth label opacity transition（逐字保留自原 act3.animate _labelOpacityCurrent）
+let _labelOpacityCurrent = 0
+
 /**
  * 行星标签 — Canvas → Sprite，每帧跟随行星世界位置。
  *
@@ -23,7 +26,7 @@ interface PlanetLabelProps {
 export default function PlanetLabel({ trackIdx, planetData, getWorldPosition }: PlanetLabelProps) {
   const matRef = useRef<SpriteMaterial | null>(null)
   const prevTexRef = useRef<CanvasTexture | null>(null)
-  const _labelOffset = useRef(new Vector3(0, 0.35, 0)).current
+  const _labelOffset = useRef(new Vector3(0, 0.45, 0)).current
 
   // ---- Build sprite once (useMemo for render-ready on first frame) ----
   const sprite = useMemo(() => {
@@ -112,14 +115,13 @@ export default function PlanetLabel({ trackIdx, planetData, getWorldPosition }: 
       sprite.position.copy(pos).add(_labelOffset)
     }
 
-    // Opacity: fade in during Act 3 transition, fade out when other planet focused
+    // Opacity: fade in during Act 3 transition, all labels fade out when any planet focused
+    // Smooth lerp transition (逐字保留自原 _labelOpacityCurrent)
     const isFocused = focusedPlanetIdx >= 0
-    const isThisFocused = isFocused && focusedPlanetIdx === _mainPlanetIndices[trackIdx]
-    const focusFade = isFocused
-      ? (isThisFocused ? 0 : 0.12)
-      : 1.0
+    const targetOpacity = inAct3 ? (isFocused ? 0 : smooth3 * 0.82) : 0
+    _labelOpacityCurrent += (targetOpacity - _labelOpacityCurrent) * 0.12
 
-    mat.opacity = inAct3 ? smooth3 * 0.85 * focusFade : 0
+    mat.opacity = _labelOpacityCurrent
     sprite.visible = mat.opacity > 0.001
   })
 

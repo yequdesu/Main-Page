@@ -1,6 +1,6 @@
 import { useMemo, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
-import { CanvasTexture, SpriteMaterial, Sprite, AdditiveBlending, LinearFilter } from 'three'
+import { CanvasTexture, SpriteMaterial, MeshBasicMaterial, AdditiveBlending, LinearFilter, type Mesh } from 'three'
 import { SCENE_CENTER_Z, clamped, smoothstep, GRID_SHIFT_START } from '../r3f/ScrollRig'
 import { useScrollStore } from '../stores/scrollStore'
 
@@ -32,13 +32,25 @@ export default function CentralStar() {
   }, [])
 
   const spriteMatRef = useRef<SpriteMaterial | null>(null)
+  const glowMeshRef = useRef<Mesh | null>(null)
 
-  useFrame(() => {
+  useFrame((state) => {
     const sp = useScrollStore.getState().scrollProgress
+    const time = state.clock.elapsedTime
     const act3Progress = clamped(sp, GRID_SHIFT_START, 1.0)
     const smooth3 = smoothstep(act3Progress)
+    const pulse = 1 + Math.sin(time * 1.8) * 0.06 + Math.sin(time * 3.3) * 0.04
+
+    // Inner glow: opacity + scale pulse (逐字保留自原 act3.animate)
+    if (glowMeshRef.current) {
+      const mat = glowMeshRef.current.material as MeshBasicMaterial
+      mat.opacity = smooth3 * 0.30 * pulse
+      glowMeshRef.current.scale.setScalar(pulse)
+    }
+
+    // Halo sprite: opacity (0.55 vs 0.35, 逐字保留自原版)
     if (spriteMatRef.current) {
-      spriteMatRef.current.opacity = smooth3 * 0.35
+      spriteMatRef.current.opacity = smooth3 * 0.55 * pulse
     }
   })
 
@@ -50,8 +62,8 @@ export default function CentralStar() {
         <meshBasicMaterial color="#fff8e7" />
       </mesh>
 
-      {/* 内层光晕：透明金色包裹 */}
-      <mesh>
+      {/* 内层光晕：透明金色包裹（脉冲呼吸） */}
+      <mesh ref={glowMeshRef}>
         <sphereGeometry args={[0.70, 32, 32]} />
         <meshBasicMaterial color="#ffe8c0" transparent opacity={0.30} depthWrite={false} />
       </mesh>

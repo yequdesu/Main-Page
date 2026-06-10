@@ -164,8 +164,10 @@ export default function LightBeam({ lighthouseY = -0.428 }: LightBeamProps) {
 
   return (
     <>
-      {/* 环境光 + 点光源 */}
+      {/* 环境光 + 方向光 + 点光源（逐字保留自原 buildLights()） */}
       <ambientLight color="#222d3d" intensity={1.4} />
+      <directionalLight color="#aed2ff" intensity={1.8} position={[15, 10, -10]} />
+      <directionalLight color="#ffffff" intensity={0.5} position={[-15, 12, -35]} />
       <pointLight
         ref={ptLightRef}
         color="#ffffff"
