@@ -1,0 +1,72 @@
+<h2>Act 可见性：条件渲染 vs visible 切换</h2>
+<p class="subtitle">R3F 中如何表达"Act 1 结束，Act 2 开始"</p>
+
+<div class="options">
+  <div class="option" data-choice="a" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>条件渲染（React 挂载/卸载）</h3>
+      <p>Act 变化时销毁旧组件、挂载新组件。<strong>React 语义最干净</strong>，天然对应 build/exit 生命周期。</p>
+      <pre style="font-size:0.7rem;line-height:1.4;background:#0f172a;color:#e2e8f0;padding:0.5rem;border-radius:4px;margin-top:0.5rem;">
+{sp &lt; 0.45 && &lt;Act1OceanVoyage sp={sp} /&gt;}
+{sp &gt;= 0.40 && sp &lt; 0.85 && &lt;Act2GridTransition sp={sp} /&gt;}
+{sp &gt;= 0.85 && &lt;Act3ContentPhase sp={sp} /&gt;}</pre>
+    </div>
+  </div>
+  <div class="option" data-choice="b" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>visible prop 切换（始终挂载）</h3>
+      <p>所有 Act 组件始终存在于场景中，通过 <code>visible</code> prop 控制可见。不重新创建几何体和材质。</p>
+      <pre style="font-size:0.7rem;line-height:1.4;background:#0f172a;color:#e2e8f0;padding:0.5rem;border-radius:4px;margin-top:0.5rem;">
+&lt;Act1OceanVoyage visible={needsAct1(sp)} sp={sp} /&gt;
+&lt;Act2GridTransition visible={needsAct2(sp)} sp={sp} /&gt;
+&lt;Act3ContentPhase visible={sp &gt;= 0.85} sp={sp} /&gt;</pre>
+    </div>
+  </div>
+  <div class="option" data-choice="c" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>混合（交叉区双挂载 + visible 控制）</h3>
+      <p>利用 Act 1→2（0.40–0.45）和 Act 2→3（0.85 附近）有交叉区，在交叉区内双挂载实现交叉淡入淡出。</p>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>R3F 社区对此的立场</h3>
+  <div class="mockup">
+    <div class="mockup-header">R3F Performance Pitfalls：不要动态挂载/卸载</div>
+    <div class="mockup-body">
+      <blockquote style="border-left:3px solid #f59e0b;padding-left:1rem;color:#94a3b8;font-style:italic;">
+        "Don't mount/unmount dynamically... recompiles materials, geometry, shaders every time. Use visibility instead."
+        <br>— R3F 官方文档 · Performance Pitfalls
+      </blockquote>
+      <p style="margin-top:0.8rem;font-size:0.85rem;">但该规则主要针对<strong>高频切换</strong>场景。Act 切换是低频操作（用户需要滚动相当距离才能触发），交叉区长度足够让 React 完成渲染。</p>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>关键数据：切换频率</h3>
+  <table style="width:100%;font-size:0.85rem;">
+    <tr style="background:#1e293b;color:#e2e8f0;">
+      <th style="padding:8px;text-align:left;">切换</th>
+      <th style="padding:8px;text-align:left;">sp 阈值</th>
+      <th style="padding:8px;text-align:left;">切换性质</th>
+      <th style="padding:8px;text-align:left;">交叉区长度</th>
+    </tr>
+    <tr>
+      <td style="padding:8px;border-bottom:1px solid #334155;">Act 1 → Act 2</td>
+      <td style="padding:8px;border-bottom:1px solid #334155;">0.40–0.45</td>
+      <td style="padding:8px;border-bottom:1px solid #334155;">交叉淡化</td>
+      <td style="padding:8px;border-bottom:1px solid #334155;">0.05 sp ≈ 810px 滚动</td>
+    </tr>
+    <tr>
+      <td style="padding:8px;border-bottom:1px solid #334155;">Act 2 → Act 3</td>
+      <td style="padding:8px;border-bottom:1px solid #334155;">0.85</td>
+      <td style="padding:8px;border-bottom:1px solid #334155;">硬切换（有交叉区）</td>
+      <td style="padding:8px;border-bottom:1px solid #334155;">~0.01 sp ≈ 162px 滚动</td>
+    </tr>
+  </table>
+</div>

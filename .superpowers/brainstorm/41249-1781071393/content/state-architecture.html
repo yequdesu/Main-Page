@@ -1,0 +1,96 @@
+<h2>状态管理架构：三层状态如何映射到 R3F</h2>
+<p class="subtitle">当前 Vanilla 的三层状态 → R3F + Zustand 的对应关系</p>
+
+<div class="section">
+  <h3>当前状态分布（Vanilla Three.js + Vue）</h3>
+  <div class="mockup">
+    <div class="mockup-body">
+      <table style="width:100%;font-size:0.8rem;">
+        <tr style="background:#1e293b;color:#e2e8f0;">
+          <th style="padding:8px;text-align:left;">层级</th>
+          <th style="padding:8px;text-align:left;">存放位置</th>
+          <th style="padding:8px;text-align:left;">更新频率</th>
+          <th style="padding:8px;text-align:left;">示例</th>
+        </tr>
+        <tr>
+          <td style="padding:8px;border-bottom:1px solid #334155;color:#f59e0b;">UI 状态</td>
+          <td style="padding:8px;border-bottom:1px solid #334155;">Vue ref / computed</td>
+          <td style="padding:8px;border-bottom:1px solid #334155;">低频（交互触发）</td>
+          <td style="padding:8px;border-bottom:1px solid #334155;font-size:0.75rem;">isAct3Focused, overlayData, brandTextVisible</td>
+        </tr>
+        <tr>
+          <td style="padding:8px;border-bottom:1px solid #334155;color:#22c55e;">渲染状态</td>
+          <td style="padding:8px;border-bottom:1px solid #334155;">模块级变量</td>
+          <td style="padding:8px;border-bottom:1px solid #334155;">逐帧（60fps）</td>
+          <td style="padding:8px;border-bottom:1px solid #334155;font-size:0.75rem;">_hoveredIdx, _focusedPlanetIdx, _labelOpacityCurrent, 预分配对象池</td>
+        </tr>
+        <tr>
+          <td style="padding:8px;border-bottom:1px solid #334155;color:#818cf8;">动画引擎</td>
+          <td style="padding:8px;border-bottom:1px solid #334155;">GSAP tween 对象</td>
+          <td style="padding:8px;border-bottom:1px solid #334155;">实时（tween 驱动）</td>
+          <td style="padding:8px;border-bottom:1px solid #334155;font-size:0.75rem;">_focusTween, _clickTween, _physVelocity</td>
+        </tr>
+      </table>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>三个候选方案</h3>
+</div>
+
+<div class="options">
+  <div class="option" data-choice="a" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>Zustand 全状态</h3>
+      <p>所有三层状态都进 Zustand store，UI 通过 hook 订阅，渲染状态通过 <code>getState()</code> 在 useFrame 中瞬态读取，GSAP 直接更新 store。</p>
+      <p style="font-size:0.8rem;color:#94a3b8;">R3F 社区最广泛采用（Galaxy Voyager 220+ 星系均用此模式）</p>
+    </div>
+  </div>
+  <div class="option" data-choice="b" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>Zustand（渲染）+ React（UI）分层</h3>
+      <p>Zustand 仅管理渲染状态（scrollProgress, focusedIdx, hoveredIdx）；UI 状态用 React useState/context；GSAP 通过 ref 直接操作 DOM。</p>
+      <p style="font-size:0.8rem;color:#94a3b8;">接近 R3F 官方文档推荐的"五类出口"模式</p>
+    </div>
+  </div>
+  <div class="option" data-choice="c" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>React Context + useRef 极简</h3>
+      <p>不用 Zustand，渲染状态用 module-level refs（类似当前做法），UI 状态用 React context。零额外依赖，但缺少瞬态读取 API。</p>
+      <p style="font-size:0.8rem;color:#94a3b8;">最小依赖，适合状态简单的项目</p>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>方案 B 在实际代码中的样子</h3>
+  <div class="mockup">
+    <div class="mockup-header">三层分离示例</div>
+    <div class="mockup-body">
+      <pre style="font-size:0.7rem;line-height:1.5;background:#1e293b;color:#e2e8f0;padding:1rem;border-radius:6px;">
+<span style="color:#94a3b8;">// stores/scrollStore.ts — Zustand（渲染状态，逐帧瞬态读取）</span>
+<span style="color:#c084fc;">export const</span> <span style="color:#e2e8f0;">useScrollStore</span> = <span style="color:#c084fc;">create</span>&lt;ScrollState&gt;(<span style="color:#e2e8f0;">()</span> => ({
+  <span style="color:#e2e8f0;">scrollProgress</span>: <span style="color:#f59e0b;">0</span>,
+  <span style="color:#e2e8f0;">focusedPlanetIdx</span>: -<span style="color:#f59e0b;">1</span>,
+  <span style="color:#e2e8f0;">hoveredIdx</span>: -<span style="color:#f59e0b;">1</span>,
+}))
+
+<span style="color:#94a3b8;">// behaviors/useOrbitPosition.ts — useFrame 中瞬态读取</span>
+<span style="color:#c084fc;">export function</span> <span style="color:#22c55e;">useOrbitPosition</span>() {
+  <span style="color:#c084fc;">useFrame</span>(<span style="color:#e2e8f0;">(_, delta)</span> => {
+    <span style="color:#94a3b8;">// getState() — 绕过 React，不触发重渲染</span>
+    <span style="color:#c084fc;">const</span> { scrollProgress } = <span style="color:#e2e8f0;">useScrollStore.getState()</span>
+    <span style="color:#94a3b8;">// 直接操作 Three.js ref...</span>
+  })
+}
+
+<span style="color:#94a3b8;">// App.tsx — React useState（UI 状态）</span>
+<span style="color:#c084fc;">const</span> [<span style="color:#e2e8f0;">overlayData</span>, <span style="color:#e2e8f0;">setOverlayData</span>] = <span style="color:#e2e8f0;">useState</span>({ <span style="color:#e2e8f0;">focused</span>: <span style="color:#c084fc;">false</span> })
+<span style="color:#94a3b8;">// 从 Zustand 订阅变更 → 更新 UI（低频，30fps max）</span></pre>
+    </div>
+  </div>
+</div>

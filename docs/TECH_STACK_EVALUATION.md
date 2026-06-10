@@ -359,3 +359,120 @@ R3F 生态是 TypeScript-first：
 | Three.js 类型学习曲线 | 主要是 `THREE.Vector3`、`THREE.Mesh`、`ThreeElements` 等基础类型的简单 interface，不涉及高级泛型 |
 | 为无类型的现有 JS 代码补 interface | 现有代码只有 ~1580 行，且将被全部重写，无历史包袱 |
 | 构建配置 | Vite 原生支持 TypeScript，零配置（仅需 `tsconfig.json`） |
+
+---
+
+## 八、状态管理：Zustand（渲染）+ React（UI）分层
+
+### 8.1 结论
+
+采用分层状态管理——**Zustand 管理渲染状态，React useState/context 管理 UI 状态**。
+
+### 8.2 依据
+
+| 来源 | 模式 |
+|------|------|
+| R3F 官方文档 "五类出口" | `useFrame` 内用 ref/瞬态读取，`useState` 管理 UI 交互 |
+| R3F Best Practices skill | "Never setState in useFrame; use refs or store.getState()" |
+| Galaxy Voyager（220+ 星系） | Zustand getState() 逐帧读取 + slice 拆分 |
+| HekTek City v4 | Zustand transient API + React state 分层 |
+| Codrops 2025 滚动教程 | GSAP 驱动 Zustand，R3F useFrame 消费 |
+
+### 8.3 状态分层
+
+| 层级 | 存放位置 | 读写方式 | 原因 |
+|------|----------|----------|------|
+| 渲染状态 | Zustand store | `getState()` in useFrame（写），不触发 re-render | 60fps 变更 |
+| UI 状态 | React useState/context | 正常 hook 订阅（读写），触发 re-render | 低频交互 |
+| GSAP tween | GSAP 内部 + ref | GSAP 自有生命周期 | 独立动画引擎 |
+
+渲染状态包含：`scrollProgress`、`focusedPlanetIdx`、`hoveredIdx`、`overlayData`（屏幕空间坐标）
+UI 状态包含：`hintVisible`、`lighthouseImage`、品牌文字动画状态
+
+### 8.4 设计原则
+
+1. **Zustand store 按 slice 拆分**——scrollSlice、focusSlice、hoverSlice 各自独立，在 `create` 中合并。防止 "god store"
+2. **同一 store 支持两种读取**——渲染层用 `getState()` 瞬态读，UI 层用 `useStore(selector)` 订阅读。需要 UI 跟随渲染状态时，不引入新机制
+3. **可新增独立 store**——未来如需网络/音频状态，新增独立 store 不与现有 store 耦合
+4. **渲染状态绝不放在 React state 中**——防止 60fps 的 re-render 级联
+
+---
+
+## 九、Act 可见性控制：`visible` prop 切换
+
+### 9.1 结论
+
+所有 Act 组件始终挂载，通过 `visible` prop 控制显示/隐藏——不使用条件渲染（mount/unmount）。
+
+### 9.2 依据
+
+| 来源 | 建议 |
+|------|------|
+| R3F 官方文档 · Performance Pitfalls | "Don't mount/unmount dynamically — recompiles materials, geometry, shaders every time. Use visibility instead." |
+| R3F GitHub Issue #3549 | `useEffect` 与 `useFrame` 执行顺序随子组件数量变化——卸载再挂载时无法可靠保证初始化顺序 |
+
+### 9.3 设计原则
+
+```tsx
+<Act1OceanVoyage visible={needsAct1(sp)} sp={sp} />
+<Act2GridTransition visible={needsAct2(sp)} sp={sp} />
+<Act3ContentPhase visible={sp >= 0.85} sp={sp} />
+```
+
+- Act 1→2 交叉区（0.40–0.45）两组件同时可见，实现交叉淡化
+- 组件内部 `useFrame` 在不可见时 early return，避免无效计算
+- 首次访问某 Act 时内部延迟初始化（`useRef` + 懒初始化模式）
+
+---
+
+## 十、粒子系统：混合方案
+
+### 10.1 结论
+
+3 颗主行星用独立 R3F `<mesh>` 组件，132 个碎片用 `InstancedMesh` 批量渲染。Draw calls：4。
+
+### 10.2 依据
+
+| 来源 | 模式 |
+|------|------|
+| R3F 官方示例 | 大批量（1000+）用 InstancedMesh + custom shader |
+| Drei `Sparkles` 组件 | 小批量（<200）用独立 Mesh，代码简洁 |
+| Galaxy Voyager | 星系粒子 InstancedMesh + per-instance color/luminosity via shader |
+| R3F `onClick` | 独立 Mesh 天然支持，InstancedMesh 需额外 Raycaster |
+
+### 10.3 为什么不能统一
+
+主行星与碎片的交互逻辑本质不同：
+
+| 差异 | 主行星（3个） | 碎片（132个） |
+|------|-------------|--------------|
+| 几何体 | 高面数 Sphere(32×32) | 低面数 Sphere(10×8) |
+| 交互 | click → focus → open URL | 无交互 |
+| 标签 | 跟随 Sprite（renderOrder=9999） | 无 |
+| 遮光逻辑 | 被遮挡方 | 遮挡方（淡出） |
+| 悬停 | 屏幕空间检测 + 放大 35% | 无 |
+| 类型安全 | 需要完整 PlanetData interface | 仅需 DebrisData |
+
+---
+
+## 十一、测试策略：L1 全覆盖 + L2 关键路径
+
+### 11.1 结论
+
+纯函数层（`behaviors/`）100% 覆盖；R3F 组件仅对关键交互路径（Act 切换、点击聚焦）做场景图结构验证。不做视觉回归测试。
+
+### 11.2 依据
+
+| 来源 | 模式 |
+|------|------|
+| R3F 官方 Testing 文档 | `@react-three/test-renderer` + `advanceFrames()` 用于确定性逐帧测试 |
+| COMPOSABILITY_TESTABILITY.md 分析 | 纯函数业务逻辑测试零依赖，投入产出比最高 |
+| Three.js 社区共识 | 视觉回归测试维护成本极高，仅适合 UI 组件库 |
+
+### 11.3 测试分层
+
+| 层级 | 覆盖范围 | 工具 |
+|------|----------|------|
+| L1 · 纯函数 | `behaviors/*` — 位置/颜色/透明度/遮挡/切线 计算 | vitest |
+| L2 · 场景图 | `acts/*` — Act 切换时场景图结构、useFrame 逐帧行为 | @react-three/test-renderer |
+| L3 · 视觉 | 不做 | — |

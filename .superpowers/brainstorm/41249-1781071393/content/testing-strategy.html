@@ -1,0 +1,85 @@
+<h2>测试策略：测到什么程度？</h2>
+<p class="subtitle">R3F 项目测试的三层模型</p>
+
+<div class="section">
+  <h3>三层测试模型</h3>
+  <table style="width:100%;font-size:0.85rem;">
+    <tr style="background:#1e293b;color:#e2e8f0;">
+      <th style="padding:8px;text-align:left;">层级</th>
+      <th style="padding:8px;text-align:left;">测试内容</th>
+      <th style="padding:8px;text-align:left;">工具</th>
+      <th style="padding:8px;text-align:left;">成本</th>
+      <th style="padding:8px;text-align:left;">价值</th>
+    </tr>
+    <tr>
+      <td style="padding:8px;border-bottom:1px solid #334155;color:#22c55e;">L1 · 纯函数</td>
+      <td style="padding:8px;border-bottom:1px solid #334155;font-size:0.8rem;">位置/颜色/透明度计算、阈值判定、smoothstep、切线几何</td>
+      <td style="padding:8px;border-bottom:1px solid #334155;">vitest</td>
+      <td style="padding:8px;border-bottom:1px solid #334155;color:#22c55e;">极低</td>
+      <td style="padding:8px;border-bottom:1px solid #334155;color:#22c55e;">极高</td>
+    </tr>
+    <tr>
+      <td style="padding:8px;border-bottom:1px solid #334155;color:#f59e0b;">L2 · R3F 组件</td>
+      <td style="padding:8px;border-bottom:1px solid #334155;font-size:0.8rem;">场景图结构、useFrame 逐帧行为、ref 绑定、事件触发</td>
+      <td style="padding:8px;border-bottom:1px solid #334155;">@react-three/test-renderer</td>
+      <td style="padding:8px;border-bottom:1px solid #334155;color:#f59e0b;">中</td>
+      <td style="padding:8px;border-bottom:1px solid #334155;color:#f59e0b;">中</td>
+    </tr>
+    <tr>
+      <td style="padding:8px;border-bottom:1px solid #334155;color:#ef4444;">L3 · 视觉回归</td>
+      <td style="padding:8px;border-bottom:1px solid #334155;font-size:0.8rem;">渲染输出截图对比、像素级验证</td>
+      <td style="padding:8px;border-bottom:1px solid #334155;">Puppeteer + headless-gl</td>
+      <td style="padding:8px;border-bottom:1px solid #334155;color:#ef4444;">高</td>
+      <td style="padding:8px;border-bottom:1px solid #334155;color:#f59e0b;">低</td>
+    </tr>
+  </table>
+</div>
+
+<div class="section">
+  <h3>两个候选方案</h3>
+</div>
+
+<div class="options">
+  <div class="option" data-choice="a" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>L1 全覆盖 + L2 关键路径</h3>
+      <p>纯函数（behaviors/）100% 覆盖；R3F 组件仅对 Act 切换、点击聚焦等关键交互做测试。视觉回归测试不做。</p>
+      <p style="font-size:0.8rem;color:#94a3b8;">投入产出比最高。behaviors 包含了所有容易出错的数学逻辑。</p>
+    </div>
+  </div>
+  <div class="option" data-choice="b" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>L1 + L2 全覆盖 + L3 关键帧</h3>
+      <p>所有 R3F 组件测试场景图结构；对 7 个关键 sp 阈值截帧做视觉回归。CI 中跑完整测试套件。</p>
+      <p style="font-size:0.8rem;color:#94a3b8;">最完整，但 L3 维护成本高——任何视觉微调都会导致截图失效。</p>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>L1 测试示例（纯函数，零依赖）</h3>
+  <div class="mockup">
+    <div class="mockup-body">
+      <pre style="font-size:0.7rem;line-height:1.4;background:#1e293b;color:#e2e8f0;padding:0.8rem;border-radius:6px;">
+<span style="color:#94a3b8;">// behaviors/__tests__/positionUpdate.test.ts</span>
+<span style="color:#c084fc;">import</span> { <span style="color:#e2e8f0;">updateParticlePosition</span> } <span style="color:#c084fc;">from</span> <span style="color:#22c55e;">'../positionUpdate'</span>
+
+<span style="color:#e2e8f0;">describe</span>(<span style="color:#22c55e;">'updateParticlePosition'</span>, () => {
+  <span style="color:#e2e8f0;">it</span>(<span style="color:#22c55e;">'returns Act 1 float position at sp=0'</span>, () => {
+    <span style="color:#c084fc;">const</span> p = { <span style="color:#e2e8f0;">wx</span>: <span style="color:#f59e0b;">1</span>, <span style="color:#e2e8f0;">wy</span>: <span style="color:#f59e0b;">2</span>, <span style="color:#e2e8f0;">wz</span>: <span style="color:#f59e0b;">3</span>, <span style="color:#e2e8f0;">ph</span>: <span style="color:#f59e0b;">0</span>, <span style="color:#e2e8f0;">orbitAngle</span>: <span style="color:#f59e0b;">0</span>, <span style="color:#e2e8f0;">orbitR</span>: <span style="color:#f59e0b;">3.6</span> }
+    <span style="color:#c084fc;">const</span> { <span style="color:#e2e8f0;">x</span>, <span style="color:#e2e8f0;">y</span> } = <span style="color:#e2e8f0;">updateParticlePosition</span>(p, <span style="color:#f59e0b;">0</span>, <span style="color:#f59e0b;">0</span>)
+    <span style="color:#e2e8f0;">expect</span>(x).<span style="color:#e2e8f0;">toBeCloseTo</span>(<span style="color:#f59e0b;">1.25</span>)
+  })
+
+  <span style="color:#e2e8f0;">it</span>(<span style="color:#22c55e;">'fully transitions to orbit at sp=1'</span>, () => {
+    <span style="color:#c084fc;">const</span> p = { <span style="color:#e2e8f0;">wx</span>: <span style="color:#f59e0b;">5</span>, <span style="color:#e2e8f0;">wy</span>: <span style="color:#f59e0b;">0</span>, <span style="color:#e2e8f0;">wz</span>: <span style="color:#f59e0b;">5</span>, <span style="color:#e2e8f0;">ph</span>: <span style="color:#f59e0b;">0</span>, <span style="color:#e2e8f0;">orbitAngle</span>: <span style="color:#f59e0b;">0</span>, <span style="color:#e2e8f0;">orbitR</span>: <span style="color:#f59e0b;">3.6</span> }
+    <span style="color:#c084fc;">const</span> { <span style="color:#e2e8f0;">x</span>, <span style="color:#e2e8f0;">z</span> } = <span style="color:#e2e8f0;">updateParticlePosition</span>(p, <span style="color:#f59e0b;">0</span>, <span style="color:#f59e0b;">1</span>)
+    <span style="color:#e2e8f0;">expect</span>(x).<span style="color:#e2e8f0;">toBeCloseTo</span>(<span style="color:#f59e0b;">3.6</span>)   <span style="color:#94a3b8;">// cos(0) * 3.6</span>
+    <span style="color:#e2e8f0;">expect</span>(z).<span style="color:#e2e8f0;">toBeCloseTo</span>(<span style="color:#f59e0b;">-16</span>)   <span style="color:#94a3b8;">// SCENE_CENTER_Z</span>
+  })
+})</pre>
+    </div>
+  </div>
+</div>
