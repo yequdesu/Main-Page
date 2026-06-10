@@ -193,12 +193,11 @@ export default function DustField() {
 
       // Apply to mesh
       if (d.isMainPlanet) {
-        const planetIdx = mainPlanetIndices.indexOf(i)
-        const mesh = mainPlanets[planetIdx]
+        const trackIdx = mainPlanetIndices.indexOf(i)
+        const mesh = mainPlanets[trackIdx]
         if (mesh) {
           mesh.position.set(px, py, pz)
           // Track for camera focus + label following
-          const trackIdx = mainPlanetIndices.indexOf(i)
           if (trackIdx >= 0 && trackIdx < 3) {
             if (!_planetWorldPositions[trackIdx]) _planetWorldPositions[trackIdx] = new Vector3()
             _planetWorldPositions[trackIdx]!.copy(mesh.position)

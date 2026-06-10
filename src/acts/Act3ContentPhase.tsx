@@ -24,9 +24,15 @@ const Act3ContentPhase = memo(function Act3ContentPhase({ visible }: Act3Props) 
   const { camera } = useThree()
   const { shouldSkip } = useFrameCache()
 
+  // Camera focus uses particleIdx (0-134) — convert to trackIdx (0-2)
   const getPlanetPosition = useCallback((particleIdx: number): Vector3 | null => {
     const trackIdx = _mainPlanetIndices.indexOf(particleIdx)
     if (trackIdx === -1) return null
+    return _planetWorldPositions[trackIdx] || null
+  }, [])
+
+  // PlanetLabel uses trackIdx (0-2) directly
+  const getPositionByTrackIdx = useCallback((trackIdx: number): Vector3 | null => {
     return _planetWorldPositions[trackIdx] || null
   }, [])
 
@@ -56,7 +62,7 @@ const Act3ContentPhase = memo(function Act3ContentPhase({ visible }: Act3Props) 
           key={`label-${i}`}
           trackIdx={i}
           planetData={link}
-          getWorldPosition={getPlanetPosition}
+          getWorldPosition={getPositionByTrackIdx}
         />
       ))}
     </group>

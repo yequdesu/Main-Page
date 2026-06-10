@@ -1,4 +1,4 @@
-import { useRef, useMemo, useEffect } from 'react'
+import { useRef, useMemo } from 'react'
 import { useFrame } from '@react-three/fiber'
 import { Group, Color, ConeGeometry, SphereGeometry, BufferGeometry, Vector3, BufferAttribute, ShaderMaterial, MeshBasicMaterial, AdditiveBlending, DoubleSide, LineBasicMaterial, AmbientLight, PointLight, MathUtils, type Mesh, type Line } from 'three'
 import { VolumetricBeamShader } from '../shaders/VolumetricBeamShader'
