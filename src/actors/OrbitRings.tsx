@@ -83,7 +83,7 @@ export default function OrbitRings() {
           renderOrder={2}
           rotation={[gyroConfigs.tilts[g].x, 0, gyroConfigs.tilts[g].z]}
         >
-          <lineLoop>
+          <lineLoop renderOrder={2}>
             <ringGeometry args={[r - 0.04, r, 96]} />
             <lineBasicMaterial ref={(mat) => { gyroMatRefs.current[g] = mat }} color="#cbd5e1" transparent opacity={0} depthWrite={false} depthTest />
           </lineLoop>
