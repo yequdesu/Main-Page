@@ -100,4 +100,4 @@ Layer 9999: 行星标签（depthTest=false，始终可见）
 
 ## 额外依赖
 
-- `@three.ez/instanced-mesh` — `InstancedMesh2`，用于碎片粒子的逐实例透明度 + 排序。已在 `main.tsx` 中通过 `extend()` 注册。
+- `@three.ez/instanced-mesh` — `InstancedMesh2`，用于碎片粒子的逐实例透明度 + 排序。已在 `main.tsx` 中通过 `extend()` 注册。**注意：** `setColorAt` 初始化后必须调用 `materialsNeedsUpdate()` 触发 shader 重编译，否则首次渲染碎片不可见（详见 `docs/dev-blog/instanced-mesh-shader-compile.md`）。
