@@ -22,6 +22,7 @@ export default function SceneCanvas({ children }: CanvasProps) {
   return (
     <R3FCanvas
       frameloop="demand"
+      flat
       camera={{
         fov: 40,
         near: 0.1,
