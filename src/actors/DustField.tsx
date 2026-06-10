@@ -1,6 +1,7 @@
 import { useMemo, useRef, useEffect } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
-import { Mesh, type InstancedMesh, SphereGeometry, MeshBasicMaterial, Matrix4, Color, Vector3, type PerspectiveCamera } from 'three'
+import { Mesh, SphereGeometry, MeshBasicMaterial, Matrix4, Color, Vector3, type PerspectiveCamera } from 'three'
+import { InstancedMesh2 } from '@three.ez/instanced-mesh'
 import { useScrollStore } from '../stores/scrollStore'
 import { useFrameCache } from '../behaviors/useFrameCache'
 import { calcOrbitPosition } from '../behaviors/useOrbitPosition'
@@ -144,9 +145,16 @@ export default function DustField() {
     }
   }, [])
 
-  // ---- Debris InstancedMesh ref ----
-  const debrisRef = useRef<InstancedMesh>(null)
-  const debrisMatRef = useRef<MeshBasicMaterial | null>(null)
+  // ---- Debris InstancedMesh2 (per-instance opacity + sorting) ----
+  const debrisMesh = useMemo(() => {
+    const geo = new SphereGeometry(0.015, 10, 8)
+    const mat = new MeshBasicMaterial({ color: '#ffffff', transparent: true, depthWrite: false, depthTest: true })
+    const mesh = new InstancedMesh2(geo, mat, { capacity: 132 })
+    mesh.renderOrder = 2
+    mesh.sortObjects = true
+    return mesh
+  }, [])
+  const debrisRef = useRef<InstancedMesh2>(debrisMesh)
 
   // Initialize per-instance colors (Three.js 0.170 setColorAt auto-creates instanceColor)
   useEffect(() => {
@@ -157,7 +165,7 @@ export default function DustField() {
       _c.set(debrisGrayHexes[i])
       mesh.setColorAt(i, _c)
     }
-    if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true
+    // InstancedMesh2 auto-manages color buffer updates
   }, [debrisGrayHexes])
 
   // ---- Per-frame animation ----
@@ -237,24 +245,15 @@ export default function DustField() {
           _scale.set(appearance.scale, appearance.scale, appearance.scale),
         )
         debrisRef.current.setMatrixAt(debrisIdx, _matrix)
-        // Per-instance color: computed at line 208-209 above (shared with main planets)
+        // Per-instance color + opacity (InstancedMesh2 支持逐实例透明度)
         debrisRef.current.setColorAt(debrisIdx, _scratch2)
+        debrisRef.current.setOpacityAt(debrisIdx, appearance.opacity)
         debrisIdx++
       }
     }
 
-    if (debrisRef.current) {
-      debrisRef.current.instanceMatrix.needsUpdate = true
-      if (debrisRef.current.instanceColor) {
-        debrisRef.current.instanceColor.needsUpdate = true
-      }
-    }
-    // InstancedMesh shares one material — set representative opacity based on scene state
-    if (debrisMatRef.current) {
-      const debrisOpacity = 0.14 * (0.35 + sp * 0.65) + (0.4 - 0.14 * (0.35 + sp * 0.65)) * wof + (0.55 - 0.4) * smooth3
-      debrisMatRef.current.opacity = Math.max(0.05, debrisOpacity)
-      debrisMatRef.current.transparent = true
-    }
+    // InstancedMesh2 auto-manages buffer updates after setMatrixAt/setColorAt/setOpacityAt
+    // No manual needsUpdate required.
 
     // Hover detection — extracted: useScreenSpaceHover
     const hoverResult = calcScreenSpaceHover(
@@ -291,15 +290,8 @@ export default function DustField() {
         <primitive key={`planet-${idx}`} object={mesh} />
       ))}
 
-      {/* 132 debris as InstancedMesh */}
-      <instancedMesh
-        ref={debrisRef}
-        args={[undefined as any, undefined as any, 132]}
-        renderOrder={2}
-      >
-        <sphereGeometry args={[0.015, 10, 8]} />
-        <meshBasicMaterial ref={(mat) => { debrisMatRef.current = mat }} color="#ffffff" transparent opacity={0} depthWrite={false} depthTest />
-      </instancedMesh>
+      {/* 132 debris as primitive (InstancedMesh2 created in useMemo) */}
+      <primitive object={debrisMesh} />
     </group>
   )
 }
