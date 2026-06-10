@@ -33,6 +33,8 @@ export default function App() {
   // ---- Physics state (refs — no re-render) ----
   const physRef = useRef({ target: 0, velocity: 0, lastScrollbar: 0, lastPhysics: 0, active: true })
   const clickTweenRef = useRef<gsap.core.Tween | null>(null)
+  const focusTweenRef = useRef<gsap.core.Tween | null>(null)
+  const brandTextElRef = useRef<HTMLDivElement | null>(null)
   const lighthouseCapturedRef = useRef(false)
   const stRef = useRef<ScrollTrigger | null>(null)
 
@@ -153,9 +155,23 @@ export default function App() {
     }
   }, [onWheel, onClick])
 
-  // ---- Act 3 focus state (block scroll wheel) ----
+  // ---- Act 3 focus state (block scroll wheel + brand text animation) ----
   useEffect(() => {
-    setIsAct3Focused(overlayData.focused && scrollProgress >= GRID_SHIFT_START)
+    const focused = overlayData.focused && scrollProgress >= GRID_SHIFT_START
+    setIsAct3Focused(focused)
+
+    const el = brandTextElRef.current
+    if (!el) return
+
+    if (focusTweenRef.current) focusTweenRef.current.kill()
+
+    focusTweenRef.current = gsap.to(el, {
+      opacity: focused ? 0 : 1,
+      marginTop: focused ? -24 : 0,
+      duration: 0.5,
+      ease: 'power2.out',
+      overwrite: 'auto',
+    })
   }, [overlayData.focused, scrollProgress])
 
   // ---- brand text visibility ----
@@ -221,7 +237,8 @@ export default function App() {
 
       {/* 品牌文字 */}
       {brandTextVisible && (
-        <div className={`brand-text${isClickPlaying ? ' no-transition' : ''}`} aria-hidden="true"
+        <div ref={brandTextElRef}
+          className={`brand-text${isClickPlaying ? ' no-transition' : ''}`} aria-hidden="true"
           style={{ '--text-offset-y': `${textOffsetY}px` } as React.CSSProperties}>
           <div className="brand-text-row">
             {lighthouseImage && (
