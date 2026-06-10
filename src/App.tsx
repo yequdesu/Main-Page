@@ -124,6 +124,7 @@ export default function App() {
   // ---- click fast-forward ----
   const onClick = useCallback(() => {
     if (isClickPlaying) return
+    if (isAct3Focused) return  // block fast-forward during planet focus
     if (scrollProgress >= 0.995) return
     setIsClickPlaying(true)
     physRef.current.velocity = 0
@@ -143,7 +144,7 @@ export default function App() {
         clickTweenRef.current = null
       },
     })
-  }, [isClickPlaying, scrollProgress, setScrollProgress, syncScrollbar])
+  }, [isClickPlaying, isAct3Focused, scrollProgress, setScrollProgress, syncScrollbar])
 
   // ---- event listeners ----
   useEffect(() => {
@@ -179,10 +180,13 @@ export default function App() {
     setBrandTextVisible(scrollProgress >= 0.70)
   }, [scrollProgress])
 
-  // computeTextOffset — Act 3 grid shift 同步到品牌文字位移
-  const textOffsetY = scrollProgress >= GRID_SHIFT_START
-    ? Math.round(((scrollProgress - GRID_SHIFT_START) / (1.0 - GRID_SHIFT_START)) * 32 * 10) / 10
-    : 0
+  // computeTextOffset — Act 3 grid shift 同步到品牌文字位移（逐字保留自原 updateTextOffsetCSS）
+  const textOffsetY = (() => {
+    if (scrollProgress < GRID_SHIFT_START) return 0
+    const progress = (scrollProgress - GRID_SHIFT_START) / (1.0 - GRID_SHIFT_START)
+    const smoothProgress = progress * progress * (3 - 2 * progress) // smoothstep
+    return Math.round(-90 * smoothProgress * 10) / 10
+  })()
 
   // Brand text opacity — 逐行渐进淡入（逐字保留自原 App.vue computed）
   const brandLine1Opacity = (() => {

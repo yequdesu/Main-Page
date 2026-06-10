@@ -1,4 +1,4 @@
-import { useMemo, useRef, useCallback, useEffect } from 'react'
+import { useMemo, useRef, useEffect } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
 import { Mesh, type InstancedMesh, SphereGeometry, MeshBasicMaterial, Matrix4, Color, Vector3, type PerspectiveCamera } from 'three'
 import { useScrollStore } from '../stores/scrollStore'
@@ -8,7 +8,7 @@ import { calcAppearance } from '../behaviors/useAppearanceFade'
 import { calcOcclusionFade } from '../behaviors/useOcclusionFade'
 import { calcScreenSpaceHover } from '../behaviors/useScreenSpaceHover'
 import { smoothstep, clamped, SCENE_CENTER_Z, WHITE_OUT_THRESHOLD, WHITE_OUT_END, GRID_SHIFT_START, ORBIT_RADII, ORBIT_COUNT } from '../r3f/ScrollRig'
-import { PLANET_LINKS, type ParticleData } from '../types'
+import { type ParticleData } from '../types'
 
 // Shared planet positions + indices — read by Act3ContentPhase for camera focus + labels
 export const _planetWorldPositions: (Vector3 | null)[] = [null, null, null]
@@ -16,6 +16,9 @@ export let _mainPlanetIndices: number[] = []
 
 // Pre-allocated default camera position for debris distance calc
 const _defaultCamPos = new Vector3(0, 0.25, 8)
+
+// Shared R3F clock time — updated per-frame, read by click handler for focusStartTime
+let _r3fClockTime = 0
 
 /**
  * 尘埃/粒子场 — 3 主行星 + InstancedMesh(132 碎片)。
@@ -138,23 +141,11 @@ export default function DustField() {
   // ---- Debris InstancedMesh ref ----
   const debrisRef = useRef<InstancedMesh>(null)
 
-  // ---- Click handler ----
-  const handlePlanetClick = useCallback((trackIdx: number) => {
-    const { focusedPlanetIdx } = useScrollStore.getState()
-    if (focusedPlanetIdx === mainPlanetIndices[trackIdx]) {
-      // Second click → open URL
-      window.open(PLANET_LINKS[trackIdx].url, '_blank', 'noopener')
-    } else {
-      // First click → focus
-      useScrollStore.getState().setFocusedPlanet(mainPlanetIndices[trackIdx])
-      useScrollStore.getState().setFocusStartTime(performance.now() * 0.001)
-    }
-  }, [mainPlanetIndices])
-
   // ---- Per-frame animation ----
   useFrame((state, delta) => {
     const sp = useScrollStore.getState().scrollProgress
     const time = state.clock.elapsedTime
+    _r3fClockTime = time
     if (shouldSkip(time, sp)) return
 
     const wof = clamped(sp, WHITE_OUT_THRESHOLD, WHITE_OUT_END)
@@ -265,13 +256,9 @@ export default function DustField() {
 
   return (
     <group>
-      {/* 3 main planets rendered directly from useMemo meshes */}
+      {/* 3 main planets rendered directly from useMemo meshes (click via NDC projection) */}
       {mainPlanets.map((mesh, idx) => (
-        <primitive
-          key={`planet-${idx}`}
-          object={mesh}
-          onClick={() => handlePlanetClick(idx)}
-        />
+        <primitive key={`planet-${idx}`} object={mesh} />
       ))}
 
       {/* 132 debris as InstancedMesh */}

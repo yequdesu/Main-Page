@@ -3,6 +3,7 @@ import { type ReactNode } from 'react'
 import { Color, FogExp2 } from 'three'
 import { SCENE_CENTER_Z } from './ScrollRig'
 import ScrollInvalidator from './ScrollInvalidator'
+import PlanetClickHandler from './PlanetClickHandler'
 
 /**
  * R3F Canvas 配置。
@@ -35,6 +36,7 @@ export default function SceneCanvas({ children }: CanvasProps) {
       style={{ position: 'fixed', inset: 0, zIndex: 0 }}
     >
       <ScrollInvalidator />
+      <PlanetClickHandler />
       {children}
     </R3FCanvas>
   )
