@@ -56,8 +56,8 @@ export default function CentralStar() {
 
   return (
     <group position={[0, -1.0, SCENE_CENTER_Z]} renderOrder={1}>
-      {/* 核心：暖白实体球（renderOrder 必须显式设置，父 group 不继承） */}
-      <mesh renderOrder={1}>
+      {/* 核心：暖白实体球 — renderOrder=2 置于光晕层之上 */}
+      <mesh renderOrder={2}>
         <sphereGeometry args={[0.42, 32, 32]} />
         <meshBasicMaterial color="#fff8e7" />
       </mesh>
