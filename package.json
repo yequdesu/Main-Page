@@ -14,12 +14,8 @@
   },
   "dependencies": {
     "@gsap/react": "^2.1.2",
-    "@react-three/drei": "^10.7.7",
     "@react-three/fiber": "^9.6.1",
     "@three.ez/instanced-mesh": "^0.3.15",
-    "@types/react": "^19.2.17",
-    "@types/react-dom": "^19.2.3",
-    "@types/three": "^0.184.1",
     "gsap": "^3.15.0",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
@@ -28,6 +24,9 @@
   },
   "devDependencies": {
     "@react-three/test-renderer": "^9.1.0",
+    "@types/react": "^19.2.17",
+    "@types/react-dom": "^19.2.3",
+    "@types/three": "^0.184.1",
     "@vitejs/plugin-react": "^4.7.0",
     "typescript": "^6.0.3",
     "vite": "^6.0.0",
