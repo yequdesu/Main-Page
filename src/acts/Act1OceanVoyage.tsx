@@ -7,7 +7,6 @@ import DustField from '../actors/DustField'
 import LighthouseCapture from '../actors/LighthouseCapture'
 import { useScrollStore } from '../stores/scrollStore'
 import { useFrameCache } from '../behaviors/useFrameCache'
-import { sceneApplyWhiteOut } from '../r3f/ScrollRig'
 
 /**
  * Act 1 "OceanVoyage" — 暗色海洋、灯塔、光束、粒子。
@@ -30,8 +29,7 @@ const Act1OceanVoyage = memo(function Act1OceanVoyage({ visible }: Act1Props) {
     const sp = useScrollStore.getState().scrollProgress
     if (shouldSkip(time, sp)) return
     // Ocean waves, dust, and beam are self-contained with their own useFrame hooks.
-    // This hook is for Act-level coordination (white-out transition).
-    sceneApplyWhiteOut(state.scene, sp)
+    // sceneApplyWhiteOut is now handled globally by ScrollInvalidator.
   })
 
   return (
