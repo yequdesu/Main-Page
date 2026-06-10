@@ -140,6 +140,7 @@ export default function DustField() {
 
   // ---- Debris InstancedMesh ref ----
   const debrisRef = useRef<InstancedMesh>(null)
+  const debrisMatRef = useRef<MeshBasicMaterial | null>(null)
 
   // ---- Per-frame animation ----
   useFrame((state, delta) => {
@@ -225,6 +226,12 @@ export default function DustField() {
     if (debrisRef.current) {
       debrisRef.current.instanceMatrix.needsUpdate = true
     }
+    // InstancedMesh shares one material — set representative opacity based on scene state
+    if (debrisMatRef.current) {
+      const debrisOpacity = 0.14 * (0.35 + sp * 0.65) + (0.4 - 0.14 * (0.35 + sp * 0.65)) * wof + (0.55 - 0.4) * smooth3
+      debrisMatRef.current.opacity = Math.max(0.05, debrisOpacity)
+      debrisMatRef.current.transparent = true
+    }
 
     // Hover detection — extracted: useScreenSpaceHover
     const hoverResult = calcScreenSpaceHover(
@@ -268,7 +275,7 @@ export default function DustField() {
         renderOrder={2}
       >
         <sphereGeometry args={[0.015, 10, 8]} />
-        <meshBasicMaterial color="#f0f8ff" transparent opacity={0} depthWrite={false} depthTest />
+        <meshBasicMaterial ref={(mat) => { debrisMatRef.current = mat }} color="#f0f8ff" transparent opacity={0} depthWrite={false} depthTest />
       </instancedMesh>
     </group>
   )

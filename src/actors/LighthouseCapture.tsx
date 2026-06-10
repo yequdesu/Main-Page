@@ -1,6 +1,6 @@
 import { useEffect, useCallback } from 'react'
 import { useThree } from '@react-three/fiber'
-import { WebGLRenderTarget, Scene, PerspectiveCamera, Color, Vector3, Quaternion, type Object3D } from 'three'
+import { WebGLRenderTarget, Scene, PerspectiveCamera, Color, Vector3, Quaternion, AmbientLight, DirectionalLight, type Object3D } from 'three'
 import { _lighthouseGroupRef } from './Lighthouse'
 import { SCENE_CENTER_Z } from '../r3f/ScrollRig'
 
@@ -45,6 +45,15 @@ export default function LighthouseCapture({ onCaptureReady }: CaptureProps) {
       // Clone lighthouse into a temp scene
       const tempScene = new Scene()
       tempScene.background = new Color('#050811')
+
+      // Offscreen lights — necessary for MeshStandardMaterial (逐字保留自原 captureLighthouse)
+      tempScene.add(new AmbientLight('#ffffff', 1.8))
+      const key = new DirectionalLight('#ffffff', 2.2)
+      key.position.set(8, 6, 2)
+      tempScene.add(key)
+      const fill = new DirectionalLight('#c8d6ff', 1.0)
+      fill.position.set(-4, 3, -3)
+      tempScene.add(fill)
 
       const tempCamera = new PerspectiveCamera(40, 0.5, 0.1, 150)
       tempCamera.position.set(0, 1.5, 4.5)
