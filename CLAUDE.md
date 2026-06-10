@@ -16,17 +16,41 @@
 
 ```bash
 npm run dev      # Vite 开发服务器，:5173，绑定 0.0.0.0
-npm run build    # 生产构建 → dist/
+npm run build    # 生产构建（tsc + vite）→ dist/
 npm run preview  # 本地预览生产构建
+npm run test     # vitest，13 tests / 3 suites
+npm run clean    # 清除 dist + .vite 缓存 + tsbuildinfo
+npm run mirror   # 监控后台进程（Vite :5173, Stats :9999）
 ```
 
-开发服务器将 `/api/*` 代理至 `http://127.0.0.1:9999`（去除 `/api` 前缀）。项目无测试/检查工具。
+开发服务器将 `/api/*` 代理至 `http://127.0.0.1:9999`（去除 `/api` 前缀）。
 
-## 架构要点
+## R3F 渲染约束（务必保持）
 
-- **单页、无路由** — 全视口 `<canvas>`，GSAP ScrollTrigger 驱动，body 高 `15vh`，`scrollProgress`（0–1）贯穿所有动画
-- **组件分工** — `App.vue` 管滚动/物理/品牌文字/聚焦 SVG 叠加层；`LighthouseScene.vue` 管整个 Three.js 场景、动画循环、act 调度
-- **自定义物理滚动** — `App.vue` 中 `gsap.ticker` 驱动动量 + 摩擦力（`FRICTION=0.955`），点击快进是 2s GSAP tween。聚焦行星时阻止滚动
+### `flat` prop — 禁用 ACES 色调映射
+
+```tsx
+// src/r3f/Canvas.tsx — 必须保留 flat prop
+<R3FCanvas flat ...>
+```
+
+**原因：** R3F 默认 `flat: false` 会设置 `gl.toneMapping = ACESFilmicToneMapping`，对所有颜色应用电影级色调映射。原版 Vanilla Three.js 使用 `NoToneMapping`（默认值）。ACES 曲线导致 `#fff8e7`、`#f0f8ff`、`#ffe8c0` 等所有颜色与原版偏差。
+
+**来源：** 2026-06-11 恒星渲染异常排查。R3F 源码 `events-*.js:7620` 确认了默认行为。
+
+**影响范围：** 所有 `MeshBasicMaterial`、`MeshStandardMaterial`、`ShaderMaterial` 的颜色输出。移除 `flat` 会导致所有视觉元素与原版不一致。
+
+### `renderOrder` 不继承
+
+Three.js 中 `Object3D.renderOrder` 仅影响该对象自身，**不传递给子对象**。每个带几何体的对象（`Mesh`、`Line`、`Sprite`、`Points`）必须显式设置自己的 `renderOrder`。不要依赖父 `<group renderOrder={...}>` 来设定子对象的渲染顺序。
+
+### `frameloop: 'demand'` + `ScrollInvalidator`
+
+R3F Canvas 使用 `frameloop="demand"`，仅在被 `invalidate()` 调用时渲染一帧。`ScrollInvalidator` 组件订阅 Zustand `scrollProgress` 变化并调用 `invalidate()`。**不要在 Canvas 外部尝试调用 `invalidate()`**——必须在 Canvas 内部通过 `useThree()` 获取。
+
+### 全局雾/背景更新
+
+`sceneApplyWhiteOut` 在 `ScrollInvalidator.useFrame` 中每帧调用，不受 Act 可见性限制。之前曾在 `Act1OceanVoyage.useFrame` 中调用，导致 sp > 0.46 后雾密度停留在 ~0.052，遮挡了 Act 2/3 的轨道和恒星。
 
 ## Three.js 场景关键常量
 
@@ -42,33 +66,49 @@ GRID_SHIFT_START     = 0.85    # Act 3 轨道出现，全部元素下移 32Y
 
 轨道中心位于 `(0, -1.0, SCENE_CENTER_Z)`。三颗主行星轨道半径 `[3.6, 5.0, 6.4]`。
 
-## Act 生命周期
+## 架构要点
 
-每个 act 有 `build()`、`animate()`、`exit()`、`dispose()` 四个钩子。Act 首次进入区间时延迟构建（`builtActs` Set 跟踪）。动画循环通过比较前后帧活跃 act 名检测切换，离开时调用 `exit()`（隐藏而非移除）。修改 act 逻辑时务必保持此模式。
+- **React 19 + R3F v9 + TypeScript** — 28→34 源文件，完整迁移自 Vue 3 + Vanilla Three.js
+- **单页、无路由** — 全视口 `<canvas>`，GSAP ScrollTrigger 驱动，body 高 `15vh`，`scrollProgress`（0–1）贯穿所有动画
+- **组件分工** — `App.tsx` 管滚动/物理/品牌文字/聚焦 SVG 叠加层；R3F Canvas 内组件管 Three.js 场景
+- **自定义物理滚动** — `App.tsx` 中 `gsap.ticker` 驱动动量 + 摩擦力（`FRICTION=0.955`），点击快进是 2s GSAP tween。聚焦行星时阻止滚动
+- **Zustand v5 状态管理** — `scrollSlice` + `focusSlice`，`getState()` 在 useFrame 中消费（60fps，不触发 React re-render）
+
+## 渲染层级
+
+```
+Layer 0: 海浪、灯塔、光束（最先渲染）
+Layer 1: 恒星光晕球、Halo 精灵、主行星
+Layer 2: 恒星核心球、轨道环、陀螺仪环、网格线、碎片（InstancedMesh2）
+Layer 9999: 行星标签（depthTest=false，始终可见）
+```
 
 ## 性能模式（务必保持）
 
 - **预分配对象** — `_` 前缀的 `Vector3`/`Color`/`Quaternion` 跨帧复用，禁止在热路径中 `new`
-- **帧缓存** — `_lastWavesTime` / `_lastBeamTime` / `_lastDustSp` 等守卫，同帧同参数跳过整个更新
+- **帧缓存** — `useFrameCache` 守卫，同帧同参数跳过整个更新
 - **批量可见性** — opacity < 0.001 时 `visible = false`，跳过逐顶点更新
-- **CSS 变量节流** — `updateTextOffsetCSS` 用舍入到千分位的键值
-- **预筛选数组** — `_mainPlanetsPreFiltered` 避免循环中 `.filter()`
+- **预筛选数组** — 避免循环中 `.filter()`
 
 ## 粒子系统要点
 
-135 个粒子，最大的 3 个按 `totalSize` 排序成为主行星（高面数、深度写入、`renderOrder=1`），其余为小碎片（`renderOrder=2`）。Act 3 过渡到轨道运动。遮挡聚焦行星的粒子淡化至 `opacity * 0.12`。非行星粒子用 `_defaultCamPos` 计算缩放以避免相机聚焦影响。
+135 个粒子，最大的 3 个按 `totalSize` 排序成为主行星（独立 `Mesh`，高面数、深度写入、`renderOrder=1`），其余 132 为碎片（`InstancedMesh2`，`renderOrder=2`，逐实例透明度）。Act 3 过渡到轨道运动。遮挡聚焦行星的主行星淡化至 `opacity * 0.12`。非行星粒子用 `_defaultCamPos` 计算缩放以避免相机聚焦影响。
 
 ## 行星聚焦与叠加层
 
-- 点击检测用**屏幕空间 NDC 投影**（非 Raycaster），迟滞阈值 0.16 进 / 0.22 出
+- 点击检测用**屏幕空间 NDC 投影**（`PlanetClickHandler.tsx`，非 Raycaster），迟滞阈值 0.16 进 / 0.22 出
 - 相机双层平滑：`_targetCamPos` 对目标 lerp(0.04)，`camera.position` 对 target lerp(0.06)
-- 30s 自动取消聚焦，点击重置计时器，聚焦时相机沿恒星→行星轴绕行
-- 聚焦时 `App.vue` 渲染 SVG 叠加层（虚线圆 + 外公切线），屏幕空间半径用相机右向量投影计算
+- 30s 自动取消聚焦（R3F 时钟域，非 `performance.now()`）
+- 聚焦时 `App.tsx` 渲染 SVG 叠加层（虚线圆 + 外公切线），屏幕空间半径用相机右向量投影计算
 
 ## 行星标签
 
-Canvas 生成的 `THREE.Sprite`，512×128，半透明胶囊背景 + Georgia 白色文字，`renderOrder = 9999`。标签跟随行星位置，聚焦时淡出。
+`PlanetLabel.tsx` — Canvas 生成的 `THREE.Sprite`，512×128，半透明胶囊背景 + Georgia 白色文字，`renderOrder = 9999`。标签跟随行星位置，聚焦时全部淡出（平滑 lerp，每帧仅计算一次 `_labelOpacityCurrent`）。
 
 ## 灯塔截图
 
-`LighthouseScene.vue` 通过 `defineExpose` 暴露 `captureLighthouse()`，`App.vue` 在 `scrollProgress >= 0.54` 时调用。离屏渲染克隆灯塔为 512×1024 PNG，用作品牌文字旁图标。修改灯塔几何体时需同步检查此函数。
+`LighthouseCapture.tsx` — 独立 `WebGLRenderer` 离屏渲染，FOV=25，灯塔居中于原点，`toDataURL` 直接输出 512×1024 PNG。`App.tsx` 在 `scrollProgress >= 0.54` 时触发。修改灯塔几何体时需同步检查此函数。
+
+## 额外依赖
+
+- `@three.ez/instanced-mesh` — `InstancedMesh2`，用于碎片粒子的逐实例透明度 + 排序。已在 `main.tsx` 中通过 `extend()` 注册。
