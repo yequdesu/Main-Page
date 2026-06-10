@@ -56,20 +56,20 @@ export default function CentralStar() {
 
   return (
     <group position={[0, -1.0, SCENE_CENTER_Z]} renderOrder={1}>
-      {/* 核心：暖白实体球 */}
-      <mesh renderOrder={1}>
-        <sphereGeometry args={[0.42, 32, 32]} />
-        <meshBasicMaterial color="#fff8e7" />
-      </mesh>
-
-      {/* 内层光晕：透明金色包裹（脉冲呼吸） */}
+      {/* 内层光晕：透明金色包裹 — 最先渲染（底层） */}
       <mesh ref={glowMeshRef} renderOrder={1}>
         <sphereGeometry args={[0.70, 32, 32]} />
         <meshBasicMaterial color="#ffe8c0" transparent opacity={0.30} depthWrite={false} />
       </mesh>
 
-      {/* 外层光晕：Canvas 径向渐变精灵 */}
-      <sprite renderOrder={1} scale={[5.5, 5.5, 1]}>
+      {/* 核心：暖白实体球 — 中层渲染 */}
+      <mesh renderOrder={2}>
+        <sphereGeometry args={[0.42, 32, 32]} />
+        <meshBasicMaterial color="#fff8e7" />
+      </mesh>
+
+      {/* 外层光晕：Canvas 径向渐变精灵 — 最后渲染（顶层） */}
+      <sprite renderOrder={3} scale={[5.5, 5.5, 1]}>
         <spriteMaterial
           ref={(mat) => { spriteMatRef.current = mat }}
           map={haloTexture}

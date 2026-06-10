@@ -15,12 +15,10 @@ import { sceneApplyWhiteOut } from './ScrollRig'
 export default function ScrollInvalidator() {
   const { invalidate, scene } = useThree()
 
-  // ---- Every-frame background update (fog disabled for debugging) ----
+  // ---- Every-frame fog/background update ----
   useFrame(() => {
     const sp = useScrollStore.getState().scrollProgress
-    // Temporarily pass null to skip fog during rendering debug
     sceneApplyWhiteOut(scene, sp)
-    scene.fog = null // force disable fog
   })
 
   // ---- Frameloop bridge ----
