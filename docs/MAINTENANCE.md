@@ -358,11 +358,65 @@ npm ls @react-three/test-renderer
 
 ---
 
-## 七、R3F 渲染约束
+## 七、渲染管线
 
-修改任何与渲染相关的代码时，务必遵守以下约束。完整说明见 `CLAUDE.md`。
+### 7.1 渲染触发机制
 
-### 7.1 Canvas 配置
+项目使用 `frameloop="demand"` 模式，R3F **不会**自动以 60fps 循环渲染。每一帧的渲染由以下事件触发：
+
+```
+┌─ 用户交互 ─────────────────────────────────────┐
+│ 鼠标滚轮 → App.tsx onWheel → physRef.velocity  │
+│ 鼠标拖拽滚动条 → ScrollTrigger onUpdate        │
+│ 点击快进 → GSAP tween (2s)                     │
+└─┬──────────────────────────────────────────────┘
+  │
+  ▼
+setScrollProgress(sp)  ← 更新 Zustand scrollStore
+  │
+  ▼
+ScrollInvalidator.subscribe  ← 监听 scrollProgress 变化
+  │
+  ▼
+invalidate()  ← 触发 R3F 渲染一帧
+  │
+  ▼
+┌─ R3F 渲染帧 ────────────────────────────────────┐
+│ 1. 执行所有 useFrame 回调（按 scene graph 顺序） │
+│    ├── ScrollInvalidator: sceneApplyWhiteOut    │
+│    ├── DustField: 粒子位置/颜色/透明度          │
+│    ├── OceanWaves: 波浪顶点动画                  │
+│    ├── LightBeam: 光束旋转 + 强度               │
+│    ├── GridLines: 网格线延伸                    │
+│    ├── OrbitRings: 轨道旋转 + 透明度             │
+│    ├── CentralStar: 光晕脉冲                     │
+│    ├── PlanetLabel: 标签跟随 + 透明度            │
+│    └── Act3ContentPhase: updateCameraFocus       │
+│ 2. Three.js WebGLRenderer 渲染场景               │
+└────────────────────────────────────────────────┘
+```
+
+### 7.2 渲染层级
+
+Three.js 按 `renderOrder` 值从小到大分组渲染。同组内：不透明对象从前到后（减少 overdraw），透明对象从后到前（正确混合）。
+
+**关键规则：`renderOrder` 不继承。** 父 `<group renderOrder={N}>` 不会传递给子对象的 Mesh/Line/Sprite。必须显式设置每个几何体对象。
+
+| Layer | renderOrder | 包含对象 | depthWrite |
+|:---:|:---:|------|:---:|
+| 0 | 0 | 海浪线（50 Line）、灯塔（30 Mesh）、光束锥体（3）、射线（2）、辉光（1） | false |
+| 1 | 1 | 恒星光晕球、Halo 精灵、主行星（3 Mesh） | 行星=true, 其余=false |
+| 2 | 2 | 恒星核心球、轨道环（3 Line）、陀螺仪环（3 LineLoop）、网格线（28 Line）、网格节点（210 Points）、碎片（InstancedMesh2 ×132） | 核心=true, 其余=false |
+| 9999 | 9999 | 行星标签（3 Sprite） | false（depthTest=false） |
+
+### 7.3 depthWrite / depthTest 规则
+
+| 属性 | true | false |
+|------|------|-------|
+| `depthWrite` | 写入深度缓冲，遮挡后续对象 | 不影响深度缓冲 |
+| `depthTest` | 被前方对象遮挡 | 忽略深度，始终可见 |
+
+### 7.4 Canvas 配置
 
 ```tsx
 // src/r3f/Canvas.tsx — 三个必须保留的 prop
@@ -372,15 +426,11 @@ npm ls @react-three/test-renderer
 - **`flat`** — 禁用 ACES 色调映射，颜色与原版一致
 - **`frameloop="demand"`** — 仅在 `invalidate()` 时渲染一帧
 
-### 7.2 renderOrder 不继承
-
-`Object3D.renderOrder` 不传递给子对象。每个 Mesh/Line/Sprite 必须显式设置。不要依赖父 `<group renderOrder={...}>`。
-
-### 7.3 场景图层级
+### 7.5 scene graph 层级
 
 跨 Act 存在的对象（`DustField`）必须挂载在 Canvas 根层级，不能放在 Act 的 `<group visible={...}>` 内。Act `visible` 会隐藏所有子对象。
 
-### 7.4 颜色校准
+### 7.6 颜色校准
 
 所有颜色值（`#fff8e7`、`#f0f8ff` 等）来自原版 Three.js（`NoToneMapping`）。调整颜色时务必确认 `flat` prop 存在，并在实际渲染中验证。
 

@@ -34,6 +34,38 @@
 | 语言 | TypeScript（`.tsx`） | R3F 自身以 TS 编写 |
 | 构建 | Vite 6 + tsc | — |
 
+## 渲染管线
+
+### 触发方式
+
+R3F Canvas 使用 `frameloop="demand"`，仅在 `invalidate()` 被调用时渲染一帧：
+
+```
+GSAP ticker / ScrollTrigger onUpdate
+  → setScrollProgress(sp)
+  → Zustand scrollStore
+  → ScrollInvalidator.subscribe
+  → invalidate()
+  → R3F 执行一帧（所有 useFrame 回调 + WebGL 渲染）
+```
+
+### 渲染层级
+
+Three.js 按 `renderOrder` 从小到大分组渲染。**`renderOrder` 不继承**——每个几何体对象须显式设置。透明对象（`transparent: true`）在各组内按距离排序。
+
+| Layer | renderOrder | 对象 | depthWrite | 说明 |
+|:---:|:---:|------|:---:|------|
+| 0 | 0 | 海浪线、灯塔 Mesh、光束锥体/射线/辉光 | false | 背景层，最先渲染 |
+| 1 | 1 | 恒星光晕球、Halo 精灵、**主行星 ×3** | 行星=true 其余=false | 天体层 |
+| 2 | 2 | 恒星核心球、轨道环、陀螺仪环、网格线、**碎片 ×132** | false | 前景层 |
+| 9999 | 9999 | 行星标签 Sprite | false（depthTest=false） | 始终可见 |
+
+### 深度写入规则
+
+- `depthWrite=true` → 写入深度缓冲，遮挡后续渲染的同类对象
+- `depthWrite=false` → 不写深度，不会遮挡任何对象
+- `depthTest=false` → 忽略深度，始终渲染在最前面（仅标签）
+
 **设计文档：** `docs/superpowers/specs/2026-06-10-r3f-refactor-design.md`
 **技术评估：** `docs/TECH_STACK_EVALUATION.md`
 **交接文档：** `docs/HANDOFF.md`
