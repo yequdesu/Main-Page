@@ -87,7 +87,7 @@ export default function PlanetLabel({ trackIdx, planetData, getWorldPosition }: 
       map: tex,
       transparent: true,
       opacity: 0,
-      depthTest: true,
+      depthTest: false,
       depthWrite: false,
     })
 
