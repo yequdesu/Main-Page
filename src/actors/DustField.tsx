@@ -156,7 +156,7 @@ export default function DustField() {
   }, [])
   const debrisRef = useRef<InstancedMesh2>(debrisMesh)
 
-  // Initialize per-instance colors (Three.js 0.170 setColorAt auto-creates instanceColor)
+  // Initialize per-instance colors + trigger shader recompilation
   useEffect(() => {
     const mesh = debrisRef.current
     if (!mesh) return
@@ -165,7 +165,9 @@ export default function DustField() {
       _c.set(debrisGrayHexes[i])
       mesh.setColorAt(i, _c)
     }
-    // InstancedMesh2 auto-manages color buffer updates
+    // setColorAt creates colorsTexture but does NOT trigger shader recompile.
+    // Without this, the first render uses a shader without instanced color/alpha support.
+    ;(mesh as any).materialsNeedsUpdate?.()
   }, [debrisGrayHexes])
 
   // ---- Per-frame animation ----
