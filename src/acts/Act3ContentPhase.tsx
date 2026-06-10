@@ -3,11 +3,13 @@ import { useFrame, useThree } from '@react-three/fiber'
 import { type PerspectiveCamera, Vector3 } from 'three'
 import OrbitRings from '../actors/OrbitRings'
 import CentralStar from '../actors/CentralStar'
+import PlanetLabel from '../actors/PlanetLabel'
 import { useScrollStore } from '../stores/scrollStore'
 import { useFrameCache } from '../behaviors/useFrameCache'
 import { smoothstep, clamped, GRID_SHIFT_START } from '../r3f/ScrollRig'
 import { updateCameraFocus } from '../behaviors/useCameraFocus'
 import { _planetWorldPositions } from '../actors/DustField'
+import { PLANET_LINKS } from '../types'
 
 /**
  * Act 3 "ContentPhase" — 轨道环、中央恒星、相机聚焦。
@@ -49,6 +51,14 @@ export default function Act3ContentPhase({ visible }: Act3Props) {
     <group>
       <OrbitRings />
       <CentralStar />
+      {PLANET_LINKS.map((link, i) => (
+        <PlanetLabel
+          key={`label-${i}`}
+          trackIdx={i}
+          planetData={link}
+          getWorldPosition={getPlanetPosition}
+        />
+      ))}
     </group>
   )
 }

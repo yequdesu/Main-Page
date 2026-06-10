@@ -3,6 +3,7 @@ import Lighthouse from '../actors/Lighthouse'
 import LightBeam from '../actors/LightBeam'
 import OceanWaves from '../actors/OceanWaves'
 import DustField from '../actors/DustField'
+import LighthouseCapture from '../actors/LighthouseCapture'
 import { useScrollStore } from '../stores/scrollStore'
 import { useFrameCache } from '../behaviors/useFrameCache'
 import { sceneApplyWhiteOut } from '../r3f/ScrollRig'
@@ -40,6 +41,7 @@ export default function Act1OceanVoyage({ visible }: Act1Props) {
       <Lighthouse />
       <LightBeam />
       <DustField />
+      <LighthouseCapture onCaptureReady={() => {}} />
     </group>
   )
 }

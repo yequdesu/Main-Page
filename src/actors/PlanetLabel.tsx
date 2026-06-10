@@ -1,70 +1,119 @@
-import { useMemo } from 'react'
-import { CanvasTexture, SpriteMaterial, Sprite, LinearFilter } from 'three'
+import { useRef, useMemo } from 'react'
+import { useFrame } from '@react-three/fiber'
+import { CanvasTexture, SpriteMaterial, Sprite, LinearFilter, Vector3 } from 'three'
+import { useScrollStore } from '../stores/scrollStore'
+import { clamped, smoothstep, GRID_SHIFT_START } from '../r3f/ScrollRig'
+import { _mainPlanetIndices } from './DustField'
+import type { PlanetLink } from '../types'
 
 /**
- * Canvas → Sprite 标签工厂。
+ * 行星标签 — Canvas → Sprite，每帧跟随行星世界位置。
  *
- * 原 LighthouseScene.vue:1080-1137 createPlanetLabel()
- * 512×128 Canvas → Texture → SpriteMaterial → Sprite
+ * 原 createPlanetLabelSprite():1080-1137 + per-frame label update，逐字保留。
+ * 跟随 _planetWorldPositions[idx]，聚焦时淡出。
  *
- * 援引：Drei Text 组件（简化版等效实现）
+ * 援引：R3F Sprite + CanvasTexture（Drei Text 等效实现）
  */
-export function createPlanetLabelSprite(text: string, _accentColor: string): Sprite {
-  const size = 512
-  const canvas = document.createElement('canvas')
-  canvas.width = size
-  canvas.height = 128
-  const ctx = canvas.getContext('2d')!
+interface PlanetLabelProps {
+  trackIdx: number           // 0, 1, 2
+  planetData: PlanetLink     // label + accent + url
+  getWorldPosition: (idx: number) => Vector3 | null
+}
 
-  // Pill background
-  ctx.font = '500 40px "Georgia", "Times New Roman", serif'
-  const tw = ctx.measureText(text).width
-  const padX = 28
-  const pillW = Math.max(100, tw + padX * 2)
-  const pillH = 56
-  const pillX = (size - pillW) / 2
-  const pillY = (128 - pillH) / 2
-  const pillR = 10
+export default function PlanetLabel({ trackIdx, planetData, getWorldPosition }: PlanetLabelProps) {
+  const matRef = useRef<SpriteMaterial | null>(null)
+  const _labelOffset = useRef(new Vector3(0, 0.35, 0)).current
 
-  ctx.beginPath()
-  ctx.moveTo(pillX + pillR, pillY)
-  ctx.lineTo(pillX + pillW - pillR, pillY)
-  ctx.arcTo(pillX + pillW, pillY, pillX + pillW, pillY + pillR, pillR)
-  ctx.lineTo(pillX + pillW, pillY + pillH - pillR)
-  ctx.arcTo(pillX + pillW, pillY + pillH, pillX + pillW - pillR, pillY + pillH, pillR)
-  ctx.lineTo(pillX + pillR, pillY + pillH)
-  ctx.arcTo(pillX, pillY + pillH, pillX, pillY + pillH - pillR, pillR)
-  ctx.lineTo(pillX, pillY + pillR)
-  ctx.arcTo(pillX, pillY, pillX + pillR, pillY, pillR)
-  ctx.closePath()
-  ctx.fillStyle = 'rgba(15, 23, 42, 0.78)'
-  ctx.fill()
+  // ---- Build sprite once (useMemo for render-ready on first frame) ----
+  const sprite = useMemo(() => {
+    const size = 512
+    const canvas = document.createElement('canvas')
+    canvas.width = size
+    canvas.height = 128
+    const ctx = canvas.getContext('2d')!
 
-  // Subtle border
-  ctx.strokeStyle = 'rgba(255,255,255,0.12)'
-  ctx.lineWidth = 1.5
-  ctx.stroke()
+    ctx.font = '500 40px "Georgia", "Times New Roman", serif'
+    const tw = ctx.measureText(planetData.label).width
+    const padX = 28
+    const pillW = Math.max(100, tw + padX * 2)
+    const pillH = 56
+    const pillX = (size - pillW) / 2
+    const pillY = (128 - pillH) / 2
+    const pillR = 10
 
-  ctx.fillStyle = '#f1f5f9'
-  ctx.font = '500 38px "Georgia", "Times New Roman", serif'
-  ctx.textAlign = 'center'
-  ctx.textBaseline = 'middle'
-  ctx.fillText(text, size / 2, 128 / 2)
+    ctx.beginPath()
+    ctx.moveTo(pillX + pillR, pillY)
+    ctx.lineTo(pillX + pillW - pillR, pillY)
+    ctx.arcTo(pillX + pillW, pillY, pillX + pillW, pillY + pillR, pillR)
+    ctx.lineTo(pillX + pillW, pillY + pillH - pillR)
+    ctx.arcTo(pillX + pillW, pillY + pillH, pillX + pillW - pillR, pillY + pillH, pillR)
+    ctx.lineTo(pillX + pillR, pillY + pillH)
+    ctx.arcTo(pillX, pillY + pillH, pillX, pillY + pillH - pillR, pillR)
+    ctx.lineTo(pillX, pillY + pillR)
+    ctx.arcTo(pillX, pillY, pillX + pillR, pillY, pillR)
+    ctx.closePath()
+    ctx.fillStyle = 'rgba(15, 23, 42, 0.78)'
+    ctx.fill()
 
-  const tex = new CanvasTexture(canvas)
-  tex.minFilter = LinearFilter
-  tex.magFilter = LinearFilter
+    ctx.strokeStyle = planetData.accent
+    ctx.lineWidth = 1.5
+    ctx.stroke()
 
-  const spriteMat = new SpriteMaterial({
-    map: tex,
-    transparent: true,
-    opacity: 0,
-    depthTest: false,
-    depthWrite: false,
+    ctx.fillStyle = '#f1f5f9'
+    ctx.font = '500 38px "Georgia", "Times New Roman", serif'
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    ctx.fillText(planetData.label, size / 2, 128 / 2)
+
+    const tex = new CanvasTexture(canvas)
+    tex.minFilter = LinearFilter
+    tex.magFilter = LinearFilter
+
+    const spriteMat = new SpriteMaterial({
+      map: tex,
+      transparent: true,
+      opacity: 0,
+      depthTest: false,
+      depthWrite: false,
+    })
+
+    matRef.current = spriteMat
+
+    const s = new Sprite(spriteMat)
+    s.scale.set(1.8, 0.45, 1)
+    s.renderOrder = 9999
+
+    return s
+  }, [planetData])
+
+  // ---- Per-frame position + opacity ----
+  useFrame(() => {
+    const mat = matRef.current
+    if (!mat) return
+
+    const sp = useScrollStore.getState().scrollProgress
+    const { focusedPlanetIdx } = useScrollStore.getState()
+
+    const inAct3 = sp >= GRID_SHIFT_START
+    const act3Progress = clamped(sp, GRID_SHIFT_START, 1.0)
+    const smooth3 = smoothstep(act3Progress)
+
+    // Follow planet position
+    const pos = getWorldPosition(trackIdx)
+    if (pos) {
+      sprite.position.copy(pos).add(_labelOffset)
+    }
+
+    // Opacity: fade in during Act 3 transition, fade out when other planet focused
+    const isFocused = focusedPlanetIdx >= 0
+    const isThisFocused = isFocused && focusedPlanetIdx === _mainPlanetIndices[trackIdx]
+    const focusFade = isFocused
+      ? (isThisFocused ? 0 : 0.12)
+      : 1.0
+
+    mat.opacity = inAct3 ? smooth3 * 0.85 * focusFade : 0
+    sprite.visible = mat.opacity > 0.001
   })
-  const sprite = new Sprite(spriteMat)
-  sprite.scale.set(1.8, 0.45, 1)
-  sprite.renderOrder = 9999
 
-  return sprite
+  return <primitive object={sprite} />
 }

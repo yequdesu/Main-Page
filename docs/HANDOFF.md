@@ -1,8 +1,9 @@
 # 项目交接文档
 
 > 生成时间：2026-06-10  
+> 最后更新：2026-06-10（交接任务全部完成）  
 > 分支：`Editor-CyDlen`  
-> 最后提交：`b571d1d` — mirror 脚本
+> 最后提交：待提交 — 交接任务实施
 
 ---
 
@@ -52,37 +53,47 @@ npm 为主，pnpm 兼容。安装时若用 pnpm 需额外运行 `pnpm approve-bu
 | 5 | 粒子系统 | 3 主行星独立 Mesh + 132 碎片 InstancedMesh |
 | 6 | 测试策略 | L1 纯函数全覆盖 + L2 关键路径场景图验证 |
 
-### 2.3 源文件结构（28 个文件）
+### 2.3 源文件结构（34 个文件）
 
 ```
 src/
 ├── main.tsx                        入口 + GSAP 注册
-├── App.tsx / App.css               滚动物理 + DOM 叠加层 + SVG 聚焦层
+├── App.tsx / App.css               滚动物理 + DOM 叠加层 + SVG 聚焦层 + CSS 变量
 ├── vite-env.d.ts
 ├── r3f/
 │   ├── Canvas.tsx                   R3F Canvas（frameloop:demand）
-│   └── ScrollRig.ts                阈值 + sceneApplyWhiteOut
+│   ├── ScrollRig.ts                阈值 + sceneApplyWhiteOut
+│   └── ScrollInvalidator.tsx       Zustand 订阅 → invalidate() 桥接
 ├── stores/
 │   └── scrollStore.ts              Zustand（scrollSlice + focusSlice）
 ├── types/
 │   └── index.ts                    SCROLL_RIG + 所有共享类型
 ├── acts/
-│   ├── Act1OceanVoyage.tsx         组装 OceanWaves + Lighthouse + LightBeam + DustField
+│   ├── Act1OceanVoyage.tsx         组装 OceanWaves + Lighthouse + LightBeam + DustField + LighthouseCapture
 │   ├── Act2GridTransition.tsx      组装 GridLines
-│   └── Act3ContentPhase.tsx        组装 OrbitRings + CentralStar + 相机聚焦
+│   └── Act3ContentPhase.tsx        组装 OrbitRings + CentralStar + PlanetLabel + 相机聚焦
 ├── actors/
-│   ├── Lighthouse.tsx              30 个 Mesh 声明式灯塔
-│   ├── LightBeam.tsx               3 锥体 + 2 射线 + 辉光
+│   ├── Lighthouse.tsx              30 个 Mesh 声明式灯塔（暴露 ref 供截图）
+│   ├── LightBeam.tsx               3 锥体 + 2 射线 + 辉光 + 3 模式动画 + 灯光
 │   ├── OceanWaves.tsx              50 条线，逐顶点波浪动画
 │   ├── DustField.tsx               3 Planet + InstancedMesh(132)，per-frame 更新
 │   ├── Planet.tsx                  主行星（高面数 + onClick）
 │   ├── CentralStar.tsx             核心 + 光晕 + Canvas 精灵 halo
 │   ├── OrbitRings.tsx              3 轨道环 + 3 陀螺仪环
 │   ├── GridLines.tsx               28 垂直线 + 210 节点
-│   └── PlanetLabel.tsx             Canvas → Sprite 标签工厂
+│   ├── PlanetLabel.tsx             Canvas → Sprite React 组件（位置跟随 + 聚焦淡出）
+│   └── LighthouseCapture.tsx       离屏渲染 → base64 PNG
 ├── behaviors/
 │   ├── useCameraFocus.ts           相机双层平滑 + 绕行 + 30s 自动取消 + SVG overlay
-│   └── useFrameCache.ts            帧缓存守卫
+│   ├── useFrameCache.ts            帧缓存守卫
+│   ├── useOrbitPosition.ts         轨道位置纯函数（可测）
+│   ├── useAppearanceFade.ts        外观计算纯函数（可测）
+│   ├── useOcclusionFade.ts         遮挡淡化纯函数（可测）
+│   ├── useScreenSpaceHover.ts      屏幕空间悬停检测（NDC 投影 + 迟滞）
+│   └── __tests__/
+│       ├── smoothstep.test.ts
+│       ├── toward.test.ts
+│       └── r3f-components.test.tsx  7 个 L2 场景图测试
 ├── shaders/
 │   └── VolumetricBeamShader.ts     自定义光束着色器
 └── utils/
@@ -131,17 +142,17 @@ npm run mirror   # 监控后台进程（Vite :5173, Stats :9999）
 | Mirror 进程监控 | ✅ Vite + Stats 端口检测 |
 | Clean 脚本 | ✅ 中间产物清理 |
 
-### 待完善（按优先级）
+### 待完善（已全部完成 ✅ 2026-06-10）
 
-| # | 事项 | 说明 |
-|---|------|------|
-| 1 | **frameloop 连接** | 当前 R3F Canvas 使用 `frameloop: 'demand'`，但 GSAP ticker 未调用 `invalidate()`。需在 App.tsx 的 physics ticker 中添加 `invalidate()` 触发 R3F 重渲染 |
-| 2 | **光束 idle 动画** | LightBeam 的三种模式（空闲漫游/滚动归位/白化增强）尚未实现——当前仅静态渲染 |
-| 3 | **行星标签跟随** | PlanetLabel actor 已创建，但未在 Act3 中挂载并跟随行星位置 |
-| 4 | **灯塔截图** | `captureLighthouse()` 函数未迁移到 R3F（需用 `useThree().gl` 做离屏渲染） |
-| 5 | **行为 hook 补全** | `useScreenSpaceHover`、`useOrbitPosition`、`useAppearanceFade`、`useOcclusionFade` 的纯计算逻辑在 DustField 的 useFrame 中内联——可抽取为独立 hook 以提升可测试性 |
-| 6 | **R3F 组件测试** | `@react-three/test-renderer` 已安装但未编写 L2 场景图测试 |
-| 7 | **品牌文字 CSS 变量** | `--text-offset-y` 的 Act 3 同步位移逻辑未从原 `updateTextOffsetCSS` 迁移 |
+| # | 事项 | 说明 | 实施 |
+|---|------|------|:---:|
+| 1 | **frameloop 连接** | 新增 `ScrollInvalidator.tsx`，Zustand `subscribe` → `invalidate()` | ✅ |
+| 2 | **光束 idle 动画** | `LightBeam.tsx` 重构，三种模式（空闲漫游/滚动归位/白化增强）+ 灯光管理 | ✅ |
+| 3 | **行星标签跟随** | `PlanetLabel.tsx` 改为 React 组件，挂载到 `Act3ContentPhase`，跟随星球位置 | ✅ |
+| 4 | **灯塔截图** | 新增 `LighthouseCapture.tsx`，离屏渲染 → base64 PNG，品牌文字旁显示灯塔图标 | ✅ |
+| 5 | **行为 hook 补全** | 抽取 `calcOrbitPosition`、`calcAppearance`、`calcOcclusionFade`、`calcScreenSpaceHover` 至 `behaviors/` | ✅ |
+| 6 | **R3F 组件测试** | 7 个 L2 场景图测试（Lighthouse、LightBeam、OrbitRings、Act 可见性、useFrame） | ✅ |
+| 7 | **品牌文字 CSS 变量** | `--text-offset-y` 同步 Act 3 grid shift 位移，App.tsx `useEffect` 中更新 | ✅ |
 
 ---
 

@@ -1,5 +1,9 @@
+import { useRef, useEffect } from 'react'
 import { type Group } from 'three'
 import { SCENE_CENTER_Z } from '../r3f/ScrollRig'
+
+// Module-level ref — shared with LighthouseCapture for offscreen rendering
+export let _lighthouseGroupRef: Group | null = null
 
 /**
  * 灯塔 — 从 buildLighthouse() 声明式迁移。
@@ -10,11 +14,16 @@ import { SCENE_CENTER_Z } from '../r3f/ScrollRig'
  * 援引：R3F 声明式场景图 — pmndrs 官方 Getting Started
  */
 export default function Lighthouse() {
-  // 材质（在组件外部定义为常量可避免每帧重新创建）
-  // 注意：R3F 的 <meshStandardMaterial> 在 JSX 中内联声明即可
+  const groupRef = useRef<Group>(null)
+
+  useEffect(() => {
+    _lighthouseGroupRef = groupRef.current
+    return () => { _lighthouseGroupRef = null }
+  }, [])
 
   return (
     <group
+      ref={groupRef}
       position={[0, -2.5, SCENE_CENTER_Z]}
       scale={0.7}
     >

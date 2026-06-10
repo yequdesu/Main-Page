@@ -1,14 +1,19 @@
-import { useMemo, useRef, useCallback } from 'react'
+import { useMemo, useRef, useCallback, useEffect } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
-import { Mesh, type InstancedMesh, SphereGeometry, MeshBasicMaterial, Matrix4, Color, Vector3 } from 'three'
+import { Mesh, type InstancedMesh, SphereGeometry, MeshBasicMaterial, Matrix4, Color, Vector3, type PerspectiveCamera } from 'three'
 import Planet from './Planet'
 import { useScrollStore } from '../stores/scrollStore'
 import { useFrameCache } from '../behaviors/useFrameCache'
+import { calcOrbitPosition } from '../behaviors/useOrbitPosition'
+import { calcAppearance } from '../behaviors/useAppearanceFade'
+import { calcOcclusionFade } from '../behaviors/useOcclusionFade'
+import { calcScreenSpaceHover } from '../behaviors/useScreenSpaceHover'
 import { smoothstep, clamped, SCENE_CENTER_Z, WHITE_OUT_THRESHOLD, WHITE_OUT_END, GRID_SHIFT_START, ORBIT_RADII, ORBIT_COUNT } from '../r3f/ScrollRig'
 import { PLANET_LINKS, type ParticleData } from '../types'
 
-// Shared planet positions — read by Act3ContentPhase for camera focus
+// Shared planet positions + indices — read by Act3ContentPhase for camera focus + labels
 export const _planetWorldPositions: (Vector3 | null)[] = [null, null, null]
+export let _mainPlanetIndices: number[] = []
 
 /**
  * 尘埃/粒子场 — 3 主行星 + InstancedMesh(132 碎片)。
@@ -128,6 +133,8 @@ export default function DustField() {
       }
     }
 
+    _mainPlanetIndices = planetIndices
+
     return {
       mainPlanets: planets,
       particleData: data,
@@ -171,52 +178,23 @@ export default function DustField() {
       const targetHover = (i === hoveredIdx && act3Progress >= 0.95) ? 1.0 : 0.0
       d.hoverFactor += (targetHover - d.hoverFactor) * 0.10
 
-      // Act 1 float
-      const bx = d.wx + Math.sin(time * 0.4 + d.ph) * 0.25
-      const by = d.wy + Math.sin(time * 0.3 + d.ph + 1) * 0.18
-      const bz = d.wz + Math.sin(time * 0.25 + d.ph + 2) * 0.15
+      // Position — extracted: useOrbitPosition
+      const { x: px, y: py, z: pz } = calcOrbitPosition(d, time, delta, cx, cy, cz, smooth3)
 
-      // Act 3 orbit
-      const effectiveSpeed = d._baseSpeed * (1.0 - d.hoverFactor * 0.80)
-      d.orbitAngle += delta * effectiveSpeed
-      const wobbleR = d.isMainPlanet ? d.orbitR : d.orbitR + Math.sin(time * (d.wobbleFreq ?? 0.3) + d.ph) * (d.wobbleAmp ?? 1)
-      const ox = cx + Math.cos(d.orbitAngle) * wobbleR
-      const oz = cz + Math.sin(d.orbitAngle) * wobbleR
-
-      // Position
-      const px = bx + (ox - bx) * smooth3
-      const py = by + (cy - by) * smooth3
-      const pz = bz + (oz - bz) * smooth3
-
-      // Distance for scale calc
+      // Distance for appearance calc
       const refPos = d.isMainPlanet ? camera.position : new Vector3(0, 0.25, 8)
       _scratch.set(px, py, pz)
       const cd = _scratch.distanceTo(refPos)
-      const ds = 22 / Math.max(5, cd)
 
       // Beam factor (simplified — full version needs beamPivot world position)
-      let bf = 0
+      const bf = 0
 
-      // Scale
-      const scaleAct1 = d.scale * (0.4 + bf * 2) * ds
-      const scaleAct2 = d.scale * 0.7 * d.sizeBoost * ds
-      const scaleAct3 = scaleAct2 * d.scaleMult
-      let s = scaleAct1 + (scaleAct2 - scaleAct1) * wof
-      s = s + (scaleAct3 - s) * smooth3
-      s *= (1.0 + d.hoverFactor * 0.35)
+      // Appearance — extracted: useAppearanceFade
+      const appearance = calcAppearance(d, sp, wof, smooth3, cd, bf)
 
-      // Opacity
-      let opacityAct1 = (0.14 + bf * 0.76) * (0.35 + sp * 0.65)
-      if (cd < 7) opacityAct1 *= Math.max(0, (cd - 2.5) / 4.5)
-      if (cd > 42) opacityAct1 *= Math.max(0, 1 - (cd - 42) / 10)
-      const opacityAct2 = 0.4
-      const opacityAct3 = d.isMainPlanet ? 1.0 : 0.55
-      let opacity = opacityAct1 + (opacityAct2 - opacityAct1) * wof
-      opacity = opacity + (opacityAct3 - opacity) * smooth3
-
-      // Color
+      // Convert wofFactor + act3Factor → Three.js Color
       _color2.set(d.grayHex)
-      _scratch2.copy(_colorAct1).lerp(_color2, wof).lerp(_colorAct3, smooth3)
+      _scratch2.copy(_colorAct1).lerp(_color2, appearance.wofFactor).lerp(_colorAct3, appearance.act3Factor)
 
       // Apply to mesh
       if (d.isMainPlanet) {
@@ -230,9 +208,9 @@ export default function DustField() {
             if (!_planetWorldPositions[trackIdx]) _planetWorldPositions[trackIdx] = new Vector3()
             _planetWorldPositions[trackIdx]!.copy(mesh.position)
           }
-          mesh.scale.setScalar(s)
+          mesh.scale.setScalar(appearance.scale)
           const mat = mesh.material as MeshBasicMaterial
-          mat.opacity = opacity
+          mat.opacity = appearance.opacity
           mat.color.copy(_scratch2)
         }
       } else if (debrisRef.current) {
@@ -240,7 +218,7 @@ export default function DustField() {
         _matrix.compose(
           _position.set(px, py, pz),
           _quaternion,
-          _scale.set(s, s, s),
+          _scale.set(appearance.scale, appearance.scale, appearance.scale),
         )
         debrisRef.current.setMatrixAt(debrisIdx, _matrix)
       }
@@ -249,19 +227,33 @@ export default function DustField() {
     if (debrisRef.current) {
       debrisRef.current.instanceMatrix.needsUpdate = true
     }
+
+    // Hover detection — extracted: useScreenSpaceHover
+    const hoverResult = calcScreenSpaceHover(
+      camera as PerspectiveCamera,
+      _planetWorldPositions,
+      _mouseNDC.current,
+      _hoverState.current,
+      act3Progress,
+    )
+    _hoverState.current = hoverResult
+    if (hoverResult.currentIdx !== useScrollStore.getState().hoveredIdx) {
+      useScrollStore.getState().setHoveredIdx(hoverResult.currentIdx)
+    }
   })
 
   // ---- Mouse move for hover detection ----
   const _mouseNDC = useRef({ x: 999, y: 999 })
-  const onMouseMove = useCallback((e: MouseEvent) => {
-    _mouseNDC.current.x = (e.clientX / window.innerWidth) * 2 - 1
-    _mouseNDC.current.y = -(e.clientY / window.innerHeight) * 2 + 1
-  }, [])
+  const _hoverState = useRef({ currentIdx: -1, hovering: false })
 
-  // Register mousemove handler
-  if (typeof window !== 'undefined') {
+  useEffect(() => {
+    const onMouseMove = (e: MouseEvent) => {
+      _mouseNDC.current.x = (e.clientX / window.innerWidth) * 2 - 1
+      _mouseNDC.current.y = -(e.clientY / window.innerHeight) * 2 + 1
+    }
     window.addEventListener('mousemove', onMouseMove)
-  }
+    return () => window.removeEventListener('mousemove', onMouseMove)
+  }, [])
 
   return (
     <group>

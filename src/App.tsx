@@ -8,6 +8,7 @@ import Act2GridTransition from './acts/Act2GridTransition'
 import Act3ContentPhase from './acts/Act3ContentPhase'
 import { useScrollStore } from './stores/scrollStore'
 import { WHITE_OUT_THRESHOLD, WHITE_OUT_END, GRID_START, GRID_SHIFT_START } from './r3f/ScrollRig'
+import { getLighthouseCapture } from './actors/LighthouseCapture'
 import './App.css'
 
 gsap.registerPlugin(ScrollTrigger)
@@ -41,6 +42,7 @@ export default function App() {
   const [isClickPlaying, setIsClickPlaying] = useState(false)
   const [isAct3Focused, setIsAct3Focused] = useState(false)
   const [brandTextVisible, setBrandTextVisible] = useState(false)
+  const [lighthouseImage, setLighthouseImage] = useState<string | null>(null)
   const overlayData = useScrollStore(s => s.overlayData)
 
   // ---- Act visibility ----
@@ -152,9 +154,31 @@ export default function App() {
     }
   }, [onWheel, onClick])
 
-  // ---- brand text visibility ----
+  // ---- brand text visibility + CSS variable sync ----
   useEffect(() => {
     setBrandTextVisible(scrollProgress >= 0.70)
+
+    // updateTextOffsetCSS — Act 3 grid shift 同步到品牌文字位移
+    const sp = scrollProgress
+    if (sp >= GRID_SHIFT_START) {
+      const shiftProgress = (sp - GRID_SHIFT_START) / (1.0 - GRID_SHIFT_START)
+      const offsetPx = Math.round(shiftProgress * 32 * 10) / 10 // 32 world units → px
+      document.documentElement.style.setProperty('--text-offset-y', `${offsetPx}px`)
+    } else {
+      document.documentElement.style.setProperty('--text-offset-y', '0px')
+    }
+  }, [scrollProgress])
+
+  // ---- lighthouse screenshot ----
+  useEffect(() => {
+    if (scrollProgress >= 0.54 && !lighthouseCapturedRef.current) {
+      lighthouseCapturedRef.current = true
+      const captureFn = getLighthouseCapture()
+      if (captureFn) {
+        const img = captureFn()
+        if (img) setLighthouseImage(img)
+      }
+    }
   }, [scrollProgress])
 
   // ---- cleanup ----
@@ -190,6 +214,9 @@ export default function App() {
       {brandTextVisible && (
         <div className="brand-text" aria-hidden="true">
           <div className="brand-text-row">
+            {lighthouseImage && (
+              <img src={lighthouseImage} alt="" className="brand-lighthouse-icon" />
+            )}
             <div className="brand-text-inner">
               <p className="brand-line-1">Personal Site</p>
               <p className="brand-line-2">By YeQuDesu</p>

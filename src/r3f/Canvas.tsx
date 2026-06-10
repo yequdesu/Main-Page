@@ -1,6 +1,7 @@
 import { Canvas as R3FCanvas } from '@react-three/fiber'
 import { type ReactNode } from 'react'
 import { SCENE_CENTER_Z } from './ScrollRig'
+import ScrollInvalidator from './ScrollInvalidator'
 
 /**
  * R3F Canvas 配置。
@@ -29,6 +30,7 @@ export default function SceneCanvas({ children }: CanvasProps) {
       }}
       style={{ position: 'fixed', inset: 0, zIndex: 0 }}
     >
+      <ScrollInvalidator />
       {children}
     </R3FCanvas>
   )

@@ -38,6 +38,18 @@ canvas { display: block; }
   transform: translateY(calc(var(--text-offset-y, 0px) - 4vh));
 }
 .brand-text-row { display: flex; align-items: flex-end; gap: 0; }
+.brand-lighthouse-icon {
+  width: clamp(3rem, 8vw, 6rem);
+  height: auto;
+  margin-right: 0.5rem;
+  object-fit: contain;
+  filter: drop-shadow(0 0 8px rgba(255, 223, 109, 0.3));
+  animation: lighthouse-fade-in 1s ease-out;
+}
+@keyframes lighthouse-fade-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
 .brand-text-inner {
   display: flex; flex-direction: column; align-items: flex-end; gap: 0.05rem; margin-left: 0.15em;
 }
