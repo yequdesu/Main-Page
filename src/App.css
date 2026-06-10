@@ -1,0 +1,75 @@
+/* 原 main.css + App.vue <style> 合并 */
+
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+html, body {
+  width: 100%; overflow-x: hidden;
+  background: #0b101d;
+  font-family: 'Noto Sans SC', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+#root { position: relative; width: 100%; }
+canvas { display: block; }
+
+/* ---- scroll hint ---- */
+.scroll-hint {
+  position: fixed; bottom: 2.8rem; left: 50%; transform: translateX(-50%);
+  z-index: 5; display: flex; flex-direction: column; align-items: center;
+  gap: 0.5rem; color: #aab; font-size: 0.68rem; letter-spacing: 0.15em; pointer-events: none;
+}
+.scroll-arrow {
+  width: 20px; height: 20px;
+  border-right: 1.5px solid #889; border-bottom: 1.5px solid #889;
+  transform: rotate(45deg); opacity: 0.5;
+  animation: sc-bounce 2s ease-in-out infinite;
+}
+.click-hint { font-size: 0.58rem; color: #778; opacity: 0.7; letter-spacing: 0.08em; }
+@keyframes sc-bounce {
+  0%, 100% { transform: rotate(45deg) translateY(0); }
+  50% { transform: rotate(45deg) translateY(6px); }
+}
+
+/* ---- brand text ---- */
+.brand-text {
+  position: fixed; inset: 0; z-index: 10;
+  display: flex; align-items: center; justify-content: center;
+  pointer-events: none;
+  transform: translateY(calc(var(--text-offset-y, 0px) - 4vh));
+}
+.brand-text-row { display: flex; align-items: flex-end; gap: 0; }
+.brand-text-inner {
+  display: flex; flex-direction: column; align-items: flex-end; gap: 0.05rem; margin-left: 0.15em;
+}
+.brand-line-1 {
+  margin: 0; margin-right: -0.05em;
+  font-family: 'Georgia', 'Times New Roman', serif;
+  font-size: clamp(1.8rem, 4.5vw, 3.5rem); font-weight: 600;
+  color: #222; letter-spacing: 0.05em; white-space: nowrap; text-align: left;
+}
+.brand-line-2 {
+  margin: 0; margin-right: -0.04em;
+  font-family: 'Georgia', 'Times New Roman', serif;
+  font-size: clamp(0.55rem, 1.0vw, 0.75rem); font-weight: 400;
+  color: #888; letter-spacing: 0.04em; font-style: italic; text-align: left;
+}
+
+/* ---- focus overlay SVG ---- */
+.focus-overlay { position: fixed; inset: 0; z-index: 5; pointer-events: none; }
+.overlay-ring { animation: ring-in 0.6s ease-out both; }
+@keyframes ring-in {
+  from { opacity: 0; stroke-dashoffset: 30; }
+  to   { opacity: 1; stroke-dashoffset: 0; }
+}
+.overlay-line { animation: line-in 0.8s ease-out 0.2s both; }
+@keyframes line-in {
+  from { opacity: 0; stroke-dashoffset: 20; }
+  to   { opacity: 1; stroke-dashoffset: 0; }
+}
+
+/* ---- footer ---- */
+.app-footer {
+  position: fixed; bottom: 0.7rem; left: 0; right: 0; z-index: 20;
+  text-align: center; font-size: 0.6rem; color: #888; pointer-events: none;
+}
+.app-footer a { color: #999; text-decoration: none; pointer-events: auto; }
