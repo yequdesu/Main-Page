@@ -1,6 +1,6 @@
 import { useMemo, useRef, useEffect } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
-import { Mesh, type InstancedMesh, SphereGeometry, MeshBasicMaterial, Matrix4, Color, Vector3, InstancedBufferAttribute, type PerspectiveCamera } from 'three'
+import { Mesh, type InstancedMesh, SphereGeometry, MeshBasicMaterial, Matrix4, Color, Vector3, type PerspectiveCamera } from 'three'
 import { useScrollStore } from '../stores/scrollStore'
 import { useFrameCache } from '../behaviors/useFrameCache'
 import { calcOrbitPosition } from '../behaviors/useOrbitPosition'
@@ -148,20 +148,16 @@ export default function DustField() {
   const debrisRef = useRef<InstancedMesh>(null)
   const debrisMatRef = useRef<MeshBasicMaterial | null>(null)
 
-  // Initialize per-instance colors (Three.js 0.170 instanceColor support)
+  // Initialize per-instance colors (Three.js 0.170 setColorAt auto-creates instanceColor)
   useEffect(() => {
     const mesh = debrisRef.current
-    if (!mesh || mesh.instanceColor) return
-    const count = debrisGrayHexes.length
-    const colorArr = new Float32Array(count * 3)
+    if (!mesh) return
     const _c = new Color()
-    for (let i = 0; i < count; i++) {
+    for (let i = 0; i < debrisGrayHexes.length; i++) {
       _c.set(debrisGrayHexes[i])
-      colorArr[i * 3] = _c.r
-      colorArr[i * 3 + 1] = _c.g
-      colorArr[i * 3 + 2] = _c.b
+      mesh.setColorAt(i, _c)
     }
-    mesh.instanceColor = new InstancedBufferAttribute(colorArr, 3)
+    if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true
   }, [debrisGrayHexes])
 
   // ---- Per-frame animation ----
