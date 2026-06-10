@@ -27,30 +27,19 @@ npm run mirror   # 监控后台进程（Vite :5173, Stats :9999）
 
 ## R3F 渲染约束（务必保持）
 
-### `flat` prop — 禁用 ACES 色调映射
+### Canvas 配置
 
 ```tsx
-// src/r3f/Canvas.tsx — 必须保留 flat prop
-<R3FCanvas flat ...>
+// src/r3f/Canvas.tsx — 三个必须保留的 prop
+<R3FCanvas flat frameloop="demand" ...>
 ```
 
-**原因：** R3F 默认 `flat: false` 会设置 `gl.toneMapping = ACESFilmicToneMapping`，对所有颜色应用电影级色调映射。原版 Vanilla Three.js 使用 `NoToneMapping`（默认值）。ACES 曲线导致 `#fff8e7`、`#f0f8ff`、`#ffe8c0` 等所有颜色与原版偏差。
-
-**来源：** 2026-06-11 恒星渲染异常排查。R3F 源码 `events-*.js:7620` 确认了默认行为。
-
-**影响范围：** 所有 `MeshBasicMaterial`、`MeshStandardMaterial`、`ShaderMaterial` 的颜色输出。移除 `flat` 会导致所有视觉元素与原版不一致。
+- **`flat`** — 禁用色调映射。调整任何颜色值时，请先确认当前 ACES 映射下的实际渲染效果
+- **`frameloop="demand"`** — 仅 `invalidate()` 时渲染，`ScrollInvalidator` 负责桥接 Zustand → R3F
 
 ### `renderOrder` 不继承
 
 Three.js 中 `Object3D.renderOrder` 仅影响该对象自身，**不传递给子对象**。每个带几何体的对象（`Mesh`、`Line`、`Sprite`、`Points`）必须显式设置自己的 `renderOrder`。不要依赖父 `<group renderOrder={...}>` 来设定子对象的渲染顺序。
-
-### `frameloop: 'demand'` + `ScrollInvalidator`
-
-R3F Canvas 使用 `frameloop="demand"`，仅在被 `invalidate()` 调用时渲染一帧。`ScrollInvalidator` 组件订阅 Zustand `scrollProgress` 变化并调用 `invalidate()`。**不要在 Canvas 外部尝试调用 `invalidate()`**——必须在 Canvas 内部通过 `useThree()` 获取。
-
-### 全局雾/背景更新
-
-`sceneApplyWhiteOut` 在 `ScrollInvalidator.useFrame` 中每帧调用，不受 Act 可见性限制。之前曾在 `Act1OceanVoyage.useFrame` 中调用，导致 sp > 0.46 后雾密度停留在 ~0.052，遮挡了 Act 2/3 的轨道和恒星。
 
 ## Three.js 场景关键常量
 
