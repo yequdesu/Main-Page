@@ -1,6 +1,6 @@
 import { useMemo, useRef, useEffect } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
-import { Mesh, type InstancedMesh, SphereGeometry, MeshBasicMaterial, Matrix4, Color, Vector3, type PerspectiveCamera } from 'three'
+import { Mesh, type InstancedMesh, SphereGeometry, MeshBasicMaterial, Matrix4, Color, Vector3, InstancedBufferAttribute, type PerspectiveCamera } from 'three'
 import { useScrollStore } from '../stores/scrollStore'
 import { useFrameCache } from '../behaviors/useFrameCache'
 import { calcOrbitPosition } from '../behaviors/useOrbitPosition'
@@ -46,7 +46,7 @@ export default function DustField() {
   const _scale = useRef(new Vector3()).current
 
   // ---- Create particle data + meshes (one-time, like useMemo) ----
-  const { mainPlanets, particleData, mainPlanetIndices } = useMemo(() => {
+  const { mainPlanets, particleData, mainPlanetIndices, debrisGrayHexes } = useMemo(() => {
     const count = 135
     const dustConfigs: { scale: number; sizeBoost: number; totalSize: number }[] = []
 
@@ -64,6 +64,7 @@ export default function DustField() {
 
     const planets: Mesh[] = []
     const data: ParticleData[] = []
+    const debrisGrayHexes: string[] = []
 
     for (let i = 0; i < count; i++) {
       const isMain = planetIndices.includes(i)
@@ -116,6 +117,10 @@ export default function DustField() {
 
       data.push(particle)
 
+      if (!isMain) {
+        debrisGrayHexes.push(grayHex)
+      }
+
       if (isMain) {
         // Create a standalone mesh for main planets
         const geo = highPolyGeo.clone()
@@ -135,12 +140,29 @@ export default function DustField() {
       mainPlanets: planets,
       particleData: data,
       mainPlanetIndices: planetIndices,
+      debrisGrayHexes,
     }
   }, [])
 
   // ---- Debris InstancedMesh ref ----
   const debrisRef = useRef<InstancedMesh>(null)
   const debrisMatRef = useRef<MeshBasicMaterial | null>(null)
+
+  // Initialize per-instance colors (Three.js 0.170 instanceColor support)
+  useEffect(() => {
+    const mesh = debrisRef.current
+    if (!mesh || mesh.instanceColor) return
+    const count = debrisGrayHexes.length
+    const colorArr = new Float32Array(count * 3)
+    const _c = new Color()
+    for (let i = 0; i < count; i++) {
+      _c.set(debrisGrayHexes[i])
+      colorArr[i * 3] = _c.r
+      colorArr[i * 3 + 1] = _c.g
+      colorArr[i * 3 + 2] = _c.b
+    }
+    mesh.instanceColor = new InstancedBufferAttribute(colorArr, 3)
+  }, [debrisGrayHexes])
 
   // ---- Per-frame animation ----
   useFrame((state, delta) => {
@@ -219,12 +241,19 @@ export default function DustField() {
           _scale.set(appearance.scale, appearance.scale, appearance.scale),
         )
         debrisRef.current.setMatrixAt(debrisIdx, _matrix)
+        // Per-instance color: lerp act1 → gray → act3 (逐字保留自原版)
+        _color2.set(d.grayHex)
+        _scratch2.copy(_colorAct1).lerp(_color2, wof).lerp(_colorAct3, smooth3)
+        debrisRef.current.setColorAt(debrisIdx, _scratch2)
         debrisIdx++
       }
     }
 
     if (debrisRef.current) {
       debrisRef.current.instanceMatrix.needsUpdate = true
+      if (debrisRef.current.instanceColor) {
+        debrisRef.current.instanceColor.needsUpdate = true
+      }
     }
     // InstancedMesh shares one material — set representative opacity based on scene state
     if (debrisMatRef.current) {
@@ -275,7 +304,7 @@ export default function DustField() {
         renderOrder={2}
       >
         <sphereGeometry args={[0.015, 10, 8]} />
-        <meshBasicMaterial ref={(mat) => { debrisMatRef.current = mat }} color="#f0f8ff" transparent opacity={0} depthWrite={false} depthTest />
+        <meshBasicMaterial ref={(mat) => { debrisMatRef.current = mat }} color="#ffffff" transparent opacity={0} depthWrite={false} depthTest />
       </instancedMesh>
     </group>
   )
