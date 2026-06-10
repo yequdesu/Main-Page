@@ -1,6 +1,6 @@
 import { useEffect, useCallback } from 'react'
 import { useThree } from '@react-three/fiber'
-import { WebGLRenderTarget, Scene, PerspectiveCamera, Color, type Object3D } from 'three'
+import { WebGLRenderTarget, Scene, PerspectiveCamera, Color, Vector3, Quaternion, type Object3D } from 'three'
 import { _lighthouseGroupRef } from './Lighthouse'
 import { SCENE_CENTER_Z } from '../r3f/ScrollRig'
 
@@ -50,7 +50,18 @@ export default function LighthouseCapture({ onCaptureReady }: CaptureProps) {
       tempCamera.position.set(0, 1.5, 4.5)
       tempCamera.lookAt(0, 0.3, SCENE_CENTER_Z)
 
+      // Apply world transform for correct positioning
+      const _wp = new Vector3()
+      const _wq = new Quaternion()
+      const _ws = new Vector3()
+      lighthouseGroup.getWorldPosition(_wp)
+      lighthouseGroup.getWorldQuaternion(_wq)
+      lighthouseGroup.getWorldScale(_ws)
+
       const clone = deepClone(lighthouseGroup)
+      clone.position.copy(_wp)
+      clone.quaternion.copy(_wq)
+      clone.scale.copy(_ws)
       tempScene.add(clone)
 
       // Render offscreen

@@ -23,10 +23,8 @@ export default function Act2GridTransition({ visible }: Act2Props) {
     // GridLines has its own useFrame — this is for coordination
   })
 
-  if (!visible) return null
-
   return (
-    <group>
+    <group visible={visible}>
       <GridLines />
     </group>
   )

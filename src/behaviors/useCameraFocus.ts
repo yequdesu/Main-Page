@@ -25,6 +25,7 @@ const _ssStarEdge = new Vector3()
 const _ssScratch = new Vector3()
 
 let _focusOrbitAngle = 0
+let _lastOverlayKey = ''
 
 /**
  * 相机聚焦系统 — 双层平滑 + 轨道绕行 + 30s 自动取消。
@@ -63,6 +64,7 @@ export function updateCameraFocus(
   // Auto-unfocus after timeout
   if (planet && store.focusStartTime > 0 && time - store.focusStartTime > FOCUS_TIMEOUT) {
     store.clearFocus()
+    _lastOverlayKey = ''
     // Fall through to unfocused path...
   }
 
@@ -96,6 +98,7 @@ export function updateCameraFocus(
     _targetCamPos.lerp(_defaultCamPos, 0.04)
     _targetLookAt.lerp(_defaultLookAt, 0.04)
     store.setOverlayData({ focused: false })
+    _lastOverlayKey = ''
   }
 
   // Camera follows smoothed target
@@ -123,6 +126,11 @@ function emitOverlayData(camera: PerspectiveCamera, planetPos: Vector3, store: R
   _ssStarEdge.copy(_starPos).addScaledVector(_ssScratch, 0.42)
   toScreen(_ssStarEdge, _ssStarEdge)
   const starSR = Math.hypot(_ssStarEdge.x - _ssStar.x, _ssStarEdge.y - _ssStar.y)
+
+  // Throttle: skip if unchanged at pixel resolution
+  const key = `${Math.round(_ssStar.x)},${Math.round(_ssStar.y)},${Math.round(starSR)}`
+  if (key === _lastOverlayKey) return
+  _lastOverlayKey = key
 
   // Planet
   toScreen(planetPos, _ssPlanet)

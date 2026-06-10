@@ -45,10 +45,8 @@ export default function Act3ContentPhase({ visible }: Act3Props) {
     void smoothProgress
   })
 
-  if (!visible) return null
-
   return (
-    <group>
+    <group visible={visible}>
       <OrbitRings />
       <CentralStar />
       {PLANET_LINKS.map((link, i) => (

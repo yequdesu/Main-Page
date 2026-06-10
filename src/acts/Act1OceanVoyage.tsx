@@ -33,10 +33,8 @@ export default function Act1OceanVoyage({ visible }: Act1Props) {
     sceneApplyWhiteOut(state.scene, sp)
   })
 
-  if (!visible) return null
-
   return (
-    <group>
+    <group visible={visible}>
       <OceanWaves />
       <Lighthouse />
       <LightBeam />
