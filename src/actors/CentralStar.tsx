@@ -34,42 +34,34 @@ export default function CentralStar() {
   const spriteMatRef = useRef<SpriteMaterial | null>(null)
   const glowMeshRef = useRef<Mesh | null>(null)
 
-  useFrame((state) => {
-    const sp = useScrollStore.getState().scrollProgress
-    const time = state.clock.elapsedTime
-    const act3Progress = clamped(sp, GRID_SHIFT_START, 1.0)
-    const smooth3 = smoothstep(act3Progress)
-    const pulse = 1 + Math.sin(time * 1.8) * 0.06 + Math.sin(time * 3.3) * 0.04
-
-    // Inner glow: opacity + scale pulse (逐字保留自原 act3.animate)
-    if (glowMeshRef.current) {
-      const mat = glowMeshRef.current.material as MeshBasicMaterial
-      mat.opacity = smooth3 * 0.30 * pulse
-      glowMeshRef.current.scale.setScalar(pulse)
-    }
-
-    // Halo sprite: opacity (0.55 vs 0.35, 逐字保留自原版)
-    if (spriteMatRef.current) {
-      spriteMatRef.current.opacity = smooth3 * 0.55 * pulse
-    }
-  })
+  // DEBUG: useFrame disabled while glow/halo are hidden
+  // useFrame((state) => {
+  //   const sp = useScrollStore.getState().scrollProgress
+  //   const time = state.clock.elapsedTime
+  //   const act3Progress = clamped(sp, GRID_SHIFT_START, 1.0)
+  //   const smooth3 = smoothstep(act3Progress)
+  //   const pulse = 1 + Math.sin(time * 1.8) * 0.06 + Math.sin(time * 3.3) * 0.04
+  //   if (glowMeshRef.current) { ... }
+  //   if (spriteMatRef.current) { ... }
+  // })
 
   return (
     <group position={[0, -1.0, SCENE_CENTER_Z]} renderOrder={1}>
-      {/* 内层光晕：透明金色包裹 — 最先渲染（底层） */}
-      <mesh ref={glowMeshRef} renderOrder={1}>
-        <sphereGeometry args={[0.70, 32, 32]} />
-        <meshBasicMaterial color="#ffe8c0" transparent opacity={0.30} depthWrite={false} />
-      </mesh>
-
-      {/* 核心：暖白实体球 — 中层渲染 */}
-      <mesh renderOrder={2}>
+      {/* DEBUG: 仅显示核心球，排查渲染问题 */}
+      <mesh renderOrder={1}>
         <sphereGeometry args={[0.42, 32, 32]} />
         <meshBasicMaterial color="#fff8e7" />
       </mesh>
 
-      {/* 外层光晕：Canvas 径向渐变精灵 — 最后渲染（顶层） */}
-      <sprite renderOrder={3} scale={[5.5, 5.5, 1]}>
+      {/* 内层光晕：暂时隐藏
+      <mesh ref={glowMeshRef} renderOrder={1}>
+        <sphereGeometry args={[0.70, 32, 32]} />
+        <meshBasicMaterial color="#ffe8c0" transparent opacity={0.30} depthWrite={false} />
+      </mesh>
+      */}
+
+      {/* 外层光晕：暂时隐藏
+      <sprite renderOrder={1} scale={[5.5, 5.5, 1]}>
         <spriteMaterial
           ref={(mat) => { spriteMatRef.current = mat }}
           map={haloTexture}
@@ -80,6 +72,7 @@ export default function CentralStar() {
           depthTest
         />
       </sprite>
+      */}
     </group>
   )
 }
