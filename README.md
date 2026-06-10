@@ -83,7 +83,7 @@ src/
 ## 开发
 
 ```bash
-npm install      # 安装依赖
+npm install      # 安装依赖（或 pnpm install && pnpm approve-builds esbuild）
 npm run dev      # 启动开发服务器（localhost:5173）
 npm run build    # 生产构建 → dist/
 npm run preview  # 预览生产构建

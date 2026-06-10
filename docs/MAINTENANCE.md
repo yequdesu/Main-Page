@@ -17,8 +17,10 @@
 # 1. 确认 Node.js 版本（>=18）
 node --version
 
-# 2. 安装依赖
+# 2. 安装依赖（npm 或 pnpm 均可）
 npm install
+# 或
+pnpm install && pnpm approve-builds esbuild
 ```
 
 ---

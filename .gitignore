@@ -4,5 +4,8 @@ dist/
 *.log
 *.tsbuildinfo
 
+# lockfiles — 保留 npm 作为主包管理器，pnpm 按需
+pnpm-lock.yaml
+
 .claude/
 .superpowers/
