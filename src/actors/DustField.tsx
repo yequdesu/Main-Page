@@ -1,7 +1,6 @@
 import { useMemo, useRef, useCallback, useEffect } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
 import { Mesh, type InstancedMesh, SphereGeometry, MeshBasicMaterial, Matrix4, Color, Vector3, type PerspectiveCamera } from 'three'
-import Planet from './Planet'
 import { useScrollStore } from '../stores/scrollStore'
 import { useFrameCache } from '../behaviors/useFrameCache'
 import { calcOrbitPosition } from '../behaviors/useOrbitPosition'
@@ -257,11 +256,11 @@ export default function DustField() {
 
   return (
     <group>
-      {/* 3 main planets as individual Mesh components */}
+      {/* 3 main planets rendered directly from useMemo meshes */}
       {mainPlanets.map((mesh, idx) => (
-        <Planet
+        <primitive
           key={`planet-${idx}`}
-          ref={(el) => { if (el) mainPlanets[idx] = el }}
+          object={mesh}
           onClick={() => handlePlanetClick(idx)}
         />
       ))}
