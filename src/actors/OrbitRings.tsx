@@ -1,5 +1,8 @@
-import { useMemo } from 'react'
-import { SCENE_CENTER_Z, ORBIT_RADII, ORBIT_COUNT } from '../r3f/ScrollRig'
+import { useMemo, useRef } from 'react'
+import { useFrame } from '@react-three/fiber'
+import { type Group, type LineBasicMaterial } from 'three'
+import { SCENE_CENTER_Z, ORBIT_RADII, ORBIT_COUNT, clamped, smoothstep, GRID_SHIFT_START } from '../r3f/ScrollRig'
+import { useScrollStore } from '../stores/scrollStore'
 
 /**
  * 轨道环 + 陀螺仪装饰环。
@@ -32,6 +35,28 @@ export default function OrbitRings() {
     speeds: [0.08, 0.13, 0.18],
   }), [])
 
+  // ---- Animation refs ----
+  const orbitMatRefs = useRef<(LineBasicMaterial | null)[]>([null, null, null])
+  const gyroMatRefs = useRef<(LineBasicMaterial | null)[]>([null, null, null])
+  const gyroGroupRefs = useRef<(Group | null)[]>([null, null, null])
+
+  useFrame((_state, delta) => {
+    const sp = useScrollStore.getState().scrollProgress
+    const act3Progress = clamped(sp, GRID_SHIFT_START, 1.0)
+    const smooth3 = smoothstep(act3Progress)
+
+    orbitMatRefs.current.forEach((mat) => {
+      if (mat) mat.opacity = smooth3 * 0.55
+    })
+
+    gyroGroupRefs.current.forEach((group, i) => {
+      if (group) group.rotation.y += delta * gyroConfigs.speeds[i]
+    })
+    gyroMatRefs.current.forEach((mat) => {
+      if (mat) mat.opacity = smooth3 * 0.35
+    })
+  })
+
   return (
     <>
       {/* 3 条轨道线 */}
@@ -43,7 +68,7 @@ export default function OrbitRings() {
               args={[new Float32Array(pts.flat()), 3]}
             />
           </bufferGeometry>
-          <lineBasicMaterial color="#cbd5e1" transparent opacity={0} depthWrite={false} depthTest />
+          <lineBasicMaterial ref={(mat) => { orbitMatRefs.current[t] = mat }} color="#cbd5e1" transparent opacity={0} depthWrite={false} depthTest />
         </threeLine>
       ))}
 
@@ -58,6 +83,7 @@ export default function OrbitRings() {
         return (
           <group
             key={`gyro-${g}`}
+            ref={(el) => { gyroGroupRefs.current[g] = el }}
             position={[0, -1.0, SCENE_CENTER_Z]}
             renderOrder={2}
             rotation={[gyroConfigs.tilts[g].x, 0, gyroConfigs.tilts[g].z]}
@@ -69,7 +95,7 @@ export default function OrbitRings() {
                   args={[new Float32Array(ringVerts.flat()), 3]}
                 />
               </bufferGeometry>
-              <lineBasicMaterial color="#cbd5e1" transparent opacity={0} depthWrite={false} depthTest />
+              <lineBasicMaterial ref={(mat) => { gyroMatRefs.current[g] = mat }} color="#cbd5e1" transparent opacity={0} depthWrite={false} depthTest />
             </lineLoop>
           </group>
         )

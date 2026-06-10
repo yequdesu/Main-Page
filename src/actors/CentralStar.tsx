@@ -1,6 +1,8 @@
-import { useMemo } from 'react'
+import { useMemo, useRef } from 'react'
+import { useFrame } from '@react-three/fiber'
 import { CanvasTexture, SpriteMaterial, Sprite, AdditiveBlending, LinearFilter } from 'three'
-import { SCENE_CENTER_Z } from '../r3f/ScrollRig'
+import { SCENE_CENTER_Z, clamped, smoothstep, GRID_SHIFT_START } from '../r3f/ScrollRig'
+import { useScrollStore } from '../stores/scrollStore'
 
 /**
  * 中央恒星 — 核心球 + 光晕球 + Canvas 精灵 halo。
@@ -29,6 +31,17 @@ export default function CentralStar() {
     return tex
   }, [])
 
+  const spriteMatRef = useRef<SpriteMaterial | null>(null)
+
+  useFrame(() => {
+    const sp = useScrollStore.getState().scrollProgress
+    const act3Progress = clamped(sp, GRID_SHIFT_START, 1.0)
+    const smooth3 = smoothstep(act3Progress)
+    if (spriteMatRef.current) {
+      spriteMatRef.current.opacity = smooth3 * 0.35
+    }
+  })
+
   return (
     <group position={[0, -1.0, SCENE_CENTER_Z]} renderOrder={1}>
       {/* 核心：暖白实体球 */}
@@ -46,6 +59,7 @@ export default function CentralStar() {
       {/* 外层光晕：Canvas 径向渐变精灵 */}
       <sprite renderOrder={1} scale={[5.5, 5.5, 1]}>
         <spriteMaterial
+          ref={(mat) => { spriteMatRef.current = mat }}
           map={haloTexture}
           blending={AdditiveBlending}
           transparent
