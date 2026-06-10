@@ -1,4 +1,4 @@
-import { useCallback } from 'react'
+import { useCallback, memo } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
 import { type PerspectiveCamera, Vector3 } from 'three'
 import OrbitRings from '../actors/OrbitRings'
@@ -20,7 +20,7 @@ interface Act3Props {
   visible: boolean
 }
 
-export default function Act3ContentPhase({ visible }: Act3Props) {
+const Act3ContentPhase = memo(function Act3ContentPhase({ visible }: Act3Props) {
   const { camera } = useThree()
   const { shouldSkip } = useFrameCache()
 
@@ -59,4 +59,6 @@ export default function Act3ContentPhase({ visible }: Act3Props) {
       ))}
     </group>
   )
-}
+})
+
+export default Act3ContentPhase

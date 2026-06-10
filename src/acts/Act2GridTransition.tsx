@@ -1,3 +1,4 @@
+import { memo } from 'react'
 import { useFrame } from '@react-three/fiber'
 import GridLines from '../actors/GridLines'
 import { useScrollStore } from '../stores/scrollStore'
@@ -13,7 +14,7 @@ interface Act2Props {
   visible: boolean
 }
 
-export default function Act2GridTransition({ visible }: Act2Props) {
+const Act2GridTransition = memo(function Act2GridTransition({ visible }: Act2Props) {
   const { shouldSkipSp } = useFrameCache()
 
   useFrame((_state, _delta) => {
@@ -28,4 +29,6 @@ export default function Act2GridTransition({ visible }: Act2Props) {
       <GridLines />
     </group>
   )
-}
+})
+
+export default Act2GridTransition

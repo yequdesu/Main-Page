@@ -168,12 +168,12 @@ export default function DustField() {
     const smooth3 = smoothstep(act3Progress)
 
     const cx = 0, cy = -1.0, cz = SCENE_CENTER_Z
+    const { hoveredIdx } = useScrollStore.getState()
 
     for (let i = 0; i < particleData.length; i++) {
       const d = particleData[i]
 
       // Hover/focus target
-      const { hoveredIdx } = useScrollStore.getState()
       const targetHover = (i === hoveredIdx && act3Progress >= 0.95) ? 1.0 : 0.0
       d.hoverFactor += (targetHover - d.hoverFactor) * 0.10
 
@@ -246,6 +246,7 @@ export default function DustField() {
   const _hoverState = useRef({ currentIdx: -1, hovering: false })
 
   useEffect(() => {
+    if (typeof window === 'undefined') return
     const onMouseMove = (e: MouseEvent) => {
       _mouseNDC.current.x = (e.clientX / window.innerWidth) * 2 - 1
       _mouseNDC.current.y = -(e.clientY / window.innerHeight) * 2 + 1

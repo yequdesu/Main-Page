@@ -1,4 +1,4 @@
-import { useMemo, useRef } from 'react'
+import { useMemo, useRef, useEffect } from 'react'
 import { useFrame } from '@react-three/fiber'
 import { Line, Color, BufferGeometry, BufferAttribute, LineBasicMaterial, PointsMaterial, Vector3, Points } from 'three'
 import { useScrollStore } from '../stores/scrollStore'
@@ -58,6 +58,17 @@ export default function GridLines() {
 
     return { gridLines: lines, gridPoints: dots }
   }, [])
+
+  useEffect(() => {
+    return () => {
+      gridLines.forEach(vd => {
+        vd.line.geometry.dispose()
+        ;(vd.line.material as LineBasicMaterial).dispose()
+      })
+      gridPoints.geometry.dispose()
+      ;(gridPoints.material as PointsMaterial).dispose()
+    }
+  }, [gridLines, gridPoints])
 
   const { shouldSkipSp } = useFrameCache()
   const gridVisibleRef = useRef(true)

@@ -55,6 +55,20 @@ export default function LightBeam({ lighthouseY = -0.428 }: LightBeamProps) {
     { radius: 4.8, length: 36, opacity: 0.15, power: 1.5 },
   ], [])
 
+  // Pre-allocated shader args + ray geometry data (avoid inline `new` in JSX)
+  const beamUniforms = useMemo(() => configs.map(cfg => ({
+    uColor: { value: new Color('#f0f7ff') },
+    uOpacity: { value: cfg.opacity },
+    uLength: { value: cfg.length },
+    uEdgePower: { value: cfg.power },
+  })), [configs])
+
+  const rayGeomArrays = useMemo(() => [
+    new Float32Array([0, 0, 0, -4.5, 0, 55]),
+    new Float32Array([0, 0, 0, 4.5, 0, 55]),
+  ], [])
+  const rayColorArray = useMemo(() => new Float32Array([1, 1, 1, 0.3, 0.3, 0.3]), [])
+
   // 将材质引用存入 ref，供 useFrame 使用
   const setConeMat = (i: number) => (mat: ShaderMaterial) => {
     if (mat) coneMatsRef.current[i] = mat
@@ -170,12 +184,7 @@ export default function LightBeam({ lighthouseY = -0.428 }: LightBeamProps) {
             <shaderMaterial
               ref={setConeMat(i)}
               args={[{
-                uniforms: {
-                  uColor: { value: new Color('#f0f7ff') },
-                  uOpacity: { value: cfg.opacity },
-                  uLength: { value: cfg.length },
-                  uEdgePower: { value: cfg.power },
-                },
+                uniforms: beamUniforms[i],
                 vertexShader: VolumetricBeamShader.vertexShader,
                 fragmentShader: VolumetricBeamShader.fragmentShader,
                 transparent: true,
@@ -193,11 +202,11 @@ export default function LightBeam({ lighthouseY = -0.428 }: LightBeamProps) {
             <bufferGeometry>
               <bufferAttribute
                 attach="attributes-position"
-                args={[new Float32Array([0, 0, 0, dx * 4.5, 0, 55]), 3]}
+                args={[rayGeomArrays[i], 3]}
               />
               <bufferAttribute
                 attach="attributes-color"
-                args={[new Float32Array([1, 1, 1, 0.3, 0.3, 0.3]), 3]}
+                args={[rayColorArray, 3]}
               />
             </bufferGeometry>
             <lineBasicMaterial

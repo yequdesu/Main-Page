@@ -1,3 +1,4 @@
+import { memo } from 'react'
 import { useFrame } from '@react-three/fiber'
 import Lighthouse from '../actors/Lighthouse'
 import LightBeam from '../actors/LightBeam'
@@ -20,7 +21,7 @@ interface Act1Props {
   visible: boolean
 }
 
-export default function Act1OceanVoyage({ visible }: Act1Props) {
+const Act1OceanVoyage = memo(function Act1OceanVoyage({ visible }: Act1Props) {
   const { shouldSkip } = useFrameCache()
 
   useFrame((state, _delta) => {
@@ -42,4 +43,6 @@ export default function Act1OceanVoyage({ visible }: Act1Props) {
       <LighthouseCapture onCaptureReady={() => {}} />
     </group>
   )
-}
+})
+
+export default Act1OceanVoyage

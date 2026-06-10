@@ -1,4 +1,4 @@
-import { useMemo, useRef } from 'react'
+import { useMemo, useRef, useEffect } from 'react'
 import { useFrame } from '@react-three/fiber'
 import { Line, Color, BufferGeometry, BufferAttribute, LineBasicMaterial } from 'three'
 import { useScrollStore } from '../stores/scrollStore'
@@ -59,6 +59,15 @@ export default function OceanWaves() {
     }
     return { waveLines: lines, waveData: data, waveBaseColors: baseColors }
   }, [])
+
+  useEffect(() => {
+    return () => {
+      waveLines.forEach(line => {
+        line.geometry.dispose()
+        ;(line.material as LineBasicMaterial).dispose()
+      })
+    }
+  }, [waveLines])
 
   const { shouldSkip } = useFrameCache()
   const wavesVisibleRef = useRef(true)

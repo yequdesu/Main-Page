@@ -154,20 +154,15 @@ export default function App() {
     }
   }, [onWheel, onClick])
 
-  // ---- brand text visibility + CSS variable sync ----
+  // ---- brand text visibility ----
   useEffect(() => {
     setBrandTextVisible(scrollProgress >= 0.70)
-
-    // updateTextOffsetCSS — Act 3 grid shift 同步到品牌文字位移
-    const sp = scrollProgress
-    if (sp >= GRID_SHIFT_START) {
-      const shiftProgress = (sp - GRID_SHIFT_START) / (1.0 - GRID_SHIFT_START)
-      const offsetPx = Math.round(shiftProgress * 32 * 10) / 10 // 32 world units → px
-      document.documentElement.style.setProperty('--text-offset-y', `${offsetPx}px`)
-    } else {
-      document.documentElement.style.setProperty('--text-offset-y', '0px')
-    }
   }, [scrollProgress])
+
+  // computeTextOffset — Act 3 grid shift 同步到品牌文字位移
+  const textOffsetY = scrollProgress >= GRID_SHIFT_START
+    ? Math.round(((scrollProgress - GRID_SHIFT_START) / (1.0 - GRID_SHIFT_START)) * 32 * 10) / 10
+    : 0
 
   // ---- lighthouse screenshot ----
   useEffect(() => {
@@ -212,7 +207,8 @@ export default function App() {
 
       {/* 品牌文字 */}
       {brandTextVisible && (
-        <div className="brand-text" aria-hidden="true">
+        <div className="brand-text" aria-hidden="true"
+          style={{ '--text-offset-y': `${textOffsetY}px` } as React.CSSProperties}>
           <div className="brand-text-row">
             {lighthouseImage && (
               <img src={lighthouseImage} alt="" className="brand-lighthouse-icon" />
