@@ -7,7 +7,10 @@ import { _mainPlanetIndices } from './DustField'
 import type { PlanetLink } from '../types'
 
 // Smooth label opacity transition（逐字保留自原 act3.animate _labelOpacityCurrent）
+// 共享变量 — 3 个 PlanetLabel 实例共用，每帧仅更新一次
 let _labelOpacityCurrent = 0
+let _lastLabelSp = -1
+let _lastLabelTime = -1
 
 /**
  * 行星标签 — Canvas → Sprite，每帧跟随行星世界位置。
@@ -98,11 +101,12 @@ export default function PlanetLabel({ trackIdx, planetData, getWorldPosition }: 
   }, [planetData])
 
   // ---- Per-frame position + opacity ----
-  useFrame(() => {
+  useFrame((state) => {
     const mat = matRef.current
     if (!mat) return
 
     const sp = useScrollStore.getState().scrollProgress
+    const time = state.clock.elapsedTime
     const { focusedPlanetIdx } = useScrollStore.getState()
 
     const inAct3 = sp >= GRID_SHIFT_START
@@ -116,10 +120,15 @@ export default function PlanetLabel({ trackIdx, planetData, getWorldPosition }: 
     }
 
     // Opacity: fade in during Act 3 transition, all labels fade out when any planet focused
-    // Smooth lerp transition (逐字保留自原 _labelOpacityCurrent)
+    // Per-frame guard: only update shared _labelOpacityCurrent once per frame (not 3x)
     const isFocused = focusedPlanetIdx >= 0
     const targetOpacity = inAct3 ? (isFocused ? 0 : smooth3 * 0.82) : 0
-    _labelOpacityCurrent += (targetOpacity - _labelOpacityCurrent) * 0.12
+
+    if (sp !== _lastLabelSp || time !== _lastLabelTime) {
+      _lastLabelSp = sp
+      _lastLabelTime = time
+      _labelOpacityCurrent += (targetOpacity - _labelOpacityCurrent) * 0.12
+    }
 
     mat.opacity = _labelOpacityCurrent
     sprite.visible = mat.opacity > 0.001
