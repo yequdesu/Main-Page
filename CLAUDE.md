@@ -83,6 +83,8 @@ Layer 9999: 行星标签（depthTest=false，始终可见）
 
 135 个粒子，最大的 3 个按 `totalSize` 排序成为主行星（独立 `Mesh`，高面数、深度写入、`renderOrder=1`），其余 132 为碎片（`InstancedMesh2`，`renderOrder=2`，逐实例透明度）。Act 3 过渡到轨道运动。遮挡聚焦行星的主行星淡化至 `opacity * 0.12`。非行星粒子用 `_defaultCamPos` 计算缩放以避免相机聚焦影响。
 
+**⚠️ `DustField` 必须挂载在 Canvas 根层级**（不在任何 Act 的 `visible` group 内）。原版粒子直接加在 `scene` 根层级，不受 Act 可见性限制。详见 `docs/dev-blog/scene-graph-visibility.md`。
+
 ## 行星聚焦与叠加层
 
 - 点击检测用**屏幕空间 NDC 投影**（`PlanetClickHandler.tsx`，非 Raycaster），迟滞阈值 0.16 进 / 0.22 出
