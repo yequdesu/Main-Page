@@ -34,7 +34,7 @@ npm run mirror   # 监控后台进程（Vite :5173, Stats :9999）
 <R3FCanvas flat frameloop="demand" ...>
 ```
 
-- **`flat`** — 禁用色调映射。调整任何颜色值时，请先确认当前 ACES 映射下的实际渲染效果
+- **`flat`** — 禁用色调映射。调整任何颜色值时，请先确认当前 ACES 映射下的实际渲染效果。调试记录见 `docs/dev-blog/tone-mapping-debug.md`
 - **`frameloop="demand"`** — 仅 `invalidate()` 时渲染，`ScrollInvalidator` 负责桥接 Zustand → R3F
 
 ### `renderOrder` 不继承
