@@ -41,7 +41,7 @@ export default function App() {
   const [isClickPlaying, setIsClickPlaying] = useState(false)
   const [isAct3Focused, setIsAct3Focused] = useState(false)
   const [brandTextVisible, setBrandTextVisible] = useState(false)
-  const [overlayData, setOverlayData] = useState<{ focused: boolean; star?: any; planet?: any; tangents?: any[] }>({ focused: false })
+  const overlayData = useScrollStore(s => s.overlayData)
 
   // ---- Act visibility ----
   const needsAct1 = (sp: number) => sp < GRID_START + 0.01

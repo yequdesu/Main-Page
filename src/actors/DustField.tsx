@@ -7,6 +7,9 @@ import { useFrameCache } from '../behaviors/useFrameCache'
 import { smoothstep, clamped, SCENE_CENTER_Z, WHITE_OUT_THRESHOLD, WHITE_OUT_END, GRID_SHIFT_START, ORBIT_RADII, ORBIT_COUNT } from '../r3f/ScrollRig'
 import { PLANET_LINKS, type ParticleData } from '../types'
 
+// Shared planet positions — read by Act3ContentPhase for camera focus
+export const _planetWorldPositions: (Vector3 | null)[] = [null, null, null]
+
 /**
  * 尘埃/粒子场 — 3 主行星 + InstancedMesh(132 碎片)。
  *
@@ -221,6 +224,12 @@ export default function DustField() {
         const mesh = mainPlanets[planetIdx]
         if (mesh) {
           mesh.position.set(px, py, pz)
+          // Track for camera focus + label following
+          const trackIdx = mainPlanetIndices.indexOf(i)
+          if (trackIdx >= 0 && trackIdx < 3) {
+            if (!_planetWorldPositions[trackIdx]) _planetWorldPositions[trackIdx] = new Vector3()
+            _planetWorldPositions[trackIdx]!.copy(mesh.position)
+          }
           mesh.scale.setScalar(s)
           const mat = mesh.material as MeshBasicMaterial
           mat.opacity = opacity

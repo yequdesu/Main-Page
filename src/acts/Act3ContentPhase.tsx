@@ -1,24 +1,30 @@
-import { useFrame } from '@react-three/fiber'
+import { useCallback } from 'react'
+import { useFrame, useThree } from '@react-three/fiber'
+import { type PerspectiveCamera, Vector3 } from 'three'
 import OrbitRings from '../actors/OrbitRings'
 import CentralStar from '../actors/CentralStar'
 import { useScrollStore } from '../stores/scrollStore'
 import { useFrameCache } from '../behaviors/useFrameCache'
 import { smoothstep, clamped, GRID_SHIFT_START } from '../r3f/ScrollRig'
+import { updateCameraFocus } from '../behaviors/useCameraFocus'
+import { _planetWorldPositions } from '../actors/DustField'
 
 /**
- * Act 3 "ContentPhase" — 轨道环、中央恒星。
+ * Act 3 "ContentPhase" — 轨道环、中央恒星、相机聚焦。
  *
- * DustField 同时存在于 Act 1 和 Act 3（过渡跟随），不在 Act 3 中重复创建。
- * Planet labels 和对焦交互在 DustField 内部处理。
- *
- * 援引：R3F visible prop 模式
+ * 援引：R3F useThree — 访问 camera 实例（官方 API）
  */
 interface Act3Props {
   visible: boolean
 }
 
 export default function Act3ContentPhase({ visible }: Act3Props) {
+  const { camera } = useThree()
   const { shouldSkip } = useFrameCache()
+
+  const getPlanetPosition = useCallback((idx: number): Vector3 | null => {
+    return _planetWorldPositions[idx] || null
+  }, [])
 
   useFrame((state, _delta) => {
     if (!visible) return
@@ -29,10 +35,12 @@ export default function Act3ContentPhase({ visible }: Act3Props) {
     const progress = clamped(sp, GRID_SHIFT_START, 1.0)
     const smoothProgress = smoothstep(progress)
 
-    // Animate orbit rings opacity
-    // Animate gyro ring rotation
-    // Star pulse - all in their own useFrame or orchestrated here
-    void smoothProgress // placeholder for now
+    // Camera focus
+    updateCameraFocus(camera as PerspectiveCamera, sp, time, getPlanetPosition)
+
+    // Animate orbit rings opacity based on smoothProgress
+    // (OrbitRings + CentralStar have their own useFrame for detailed animation)
+    void smoothProgress
   })
 
   if (!visible) return null
