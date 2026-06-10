@@ -180,7 +180,7 @@ export default function LightBeam({ lighthouseY = -0.428 }: LightBeamProps) {
       <group ref={beamPivotRef} position={[0, lighthouseY, SCENE_CENTER_Z]}>
         {/* 3 个锥体同心光束 */}
         {configs.map((cfg, i) => (
-          <mesh key={`cone-${i}`} rotation={[-Math.PI / 2, 0, 0]} renderOrder={0}>
+          <mesh key={`cone-${i}`} rotation={[-Math.PI / 2, 0, 0]} position={[0, 0, cfg.length / 2]} renderOrder={0}>
             <coneGeometry args={[cfg.radius, cfg.length, 32, 1, true]} />
             <shaderMaterial
               ref={setConeMat(i)}

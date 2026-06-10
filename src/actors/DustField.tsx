@@ -162,7 +162,14 @@ export default function DustField() {
     const smooth3 = smoothstep(act3Progress)
 
     const cx = 0, cy = -1.0, cz = SCENE_CENTER_Z
-    const { hoveredIdx } = useScrollStore.getState()
+    const { hoveredIdx, focusedPlanetIdx } = useScrollStore.getState()
+
+    // Get focused planet world position for occlusion (逐字保留自原版遮挡检测)
+    let focusedPlanetPos: Vector3 | null = null
+    if (focusedPlanetIdx >= 0) {
+      const fti = mainPlanetIndices.indexOf(focusedPlanetIdx)
+      if (fti >= 0) focusedPlanetPos = _planetWorldPositions[fti]
+    }
 
     let debrisIdx = 0
 
@@ -204,7 +211,13 @@ export default function DustField() {
           }
           mesh.scale.setScalar(appearance.scale)
           const mat = mesh.material as MeshBasicMaterial
-          mat.opacity = appearance.opacity
+          // Occlusion: fade planet if it blocks view of focused planet (逐字保留自原版)
+          let planetOpacity = appearance.opacity
+          if (focusedPlanetPos && focusedPlanetIdx >= 0 && i !== focusedPlanetIdx) {
+            _scratch.set(px, py, pz)
+            planetOpacity = calcOcclusionFade(_scratch, camera as PerspectiveCamera, focusedPlanetPos, appearance.scale, appearance.opacity)
+          }
+          mat.opacity = planetOpacity
           mat.color.copy(_scratch2)
         }
       } else if (debrisRef.current) {
