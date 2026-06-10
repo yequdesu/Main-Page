@@ -1,0 +1,62 @@
+import { create } from 'zustand'
+import type { OverlayData } from '../types'
+
+// ============================================================
+// Slice 类型
+// ============================================================
+interface ScrollSlice {
+  scrollProgress: number
+}
+
+interface FocusSlice {
+  focusedPlanetIdx: number
+  hoveredIdx: number
+  focusStartTime: number
+  overlayData: OverlayData
+}
+
+// ============================================================
+// Actions
+// ============================================================
+interface ScrollActions {
+  setScrollProgress: (sp: number) => void
+}
+
+interface FocusActions {
+  setFocusedPlanet: (idx: number) => void
+  setHoveredIdx: (idx: number) => void
+  setFocusStartTime: (t: number) => void
+  setOverlayData: (data: OverlayData) => void
+  clearFocus: () => void
+}
+
+export type ScrollStore = ScrollSlice & FocusSlice & ScrollActions & FocusActions
+
+// ============================================================
+// Store
+// 援引：
+//   Zustand transient API — R3F Best Practices: getState() in useFrame
+//   Slice 模式 — Galaxy Voyager (220+ systems), HekTek City v4
+// ============================================================
+export const useScrollStore = create<ScrollStore>()((set) => ({
+  // ---- Scroll slice ----
+  scrollProgress: 0,
+  setScrollProgress: (sp) => set({ scrollProgress: sp }),
+
+  // ---- Focus slice ----
+  focusedPlanetIdx: -1,
+  hoveredIdx: -1,
+  focusStartTime: 0,
+  overlayData: { focused: false },
+
+  setFocusedPlanet: (idx) => set({ focusedPlanetIdx: idx }),
+  setHoveredIdx: (idx) => set({ hoveredIdx: idx }),
+  setFocusStartTime: (t) => set({ focusStartTime: t }),
+  setOverlayData: (data) => set({ overlayData: data }),
+  clearFocus: () => set({
+    focusedPlanetIdx: -1,
+    hoveredIdx: -1,
+    focusStartTime: 0,
+    overlayData: { focused: false },
+  }),
+}))
