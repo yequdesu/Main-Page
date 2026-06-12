@@ -16,7 +16,7 @@ import type { WaveLineData, WaveBaseColor } from '../types'
  */
 export default function OceanWaves() {
   const { waveLines, waveData, waveBaseColors } = useMemo(() => {
-    const TOTAL = 50, POWER = 2.2
+    const TOTAL = 30, POWER = 2.2
     const lines: Line[] = []
     const data: WaveLineData[] = []
     const baseColors: WaveBaseColor[] = []
@@ -33,10 +33,8 @@ export default function OceanWaves() {
       const opacity = 0.15 + curveT * 0.55
       const span = 45 + curveT * 35
 
-      const r = Math.floor(6 + curveT * 12)
-      const g = Math.floor(12 + curveT * 18)
-      const b = Math.floor(26 + curveT * 24)
-      const hex = '#' + r.toString(16).padStart(2, '0') + g.toString(16).padStart(2, '0') + b.toString(16).padStart(2, '0')
+      const v = Math.floor(200 + curveT * 55)
+      const hex = '#' + v.toString(16).padStart(2, '0').repeat(3)
       const bc = new Color(hex)
       baseColors.push({ r: bc.r, g: bc.g, b: bc.b })
 
@@ -71,7 +69,7 @@ export default function OceanWaves() {
 
   const { shouldSkip } = useFrameCache()
   const wavesVisibleRef = useRef(true)
-  const targetCol = useMemo(() => new Color('#94a3b8'), [])
+  const targetCol = useMemo(() => new Color('#ffffff'), [])
 
   useFrame((state, _delta) => {
     const sp = useScrollStore.getState().scrollProgress
@@ -127,7 +125,7 @@ export default function OceanWaves() {
       }
       pa.needsUpdate = true
       ca.needsUpdate = true
-      ;(line.material as LineBasicMaterial).opacity = (d.opacity + (0.45 - d.opacity) * gridFactor) * baseDepthFade * gridOpacityMult
+      ;(line.material as LineBasicMaterial).opacity = (d.opacity + (0.45 - d.opacity) * gridFactor) * baseDepthFade * gridOpacityMult * 0.5
     }
   })
 

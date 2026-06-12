@@ -55,3 +55,14 @@ useEffect(() => {
 - InstancedMesh2 的 `onBeforeCompile` 只在 shader 编译时执行一次。任何在此之后创建的纹理/缓冲区需要通过 `materialsNeedsUpdate()` 触发重编译
 - `frameloop: 'demand'` 模式下，`useEffect` 中的初始化必须在首次渲染前完成并触发必要的管线更新
 - 第三方库的 API 调用链可能有隐含的时序依赖（`setColorAt` → `initColorsTexture` → 不触发重编译）
+
+---
+
+> **补充（2026-06-12）：** 另一个导致碎片不可见的根因——`_instancesArrayCount` 未初始化。
+>
+> InstancedMesh2 构造函数将 `_instancesArrayCount` 置为 0。`performFrustumCulling()` 中：
+> 1. `_sortObjects = true` → `count` 归零
+> 2. `_instancesArrayCount === 0` → 跳过剔除，不恢复 count
+> 3. 渲染时 `count === 0` → 零实例可见
+>
+> `setMatrixAt` 不会自动递增 `_instancesArrayCount`。必须在创建 InstancedMesh2 后显式调用 `addInstances(n)` 或 `setInstancesArrayCount(n)`。

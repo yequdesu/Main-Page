@@ -1,6 +1,6 @@
 import { useMemo, useRef, useEffect } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
-import { Mesh, SphereGeometry, MeshBasicMaterial, Matrix4, Color, Vector3, type PerspectiveCamera } from 'three'
+import { Mesh, SphereGeometry, MeshBasicMaterial, Matrix4, Color, Quaternion, Vector3, type PerspectiveCamera } from 'three'
 import { InstancedMesh2 } from '@three.ez/instanced-mesh'
 import { useScrollStore } from '../stores/scrollStore'
 import { useFrameCache } from '../behaviors/useFrameCache'
@@ -32,7 +32,7 @@ let _r3fClockTime = 0
  *   R3F InstancedMesh + individual <mesh> for interactive objects
  */
 export default function DustField() {
-  const { camera } = useThree()
+  const { camera, gl } = useThree()
   const { shouldSkip } = useFrameCache()
 
   // Pre-allocated reusable objects (from LighthouseScene.vue)
@@ -43,7 +43,7 @@ export default function DustField() {
   const _colorAct3 = useRef(new Color('#64748b')).current
   const _matrix = useRef(new Matrix4()).current
   const _position = useRef(new Vector3()).current
-  const _quaternion = useRef({ x: 0, y: 0, z: 0, w: 1 } as any).current
+  const _quaternion = useRef(new Quaternion()).current
   const _scale = useRef(new Vector3()).current
 
   // ---- Create particle data + meshes (one-time, like useMemo) ----
@@ -149,11 +149,12 @@ export default function DustField() {
   const debrisMesh = useMemo(() => {
     const geo = new SphereGeometry(0.015, 10, 8)
     const mat = new MeshBasicMaterial({ color: '#ffffff', transparent: true, depthWrite: false, depthTest: true })
-    const mesh = new InstancedMesh2(geo, mat, { capacity: 132 })
+    const mesh = new InstancedMesh2(geo, mat, { capacity: 132, renderer: gl })
     mesh.renderOrder = 2
     mesh.sortObjects = true
+    mesh.addInstances(132)
     return mesh
-  }, [])
+  }, [gl])
   const debrisRef = useRef<InstancedMesh2>(debrisMesh)
 
   // Initialize per-instance colors + trigger shader recompilation
@@ -247,7 +248,6 @@ export default function DustField() {
           _scale.set(appearance.scale, appearance.scale, appearance.scale),
         )
         debrisRef.current.setMatrixAt(debrisIdx, _matrix)
-        // Per-instance color + opacity (InstancedMesh2 支持逐实例透明度)
         debrisRef.current.setColorAt(debrisIdx, _scratch2)
         debrisRef.current.setOpacityAt(debrisIdx, appearance.opacity)
         debrisIdx++
@@ -255,7 +255,6 @@ export default function DustField() {
     }
 
     // InstancedMesh2 auto-manages buffer updates after setMatrixAt/setColorAt/setOpacityAt
-    // No manual needsUpdate required.
 
     // Hover detection — extracted: useScreenSpaceHover
     const hoverResult = calcScreenSpaceHover(
