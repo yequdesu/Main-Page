@@ -30,7 +30,27 @@ interface FocusActions {
   clearFocus: () => void
 }
 
-export type ScrollStore = ScrollSlice & FocusSlice & ScrollActions & FocusActions
+// ============================================================
+// Terminal slice
+// ============================================================
+export type TerminalMode = 'typing' | 'idle' | 'active'
+
+interface TerminalSlice {
+  terminalMode: TerminalMode
+  echoLines: string[]
+  inputValue: string
+  typewriterDone: boolean
+}
+
+interface TerminalActions {
+  setTerminalMode: (mode: TerminalMode) => void
+  setInputValue: (val: string) => void
+  appendEcho: (line: string) => void
+  clearInput: () => void
+  setTypewriterDone: (done: boolean) => void
+}
+
+export type ScrollStore = ScrollSlice & FocusSlice & TerminalSlice & ScrollActions & FocusActions & TerminalActions
 
 // ============================================================
 // Store
@@ -49,6 +69,12 @@ export const useScrollStore = create<ScrollStore>()((set) => ({
   focusStartTime: 0,
   overlayData: { focused: false },
 
+  // ---- Terminal slice ----
+  terminalMode: 'typing' as TerminalMode,
+  echoLines: [] as string[],
+  inputValue: '',
+  typewriterDone: false,
+
   setFocusedPlanet: (idx) => set({ focusedPlanetIdx: idx }),
   setHoveredIdx: (idx) => set({ hoveredIdx: idx }),
   setFocusStartTime: (t) => set({ focusStartTime: t }),
@@ -59,4 +85,12 @@ export const useScrollStore = create<ScrollStore>()((set) => ({
     focusStartTime: 0,
     overlayData: { focused: false },
   }),
+
+  // ---- Terminal actions ----
+  setTerminalMode: (mode) => set({ terminalMode: mode }),
+  setInputValue: (val) => set({ inputValue: val }),
+  appendEcho: (line) =>
+    set((s) => ({ echoLines: [...s.echoLines, line] })),
+  clearInput: () => set({ inputValue: '' }),
+  setTypewriterDone: (done) => set({ typewriterDone: done }),
 }))
