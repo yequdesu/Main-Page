@@ -101,7 +101,7 @@ Three.js 按 `renderOrder` 从小到大分组渲染。`renderOrder` 不继承—
 - `depthWrite=false` → 不写深度，不遮挡任何对象
 - **`DustField` 必须在 Canvas 根层级**——不在任何 Act 的 `visible` group 内
 
-**设计文档：** `docs/superpowers/specs/` | **调试记录：** `docs/dev-blog/` | **维护手册：** `docs/MAINTENANCE.md`
+**设计文档：** `docs/superpowers/specs/` | **调试记录：** `docs/dev-blog/` | **维护手册：** `docs/MAINTENANCE.md` | **轨道系统：** `docs/orbital-system.md`
 
 ## 开发
 

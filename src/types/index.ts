@@ -19,6 +19,31 @@ export const SCROLL_RIG = {
 } as const
 
 // ============================================================
+// 轨道环配置（可扩展）
+// 援引：Murray & Dermott, Solar System Dynamics, §2.8
+// ============================================================
+export interface OrbitalRingConfig {
+  /** 轨道外半径 */
+  radius: number
+  /** 轨道内半径，默认 radius - 0.04 */
+  innerRadius?: number
+  /** 黄道面倾角 (rad) */
+  inclination: number
+  /** 偏心率 0–1（0=正圆） */
+  eccentricity: number
+  /** 进动角速度 (rad/s)，speedScale=1 时的值 */
+  speed: number
+  /** 初始升交点经度 (rad) */
+  phase: number
+  /** 环颜色，默认 '#cbd5e1' */
+  color?: string
+  /** 最大透明度 0–1，默认 0.28 */
+  maxOpacity?: number
+  /** 环分段数，默认 96 */
+  segments?: number
+}
+
+// ============================================================
 // 粒子数据
 // ============================================================
 export interface ParticleData {

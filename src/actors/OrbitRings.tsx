@@ -1,19 +1,36 @@
 import { useMemo, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
-import { type Group, type LineBasicMaterial } from 'three'
+import { type LineBasicMaterial } from 'three'
 import { SCENE_CENTER_Z, ORBIT_RADII, ORBIT_COUNT, clamped, smoothstep, GRID_SHIFT_START } from '../r3f/ScrollRig'
 import { useScrollStore } from '../stores/scrollStore'
+import OrbitalRing from './OrbitalRing'
+import type { OrbitalRingConfig } from '../types'
 
 /**
- * 轨道环 + 陀螺仪装饰环。
+ * 行星轨道系统 — 3 条静态轨道参考线 + N 条陀螺仪装饰环。
  *
- * 原 act3.build():1144-1188。
- * 3 条圆形轨道（Line）+ 3 个倾斜陀螺仪环（LineLoop of RingGeometry）
+ * 陀螺仪环配置全部声明在这里，新增轨道只需在 GYRO_RINGS 数组中加一项。
  *
- * 援引：R3F <line> + bufferGeometry（手动构建顶点）
+ * 原 act3.build():1144-1188
  */
-export default function OrbitRings() {
-  // 轨道环顶点
+
+// ============================================================
+// 陀螺仪环配置（方案 A：类 Kuiper 带）
+// 遵循 Ngo & Lissauer (2016) ē ≈ (1–2)·ī 统计关系
+// ============================================================
+const GYRO_RINGS: OrbitalRingConfig[] = [
+  { radius: 7.8,  inclination: 0.12, eccentricity: 0.15, speed: 0.02, phase: 0 },
+  { radius: 9.4,  inclination: 0.22, eccentricity: 0.30, speed: 0.04, phase: Math.PI / 3 },
+  { radius: 11.0, inclination: 0.38, eccentricity: 0.50, speed: 0.06, phase: 2 * Math.PI / 3 },
+]
+
+interface OrbitRingsProps {
+  /** 全局进动速度缩放，默认 1.0；设为 0 可冻结全部环 */
+  speedScale?: number
+}
+
+export default function OrbitRings({ speedScale = 1.0 }: OrbitRingsProps) {
+  // 轨道环顶点（静态 — 行星公转轨道的视觉参考线）
   const orbitPoints = useMemo(() =>
     Array.from({ length: ORBIT_COUNT }, (_, t) => {
       const r = ORBIT_RADII[t]
@@ -24,44 +41,21 @@ export default function OrbitRings() {
     }), [],
   )
 
-  // 陀螺仪环配置
-  const gyroConfigs = useMemo(() => ({
-    radii: [7.8, 9.4, 11.0] as const,
-    tilts: [
-      { x: Math.PI / 2 + 0.25, z: 0.35 },
-      { x: Math.PI / 2 - 0.30, z: -0.40 },
-      { x: Math.PI / 2 + 0.55, z: 0.15 },
-    ],
-    speeds: [0.08, 0.13, 0.18],
-  }), [])
-
-  // ---- Animation refs ----
   const orbitMatRefs = useRef<(LineBasicMaterial | null)[]>([null, null, null])
-  const gyroMatRefs = useRef<(LineBasicMaterial | null)[]>([null, null, null])
-  const gyroGroupRefs = useRef<(Group | null)[]>([null, null, null])
 
-  useFrame((_state, delta) => {
+  useFrame(() => {
     const sp = useScrollStore.getState().scrollProgress
     const act3Progress = clamped(sp, GRID_SHIFT_START, 1.0)
     const smooth3 = smoothstep(act3Progress)
 
-    // Orbit rings: 0.35 (逐字保留自原 act3.animate)
     orbitMatRefs.current.forEach((mat) => {
       if (mat) mat.opacity = smooth3 * 0.35
-    })
-
-    // Gyro rings: rotation + 0.28 opacity (逐字保留自原 act3.animate)
-    gyroGroupRefs.current.forEach((group, i) => {
-      if (group) group.rotation.y += delta * gyroConfigs.speeds[i] * 0.96
-    })
-    gyroMatRefs.current.forEach((mat) => {
-      if (mat) mat.opacity = smooth3 * 0.28
     })
   })
 
   return (
     <>
-      {/* 3 条轨道线 */}
+      {/* 静态轨道参考线（行星公转轨道） */}
       {orbitPoints.map((pts, t) => (
         <threeLine key={`orbit-${t}`} position={[0, -1.0, SCENE_CENTER_Z]} renderOrder={2}>
           <bufferGeometry>
@@ -74,20 +68,9 @@ export default function OrbitRings() {
         </threeLine>
       ))}
 
-      {/* 3 个陀螺仪装饰环 — RingGeometry (r-0.04, r) 逐字保留自原 act3.build() */}
-      {gyroConfigs.radii.map((r, g) => (
-        <group
-          key={`gyro-${g}`}
-          ref={(el) => { gyroGroupRefs.current[g] = el }}
-          position={[0, -1.0, SCENE_CENTER_Z]}
-          renderOrder={2}
-          rotation={[gyroConfigs.tilts[g].x, 0, gyroConfigs.tilts[g].z]}
-        >
-          <lineLoop renderOrder={2}>
-            <ringGeometry args={[r - 0.04, r, 96]} />
-            <lineBasicMaterial ref={(mat) => { gyroMatRefs.current[g] = mat }} color="#cbd5e1" transparent opacity={0} depthWrite={false} depthTest />
-          </lineLoop>
-        </group>
+      {/* 陀螺仪装饰环（每条独立力学模拟） */}
+      {GYRO_RINGS.map((cfg, i) => (
+        <OrbitalRing key={`gyro-${i}`} config={cfg} speedScale={speedScale} />
       ))}
     </>
   )

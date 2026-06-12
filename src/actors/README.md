@@ -14,7 +14,10 @@
 | `OceanWaves.tsx` | 50 Line（逐顶点动画） | Act1 group 内 | 0 | 波浪 Y 偏移 + 颜色过渡 |
 | `DustField.tsx` | 3 Mesh（主行星） + InstancedMesh2 ×132（碎片） | **Canvas 根层级** | 1/2 | 位置/颜色/透明度逐帧更新 |
 | `CentralStar.tsx` | 2 Mesh（核心+光晕） + Sprite（Halo） | Act3 group 内 | 1/2/1 | 光晕脉冲 + 透明度 |
-| `OrbitRings.tsx` | 3 Line（轨道） + 3 LineLoop（陀螺仪） | Act3 group 内 | 2 | 旋转 + 透明度 |
+| `OrbitRings.tsx` | 3 Line（轨道参考线） | Act3 group 内 | 2 | 透明度 |
+| `OrbitalRing.tsx` | 1 LineLoop（陀螺仪环） | Act3 group 内（由 OrbitRings 编排） | 2 | 进动 + 透明度 |
+
+> **轨道系统完整文档：** [`docs/orbital-system.md`](../../docs/orbital-system.md) — 力学模型、变换推导、配置参考、操作手册
 | `GridLines.tsx` | 28 Line + 210 Points | Act2 group 内 | 2 | 延伸 + 透明度 |
 | `PlanetLabel.tsx` | 3 Sprite（Canvas 纹理） | Act3 group 内 | 9999 | 位置跟随 + lerp 淡入淡出 |
 | `LighthouseCapture.tsx` | 无渲染（离屏截图逻辑） | Act1 group 内 | — | 导出 `getLighthouseCapture()` |
