@@ -9,9 +9,9 @@ Claude Code 工作约束。人类文档见 `README.md`，调试记录见 `docs/d
 ## 命令
 
 ```bash
-npm run dev / build / preview / test / clean / mirror
+pnpm dev / build / preview / test / clean / mirror
 ```
-`/api/*` 代理至 `127.0.0.1:9999`。
+`/api/*` 代理至 `127.0.0.1:9999`。包管理器为 pnpm。
 
 ## 必须遵守的渲染约束
 

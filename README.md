@@ -106,10 +106,10 @@ Three.js 按 `renderOrder` 从小到大分组渲染。`renderOrder` 不继承—
 ## 开发
 
 ```bash
-npm install && npm run dev       # → localhost:5173
-npm run build                    # tsc + vite → dist/
-npm run test                     # vitest（13 tests / 3 suites）
-npm run clean && npm run mirror  # 辅助脚本
+pnpm install && pnpm dev         # → localhost:5173
+pnpm build                       # tsc + vite → dist/
+pnpm test                        # vitest（13 tests / 3 suites）
+pnpm clean && pnpm mirror        # 辅助脚本
 ```
 
 ## 维护约束
