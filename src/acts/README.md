@@ -32,3 +32,11 @@
 acts/ → actors/, behaviors/, stores/, types/
 acts/ 不依赖 r3f/（acts 作为 Canvas children 注入）
 ```
+
+## 相关文档
+
+| 文档 | 用途 |
+|------|------|
+| [`../actors/README.md`](../actors/README.md) | 各 Actor 组件的职责和属性 |
+| [`../../README.md`](../../README.md) | 项目架构和渲染管线概览 |
+| [`../../docs/MAINTENANCE.md`](../../docs/MAINTENANCE.md) §5.1 | 新增 Act 步骤详解 |

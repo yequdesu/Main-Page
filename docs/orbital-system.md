@@ -354,3 +354,14 @@ console.log('angle with Y:', Math.acos(Math.abs(n.y)) * 180 / Math.PI)
 - Murray & Dermott, *Solar System Dynamics*, §2.8 (orbital elements)
 - Ngo & Lissauer (2016), *PNAS* — ē/ī statistical relationship in solar system bodies
 - R3F `useFrame` — https://docs.pmnd.rs/react-three-fiber/api/hooks#useframe
+
+---
+
+## 相关文档
+
+| 文档 | 用途 |
+|------|------|
+| [`../src/actors/README.md`](../src/actors/README.md) | OrbitalRing / OrbitRings 组件概览 |
+| [`../src/types/README.md`](../src/types/README.md) | `OrbitalRingConfig` 接口定义位置 |
+| [`MAINTENANCE.md`](./MAINTENANCE.md) §6.2 | 环不可见排查 |
+| [`../README.md`](../README.md) | 渲染管线和 scene graph 层级 |

@@ -476,3 +476,14 @@ UI 状态包含：`hintVisible`、`lighthouseImage`、品牌文字动画状态
 | L1 · 纯函数 | `behaviors/*` — 位置/颜色/透明度/遮挡/切线 计算 | vitest |
 | L2 · 场景图 | `acts/*` — Act 切换时场景图结构、useFrame 逐帧行为 | @react-three/test-renderer |
 | L3 · 视觉 | 不做 | — |
+
+---
+
+## 相关文档
+
+| 文档 | 用途 |
+|------|------|
+| [`COMPOSABILITY_TESTABILITY.md`](./COMPOSABILITY_TESTABILITY.md) | 可组合性与可测试性深度对比（R3F vs TresJS vs Vanilla） |
+| [`ARCHITECTURE.md`](./ARCHITECTURE.md)（历史） | Vue 原版源码分析——理解"为什么这样拆分" |
+| [`HANDOFF.md`](./HANDOFF.md) | 项目当前状态 + 已完成工作清单 |
+| [`../README.md`](../README.md) | 当前架构和渲染管线 |

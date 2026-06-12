@@ -46,3 +46,13 @@ R3F 默认 `flat: false`，所有颜色经过 `ACESFilmicToneMapping` 处理。
 - R3F 的默认值与 Vanilla Three.js 不完全相同。`flat`、`dpr`、`frameloop` 等 prop 可能引入意料之外的行为
 - 颜色偏差排查应优先检查渲染管线设置（toneMapping、outputColorSpace），而非材质参数
 - 排查渲染问题时的有效策略：逐层剥离（隐藏光晕→仅核心球→对比参数），定位到渲染管线层面而非材质层面
+
+---
+
+## 相关记录
+
+| 记录 | 关联 |
+|------|------|
+| [`scene-graph-visibility.md`](./scene-graph-visibility.md) | 同一排查时期发现的场景图层级问题 |
+| [`instanced-mesh-shader-compile.md`](./instanced-mesh-shader-compile.md) | R3F 迁移后另一渲染管线问题（shader 编译时序） |
+| [`../MAINTENANCE.md`](../MAINTENANCE.md) §7.6 | 颜色校准规则 |

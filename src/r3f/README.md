@@ -26,3 +26,12 @@ R3F Canvas 配置、渲染循环桥接、全局场景管理。本目录的组件
 r3f/ → stores/, actors/, behaviors/, types/
 r3f/ 不依赖 acts/（Canvas 是容器，acts 作为 children 注入）
 ```
+
+## 相关文档
+
+| 文档 | 用途 |
+|------|------|
+| [`../../README.md`](../../README.md) | 项目架构和渲染管线概览 |
+| [`../../docs/MAINTENANCE.md`](../../docs/MAINTENANCE.md) §7 | 渲染触发机制和层级详解 |
+| [`../stores/README.md`](../stores/README.md) | Zustand scrollStore（ScrollInvalidator 订阅源） |
+| [`../types/README.md`](../types/README.md) | SCROLL_RIG 阈值常量 |

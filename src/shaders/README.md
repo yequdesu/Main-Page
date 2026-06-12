@@ -47,3 +47,10 @@ Uniforms：
 shaders/ → three (类型)
 shaders/ 不依赖项目中的其他模块
 ```
+
+## 相关文档
+
+| 文档 | 用途 |
+|------|------|
+| [`../actors/README.md`](../actors/README.md) | LightBeam.tsx（VolumetricBeamShader 的使用者） |
+| [`../../docs/MAINTENANCE.md`](../../docs/MAINTENANCE.md) §3.3 | 光束断点调试 |

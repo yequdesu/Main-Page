@@ -12,10 +12,10 @@ const _toVertex = new Vector3()
 const _projOnBeam = new Vector3()
 
 /**
- * 海洋波浪线 — 50 条 Line，逐顶点动画。
+ * 海洋波浪线 — 30 条 Line，逐顶点动画。
  *
  * 原 buildOcean():227-265 + animateWavesAndLighting():511-589
- * 50 条线 × 151 顶点 = 7550 个顶点/帧。
+ * 30 条线 × 151 顶点 = 4530 个顶点/帧。
  *
  * 援引：R3F <threeLine> + bufferGeometry（逐顶点位置/颜色更新）
  */

@@ -22,7 +22,7 @@ const _defaultCamPos = new Vector3(0, 0.25, 8)
 let _r3fClockTime = 0
 
 /**
- * 尘埃/粒子场 — 3 主行星 + InstancedMesh(132 碎片)。
+ * 尘埃/粒子场 — 3 主行星 + InstancedMesh(80 碎片)。
  *
  * 原 buildDust():409-493 + animateDust():633-771
  * 最复杂的单个迁移目标。

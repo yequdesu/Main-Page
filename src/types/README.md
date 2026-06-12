@@ -22,3 +22,12 @@ TypeScript 类型定义、滚动阈值常量（`SCROLL_RIG`）、行星链接数
 ```
 types/ → 无外部依赖（纯类型定义）
 ```
+
+## 相关文档
+
+| 文档 | 用途 |
+|------|------|
+| [`../../docs/orbital-system.md`](../../docs/orbital-system.md) | `OrbitalRingConfig` 各字段含义和取值建议 |
+| [`../actors/README.md`](../actors/README.md) | 使用这些类型的 Actor 组件 |
+| [`../stores/README.md`](../stores/README.md) | `OverlayData`、`focusSlice` 等 store 类型 |
+| [`../../README.md`](../../README.md) | SCROLL_RIG 阈值在项目中的使用位置 |

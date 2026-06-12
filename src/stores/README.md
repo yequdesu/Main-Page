@@ -32,3 +32,12 @@
 stores/ → types/
 stores/ 不依赖 r3f/, actors/, acts/
 ```
+
+## 相关文档
+
+| 文档 | 用途 |
+|------|------|
+| [`../../README.md`](../../README.md) §渲染管线 | Zustand → invalidate() 触发链路 |
+| [`../../docs/MAINTENANCE.md`](../../docs/MAINTENANCE.md) §7.1 | 渲染触发机制详解 |
+| [`../types/README.md`](../types/README.md) | SCROLL_RIG 和 store 使用的数据类型 |
+| [`../behaviors/README.md`](../behaviors/README.md) | useCameraFocus 等行为（读取 store 状态） |

@@ -31,3 +31,10 @@
 ```
 utils/ → 无依赖（纯 JavaScript/TypeScript）
 ```
+
+## 相关文档
+
+| 文档 | 用途 |
+|------|------|
+| [`../behaviors/README.md`](../behaviors/README.md) | 行为纯函数（依赖 smoothstep, toward 等） |
+| [`../../docs/MAINTENANCE.md`](../../docs/MAINTENANCE.md) §4.5 | 测试运行命令 |

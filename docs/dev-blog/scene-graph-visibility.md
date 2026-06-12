@@ -59,3 +59,14 @@ R3F 将 `DustField` 嵌套在 Act1 的 group 内：
 - 迁移嵌套组件树到 flat Three.js scene graph 时，必须检查每个对象的父层级是否受可见性控制
 - 原版中跨 Act 存在的对象（如粒子）不应放入任何 Act 的可见性 group 内
 - Three.js `Object3D.visible` 会级联影响所有子对象（包括光源、粒子、Mesh）
+
+---
+
+## 相关记录
+
+| 记录 | 关联 |
+|------|------|
+| [`tone-mapping-debug.md`](./tone-mapping-debug.md) | 同一排查时期的色调映射问题 |
+| [`instanced-mesh-shader-compile.md`](./instanced-mesh-shader-compile.md) | DustField 的另一排查——shader 编译时序 |
+| [`../MAINTENANCE.md`](../MAINTENANCE.md) §7.5 | scene graph 层级规则 |
+| [`../../../src/actors/README.md`](../../../src/actors/README.md) | DustField 必须在 Canvas 根层级 |

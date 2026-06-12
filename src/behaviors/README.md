@@ -43,3 +43,12 @@
 behaviors/ → types/ (ParticleData 等)
 behaviors/ 不依赖 actors/, acts/, stores/（参数通过函数签名传入）
 ```
+
+## 相关文档
+
+| 文档 | 用途 |
+|------|------|
+| [`../actors/README.md`](../actors/README.md) | 行为 Hook 的消费者（DustField.useFrame） |
+| [`../../docs/COMPOSABILITY_TESTABILITY.md`](../../docs/COMPOSABILITY_TESTABILITY.md) | 纯函数测试策略分析（L1/L2 分层） |
+| [`../../docs/MAINTENANCE.md`](../../docs/MAINTENANCE.md) §4.5 | 测试运行命令 |
+| [`../utils/README.md`](../utils/README.md) | 底层数学工具函数（smoothstep, toward 等） |

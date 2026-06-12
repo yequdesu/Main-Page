@@ -27,7 +27,7 @@
 
 ### 包管理器
 
-npm 为主，pnpm 兼容。安装时若用 pnpm 需额外运行 `pnpm approve-builds esbuild`。
+npm 为主，pnpm 兼容。CLAUDE.md 约定默认使用 pnpm。安装时若用 pnpm 需额外运行 `pnpm approve-builds esbuild`。
 
 ---
 
@@ -63,7 +63,8 @@ src/
 ├── r3f/
 │   ├── Canvas.tsx                   R3F Canvas（frameloop:demand）
 │   ├── ScrollRig.ts                阈值 + sceneApplyWhiteOut
-│   └── ScrollInvalidator.tsx       Zustand 订阅 → invalidate() 桥接
+│   ├── ScrollInvalidator.tsx       Zustand 订阅 → invalidate() 桥接
+│   └── PlanetClickHandler.tsx      NDC 投影点击检测 + 行星聚焦
 ├── stores/
 │   └── scrollStore.ts              Zustand（scrollSlice + focusSlice）
 ├── types/
@@ -75,13 +76,14 @@ src/
 ├── actors/
 │   ├── Lighthouse.tsx              30 个 Mesh 声明式灯塔（暴露 ref 供截图）
 │   ├── LightBeam.tsx               3 锥体 + 2 射线 + 辉光 + 3 模式动画 + 灯光
-│   ├── OceanWaves.tsx              50 条线，逐顶点波浪动画
-│   ├── DustField.tsx               3 Planet + InstancedMesh(132)，per-frame 更新
-│   ├── Planet.tsx                  主行星（高面数 + onClick）
+│   ├── OceanWaves.tsx              30 条线，逐顶点波浪动画 + 体积聚光照明
+│   ├── DustField.tsx               3 Planet + InstancedMesh(80 碎片)，per-frame 更新
 │   ├── CentralStar.tsx             核心 + 光晕 + Canvas 精灵 halo
-│   ├── OrbitRings.tsx              3 轨道环 + 3 陀螺仪环
+│   ├── OrbitRings.tsx              3 轨道参考线 + 编排 GYRO_RINGS → 3 陀螺仪环
+│   ├── OrbitalRing.tsx             单陀螺仪环力学组件（倾角 + 偏心率 + 进动），可独立复用
 │   ├── GridLines.tsx               28 垂直线 + 210 节点
 │   ├── PlanetLabel.tsx             Canvas → Sprite React 组件（位置跟随 + 聚焦淡出）
+│   ├── SceneLights.tsx             全局灯光（Canvas 根层级）
 │   └── LighthouseCapture.tsx       离屏渲染 → base64 PNG
 ├── behaviors/
 │   ├── useCameraFocus.ts           相机双层平滑 + 绕行 + 30s 自动取消 + SVG overlay
@@ -107,7 +109,7 @@ src/
 npm run dev      # 启动开发服务器（HMR, :5173）
 npm run build    # 生产构建（tsc + vite）→ dist/
 npm run preview  # 预览生产构建
-npm run test     # 运行 vitest（6/6 通过）
+npm run test     # 运行 vitest（13/13 通过）
 npm run test:ui  # 浏览器测试 UI
 npm run clean    # 清除 dist + .vite 缓存 + tsbuildinfo
 npm run mirror   # 监控后台进程（Vite :5173, Stats :9999）
@@ -123,7 +125,7 @@ npm run mirror   # 监控后台进程（Vite :5173, Stats :9999）
 |------|:---:|
 | TypeScript 编译 | ✅ 零错误 |
 | 生产构建 | ✅ 1.2s，~1.2MB JS |
-| 单元测试 | ✅ 6/6 通过（smoothstep, toward） |
+| 单元测试 | ✅ 13/13 通过（smoothstep, toward, R3F 场景图） |
 | React 脚手架 | ✅ 含 App.tsx（GSAP 滚动 + DOM 层） |
 | Lighthouse actor | ✅ 30 个 Mesh 声明式组件 |
 | LightBeam actor | ✅ 3 锥体 + ShaderMaterial + 射线 |
@@ -160,12 +162,13 @@ npm run mirror   # 监控后台进程（Vite :5173, Stats :9999）
 
 | 文档 | 路径 | 用途 |
 |------|------|------|
-| 架构分析 | `docs/ARCHITECTURE.md` | 源码逐函数拆解 + 重构建议 |
+| 架构分析（历史） | `docs/ARCHITECTURE.md` | Vue 原版源码逐函数拆解 + 重构建议（迁移前参考） |
 | 技术评估 | `docs/TECH_STACK_EVALUATION.md` | 11 项架构决策 + 援引来源 |
 | 可组合性/可测试性 | `docs/COMPOSABILITY_TESTABILITY.md` | R3F vs TresJS vs Vanilla 对比 |
+| 轨道系统 | `docs/orbital-system.md` | 力学模型、变换链、配置参考、新增轨道 |
 | 设计文档 | `docs/superpowers/specs/2026-06-10-r3f-refactor-design.md` | 9 章正式设计文档 |
 | 实施计划 | `docs/superpowers/plans/2026-06-10-r3f-refactor.md` | 16 Task 实施计划 |
-| 维护手册 | `docs/MAINTENANCE.md` | 调试/开发/维护流程 + 浏览器兼容性 |
+| 维护手册 | `docs/MAINTENANCE.md` | 调试/开发/维护流程 + 渲染特效 + 浏览器兼容性 |
 | 项目说明 | `README.md` | 体验概览 + 架构 + 维护约定 |
 | Claude 约束 | `CLAUDE.md` | 语言协定 + 维护约束 + 架构要点 |
 
@@ -189,3 +192,18 @@ npm install
 npm run dev          # → http://localhost:5173
 npm run mirror       # 监控后台进程
 ```
+
+---
+
+## 七、模块 README 索引
+
+| 目录 | README | 摘要 |
+|------|--------|------|
+| `src/actors/` | [`README.md`](../src/actors/README.md) | 12 个 3D 对象组件（创建 + useFrame 动画） |
+| `src/acts/` | [`README.md`](../src/acts/README.md) | 3 个 Act 编排组件（组装 + 可见性控制） |
+| `src/behaviors/` | [`README.md`](../src/behaviors/README.md) | 6 个纯函数行为 + Hook（可 L1 测试） |
+| `src/r3f/` | [`README.md`](../src/r3f/README.md) | Canvas 基础设施 + 渲染循环桥接 |
+| `src/stores/` | [`README.md`](../src/stores/README.md) | Zustand 状态管理（scrollSlice + focusSlice） |
+| `src/types/` | [`README.md`](../src/types/README.md) | 共享类型、SCROLL_RIG 阈值常量 |
+| `src/utils/` | [`README.md`](../src/utils/README.md) | 纯数学工具函数 |
+| `src/shaders/` | [`README.md`](../src/shaders/README.md) | VolumetricBeamShader 自定义着色器 |

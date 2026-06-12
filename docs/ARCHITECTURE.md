@@ -1,4 +1,6 @@
-# 源码结构分析
+# 源码结构分析（历史参考）
+
+> **⚠️ 本文档分析的是迁移前的 Vue + Vanilla Three.js 原版架构。** 当前项目已迁移至 React 19 + R3F v9 + TypeScript。本文档保留作为重构决策的历史背景（理解"为什么这样拆分"），当前实际架构见 [`README.md`](../README.md) 和 [`docs/HANDOFF.md`](./HANDOFF.md)。
 
 > 本文档为接下来的重构工作提供参考。逐文件拆解设计意图、内部职责、耦合关系，以及发现的问题。
 
@@ -1036,3 +1038,14 @@ stats_server.py (独立，仅通过 Vite 代理关联)
 8. 消除猴子补丁：将 Act 切换检测直接整合进 `animate()` 函数
 9. 统一帧缓存守卫模式：所有动画函数使用 `(lastTime, lastSp)` 双参数守卫
 10. 将物理滚动系统提取为 `usePhysicsScroll` composable（可选）
+
+---
+
+## 相关文档
+
+| 文档 | 用途 |
+|------|------|
+| [`../README.md`](../README.md) | 当前 R3F + React 架构 |
+| [`HANDOFF.md`](./HANDOFF.md) | 迁移完成后的项目状态 |
+| [`TECH_STACK_EVALUATION.md`](./TECH_STACK_EVALUATION.md) | 技术选型决策（R3F 为何胜出） |
+| [`../src/actors/README.md`](../src/actors/README.md) | 拆分后的 Actor 组件一览 |

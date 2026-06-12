@@ -60,9 +60,9 @@ src/
 │   └── Act3ContentPhase.tsx       OrbitRings + CentralStar + PlanetLabel
 ├── actors/                        3D 对象（创建 + useFrame 动画）
 │   ├── SceneLights.tsx            全局灯光（Canvas 根层级）
-│   ├── DustField.tsx              3 主行星 + InstancedMesh2×132（Canvas 根层级）
+│   ├── DustField.tsx              3 主行星 + InstancedMesh2×80（Canvas 根层级）
 │   ├── Lighthouse.tsx + LightBeam.tsx + OceanWaves.tsx
-│   ├── CentralStar.tsx + OrbitRings.tsx + GridLines.tsx
+│   ├── CentralStar.tsx + OrbitRings.tsx + OrbitalRing.tsx + GridLines.tsx
 │   ├── PlanetLabel.tsx + LighthouseCapture.tsx
 ├── behaviors/                     纯函数 + Hook
 │   ├── useCameraFocus.ts + useFrameCache.ts
@@ -94,7 +94,7 @@ Three.js 按 `renderOrder` 从小到大分组渲染。`renderOrder` 不继承—
 |:---:|:---:|------|:---:|
 | 0 | 0 | 海浪线、灯塔、光束锥体/射线/辉光 | false |
 | 1 | 1 | 恒星光晕+Halo、主行星×3 | 行星=true, 其余=false |
-| 2 | 2 | 恒星核心、轨道环、陀螺仪环、网格线、碎片×132 | 核心=true, 其余=false |
+| 2 | 2 | 恒星核心、轨道环、陀螺仪环、网格线、碎片×80 | 核心=true, 其余=false |
 | 9999 | 9999 | 行星标签 Sprite（depthTest=false） | false |
 
 - `depthWrite=true` → 写入深度缓冲，遮挡后方对象
@@ -117,6 +117,19 @@ pnpm clean && pnpm mirror        # 辅助脚本
 - 方案修正或项目结构变更时，必须同步更新本文件
 - 每个 R3F 方案决策必须援引社区方案并说明来源
 - 面向 Claude Code 的约束见 `CLAUDE.md`
+
+## 相关文档
+
+| 文档 | 路径 | 用途 |
+|------|------|------|
+| 维护手册 | [`docs/MAINTENANCE.md`](docs/MAINTENANCE.md) | 调试/开发/维护流程 + 渲染特效 + 浏览器兼容性 |
+| 交接文档 | [`docs/HANDOFF.md`](docs/HANDOFF.md) | 当前状态、已完成工作、快速启动 |
+| 轨道系统 | [`docs/orbital-system.md`](docs/orbital-system.md) | 力学模型、变换推导、配置参考 |
+| 技术评估 | [`docs/TECH_STACK_EVALUATION.md`](docs/TECH_STACK_EVALUATION.md) | 11 项架构决策 + 援引来源 |
+| 可测试性 | [`docs/COMPOSABILITY_TESTABILITY.md`](docs/COMPOSABILITY_TESTABILITY.md) | R3F vs TresJS vs Vanilla 对比 |
+| 架构分析（历史） | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | Vue 原版源码分析（迁移前参考） |
+| 调试记录 | [`docs/dev-blog/`](docs/dev-blog/) | 4 篇问题排查记录 |
+| 模块说明 | [`src/*/README.md`](src/) | 各目录的职责和依赖说明 |
 
 ## 附属服务
 

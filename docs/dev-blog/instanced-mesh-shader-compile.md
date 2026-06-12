@@ -66,3 +66,13 @@ useEffect(() => {
 > 3. 渲染时 `count === 0` → 零实例可见
 >
 > `setMatrixAt` 不会自动递增 `_instancesArrayCount`。必须在创建 InstancedMesh2 后显式调用 `addInstances(n)` 或 `setInstancesArrayCount(n)`。
+
+---
+
+## 相关记录
+
+| 记录 | 关联 |
+|------|------|
+| [`matrix-compose-quaternion-nan.md`](./matrix-compose-quaternion-nan.md) | 同一组件（DustField）的另一次排查——Quaternion 类型错误导致 NaN |
+| [`scene-graph-visibility.md`](./scene-graph-visibility.md) | 同一排查时期的场景图层级问题 |
+| [`tone-mapping-debug.md`](./tone-mapping-debug.md) | R3F 渲染管线差异排查 |

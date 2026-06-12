@@ -123,3 +123,12 @@ const _quaternion = useRef(new Quaternion()).current
 3. **分步隔离是关键。** 先排除第三方库（InstancedMesh2 → InstancedMesh），再排除数据源（静态 → useFrame），最后检查原始缓冲区——每一步排除一个变量。
 
 4. **`as any` 是危险信号。** `as any` 类型断言隐藏了类型不匹配，使得 `{x:0, y:0, z:0, w:1}` 能赋值给期望 `Quaternion` 的参数。宁可多写 `new Quaternion()` 也不要靠断言绕开类型系统。
+
+---
+
+## 相关记录
+
+| 记录 | 关联 |
+|------|------|
+| [`instanced-mesh-shader-compile.md`](./instanced-mesh-shader-compile.md) | 同一组件（DustField）的排查——InstancedMesh2 `addInstances` + `materialsNeedsUpdate` |
+| [`scene-graph-visibility.md`](./scene-graph-visibility.md) | 同一排查时期的场景图层级问题 |
