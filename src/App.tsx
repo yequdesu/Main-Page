@@ -9,6 +9,7 @@ import Act3ContentPhase from './acts/Act3ContentPhase'
 import { useScrollStore } from './stores/scrollStore'
 import { WHITE_OUT_THRESHOLD, WHITE_OUT_END, GRID_START, GRID_SHIFT_START } from './r3f/ScrollRig'
 import { getLighthouseCapture } from './actors/LighthouseCapture'
+import TerminalBar from './terminal/TerminalBar'
 import './App.css'
 
 gsap.registerPlugin(ScrollTrigger)
@@ -45,6 +46,7 @@ export default function App() {
   const [brandTextVisible, setBrandTextVisible] = useState(false)
   const [lighthouseImage, setLighthouseImage] = useState<string | null>(null)
   const overlayData = useScrollStore(s => s.overlayData)
+  const [isTerminalActive, setIsTerminalActive] = useState(false)
 
   // ---- Act visibility ----
   const needsAct1 = (sp: number) => sp < GRID_START + 0.01
@@ -110,6 +112,7 @@ export default function App() {
   // ---- wheel handler ----
   const onWheel = useCallback((e: WheelEvent) => {
     e.preventDefault()
+    if (isTerminalActive) return
     if (isAct3Focused) return
     if (isClickPlaying && clickTweenRef.current) {
       clickTweenRef.current.kill()
@@ -119,10 +122,11 @@ export default function App() {
     const step = e.deltaY / (window.innerHeight * SCROLL_VH) * 0.65
     physRef.current.velocity += step
     physRef.current.velocity = Math.max(-MAX_VELOCITY, Math.min(MAX_VELOCITY, physRef.current.velocity))
-  }, [isAct3Focused, isClickPlaying])
+  }, [isTerminalActive, isAct3Focused, isClickPlaying])
 
   // ---- click fast-forward ----
   const onClick = useCallback(() => {
+    if (isTerminalActive) return
     if (isClickPlaying) return
     if (isAct3Focused) return  // block fast-forward during planet focus
     if (scrollProgress >= 0.995) return
@@ -144,17 +148,33 @@ export default function App() {
         clickTweenRef.current = null
       },
     })
-  }, [isClickPlaying, isAct3Focused, scrollProgress, setScrollProgress, syncScrollbar])
+  }, [isTerminalActive, isClickPlaying, isAct3Focused, scrollProgress, setScrollProgress, syncScrollbar])
+
+  // ---- / key listener ----
+  const onKeyDown = useCallback((e: KeyboardEvent) => {
+    const tag = (e.target as HTMLElement)?.tagName
+    if (tag === 'INPUT' || tag === 'TEXTAREA') return
+
+    if (e.key === '/') {
+      e.preventDefault()
+      const state = useScrollStore.getState()
+      if (state.terminalMode === 'idle') {
+        state.setTerminalMode('active')
+      }
+    }
+  }, [])
 
   // ---- event listeners ----
   useEffect(() => {
     window.addEventListener('wheel', onWheel, { passive: false })
     window.addEventListener('click', onClick)
+    window.addEventListener('keydown', onKeyDown)
     return () => {
       window.removeEventListener('wheel', onWheel)
       window.removeEventListener('click', onClick)
+      window.removeEventListener('keydown', onKeyDown)
     }
-  }, [onWheel, onClick])
+  }, [onWheel, onClick, onKeyDown])
 
   // ---- Act 3 focus state (block scroll wheel + brand text animation) ----
   useEffect(() => {
@@ -210,6 +230,14 @@ export default function App() {
     }
   }, [scrollProgress])
 
+  // ---- Terminal active state ----
+  useEffect(() => {
+    const unsub = useScrollStore.subscribe((s) => {
+      setIsTerminalActive(s.terminalMode === 'active')
+    })
+    return unsub
+  }, [])
+
   // ---- cleanup ----
   useEffect(() => {
     return () => {
@@ -229,6 +257,8 @@ export default function App() {
         <Act2GridTransition visible={needsAct2(sp)} />
         <Act3ContentPhase visible={needsAct3(sp)} />
       </SceneCanvas>
+
+      <TerminalBar />
 
       {/* 滚动提示 */}
       {hintVisible && (
