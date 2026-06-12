@@ -1,0 +1,143 @@
+.terminal-bar {
+  position: fixed;
+  bottom: 2rem;
+  left: 0;
+  right: 0;
+  z-index: 15;
+  display: flex;
+  flex-direction: column;
+  font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', 'Consolas', monospace;
+  font-size: 0.68rem;
+  line-height: 1.6;
+  pointer-events: none;
+}
+
+.terminal-bar-inner {
+  position: relative;
+  margin: 0 auto;
+  width: min(90vw, 640px);
+  background: rgba(15, 20, 35, 0.20);
+  border: none;
+  border-radius: 4px;
+  padding: 8px 14px;
+  backdrop-filter: blur(8px);
+  transition: background-color 0.3s ease;
+}
+
+.terminal-bar-inner.active {
+  backdrop-filter: blur(12px);
+  pointer-events: auto;
+}
+
+.terminal-echo {
+  position: relative;
+  color: var(--tw-echo, #7c8aa0);
+  white-space: pre-wrap;
+  word-break: break-all;
+  text-align: left;
+  max-height: calc(6 * 1.6em);
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+
+.terminal-echo::-webkit-scrollbar {
+  display: none;
+}
+
+.terminal-echo .echo-prefix {
+  color: var(--tw-prefix, #64748b);
+}
+
+/* 回显区内滚动指示器 — sticky + float 吸附可视窗口顶/底，零高度不占布局空间 */
+.echo-scroll-up,
+.echo-scroll-down {
+  float: right;
+  shape-outside: none;
+  font-size: inherit;
+  line-height: 1.6;
+  color: var(--tw-echo, rgba(255, 255, 255, 0.25));
+  opacity: 0;
+  transition: opacity 0.15s ease;
+  pointer-events: none;
+  user-select: none;
+}
+
+.echo-scroll-up {
+  position: sticky;
+  top: 0;
+}
+
+.echo-scroll-down {
+  position: sticky;
+  bottom: 0;
+}
+
+.echo-scroll-up.visible,
+.echo-scroll-down.visible {
+  opacity: 1;
+}
+
+.terminal-input-line {
+  display: flex;
+  align-items: baseline;
+  text-align: left;
+  margin-top: 0;
+  max-height: 0;
+  overflow: hidden;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s ease, margin-top 0.3s ease, max-height 0.3s ease;
+}
+
+.terminal-input-line.visible {
+  margin-top: 5px;
+  max-height: 2em;
+  opacity: 1;
+  pointer-events: auto;
+  animation: terminal-input-fade-in 0.3s ease-out;
+}
+
+@keyframes terminal-input-fade-in {
+  from { opacity: 0; transform: translateY(2px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.terminal-prompt {
+  color: var(--tw-prompt, #0ea5e9);
+  flex-shrink: 0;
+  margin-right: 0.5em;
+}
+
+.terminal-cursor {
+  flex-shrink: 0;
+}
+
+.terminal-cursor.dim {
+  color: var(--tw-cursor-dim, #0ea5e9);
+  opacity: 0.25;
+}
+
+.terminal-cursor.bright {
+  color: var(--tw-cursor-bright, #e2e8f0);
+  animation: cursor-blink 1s step-end infinite;
+}
+
+@keyframes cursor-blink {
+  50% { opacity: 0; }
+}
+
+.terminal-placeholder {
+  color: var(--tw-placeholder, rgba(255, 255, 255, 0.15));
+  font-style: italic;
+  margin-left: 4px;
+}
+
+.terminal-input-text {
+  color: var(--tw-input, #e2e8f0);
+}
+
+.terminal-typing-cursor {
+  color: var(--tw-echo, #7c8aa0);
+  animation: cursor-blink 1s step-end infinite;
+}
+
