@@ -1,146 +1,68 @@
 # YeQuDesu · Personal Site
 
-滚动驱动的 3D 单页个人网站，全视口 `<canvas>` 渲染。
+滚动驱动的 3D 单页个人网站，全视口 `<canvas>` 渲染，GSAP ScrollTrigger 驱动三幕叙事动画。
 
 ## 体验概览
 
-页面拉伸至 **15 倍视口高度**，GSAP ScrollTrigger 驱动单一 `scrollProgress`（0–1）贯穿三幕：
+页面拉伸至 **15 倍视口高度**，单一 `scrollProgress`（0–1）贯穿三幕：
 
-| 幕 | 区间 | 效果 |
-|-----|-------|--------------|
-| **Act 1 "OceanVoyage"** | 0–45% | 暗色海洋、波浪线、旋转光束的灯塔、漂浮粒子 |
-| **Act 2 "GridTransition"** | 40–85% | 白雾过渡，波浪展平为网格，垂直网格线升起 |
-| **Act 3 "ContentPhase"** | 85–100% | 轨道环围绕中央恒星，三颗行星公转，可点击聚焦 |
+| 幕 | 区间 | 内容 |
+|-----|:---:|------|
+| Act 1 "OceanVoyage" | 0–45% | 暗色海洋波浪、旋转光束的灯塔、漂浮粒子 |
+| Act 2 "GridTransition" | 40–85% | 白雾过渡，波浪展平为网格 |
+| Act 3 "ContentPhase" | 85–100% | 轨道环绕中央恒星、三颗行星公转、可点击聚焦 |
 
 ## 交互
 
-- **滚动** — 驱动全部 3D 场景动画，带物理动量惯性
-- **点击** — 快进跳至末尾（2 秒过渡动画）
-- **Act 3 点击行星** — 聚焦行星，显示恒星与行星之间的 SVG 切线连接线；再次点击打开链接；30 秒自动取消聚焦
+- **滚动** — 物理动量惯性（`FRICTION=0.955`），驱动全部 3D 动画
+- **点击** — 快进跳至末尾（2s GSAP tween）；Act 3 点击行星聚焦（NDC 投影检测）
+- **行星聚焦** — 相机绕行 + SVG 切线连接线 + 30s 自动取消；再次点击打开链接；聚焦时阻止滚轮
 
-## 架构设计
+## 架构
 
-### 当前实现（R3F · Editor-CyDlen 分支）
+| 层 | 技术栈 |
+|----|------|
+| UI | React 19 + @gsap/react |
+| 3D | R3F v9 + Three.js 0.170 + InstancedMesh2 |
+| 状态 | Zustand v5（渲染态）+ useState（UI 态） |
+| 动画 | GSAP ScrollTrigger（命令式滚动）+ R3F useFrame（声明式渲染） |
+| 构建 | Vite 6 + TypeScript + Vitest (13 tests) |
 
-| 层 | 技术 | 援引 |
-|----|------|------|
-| UI 框架 | React 19 + @gsap/react | — |
-| 3D 引擎 | React Three Fiber v9 + Drei v10 | pmndrs 生态 ~45k ★ |
-| 滚动驱动 | GSAP ScrollTrigger（命令式）+ R3F useFrame（声明式渲染） | Codrops 2025, Builder.io, Ringston 3D |
-| 状态管理 | Zustand v5（渲染状态）+ React useState（UI 状态） | R3F 官方"五类出口"，Galaxy Voyager |
-| 场景管理 | Act 组件 + `visible` prop（始终挂载，不 mount/unmount） | R3F Performance Pitfalls |
-| 粒子系统 | 3 主行星独立 Mesh + 132 碎片 InstancedMesh2（逐实例透明度） | `@three.ez/instanced-mesh` |
-| 测试 | L1 纯函数全覆盖 (13 tests) + L2 场景图验证 | vitest + @react-three/test-renderer |
-| 语言 | TypeScript（`.tsx`） | R3F 自身以 TS 编写 |
-| 构建 | Vite 6 + tsc | — |
+**组件分工：** `App.tsx` 滚动物理 + DOM 叠加层；R3F Canvas 内组件负责全部 3D 场景、动画循环、Act 调度。
+
+**场景常量：** `SCENE_CENTER_Z = -16.0`，轨道中心 `(0, -1.0, -16)`，行星轨道半径 `[3.6, 5.0, 6.4]`
+
+**设计文档：** `docs/superpowers/specs/` | **调试记录：** `docs/dev-blog/` | **维护手册：** `docs/MAINTENANCE.md`
 
 ## 渲染管线
 
-### 触发方式
-
-R3F Canvas 使用 `frameloop="demand"`，仅在 `invalidate()` 被调用时渲染一帧：
-
-```
-GSAP ticker / ScrollTrigger onUpdate
-  → setScrollProgress(sp)
-  → Zustand scrollStore
-  → ScrollInvalidator.subscribe
-  → invalidate()
-  → R3F 执行一帧（所有 useFrame 回调 + WebGL 渲染）
-```
-
-### 渲染层级
-
-Three.js 按 `renderOrder` 从小到大分组渲染。**`renderOrder` 不继承**——每个几何体对象须显式设置。透明对象（`transparent: true`）在各组内按距离排序。
+`frameloop="demand"` → `ScrollInvalidator` 订阅 Zustand 变化 → `invalidate()` → 所有 useFrame 执行 → WebGL 渲染。
 
 | Layer | renderOrder | 对象 | depthWrite | 说明 |
 |:---:|:---:|------|:---:|------|
-| 0 | 0 | 海浪线、灯塔 Mesh、光束锥体/射线/辉光 | false | 背景层，最先渲染 |
-| 1 | 1 | 恒星光晕球、Halo 精灵、**主行星 ×3** | 行星=true 其余=false | 天体层 |
-| 2 | 2 | 恒星核心球、轨道环、陀螺仪环、网格线、**碎片 ×132** | false | 前景层 |
-| 9999 | 9999 | 行星标签 Sprite | false（depthTest=false） | 始终可见 |
+| 0 | 0 | 海浪线、灯塔、光束锥体/射线/辉光 | false | 背景层 |
+| 1 | 1 | 恒星光晕+Halo、主行星×3 | 行星=true | 天体层 |
+| 2 | 2 | 恒星核心、轨道环、陀螺仪环、网格线、碎片×132 | 核心=true | 前景层 |
+| 9999 | 9999 | 行星标签 Sprite | false（无深度测试） | 始终可见 |
 
-### 深度写入规则
-
-- `depthWrite=true` → 写入深度缓冲，遮挡后续渲染的同类对象
-- `depthWrite=false` → 不写深度，不会遮挡任何对象
-- `depthTest=false` → 忽略深度，始终渲染在最前面（仅标签）
-
-**设计文档：** `docs/superpowers/specs/2026-06-10-r3f-refactor-design.md`
-**技术评估：** `docs/TECH_STACK_EVALUATION.md`
-**交接文档：** `docs/HANDOFF.md`
-**调试记录：** `docs/dev-blog/`（色调映射、shader 编译、场景图可见性）
-
-### 源文件结构（34 个文件）
-
-```
-src/
-├── main.tsx                        入口 + GSAP 注册
-├── App.tsx / App.css               滚动物理 + DOM 叠加层 + SVG 聚焦 + CSS 变量
-├── vite-env.d.ts
-├── r3f/
-│   ├── Canvas.tsx                  R3F Canvas（flat, frameloop: demand）
-│   ├── ScrollRig.ts                sp 阈值 + sceneApplyWhiteOut
-│   ├── ScrollInvalidator.tsx       Zustand 订阅 → invalidate() + 全局雾更新
-│   └── PlanetClickHandler.tsx      NDC 投影行星点击检测
-├── stores/
-│   └── scrollStore.ts             Zustand（scrollSlice + focusSlice + overlayData）
-├── types/
-│   └── index.ts                   SCROLL_RIG + ParticleData + PlanetLink + OverlayData
-├── acts/
-│   ├── Act1OceanVoyage.tsx         OceanWaves + Lighthouse + LightBeam + LighthouseCapture
-│   ├── Act2GridTransition.tsx      GridLines
-│   └── Act3ContentPhase.tsx        OrbitRings + CentralStar + PlanetLabel + 相机聚焦
-├── actors/
-│   ├── Lighthouse.tsx             30 Mesh 声明式灯塔（暴露 ref 供离屏截图）
-│   ├── LightBeam.tsx              3 锥体 + 2 射线 + 辉光 + 3 模式动画 + 点光源
-│   ├── SceneLights.tsx            全局环境光 + 2x 方向光（始终挂载）
-│   ├── OceanWaves.tsx             50 条线，逐顶点波浪动画
-│   ├── DustField.tsx              3 Planet + InstancedMesh2(132)，per-frame 更新（Canvas 根层级）
-│   ├── CentralStar.tsx            核心 + 光晕 + Canvas 精灵 halo
-│   ├── OrbitRings.tsx             3 轨道环 + 3 陀螺仪环
-│   ├── GridLines.tsx              28 垂直线 + 210 节点
-│   ├── PlanetLabel.tsx            Canvas → Sprite（位置跟随 + 聚焦淡出 lerp）
-│   └── LighthouseCapture.tsx      独立 WebGLRenderer 离屏渲染 → PNG（FOV=25，灯塔居中）
-├── behaviors/
-│   ├── useCameraFocus.ts          相机双层平滑 + 绕行 + 30s 自动取消 + SVG overlay
-│   ├── useFrameCache.ts           帧缓存守卫（time + sp 重复跳过）
-│   ├── useOrbitPosition.ts        轨道位置纯函数（可 L1 单测）
-│   ├── useAppearanceFade.ts       缩放/透明度/颜色过渡纯函数（可 L1 单测）
-│   ├── useOcclusionFade.ts        聚焦遮挡淡化纯函数（可 L1 单测）
-│   ├── useScreenSpaceHover.ts     NDC 投影悬停检测 + 迟滞阈值
-│   └── __tests__/
-│       ├── smoothstep.test.ts     6 个 L1 纯函数测试
-│       ├── toward.test.ts
-│       └── r3f-components.test.tsx 7 个 L2 场景图测试
-├── shaders/
-│   └── VolumetricBeamShader.ts    自定义光束着色器
-└── utils/
-    ├── smoothstep.ts / toward.ts / shortestDelta.ts
-```
+**renderOrder 不继承：** 每个几何体对象须显式设置。`DustField` 在 Canvas 根层级（不在 Act group 内）。
 
 ## 开发
 
 ```bash
-npm install       # 安装依赖（或 pnpm install && pnpm approve-builds esbuild）
-npm run dev       # 启动开发服务器（localhost:5173，绑定 0.0.0.0）
-npm run build     # 生产构建（tsc + vite）→ dist/
-npm run preview   # 预览生产构建
-npm run test      # 运行 vitest（13 tests，3 suites）
-npm run test:ui   # 浏览器测试 UI
-npm run clean     # 清除 dist + .vite 缓存 + tsbuildinfo
-npm run mirror    # 监控后台进程（Vite :5173, Stats :9999）
+npm install && npm run dev       # → localhost:5173
+npm run build                    # tsc + vite → dist/
+npm run test                     # vitest（13 tests / 3 suites）
+npm run clean && npm run mirror  # 辅助脚本
 ```
 
-开发服务器将 `/api/*` 代理至 `http://127.0.0.1:9999`（去除 `/api` 前缀）。
+## 维护约束
 
-## 维护约定
-
-- **方案修正或项目结构变更时，必须同步更新本 README**——保持文档与实际架构一致
-- **每个 R3F 方案决策必须援引社区成熟方案并说明来源**——方便后续评估、维护与持续学习
-- 面向人类的项目介绍见本文件，面向 Claude Code 的工作约束见 `CLAUDE.md`
+- 方案修正或项目结构变更时，必须同步更新本文件
+- 每个 R3F 方案决策必须援引社区方案并说明来源
+- 面向 Claude Code 的约束见 `CLAUDE.md`
 
 ## 附属服务
 
-- `stats_server.py` — 独立 Python 后端，`/api/stats` 系统指标端点
+- `stats_server.py` — 独立 Python 后端，`/api/stats`
 - `mainpage.nginx.dev.conf` / `mainpage.nginx.prod.conf` — Nginx 配置
