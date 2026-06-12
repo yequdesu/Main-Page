@@ -9,9 +9,9 @@
 | 文件 | 对象类型 | 生命周期 | renderOrder | 动画 |
 |------|----------|----------|:---:|------|
 | `Lighthouse.tsx` | 30 Mesh（`MeshStandardMaterial`） | Act1 group 内 | 0 | 无（静态） |
-| `LightBeam.tsx` | 3 Cone + 2 Line + 1 Glow + PointLight | Act1 group 内 | 0 | 3 模式（空闲漫游/滚动归位/白化） |
+| `LightBeam.tsx` | 3 Cone + 2 Line + 1 Glow + PointLight | Act1 group 内 | 0 | 3 模式 + 每帧发布光束世界变换（供 OceanWaves 体积光照） |
 | `SceneLights.tsx` | AmbientLight + 2 DirectionalLight | Canvas 根层级 | — | 无（全局静态灯光） |
-| `OceanWaves.tsx` | 50 Line（逐顶点动画） | Act1 group 内 | 0 | 波浪 Y 偏移 + 颜色过渡 |
+| `OceanWaves.tsx` | 30 Line（逐顶点动画） | Act1 group 内 | 0 | 波浪 Y 偏移 + 体积聚光照明（读 _beamWorldOrigin/Direction） |
 | `DustField.tsx` | 3 Mesh（主行星） + InstancedMesh2 ×132（碎片） | **Canvas 根层级** | 1/2 | 位置/颜色/透明度逐帧更新 |
 | `CentralStar.tsx` | 2 Mesh（核心+光晕） + Sprite（Halo） | Act3 group 内 | 1/2/1 | 光晕脉冲 + 透明度 |
 | `OrbitRings.tsx` | 3 Line（轨道参考线） | Act3 group 内 | 2 | 透明度 |

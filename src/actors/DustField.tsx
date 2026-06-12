@@ -48,7 +48,7 @@ export default function DustField() {
 
   // ---- Create particle data + meshes (one-time, like useMemo) ----
   const { mainPlanets, particleData, mainPlanetIndices, debrisGrayHexes } = useMemo(() => {
-    const count = 135
+    const count = 83
     const dustConfigs: { scale: number; sizeBoost: number; totalSize: number }[] = []
 
     for (let i = 0; i < count; i++) {
@@ -149,10 +149,10 @@ export default function DustField() {
   const debrisMesh = useMemo(() => {
     const geo = new SphereGeometry(0.015, 10, 8)
     const mat = new MeshBasicMaterial({ color: '#ffffff', transparent: true, depthWrite: false, depthTest: true })
-    const mesh = new InstancedMesh2(geo, mat, { capacity: 132, renderer: gl })
+    const mesh = new InstancedMesh2(geo, mat, { capacity: 80, renderer: gl })
     mesh.renderOrder = 2
     mesh.sortObjects = true
-    mesh.addInstances(132)
+    mesh.addInstances(80)
     return mesh
   }, [gl])
   const debrisRef = useRef<InstancedMesh2>(debrisMesh)

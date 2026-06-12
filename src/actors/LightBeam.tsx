@@ -1,6 +1,6 @@
 import { useRef, useMemo } from 'react'
 import { useFrame } from '@react-three/fiber'
-import { Group, Color, ConeGeometry, SphereGeometry, BufferGeometry, Vector3, BufferAttribute, ShaderMaterial, MeshBasicMaterial, AdditiveBlending, DoubleSide, LineBasicMaterial, AmbientLight, PointLight, MathUtils, type Mesh, type Line } from 'three'
+import { Group, Color, Quaternion, ConeGeometry, SphereGeometry, BufferGeometry, Vector3, BufferAttribute, ShaderMaterial, MeshBasicMaterial, AdditiveBlending, DoubleSide, LineBasicMaterial, AmbientLight, PointLight, MathUtils, type Mesh, type Line } from 'three'
 import { VolumetricBeamShader } from '../shaders/VolumetricBeamShader'
 import { useScrollStore } from '../stores/scrollStore'
 import { smoothstep, clamped, SCENE_CENTER_Z, WHITE_OUT_THRESHOLD, WHITE_OUT_END, IDLE_RESET_DELAY } from '../r3f/ScrollRig'
@@ -15,6 +15,12 @@ function shortestDelta(from: number, to: number): number {
 
 // 预分配（跨帧复用）
 const _lastBeam = { time: -1, sp: -1 }
+
+// 共享光束世界空间变换 — OceanWaves 读取用于波面照亮计算
+export const _beamWorldOrigin = new Vector3()
+export const _beamWorldDirection = new Vector3()
+const _beamQuat = new Quaternion()
+const _beamFwd = new Vector3()
 
 /**
  * 灯塔光束 + 灯光 — 3 模式动画。
@@ -160,6 +166,12 @@ export default function LightBeam({ lighthouseY = -0.428 }: LightBeamProps) {
     if (ptLightRef.current) {
       ptLightRef.current.intensity = (3.0 + Math.pow(sp, 1.5) * 12 + wof * 50) * beamFade
     }
+
+    // 发布光束世界空间变换供 OceanWaves 读取
+    pivot.getWorldPosition(_beamWorldOrigin)
+    pivot.getWorldQuaternion(_beamQuat)
+    _beamFwd.set(0, 0, 1).applyQuaternion(_beamQuat)
+    _beamWorldDirection.copy(_beamFwd)
   })
 
   return (

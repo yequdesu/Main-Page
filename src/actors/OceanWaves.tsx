@@ -1,10 +1,15 @@
 import { useMemo, useRef, useEffect } from 'react'
 import { useFrame } from '@react-three/fiber'
-import { Line, Color, BufferGeometry, BufferAttribute, LineBasicMaterial } from 'three'
+import { Line, Color, BufferGeometry, BufferAttribute, LineBasicMaterial, Vector3 } from 'three'
 import { useScrollStore } from '../stores/scrollStore'
 import { useFrameCache } from '../behaviors/useFrameCache'
 import { smoothstep, clamped, WHITE_OUT_THRESHOLD, WHITE_OUT_END, GRID_START, VERTICAL_START, GRID_SHIFT_START } from '../r3f/ScrollRig'
+import { _beamWorldOrigin, _beamWorldDirection } from './LightBeam'
 import type { WaveLineData, WaveBaseColor } from '../types'
+
+// 预分配 — 波面光束交运算
+const _toVertex = new Vector3()
+const _projOnBeam = new Vector3()
 
 /**
  * 海洋波浪线 — 50 条 Line，逐顶点动画。
@@ -30,7 +35,7 @@ export default function OceanWaves() {
       const frequency = 0.12 + curveT * 0.22
       const speed = 0.35 * curveT + 0.05
       const phase = Math.random() * Math.PI * 2
-      const opacity = 0.15 + curveT * 0.55
+      const opacity = 0.10
       const span = 45 + curveT * 35
 
       const v = Math.floor(200 + curveT * 55)
@@ -107,6 +112,7 @@ export default function OceanWaves() {
 
       const rawZ = d.z
       const baseDepthFade = Math.max(0, Math.min(1, (rawZ - (-52)) / 20.0))
+      let lineMaxBf = 0
 
       for (let j = 0; j <= d.segCount; j++) {
         const idx = j * 3
@@ -122,10 +128,31 @@ export default function OceanWaves() {
         cArr[idx]     = bc.r + (targetCol.r - bc.r) * gridFactor
         cArr[idx + 1] = bc.g + (targetCol.g - bc.g) * gridFactor
         cArr[idx + 2] = bc.b + (targetCol.b - bc.b) * gridFactor
+
+        // ---- Volumetric spotlight illumination ----
+        // 聚合该线上所有顶点的最大 beamFactor
+        const vy = pArr[idx + 1]
+        _toVertex.set(x, vy, rawZ).sub(_beamWorldOrigin)
+        const tBeam = _toVertex.dot(_beamWorldDirection)
+        if (tBeam > 0 && tBeam < 42) {
+          _projOnBeam.copy(_beamWorldDirection).multiplyScalar(tBeam)
+          const distFromAxis = _toVertex.distanceTo(_projOnBeam)
+          const beamRadius = tBeam * 0.14
+          const softEdge = beamRadius * 1.6
+          if (distFromAxis < softEdge) {
+            const bf = distFromAxis < beamRadius
+              ? 1.0
+              : 1.0 - (distFromAxis - beamRadius) / (softEdge - beamRadius)
+            if (bf > lineMaxBf) lineMaxBf = bf
+          }
+        }
       }
       pa.needsUpdate = true
       ca.needsUpdate = true
-      ;(line.material as LineBasicMaterial).opacity = (d.opacity + (0.45 - d.opacity) * gridFactor) * baseDepthFade * gridOpacityMult * 0.5
+      // 透明度：基础 10%，光束扫过时平滑提升至 50%
+      const baseOpacity = d.opacity + (0.45 - d.opacity) * gridFactor
+      const litOpacity = 0.10 + lineMaxBf * 0.40  // 10% → 50%
+      ;(line.material as LineBasicMaterial).opacity = (baseOpacity + (litOpacity - baseOpacity) * lineMaxBf) * baseDepthFade * gridOpacityMult
     }
   })
 
