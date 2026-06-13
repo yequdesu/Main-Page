@@ -19,54 +19,34 @@
   pointer-events: none;
 }
 
-/* ---- Liquid Glass (Vivid) ---- */
+/* ---- Glass ---- */
 .terminal-bar-inner {
   position: relative;
   margin: 0 auto;
   width: min(90vw, 640px);
-  background: linear-gradient(
-    135deg,
-    rgba(15, 25, 45, 0.50),
-    rgba(20, 35, 55, 0.45)
-  );
-  border: 1px solid rgba(100, 180, 255, 0.18);
+  background: rgba(15, 20, 35, 0.05);
+  border: none;
   border-radius: 12px;
   padding: 8px 14px;
-  backdrop-filter: blur(28px);
-  -webkit-backdrop-filter: blur(28px);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.10),
-    0 8px 32px rgba(0, 0, 0, 0.20);
-  transition: background-color 0.3s ease, border-color 0.3s ease;
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.12);
+  transition: background-color 0.3s ease, box-shadow 0.2s ease;
   pointer-events: auto;
   overflow: hidden;
 }
 
-/* 多层径向渐变光晕 */
-.terminal-bar-inner::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  background:
-    radial-gradient(ellipse at 25% 15%, rgba(80, 150, 255, 0.12), transparent 50%),
-    radial-gradient(ellipse at 75% 85%, rgba(60, 180, 240, 0.08), transparent 50%),
-    radial-gradient(ellipse at 50% 50%, rgba(120, 180, 255, 0.04), transparent 70%);
-  border-radius: inherit;
-  z-index: 0;
+.terminal-bar-inner:hover {
+  box-shadow:
+    0 0 0 1px var(--tw-ring, rgba(200, 220, 255, 0.45)),
+    0 0 0 4px var(--tw-ring-outer, rgba(180, 210, 255, 0.14)),
+    0 2px 12px rgba(0, 0, 0, 0.12);
 }
 
 .terminal-bar-inner.active {
-  border-color: rgba(100, 180, 255, 0.28);
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.14),
-    0 8px 32px rgba(0, 0, 0, 0.25);
-}
-
-/* 内容层叠在 ::before 之上 */
-.terminal-bar-inner > * {
-  position: relative;
-  z-index: 1;
+    0 0 0 1px var(--tw-ring-active, rgba(180, 210, 255, 0.30)),
+    0 2px 12px rgba(0, 0, 0, 0.15);
 }
 
 /* ---- Scrollable wrapper in terminal context ---- */

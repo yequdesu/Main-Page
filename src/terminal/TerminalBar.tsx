@@ -1,13 +1,19 @@
-import { useEffect, useRef, useCallback, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useCallback, useState } from 'react'
 import { useScrollStore } from '../stores/scrollStore'
 import { useTypewriter } from './useTypewriter'
 import { executeCommand } from './commands'
 import Scrollable from './Scrollable'
 import type { ScrollableHandle, ScrollOverlayState } from './Scrollable'
+import { useEchoSequence } from './useEchoSequence'
+import type { EchoStrategy } from './useEchoSequence'
 import './TerminalBar.css'
 
 // ---- 默认 typewriter 配置 ----
 const DEFAULT_ECHO_TEXT = '# YeQuDesu · Personal Site · ready'
+const MAX_ECHO_LINES = 5
+const HEIGHT_SHRINK_PER_LINE = 0.15
+const HEIGHT_GROW_PER_LINE = 0.15
+const ECHO_GROW_DELAY = 0.25
 
 const ACT_NAMES: Record<number, string> = {
   0: 'OceanVoyage',
@@ -52,6 +58,8 @@ export default function TerminalBar() {
   const setTerminalMode = useScrollStore((s) => s.setTerminalMode)
   const setInputValue = useScrollStore((s) => s.setInputValue)
   const appendEcho = useScrollStore((s) => s.appendEcho)
+  const appendLastEcho = useScrollStore((s) => s.appendLastEcho)
+  const setEchoLine = useScrollStore((s) => s.setEchoLine)
   const clearInput = useScrollStore((s) => s.clearInput)
   const setTypewriterDone = useScrollStore((s) => s.setTypewriterDone)
 
@@ -59,6 +67,29 @@ export default function TerminalBar() {
   const barInnerRef = useRef<HTMLDivElement | null>(null)
   const scrollableRef = useRef<ScrollableHandle | null>(null)
   const [hasFocus, setHasFocus] = useState(false)
+
+  // ---- Echo 动画 ----
+  const echoPlayingRef = useRef(false)
+
+  const handleLineRevealed = useCallback(() => {
+    const el = scrollableRef.current?.getScrollElement()
+    if (!el) return
+    const lh = scrollableRef.current?.getLineHeight() ?? 18
+    const nearBottom = el.scrollTop + el.clientHeight >= el.scrollHeight - lh * 1.5
+    if (nearBottom) el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' })
+  }, [])
+
+  const echoStrategy: EchoStrategy = 'line-by-line'
+  const { play: _playEcho, cancel: cancelEcho } = useEchoSequence(
+    appendEcho, setEchoLine,
+    { strategy: echoStrategy, growDelay: ECHO_GROW_DELAY, onLineRevealed: handleLineRevealed },
+  )
+
+  const playEcho = useCallback(async (startIndex: number, lines: string[]) => {
+    echoPlayingRef.current = true
+    await _playEcho(startIndex, lines)
+    echoPlayingRef.current = false
+  }, [_playEcho])
 
   // ---- 随 canvas 背景白化动态调整字体颜色 ----
   useEffect(() => {
@@ -75,6 +106,9 @@ export default function TerminalBar() {
       el.style.setProperty('--tw-input', lerpHex('#e2e8f0', '#1e293b', t))
       el.style.setProperty('--tw-cursor-bright', lerpHex('#e2e8f0', '#1e293b', t))
       el.style.setProperty('--tw-cursor-dim', lerpHex('#0ea5e9', '#0369a1', t))
+      el.style.setProperty('--tw-ring', lerpRgba('rgba(200,220,255,0.45)', 'rgba(30,64,175,0.30)', t))
+      el.style.setProperty('--tw-ring-outer', lerpRgba('rgba(180,210,255,0.14)', 'rgba(30,64,175,0.08)', t))
+      el.style.setProperty('--tw-ring-active', lerpRgba('rgba(180,210,255,0.30)', 'rgba(30,64,175,0.20)', t))
     }
     update()
     const unsub = useScrollStore.subscribe(() => update())
@@ -92,7 +126,10 @@ export default function TerminalBar() {
     if (isDone && !typewriterDone) {
       setTypewriterDone(true)
       setTerminalMode('idle')
+      // 仅设 DEFAULT_ECHO_TEXT，状态行由 updater 自动追加
+      useScrollStore.setState({ echoLines: [DEFAULT_ECHO_TEXT] })
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isDone, typewriterDone, setTypewriterDone, setTerminalMode])
 
   // ---- 状态行构建 ----
@@ -103,16 +140,31 @@ export default function TerminalBar() {
     return `# Act ${sp < 0.45 ? '1' : sp < 0.85 ? '2' : '3'} · ${act} · scroll ${pct}%`
   }, [])
 
-  // 实时更新 echoLines[0]（idle/active 态）
+  // 实时更新状态行（末尾追加/更新，echo 动画期间抑制）
+  const statusLineIdx = useRef(-1)
+
   useEffect(() => {
     if (terminalMode === 'typing') return
     const update = () => {
+      if (echoPlayingRef.current) return
       const line = buildStatusLine()
-      const current = useScrollStore.getState().echoLines
-      if (current[0] !== line) {
-        useScrollStore.setState((s) => ({
-          echoLines: [line, ...s.echoLines.slice(1)],
-        }))
+      const lines = useScrollStore.getState().echoLines
+      let idx = statusLineIdx.current
+      // 状态行尚未定位或已失效 → 在末尾查找状态行特征
+      if (idx < 0 || idx >= lines.length || !lines[idx].startsWith('# Act ')) {
+        idx = -1
+        for (let i = lines.length - 1; i >= 0; i--) {
+          if (lines[i].startsWith('# Act ')) { idx = i; break }
+        }
+      }
+      if (idx >= 0 && idx < lines.length && lines[idx] !== line) {
+        const next = [...lines]
+        next[idx] = line
+        useScrollStore.setState({ echoLines: next })
+      } else if (idx < 0 && lines.length > 0) {
+        // 新增状态行到末尾
+        useScrollStore.setState({ echoLines: [...lines, line] })
+        statusLineIdx.current = lines.length
       }
     }
     update()
@@ -120,9 +172,60 @@ export default function TerminalBar() {
     return unsubscribe
   }, [terminalMode, buildStatusLine])
 
-  // ---- echoLines 变化 → 自动滚动到底部 ----
-  useEffect(() => {
-    scrollableRef.current?.scrollToBottom()
+  // ---- echoLines 变化 → 高度动画 + 滚动 ----
+  const prevLineCount = useRef(echoLines.length)
+  const prevHeightRef = useRef(0)
+  const heightTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+  const animatingRef = useRef(false)
+
+  useLayoutEffect(() => {
+    const el = scrollableRef.current?.getScrollElement()
+    if (!el) return
+
+    const prev = prevLineCount.current
+    const curr = echoLines.length
+    prevLineCount.current = curr
+
+    const newH = el.scrollHeight
+    const oldH = prevHeightRef.current
+
+    if (curr < prev && oldH > 0 && newH < oldH) {
+      animatingRef.current = true
+      const duration = (prev - curr) * HEIGHT_SHRINK_PER_LINE
+      el.style.overflow = 'hidden'
+      el.style.height = oldH + 'px'
+      el.style.transition = `height ${duration}s ease`
+      el.offsetHeight
+      el.style.height = newH + 'px'
+    } else if (curr > prev && oldH > 0) {
+      if (!animatingRef.current) {
+        animatingRef.current = true
+        el.style.overflow = 'hidden'
+        el.style.height = oldH + 'px'
+        el.style.transition = `height ${HEIGHT_GROW_PER_LINE}s ease`
+        el.offsetHeight
+        el.style.height = newH + 'px'
+      } else {
+        el.style.height = newH + 'px'
+      }
+    }
+
+    const cleanup = () => {
+      el.style.height = ''
+      el.style.transition = ''
+      el.style.overflow = ''
+      animatingRef.current = false
+      el.removeEventListener('transitionend', cleanup)
+      if (heightTimerRef.current) clearTimeout(heightTimerRef.current)
+      scrollableRef.current?.scrollToBottom()
+    }
+    el.addEventListener('transitionend', cleanup, { once: true })
+    if (curr !== prev) {
+      heightTimerRef.current = setTimeout(cleanup, (Math.abs(curr - prev) * HEIGHT_GROW_PER_LINE) * 1000 + 200)
+    }
+
+    prevHeightRef.current = el.scrollHeight
+    return () => { if (heightTimerRef.current) clearTimeout(heightTimerRef.current) }
   }, [echoLines])
 
   // ---- active 时自动聚焦隐藏 input ----
@@ -161,12 +264,19 @@ export default function TerminalBar() {
 
       if (e.key === 'Enter') {
         e.preventDefault()
-        const output = executeCommand(inputValue)
-        if (output) {
-          appendEcho(`$ ${inputValue}`)
-          output.split('\n').forEach((line) => appendEcho(line))
-        }
+        const trimmed = inputValue.trim()
         clearInput()
+
+        if (trimmed === 'clear' || trimmed === 'cls') {
+          useScrollStore.setState({ echoLines: [DEFAULT_ECHO_TEXT] })
+          return
+        }
+
+        const output = executeCommand(trimmed)
+        if (output) {
+          const startIndex = useScrollStore.getState().echoLines.length
+          playEcho(startIndex, [`$ ${trimmed}`, ...output.split('\n')])
+        }
         return
       }
 
@@ -243,7 +353,7 @@ export default function TerminalBar() {
         <Scrollable
           ref={scrollableRef}
           scrollable={isActive}
-          maxHeight="calc(6 * 1.6em)"
+          maxHeight={`calc(${MAX_ECHO_LINES} * 1.6em)`}
           overlay={renderOverlay}
           className="terminal-echo-scrollable"
         >

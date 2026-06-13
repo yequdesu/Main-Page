@@ -46,6 +46,8 @@ interface TerminalActions {
   setTerminalMode: (mode: TerminalMode) => void
   setInputValue: (val: string) => void
   appendEcho: (line: string) => void
+  appendLastEcho: (text: string) => void
+  setEchoLine: (index: number, text: string) => void
   clearInput: () => void
   setTypewriterDone: (done: boolean) => void
 }
@@ -91,6 +93,19 @@ export const useScrollStore = create<ScrollStore>()((set) => ({
   setInputValue: (val) => set({ inputValue: val }),
   appendEcho: (line) =>
     set((s) => ({ echoLines: [...s.echoLines, line] })),
+  appendLastEcho: (text) =>
+    set((s) => {
+      const lines = [...s.echoLines]
+      if (lines.length === 0) lines.push(text)
+      else lines[lines.length - 1] += text
+      return { echoLines: lines }
+    }),
+  setEchoLine: (index, text) =>
+    set((s) => {
+      const lines = [...s.echoLines]
+      if (index >= 0 && index < lines.length) lines[index] = text
+      return { echoLines: lines }
+    }),
   clearInput: () => set({ inputValue: '' }),
   setTypewriterDone: (done) => set({ typewriterDone: done }),
 }))

@@ -46,6 +46,15 @@ export const commandRegistry: Command[] = [
       return 'switched to night mode'
     },
   },
+  {
+    name: 'clear',
+    aliases: ['cls'],
+    description: 'Clear the echo area',
+    handler: () => {
+      // 由 TerminalBar handleKeyDown 直接处理
+      return ''
+    },
+  },
 ]
 
 export function executeCommand(input: string): string {
