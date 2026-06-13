@@ -1,0 +1,33 @@
+/* ============================================================
+   Scrollable — 通用滚动容器 + overlay 层
+   援引：
+     Radix UI ScrollArea — viewport + scrollbar 分层模式
+     CSS scrollbar-width: none — 隐藏原生滚动条
+   ============================================================ */
+
+.scrollable-wrapper {
+  position: relative;
+}
+
+.scrollable-content {
+  overflow: hidden;
+  scrollbar-width: none;
+}
+
+.scrollable-content::-webkit-scrollbar {
+  display: none;
+}
+
+.scrollable-content.scrollable {
+  overflow-y: auto;
+}
+
+.scrollable-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  overflow: hidden;
+}

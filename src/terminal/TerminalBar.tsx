@@ -2,6 +2,8 @@ import { useEffect, useRef, useCallback, useState } from 'react'
 import { useScrollStore } from '../stores/scrollStore'
 import { useTypewriter } from './useTypewriter'
 import { executeCommand } from './commands'
+import Scrollable from './Scrollable'
+import type { ScrollableHandle, ScrollOverlayState } from './Scrollable'
 import './TerminalBar.css'
 
 // ---- 默认 typewriter 配置 ----
@@ -55,10 +57,8 @@ export default function TerminalBar() {
 
   const hiddenInputRef = useRef<HTMLInputElement | null>(null)
   const barInnerRef = useRef<HTMLDivElement | null>(null)
-  const echoRef = useRef<HTMLDivElement | null>(null)
+  const scrollableRef = useRef<ScrollableHandle | null>(null)
   const [hasFocus, setHasFocus] = useState(false)
-  const [canScrollUp, setCanScrollUp] = useState(false)
-  const [canScrollDown, setCanScrollDown] = useState(false)
 
   // ---- 随 canvas 背景白化动态调整字体颜色 ----
   useEffect(() => {
@@ -88,7 +88,6 @@ export default function TerminalBar() {
     echoText: DEFAULT_ECHO_TEXT,
   })
 
-  // 打字完成 &#x2192; 切换到 idle
   useEffect(() => {
     if (isDone && !typewriterDone) {
       setTypewriterDone(true)
@@ -96,7 +95,7 @@ export default function TerminalBar() {
     }
   }, [isDone, typewriterDone, setTypewriterDone, setTerminalMode])
 
-  // ---- 回显区内容 ----
+  // ---- 状态行构建 ----
   const buildStatusLine = useCallback(() => {
     const sp = useScrollStore.getState().scrollProgress
     const pct = Math.round(sp * 100)
@@ -121,6 +120,11 @@ export default function TerminalBar() {
     return unsubscribe
   }, [terminalMode, buildStatusLine])
 
+  // ---- echoLines 变化 → 自动滚动到底部 ----
+  useEffect(() => {
+    scrollableRef.current?.scrollToBottom()
+  }, [echoLines])
+
   // ---- active 时自动聚焦隐藏 input ----
   useEffect(() => {
     if (terminalMode === 'active' && hiddenInputRef.current) {
@@ -135,37 +139,15 @@ export default function TerminalBar() {
     }
   }, [terminalMode])
 
-  // ---- 回显区滚动 ----
-  const lineHeightRef = useRef(0)
-
-  const getLineHeight = useCallback(() => {
-    if (lineHeightRef.current > 0) return lineHeightRef.current
-    const el = echoRef.current
-    if (!el) return 18
-    const lh = parseFloat(getComputedStyle(el).lineHeight)
-    lineHeightRef.current = Number.isNaN(lh) ? 18 : lh
-    return lineHeightRef.current
-  }, [])
-
-  const checkScroll = useCallback(() => {
-    const el = echoRef.current
-    if (!el) return
-    const st = el.scrollTop
-    const ch = el.clientHeight
-    const sh = el.scrollHeight
-    setCanScrollUp(st > 0.5)
-    setCanScrollDown(st + ch < sh - 0.5)
-  }, [])
-
-  // 命令输出后自动滚到底部
-  useEffect(() => {
-    const el = echoRef.current
-    if (!el) return
-    requestAnimationFrame(() => {
-      el.scrollTop = el.scrollHeight
-      checkScroll()
-    })
-  }, [echoLines, checkScroll])
+  // ---- click-to-focus: 点击 bar 任意位置激活 ----
+  const handleBarClick = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation()
+    e.nativeEvent.stopImmediatePropagation()
+    const mode = useScrollStore.getState().terminalMode
+    if (mode === 'idle') {
+      setTerminalMode('active')
+    }
+  }, [setTerminalMode])
 
   // ---- 键盘处理 ----
   const handleKeyDown = useCallback(
@@ -190,19 +172,19 @@ export default function TerminalBar() {
 
       if (e.key === 'ArrowUp') {
         e.preventDefault()
-        const lh = getLineHeight()
-        echoRef.current?.scrollBy({ top: -lh, behavior: 'smooth' })
+        const lh = scrollableRef.current?.getLineHeight() ?? 18
+        scrollableRef.current?.scrollBy({ top: -lh })
         return
       }
 
       if (e.key === 'ArrowDown') {
         e.preventDefault()
-        const lh = getLineHeight()
-        echoRef.current?.scrollBy({ top: lh, behavior: 'smooth' })
+        const lh = scrollableRef.current?.getLineHeight() ?? 18
+        scrollableRef.current?.scrollBy({ top: lh })
         return
       }
     },
-    [inputValue, appendEcho, clearInput, setTerminalMode, getLineHeight]
+    [inputValue, appendEcho, clearInput, setTerminalMode]
   )
 
   const handleInputChange = useCallback(
@@ -235,60 +217,78 @@ export default function TerminalBar() {
   const showInputLine = !isTypingPhase
   const inputLineVisible = showInputLine && (hasFocus || inputValue.length > 0)
 
+  // ---- 滚动指示器 overlay ----
+  const renderOverlay = useCallback(
+    ({ canScrollUp, canScrollDown }: ScrollOverlayState) => (
+      <>
+        <span className={`echo-scroll-up${canScrollUp ? ' visible' : ''}`} aria-hidden="true">
+          {'▲'}
+        </span>
+        <span className={`echo-scroll-down${canScrollDown ? ' visible' : ''}`} aria-hidden="true">
+          {'▼'}
+        </span>
+      </>
+    ),
+    []
+  )
+
   return (
     <div className="terminal-bar" aria-hidden={!isActive}>
-      <div ref={barInnerRef} className={`terminal-bar-inner${isActive ? ' active' : ''}`}>
-        {/* 回显区 */}
-        <div className="terminal-echo" ref={echoRef} onScroll={checkScroll}>
-          {/* ▲ sticky top — 内容首行，吸附可视窗口顶部 */}
-          <span className={`echo-scroll-up${canScrollUp ? ' visible' : ''}`}>{'▲'}</span>
-          {isTypingPhase ? (
-            <>
-              <span className="echo-prefix">{displayedText}</span>
-              <span className="terminal-typing-cursor">{'█'}</span>
-            </>
-          ) : (
-            <>
-              {echoLines.length > 0 && (
-                <span>
-                  <span className="echo-prefix">{echoLines[0]}</span>
-                </span>
-              )}
-              {echoLines.slice(1).map((line, i) => (
-                <span key={i}>
-                  {'\n'}
-                  {line}
-                </span>
-              ))}
-            </>
-          )}
-          {/* ▼ sticky bottom — 内容末行，吸附可视窗口底部 */}
-          <span className={`echo-scroll-down${canScrollDown ? ' visible' : ''}`}>{'▼'}</span>
-        </div>
+      <div
+        ref={barInnerRef}
+        className={`terminal-bar-inner${isActive ? ' active' : ''}`}
+        onClick={handleBarClick}
+      >
+        {/* 回显区 — Scrollable 驱动 */}
+        <Scrollable
+          ref={scrollableRef}
+          scrollable={isActive}
+          maxHeight="calc(6 * 1.6em)"
+          overlay={renderOverlay}
+          className="terminal-echo-scrollable"
+        >
+          <div className="terminal-echo">
+            {isTypingPhase ? (
+              <>
+                <span className="echo-prefix">{displayedText}</span>
+                <span className="terminal-typing-cursor">{'█'}</span>
+              </>
+            ) : (
+              <>
+                {echoLines.length > 0 && (
+                  <span>
+                    <span className="echo-prefix">{echoLines[0]}</span>
+                  </span>
+                )}
+                {echoLines.slice(1).map((line, i) => (
+                  <span key={i}>
+                    {'\n'}
+                    {line}
+                  </span>
+                ))}
+              </>
+            )}
+          </div>
+        </Scrollable>
 
-        {/* 输入行 — typing 阶段隐藏；idle/active 通过 visible class 控制显隐 */}
+        {/* 输入行 */}
         {showInputLine && (
           <div className={`terminal-input-line${inputLineVisible ? ' visible' : ''}`}>
             <span className="terminal-prompt">{'$'}</span>
-            {/* 光标 — idle dim 在行首（placeholder 前），active 亮在输入文本后 */}
             {!isActive && !inputValue && (
               <span className="terminal-cursor dim">{'█'}</span>
             )}
-            {/* 用户输入文本（active + 有输入） */}
             {isActive && inputValue && (
               <span className="terminal-input-text">{inputValue}</span>
             )}
-            {/* active 光标跟随在输入文本末尾 */}
             {isActive && (
               <span className="terminal-cursor bright">{'█'}</span>
             )}
-            {/* placeholder（无输入时光标之后，idle/active 通用） */}
             {!inputValue && (
               <span className="terminal-placeholder">
                 type 'help' for available commands
               </span>
             )}
-            {/* 隐藏的 input 接收键盘 */}
             {isActive && (
               <input
                 ref={hiddenInputRef}
