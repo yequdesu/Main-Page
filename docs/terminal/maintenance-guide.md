@@ -220,22 +220,22 @@ echoPlayingRef.current === true？ → 跳过（回显动画进行中）
 
 ### 4.1 打字机动画
 
-**位置：** `useTypewriter.ts` + `TerminalBar.tsx:119-133`
+**位置：** `useTypewriter.ts` + `TerminalBar.tsx` typewriter completion effect
 
 **调参：**
 
 ```typescript
-// TerminalBar.tsx L119-123
-const { displayedText, isTyping, isDone } = useTypewriter({
-  startDelay: 800,     // 增大 → 开始更晚；减小 → 更快开始
-  charInterval: 40,    // 增大 → 打字更慢；减小 → 更快
-  echoText: DEFAULT_ECHO_TEXT,  // 修改文本改 DEFAULT_ECHO_TEXT 常量
-})
+// TerminalBar.tsx — DEFAULTS.animation 或 props
+// typewriterStartDelay: 800 (ms)
+// typewriterCharInterval: 40 (ms)
+// 更换欢迎文本 → DEFAULTS.text.welcomeText 或 props.text.welcomeText
 ```
 
-**常见修改：** 更换欢迎文本 → 修改 `TerminalBar.tsx:12` 的 `DEFAULT_ECHO_TEXT` 常量。
+**完成后的 gap 过渡（1.5s 光标闪烁）：**
 
-**注意：** `isDone` 变为 `true` 后，`TerminalBar.tsx:125-132` 的 `useEffect` 会执行一次性状态迁移（`typing` → `idle`），确保 `typewriterDone` 不会被重复设置。
+打字机全部字符显示完毕后，`useEffect` 设置 `setTimeout(1500)`，保持 typing 模式让光标继续闪烁。1.5s 后在 timer 回调内统一执行：`setTypewriterDone(true)` → `setMode('idle')` → `resetToWelcome()`。
+
+**⚠️ `setTypewriterDone(true)` 必须放在 timer 回调内，不能同步调用。** 原因：`typewriterDone` 在 effect deps 中。若同步调用，effect 立即重跑，cleanup 的 `clearTimeout` 会杀死刚设置的 timer，状态机卡死在 typing。详见 [dev-blog: 案例二](../../docs/dev-blog/react-effect-timing-traps.md#案例二setstate-杀死了自己的-settimeout)。
 
 ### 4.2 回显序列动画
 
@@ -652,6 +652,18 @@ import type { ScrollableHandle, ScrollOverlayState } from './Scrollable'
 ```
 
 不要从其他文件重新导出这些类型。
+
+### 6.10 调试记录索引
+
+关键 bug 的详细排查过程记录在 `docs/dev-blog/` 中：
+
+| 文件 | 内容 |
+|------|------|
+| `react-effect-timing-traps.md` | `useLayoutEffect` 残留回调覆盖动画；`setTypewriterDone` 同步调用导致 `clearTimeout` 杀死 timer |
+| `tone-mapping-debug.md` | R3F ACES 色调映射导致颜色偏差 |
+| `instanced-mesh-shader-compile.md` | InstancedMesh2 `setColorAt` 后需 `materialsNeedsUpdate()` |
+| `scene-graph-visibility.md` | DustField 嵌套在 Act1 group 内导致跨 Act 不可见 |
+| `matrix-compose-quaternion-nan.md` | 非 THREE.Quaternion 对象导致 Matrix4.compose 产生 NaN |
 
 ---
 

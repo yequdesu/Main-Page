@@ -561,7 +561,7 @@ interface TerminalActivationAPI {
 - `isActive`：selector 派生自 `terminalMode === 'active'`
 - 返回对象通过 `useMemo` 稳定引用
 
-**当前状态：** ⚠️ 此 hook 已定义、已测试，但 **App.tsx 未使用**。App.tsx 在第 154-165 行内联了相同的逻辑。这是有意保留的抽象，供未来重构 App.tsx 时使用。详见 [`maintenance-guide.md`](./maintenance-guide.md#61-已知问题)。
+**当前状态：** ✅ 已集成——App.tsx 通过 `useTerminalActivation()` 获取 `onKeyDown` 和 `isActive`，不再内联 `/` 键逻辑。
 
 ---
 
@@ -625,6 +625,12 @@ Terminal Bar 包含 **四个独立动画子系统**，各自有独立的触发�
 | 总时长（40 字符） | 800 + 40×40 = 2400ms |
 | 终止条件 | 全部字符显示完毕 |
 | 取消方式 | 组件卸载时 `clearTimeout` |
+
+**打字机完成后的 gap 过渡：**
+
+打字机全部字符显示完毕后，**不立即**进入 idle 态。保持 typing 模式 1.5s（1.5 个 cursor-blink 周期），光标继续闪烁，作为 welcome text 与 status line 之间的视觉间隙。1.5s 后通过 `setTimeout` 统一触发：`setTypewriterDone(true)` → `setMode('idle')` → `resetToWelcome()` → status line 追加。
+
+> ⚠️ `setTypewriterDone(true)` **必须**放在 `setTimeout` 回调内部而非同步调用——详见 [dev-blog: React Effect 时序陷阱](../../docs/dev-blog/react-effect-timing-traps.md#案例二setstate-杀死了自己的-settimeout)。
 
 ### 5.2 回显序列动画（Echo Sequence）
 
@@ -900,7 +906,8 @@ TerminalBar 通过 `barInnerRef.current.style.setProperty()` 设置 CSS 变量�
 |------|------|------|
 | 打字机 | 递归 `setTimeout` | 需要逐字符精确控制，`setInterval` 不适合可变间隔 |
 | 回显序列 | `async/await` + `delay()` | 两阶段异步流程，`await` 比回调链清晰 |
-| 高度动画 | CSS `transition` + `offsetHeight` | 合成器线程执行（不占 JS 主线程）；`animatingRef` 合并连续推送无需重启；曾评估 GSAP（引入 tween kill/restart 复杂度与依赖开销）后放弃 |
+| 高度动画 | CSS `transition` + `offsetHeight` | 合成器线程执行（不占 JS 主线程）；`animatingRef` 合并连续推送无需重启；曾评估 GSAP（引入 tween kill/restart 复杂度与依赖开销）后放弃；收缩动画（`clear`）需一次构建完整 echoLines 避免 `useLayoutEffect` 残留回调覆盖 |
+| Typewriter gap | `setTimeout` 延迟 `setTypewriterDone` | 1.5s 光标闪烁间隙；`setTypewriterDone` 必须放在 timer 回调内——同步调用会使 effect 重跑并 `clearTimeout` 杀死 timer |
 | 颜色插值 | `subscribe()` + `setProperty()` | 高频更新（60Hz），不能触发 re-render |
 
 ### 8.6 useTerminalActivation 的定位
