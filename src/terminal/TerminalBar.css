@@ -33,7 +33,6 @@
   box-shadow: 0 2px 12px rgba(0, 0, 0, 0.12);
   transition: background-color 0.3s ease, box-shadow 0.2s ease;
   pointer-events: auto;
-  overflow: hidden;
 }
 
 .terminal-bar-inner:hover {
@@ -58,7 +57,8 @@
 .terminal-echo {
   color: var(--tw-echo, #7c8aa0);
   white-space: pre-wrap;
-  word-break: break-all;
+  overflow-wrap: break-word;
+  word-break: normal;
   text-align: left;
 }
 
@@ -92,6 +92,7 @@
 
 /* ---- Input line ---- */
 .terminal-input-line {
+  position: relative;
   display: flex;
   align-items: baseline;
   text-align: left;
@@ -99,21 +100,17 @@
   max-height: 0;
   overflow: hidden;
   opacity: 0;
+  transform: translateY(2px);
   pointer-events: none;
-  transition: opacity 0.3s ease, margin-top 0.3s ease, max-height 0.3s ease;
+  transition: opacity 0.3s ease, margin-top 0.3s ease, max-height 0.3s ease, transform 0.3s ease;
 }
 
 .terminal-input-line.visible {
   margin-top: 5px;
   max-height: 2em;
   opacity: 1;
+  transform: translateY(0);
   pointer-events: auto;
-  animation: terminal-input-fade-in 0.3s ease-out;
-}
-
-@keyframes terminal-input-fade-in {
-  from { opacity: 0; transform: translateY(2px); }
-  to   { opacity: 1; transform: translateY(0); }
 }
 
 .terminal-prompt {

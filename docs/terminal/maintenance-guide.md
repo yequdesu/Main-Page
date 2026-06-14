@@ -45,6 +45,12 @@
 │er  ││                    │
 │.ts ││                    ▼
 └──┬─┘│          ┌──────────────┐
+   │  │          │useAnimate    │
+   │  │          │Height.ts     │
+   │  │          └──────┬───────┘
+   │  │                 │
+   │  │                 ▼
+   │  │          ┌──────────────┐
    │  │          │  Scrollable  │
    │  │          │  .tsx        │
    │  │          └──────────────┘
@@ -66,6 +72,7 @@
 | `commands.ts` — 修改 `executeCommand` | `TerminalBar.handleKeyDown` | 🟡 中 |
 | `useTypewriter.ts` | `TerminalBar` 打字机行为 | 🟡 中 |
 | `useEchoSequence.ts` | `TerminalBar` 回显动画 | 🟡 中 |
+| `useAnimateHeight.ts` | `TerminalBar` 高度动画 | 🟡 中 |
 | `Scrollable.tsx` | 所有使用该组件的地方（当前仅 TerminalBar） | 🟡 中 |
 | `TerminalBar.tsx` — 渲染逻辑 | 用户可见 UI | 🔴 高 |
 | `TerminalBar.css` | 用户可见视觉 | 🔴 高 |
@@ -80,8 +87,8 @@
 | 改打字机速度 | `TerminalBar.tsx:119-123` | `startDelay` / `charInterval` |
 | 改回显策略 | `TerminalBar.tsx:82` | `echoStrategy` 变量 |
 | 改回显速度 | `useEchoSequence.ts:31-33` | 默认 `lineDelay` / `charInterval` |
-| 改高度动画速度 | `TerminalBar.tsx:14-15` | `HEIGHT_GROW/SHRINK_PER_LINE` |
-| 改最大可见行数 | `TerminalBar.tsx:13` | `MAX_ECHO_LINES` |
+| 改高度动画速度 | `TerminalBar.tsx:15` 和 `useAnimateHeight.ts:76,107` | `HEIGHT_ANIM_PER_LINE` 和 `durationPerLine` |
+| 改最大可见行数 | `TerminalBar.tsx:14` | `MAX_ECHO_LINES` |
 | 改欢迎文本 | `TerminalBar.tsx:12` | `DEFAULT_ECHO_TEXT` |
 | 改颜色插值范围 | `TerminalBar.tsx:98` | `sp <= 0.40` / `sp >= 0.55` |
 | 改颜色的暗/亮值 | `TerminalBar.tsx:102-111` | `lerpHex` / `lerpRgba` 调用 |
@@ -260,47 +267,50 @@ const { play: _playEcho, cancel: cancelEcho } = useEchoSequence(
 
 ### 4.3 高度动画
 
-**位置：** `TerminalBar.tsx:176-229`
+**位置：** `useAnimateHeight.ts`（hook），`TerminalBar.tsx:176-183`（调用点）
 
-**核心机制：** CSS `transition: height {dur}s ease`，配合手动设置 `overflow: hidden` 防止过渡期间出现滚动条。
+**核心机制：** CSS `transition: height {dur}s ease` + `offsetHeight` 强制布局快照，封装在 `useAnimateHeight` hook 中。
 
-**动画流程：**
+**动画策略（三个分支）：**
 
 ```
-echoLines 变化
+echoLines 引用变化 → useLayoutEffect 触发
   ↓
-useLayoutEffect 检测 prev vs curr 行数
+┌─ curr < prev：SHRINK ───────────────────────┐
+│ 始终 lock oldH + 新 transition              │
+│ （不合并——收缩是用户主动操作如 clear）       │
+├─ curr > prev：GROW ─────────────────────────┤
+│ animatingRef=false → lock oldH + 新         │
+│   transition + offsetHeight                 │
+│ animatingRef=true → 仅 height = newH        │
+│   （transition 自然转向，连续不断开）         │
+├─ curr === prev：Phase 2 内容替换 ──────────┤
+│ 仅 prevHeightRef = scrollHeight             │
+│ （追踪折行导致的高度变化，不触发动画）       │
+└─────────────────────────────────────────────┘
   ↓
-┌─ 收缩动画（curr < prev）─────────────────────┐
-│ 1. 锁定旧高度（height = oldH）                │
-│ 2. 设置 transition                           │
-│ 3. 强制重排（访问 offsetHeight）              │
-│ 4. 设置新高度（height = newH）                │
-│    → CSS transition 从 oldH 平滑过渡到 newH   │
-└───────────────────────────────────────────────┘
-  ↓
-┌─ 增长动画（curr > prev）─────────────────────┐
-│ 如果不在动画中：                              │
-│   同上流程（每次增长独立动画）                 │
-│ 如果已在动画中：                              │
-│   直接更新 height = newH（连续增长，不断开）   │
-└───────────────────────────────────────────────┘
-  ↓
-监听 transitionend → 清理（移除行内样式 + scrollToBottom）
-安全超时 = duration × 1000 + 200ms → 同样清理（防止 transitionend 未触发）
+transitionend 事件 → 清理 inline styles + scrollToBottom()
+setTimeout 安全超时 → 兜底（transitionend 未触发时）
 ```
+
+**`offsetHeight` 的必要性：** 设置 `height=oldH` → 读取 `offsetHeight`（强制浏览器计算布局，创建"布局快照"）→ 设置 `height=newH`。浏览器在两次赋值之间看到了布局变化，才会触发 CSS transition。删除 `offsetHeight` 这行会导致 transition 不启动。
+
+**依赖隔离：** `getElement` 和 `options` 通过 ref 存储而非放入 deps 数组。Effect 仅在 `items`（echoLines 数组引用）变化时触发，与原方案 `[echoLines]` 依赖行为一致。避免每次 render 都重新运行动画逻辑。
 
 **调参：**
 
 ```typescript
-// TerminalBar.tsx L14-15
-const HEIGHT_SHRINK_PER_LINE = 0.15  // 秒/行 — 增大 = 收缩更慢
-const HEIGHT_GROW_PER_LINE = 0.15    // 秒/行 — 增大 = 增长更慢
+// TerminalBar.tsx L15
+const HEIGHT_ANIM_PER_LINE = 0.15  // 秒/行 — 增大 = 动画更慢
+
+// useAnimateHeight.ts — durationPerLine 选项
+// SHRINK: duration = (prev - curr) * durationPerLine
+// GROW:   duration = durationPerLine（固定，单次增长时长）
 ```
 
-**⚠️ 为什么用 `useLayoutEffect` 而非 `useEffect`？** 高度动画需要在浏览器绘制前同步完成 `oldH → transition → newH` 的设置序列。`useEffect` 的异步时机可能导致闪烁。
+**⚠️ 为什么用 `useLayoutEffect` 而非 `useEffect`？** 高度动画需要在浏览器绘制前同步完成 `oldH → transition → newH` 的设置序列。`useEffect` 的异步时机（paint 之后）会导致内容先跳变到新高度再被锁定回旧高度，产生闪烁。
 
-**⚠️ 连续增长的合并逻辑：** 如果回显动画逐行替换时，每次 `setEchoLine` 都触发 `echoLines` 变化（因为是新数组引用），进入 `useLayoutEffect`。此时 `animatingRef.current` 为 `true`（第一次增长设置的），后续调用直接更新 `height` 而不重新设置 transition，实现了"连续增长不断开"的效果。
+**⚠️ 曾评估 GSAP 方案：** `gsap.to()` 方案因需 kill/restart tween 处理连续推送（CSS transition 的 `animatingRef` 合并更自然），且 CSS transition 跑在合成器线程（无 JS 开销），最终放弃。
 
 ### 4.4 颜色插值
 
@@ -837,8 +847,7 @@ it('should render children', () => {
 |------|------|:---:|------|
 | `DEFAULT_ECHO_TEXT` | TerminalBar.tsx | `'# YeQuDesu · Personal Site · ready'` | 欢迎信息 |
 | `MAX_ECHO_LINES` | TerminalBar.tsx | `5` | 最大可见行数 |
-| `HEIGHT_SHRINK_PER_LINE` | TerminalBar.tsx | `0.15` | 收缩动画速度（s/行） |
-| `HEIGHT_GROW_PER_LINE` | TerminalBar.tsx | `0.15` | 增长动画速度（s/行） |
+| `HEIGHT_ANIM_PER_LINE` | TerminalBar.tsx | `0.15` | 高度动画速度（s/行，增长与收缩共用） |
 | `ECHO_GROW_DELAY` | TerminalBar.tsx | `0.25` | 回显占位延迟（s） |
 | `startDelay` | useTypewriter | `800` | 打字机启动延迟（ms） |
 | `charInterval` | useTypewriter | `40` | 打字机字符间隔（ms） |

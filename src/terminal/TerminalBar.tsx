@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useCallback, useState } from 'react'
+import { useEffect, useRef, useCallback, useState } from 'react'
 import { useScrollStore } from '../stores/scrollStore'
 import { useTypewriter } from './useTypewriter'
 import { executeCommand } from './commands'
@@ -6,13 +6,13 @@ import Scrollable from './Scrollable'
 import type { ScrollableHandle, ScrollOverlayState } from './Scrollable'
 import { useEchoSequence } from './useEchoSequence'
 import type { EchoStrategy } from './useEchoSequence'
+import { useAnimateHeight } from './useAnimateHeight'
 import './TerminalBar.css'
 
 // ---- 默认 typewriter 配置 ----
 const DEFAULT_ECHO_TEXT = '# YeQuDesu · Personal Site · ready'
 const MAX_ECHO_LINES = 5
-const HEIGHT_SHRINK_PER_LINE = 0.15
-const HEIGHT_GROW_PER_LINE = 0.15
+const HEIGHT_ANIM_PER_LINE = 0.15 // 高度动画每行时长 (s)，增长与收缩共用
 const ECHO_GROW_DELAY = 0.25
 
 const ACT_NAMES: Record<number, string> = {
@@ -173,60 +173,14 @@ export default function TerminalBar() {
   }, [terminalMode, buildStatusLine])
 
   // ---- echoLines 变化 → 高度动画 + 滚动 ----
-  const prevLineCount = useRef(echoLines.length)
-  const prevHeightRef = useRef(0)
-  const heightTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
-  const animatingRef = useRef(false)
-
-  useLayoutEffect(() => {
-    const el = scrollableRef.current?.getScrollElement()
-    if (!el) return
-
-    const prev = prevLineCount.current
-    const curr = echoLines.length
-    prevLineCount.current = curr
-
-    const newH = el.scrollHeight
-    const oldH = prevHeightRef.current
-
-    if (curr < prev && oldH > 0 && newH < oldH) {
-      animatingRef.current = true
-      const duration = (prev - curr) * HEIGHT_SHRINK_PER_LINE
-      el.style.overflow = 'hidden'
-      el.style.height = oldH + 'px'
-      el.style.transition = `height ${duration}s ease`
-      el.offsetHeight
-      el.style.height = newH + 'px'
-    } else if (curr > prev && oldH > 0) {
-      if (!animatingRef.current) {
-        animatingRef.current = true
-        el.style.overflow = 'hidden'
-        el.style.height = oldH + 'px'
-        el.style.transition = `height ${HEIGHT_GROW_PER_LINE}s ease`
-        el.offsetHeight
-        el.style.height = newH + 'px'
-      } else {
-        el.style.height = newH + 'px'
-      }
-    }
-
-    const cleanup = () => {
-      el.style.height = ''
-      el.style.transition = ''
-      el.style.overflow = ''
-      animatingRef.current = false
-      el.removeEventListener('transitionend', cleanup)
-      if (heightTimerRef.current) clearTimeout(heightTimerRef.current)
-      scrollableRef.current?.scrollToBottom()
-    }
-    el.addEventListener('transitionend', cleanup, { once: true })
-    if (curr !== prev) {
-      heightTimerRef.current = setTimeout(cleanup, (Math.abs(curr - prev) * HEIGHT_GROW_PER_LINE) * 1000 + 200)
-    }
-
-    prevHeightRef.current = el.scrollHeight
-    return () => { if (heightTimerRef.current) clearTimeout(heightTimerRef.current) }
-  }, [echoLines])
+  useAnimateHeight(
+    () => scrollableRef.current?.getScrollElement(),
+    echoLines,
+    {
+      durationPerLine: HEIGHT_ANIM_PER_LINE,
+      onComplete: () => scrollableRef.current?.scrollToBottom(),
+    },
+  )
 
   // ---- active 时自动聚焦隐藏 input ----
   useEffect(() => {
