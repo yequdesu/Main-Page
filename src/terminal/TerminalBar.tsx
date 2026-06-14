@@ -175,12 +175,22 @@ export default function TerminalBar(props: TerminalBarProps = {}) {
     echoText: T.welcomeText,
   })
 
+  // ---- Typewriter 完成 → idle 过渡 ----
+  // 延迟 1.5 个 cursor-blink 周期（blink=1s step-end）后进入 idle，
+  // 给 welcome text 与 status line 之间留出视觉间隙
+  const typewriterTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined)
   useEffect(() => {
     if (isDone && !state.typewriterDone) {
-      state.setTypewriterDone(true)
-      state.setMode('idle')
-      if (state.echoLines.length === 0) state.resetToWelcome()
+      // setTypewriterDone 必须延迟到 timeout 回调内——
+      // 若在此处同步调用，会立即触发 effect 重跑（typewriterDone 在 deps 中），
+      // cleanup 的 clearTimeout 会杀死刚设置的 timer，导致过渡永远不会发生
+      typewriterTimerRef.current = setTimeout(() => {
+        state.setTypewriterDone(true)
+        state.setMode('idle')
+        if (state.echoLines.length === 0) state.resetToWelcome()
+      }, 1500)
     }
+    return () => { if (typewriterTimerRef.current) clearTimeout(typewriterTimerRef.current) }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isDone, state.typewriterDone])
 
