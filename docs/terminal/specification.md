@@ -58,10 +58,11 @@ src/terminal/
 ├── TerminalBar.css              # 样式 — glass + overlay + input + cursor
 ├── Scrollable.tsx               # 通用滚动容器 + overlay render prop
 ├── Scrollable.css               # 滚动容器样式（隐藏原生滚动条）
-├── commands.ts                  # 命令注册表 + 执行器
+├── commands.ts                  # 命令注册表 + 执行器（由 App.tsx 使用）
 ├── useTypewriter.ts             # 逐字打印 hook
 ├── useEchoSequence.ts           # 命令输出动画 hook（两阶段）
 ├── useAnimateHeight.ts          # CSS transition 高度动画 hook
+├── useTerminalState.ts          # 受控/非受控状态管理 hook
 ├── useTerminalActivation.ts     # 终端激活 hook（声明式接口）
 └── __tests__/
     ├── commands.test.ts         # 命令系统测试（7 用例）
@@ -100,34 +101,41 @@ App.tsx
 ### 2.3 数据流
 
 ```
-                        ┌──────────────────────────┐
-                        │      Zustand Store        │
-                        │  scrollStore              │
-                        │  ┌──────────────────────┐ │
-                        │  │ TerminalSlice         │ │
-                        │  │  terminalMode         │ │
-                        │  │  echoLines[]          │ │
-                        │  │  inputValue           │ │
-                        │  │  typewriterDone       │ │
-                        │  └──────────────────────┘ │
-                        └──────┬──────────┬────────┘
-                               │          │
-              selector hooks   │          │  subscribe()（非渲染）
-                               │          │
-              ┌────────────────▼──┐  ┌────▼───────────────────┐
-              │  TerminalBar      │  │  App.tsx                │
-              │  (React re-render)│  │  (scroll/click guard)   │
-              │                   │  │                         │
-              │  • echo 渲染      │  │  • wheel 事件阻止       │
-              │  • input 受控     │  │  • click 事件阻止       │
-              │  • 状态行更新     │  │  • / 键监听             │
-              └───────────────────┘  └─────────────────────────┘
+                   ┌──────────────────────────┐
+                   │      Zustand Store        │
+                   │  scrollStore              │
+                   │  ┌──────────────────────┐ │
+                   │  │ TerminalSlice         │ │
+                   │  │  terminalMode         │ │
+                   │  │  echoLines[]          │ │
+                   │  │  inputValue           │ │
+                   │  │  typewriterDone       │ │
+                   │  └──────────────────────┘ │
+                   └──────────┬───────────────┘
+                              │ selector hooks
+                              ▼
+                   ┌──────────────────┐
+                   │  App.tsx         │
+                   │  (数据接线层)    │
+                   │                  │
+                   │  • 读取 store    │
+                   │  • 构建回调      │
+                   │  • 注入 props    │
+                   └────────┬─────────┘
+                            │ controlled props + callbacks
+                            ▼
+                   ┌──────────────────┐
+                   │  TerminalBar     │
+                   │  (纯 UI 组件)    │
+                   │                  │
+                   │  • echo 渲染     │
+                   │  • input 受控    │
+                   │  • 动画管理      │
+                   │  • 零 store 依赖 │
+                   └──────────────────┘
 ```
 
-**双重订阅模式（Zustand 最佳实践）：**
-
-- **selector hooks**（`useScrollStore(s => s.xxx)`）→ 触发 React re-render，用于 UI 渲染
-- **`.subscribe()`**（`useScrollStore.subscribe(callback)`）→ 不触发 re-render，用于颜色插值、状态行更新等高频操作
+**依赖方向反转：** TerminalBar 不再 import `useScrollStore`。App.tsx 作为数据接线层，从 Zustand 读取状态，通过 props 注入 TerminalBar。TerminalBar 也可独立使用（非受控模式），不依赖任何外部 store。
 
 ### 2.4 状态机
 
@@ -162,16 +170,62 @@ App.tsx
 
 **文件：** `src/terminal/TerminalBar.tsx`
 
-**签名：** `export default function TerminalBar()` — 无 props，所有状态来自 Zustand。
+**签名：** `export default function TerminalBar(props?: TerminalBarProps)` — 所有配置、状态、回调均可选，缺省值复现当前行为。
 
-**模块级常量：**
+**Props 结构：**
 
-| 常量 | 值 | 用途 |
-|------|-----|------|
-| `DEFAULT_ECHO_TEXT` | `'# YeQuDesu · Personal Site · ready'` | 初始欢迎信息 |
-| `MAX_ECHO_LINES` | `5` | 回显区最大可见行数（用于 `max-height: calc(5 * 1.6em)`） |
-| `HEIGHT_ANIM_PER_LINE` | `0.15` | 每行高度动画时长（秒），增长与收缩共用 |
-| `ECHO_GROW_DELAY` | `0.25` | 回显占位→真内容替换的延迟（秒） |
+```typescript
+interface TerminalBarProps {
+  // 参数化配置（全可选）
+  text?: TerminalBarTextConfig        // welcomeText, placeholder, promptChar
+  layout?: TerminalBarLayoutConfig    // maxEchoLines, maxWidth, borderRadius, padding, font, zIndex, bottom
+  animation?: TerminalBarAnimationConfig // typewriter/echo/height 动画参数
+  behavior?: TerminalBarBehaviorConfig   // activationKey, blurTimeout
+
+  // 受控状态（缺省时组件内部 useState 自管理）
+  mode?: TerminalMode
+  echoLines?: string[]
+  inputValue?: string
+  typewriterDone?: boolean
+  onModeChange?: (mode: TerminalMode) => void
+  onEchoLinesChange?: (lines: string[]) => void
+  onInputValueChange?: (value: string) => void
+  onTypewriterDoneChange?: (done: boolean) => void
+
+  // 命令注入（缺省时仅 clear/cls 可用）
+  onCommand?: (input: string) => string
+  onClear?: () => void
+
+  // 滚动驱动注入（缺省时对应功能关闭）
+  scrollProgress?: number
+  buildStatusLine?: (sp: number) => string | null
+  onThemeUpdate?: (sp: number) => Record<string, string> | void
+}
+```
+
+**两种使用模式：**
+
+| 模式 | 场景 | 示例 |
+|------|------|------|
+| 非受控（零 props） | 独立使用，不需要外部状态同步 | `<TerminalBar />` |
+| 受控（注入 props） | 集成 Zustand / Redux，需要外部控制 | `<TerminalBar mode={...} onCommand={...} />` |
+
+**依赖方向：** TerminalBar 不再 import `useScrollStore` 或 `executeCommand`。所有外部依赖通过 props 注入。**
+
+**DEFAULTS 对象（均可通过 props 覆盖）：**
+
+| 类别 | 键 | 默认值 |
+|------|-----|--------|
+| text | `welcomeText` | `'# YeQuDesu · Personal Site · ready'` |
+| text | `placeholder` | `"type 'help' for available commands"` |
+| text | `promptChar` | `'$'` |
+| layout | `maxEchoLines` | `5` |
+| layout | `maxWidth` | `'min(90vw, 640px)'` |
+| animation | `typewriterStartDelay` | `800` (ms) |
+| animation | `heightAnimPerLine` | `0.15` (s) |
+| animation | `echoGrowDelay` | `0.25` (s) |
+| behavior | `activationKey` | `'/'` |
+| behavior | `blurTimeout` | `100` (ms) |
 
 **内部 Ref：**
 
@@ -214,6 +268,29 @@ idle / active 阶段：
   idle 态：光标 dim + placeholder
   active 态：$ 提示符 + 输入文本 + 光标 bright + placeholder
 ```
+
+**Glass Panel（`.terminal-bar-inner`）：**
+
+| 角色 | 说明 |
+|------|------|
+| 视觉容器 | 承载 backdrop-filter 毛玻璃、border-radius 圆角裁剪、hover/active box-shadow ring |
+| CSS 变量注入点 | `barInnerRef` 引用，颜色插值系统通过 `style.setProperty('--tw-*', ...)` 在此写入 |
+| 交互入口 | `onClick={handleBarClick}` — 点击面板任意位置激活终端（`idle → active`） |
+| 布局容器 | `padding: 8px 14px` 定义内容区内边距；`margin: 0 auto; width: min(90vw, 640px)` 居中定宽 |
+
+**Hidden Input（`<input hidden>`）：**
+
+终端不使用 `window.keydown` 直接捕获键盘，而是通过一个 0×0 透明 `<input>` 元素。这是终端键盘交互的**基础设施**：
+
+| 能力 | 机制 |
+|------|------|
+| 键盘捕获 | active 态自动 `focus()`，接收所有按键事件（`onKeyDown`） |
+| 输入法支持 | 原生 `<input>` 获得 IME composition 事件，支持中日韩输入法 |
+| 移动端键盘 | 浏览器在 input 聚焦时自动弹出软键盘，无需额外处理 |
+| 焦点管理 | `handleFocus` / `handleBlur` 控制 `hasFocus` 状态；失焦 100ms 延迟后退回 idle |
+| 无障碍 | `aria-label="Terminal command input"`，屏幕阅读器可定位 |
+
+与直接监听 `window.keydown` 的方案相比，隐藏 input 模式由浏览器处理输入法的 compositionstart / compositionend 生命周期，不会在 IME 组合过程中误触命令提交。
 
 ### 3.2 Scrollable（通用滚动容器）
 
@@ -281,7 +358,7 @@ interface Command {
 | `debug` | — | 切换调试模式 | 读写 `window.__DEBUG__` |
 | `day` | `light` | 日间模式 | `<html>` 添加 `.light`，移除 `.dark` |
 | `night` | `dark` | 夜间模式 | `<html>` 添加 `.dark`，移除 `.light` |
-| `clear` | `cls` | 清屏 | handler 返回 `''`，实际清理由 `TerminalBar.handleKeyDown` 直接处理 |
+| `clear` | `cls` | 清屏 | `TerminalBar` 直接构建 `[welcomeText, statusLine]` 完整数组，一次 `onEchoLinesChange` 调用更新——保持 mode 不变（`active`），收缩动画单次完成 |
 
 **执行流程：**
 
@@ -419,7 +496,52 @@ useAnimateHeight(
 
 **与 GSAP 方案的比较：** 此前尝试过 `gsap.to()`（Web Animations API 变体），但 CSS transition 在此场景更具优势——动画跑在浏览器合成器线程（不占 JS 主线程），`animatingRef` 合并模式避免 tween kill/restart 的复杂性。
 
-### 3.7 useTerminalActivation（激活控制）
+### 3.7 Status Line（状态行）
+
+**位置：** `TerminalBar.tsx` 内 `buildStatusLine`（由调用方注入）+ 状态行更新 `useEffect`
+
+状态行是 echo area 中唯一**非静态、实时更新**的内容行。格式：
+
+```
+# Act 1 · OceanVoyage · scroll 34%
+```
+
+**常规更新机制（`useEffect`，scrollProgress 变化时）：**
+
+```
+scrollProgress 变化 → useEffect 触发
+  ↓
+echoPlayingRef.current === true？ → 跳过（回显动画进行中）
+  ↓
+在 echoLines 中查找以 "# Act " 开头的行
+  ├─ 找到 → 内容变化？→ setEchoLine(idx, newLine) 就地更新
+  └─ 未找到 → appendEcho(line) 追加新行
+  ↓
+statusLineIdx ref 缓存行位置 → O(1) 查找，失效时回退线性扫描
+```
+
+**`clear`/`cls` 时的特殊处理：**
+
+状态行在 `clear` 命令中不经过 `useEffect` 追加——而是在 `handleKeyDown` 中**一次构建完整数组**：
+
+```typescript
+const statusLine = props.buildStatusLine?.(props.scrollProgress ?? 0)
+const lines = statusLine ? [welcomeText, statusLine] : [welcomeText]
+props.onEchoLinesChange?.(lines)  // 单次调用，一次 render
+```
+
+**设计原因：** 若分两步（先设 `[welcomeText]`，再在 `useEffect` 中 `appendEcho`），React 的 `useLayoutEffect` 队列会因嵌套同步 re-render 产生残留回调——高度动画先被正确设置（SHRINK N→2），再被残留回调覆盖（SHRINK 2→1）。一次构建完整数组避免了这个问题。
+
+**关键约束：**
+
+| 约束 | 原因 |
+|------|------|
+| `echoPlayingRef` 抑制 | 回显动画（Phase 2）逐行替换文本时，状态行同步更新会导致视觉抖动 |
+| `statusLineIdx` 位置追踪 | 状态行在 echoLines 中的索引可能因 `clear` / 命令输出而移动，ref 缓存使大部分情况 O(1) |
+| `echoLines.length <= 1` 时重置 `statusLineIdx` | `clear` 后缓存失效，显式重置以避免指针越界 |
+| `clear` 一次构建完整数组 | 避免 `useLayoutEffect` 嵌套同步 re-render 的残留回调问题 |
+
+### 3.8 useTerminalActivation（激活控制）
 
 **文件：** `src/terminal/useTerminalActivation.ts`
 
@@ -601,7 +723,18 @@ color = lerpHex(darkValue, lightValue, t)  // 逐通道线性插值
 
 **设计语言：** Vivid Glass — 参考 Apple Vision Pro 玻璃材质
 
-**层级结构：**
+**架构角色：**
+
+Glass Panel（`.terminal-bar-inner`）不仅是视觉层——它承担四个架构职责：
+
+| 角色 | 实现 |
+|------|------|
+| **视觉容器** | backdrop-filter 毛玻璃 + border-radius 圆角裁剪 + hover/active box-shadow ring |
+| **CSS 变量注入点** | `barInnerRef` 被颜色插值系统引用，通过 `style.setProperty('--tw-*', ...)` 写入 10 个 CSS 变量，所有子元素通过 `var(--tw-*)` 消费 |
+| **交互入口** | `onClick={handleBarClick}` — idl e 态点击任意位置激活终端；`pointer-events: auto` 覆盖外层 `.terminal-bar` 的 `none` |
+| **布局容器** | `padding: 8px 14px` 定义内容内边距；`margin: 0 auto; width: min(90vw, 640px)` 居中定宽；子元素 Scrollable 和 Input Line 在其内垂直排列 |
+
+**视觉层级结构：**
 
 ```
 .terminal-bar            ← fixed 定位容器，z-index: 15, pointer-events: none

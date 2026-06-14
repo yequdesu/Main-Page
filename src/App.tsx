@@ -10,6 +10,9 @@ import { useScrollStore } from './stores/scrollStore'
 import { WHITE_OUT_THRESHOLD, WHITE_OUT_END, GRID_START, GRID_SHIFT_START } from './r3f/ScrollRig'
 import { getLighthouseCapture } from './actors/LighthouseCapture'
 import TerminalBar from './terminal/TerminalBar'
+import { useTerminalActivation } from './terminal/useTerminalActivation'
+import { executeCommand } from './terminal/commands'
+import { lerpHex, lerpRgba } from './utils/color'
 import './App.css'
 
 gsap.registerPlugin(ScrollTrigger)
@@ -30,6 +33,9 @@ const MAX_VELOCITY = 0.025
 export default function App() {
   // ---- Zustand store ----
   const { scrollProgress, setScrollProgress } = useScrollStore()
+  const terminalMode = useScrollStore(s => s.terminalMode)
+  const echoLines = useScrollStore(s => s.echoLines)
+  const inputValue = useScrollStore(s => s.inputValue)
 
   // ---- Physics state (refs — no re-render) ----
   const physRef = useRef({ target: 0, velocity: 0, lastScrollbar: 0, lastPhysics: 0, active: true })
@@ -46,7 +52,7 @@ export default function App() {
   const [brandTextVisible, setBrandTextVisible] = useState(false)
   const [lighthouseImage, setLighthouseImage] = useState<string | null>(null)
   const overlayData = useScrollStore(s => s.overlayData)
-  const [isTerminalActive, setIsTerminalActive] = useState(false)
+  const { onKeyDown: onTerminalKeyDown, isActive: isTerminalActive } = useTerminalActivation()
 
   // ---- Act visibility ----
   const needsAct1 = (sp: number) => sp < GRID_START + 0.01
@@ -150,31 +156,17 @@ export default function App() {
     })
   }, [isTerminalActive, isClickPlaying, isAct3Focused, scrollProgress, setScrollProgress, syncScrollbar])
 
-  // ---- / key listener ----
-  const onKeyDown = useCallback((e: KeyboardEvent) => {
-    const tag = (e.target as HTMLElement)?.tagName
-    if (tag === 'INPUT' || tag === 'TEXTAREA') return
-
-    if (e.key === '/') {
-      e.preventDefault()
-      const state = useScrollStore.getState()
-      if (state.terminalMode === 'idle') {
-        state.setTerminalMode('active')
-      }
-    }
-  }, [])
-
   // ---- event listeners ----
   useEffect(() => {
     window.addEventListener('wheel', onWheel, { passive: false })
     window.addEventListener('click', onClick)
-    window.addEventListener('keydown', onKeyDown)
+    window.addEventListener('keydown', onTerminalKeyDown)
     return () => {
       window.removeEventListener('wheel', onWheel)
       window.removeEventListener('click', onClick)
-      window.removeEventListener('keydown', onKeyDown)
+      window.removeEventListener('keydown', onTerminalKeyDown)
     }
-  }, [onWheel, onClick, onKeyDown])
+  }, [onWheel, onClick, onTerminalKeyDown])
 
   // ---- Act 3 focus state (block scroll wheel + brand text animation) ----
   useEffect(() => {
@@ -230,14 +222,6 @@ export default function App() {
     }
   }, [scrollProgress])
 
-  // ---- Terminal active state ----
-  useEffect(() => {
-    const unsub = useScrollStore.subscribe((s) => {
-      setIsTerminalActive(s.terminalMode === 'active')
-    })
-    return unsub
-  }, [])
-
   // ---- cleanup ----
   useEffect(() => {
     return () => {
@@ -250,6 +234,43 @@ export default function App() {
 
   const sp = scrollProgress
 
+  // ---- Terminal callbacks ----
+  const handleModeChange = useCallback((m: typeof terminalMode) => {
+    useScrollStore.getState().setTerminalMode(m)
+  }, [])
+  const handleEchoLinesChange = useCallback((lines: string[]) => {
+    useScrollStore.setState({ echoLines: lines })
+  }, [])
+  const handleInputChange = useCallback((v: string) => {
+    useScrollStore.getState().setInputValue(v)
+  }, [])
+  const handleTypewriterDoneChange = useCallback((d: boolean) => {
+    useScrollStore.getState().setTypewriterDone(d)
+  }, [])
+  const handleCommand = useCallback((input: string) => executeCommand(input), [])
+  const handleThemeUpdate = useCallback((sp: number) => {
+    const raw = sp <= 0.40 ? 0 : sp >= 0.55 ? 1 : (sp - 0.40) / 0.15
+    const t = raw * raw * (3 - 2 * raw)
+    return {
+      '--tw-echo': lerpHex('#7c8aa0', '#475569', t),
+      '--tw-prefix': lerpHex('#64748b', '#334155', t),
+      '--tw-prompt': lerpHex('#0ea5e9', '#0369a1', t),
+      '--tw-placeholder': lerpRgba('rgba(255,255,255,0.15)', 'rgba(0,0,0,0.10)', t),
+      '--tw-input': lerpHex('#e2e8f0', '#1e293b', t),
+      '--tw-cursor-bright': lerpHex('#e2e8f0', '#1e293b', t),
+      '--tw-cursor-dim': lerpHex('#0ea5e9', '#0369a1', t),
+      '--tw-ring': lerpRgba('rgba(200,220,255,0.45)', 'rgba(30,64,175,0.30)', t),
+      '--tw-ring-outer': lerpRgba('rgba(180,210,255,0.14)', 'rgba(30,64,175,0.08)', t),
+      '--tw-ring-active': lerpRgba('rgba(180,210,255,0.30)', 'rgba(30,64,175,0.20)', t),
+    }
+  }, [])
+  const handleBuildStatusLine = useCallback((sp: number) => {
+    const pct = Math.round(sp * 100)
+    const actName = sp < 0.45 ? 'OceanVoyage' : sp < 0.85 ? 'GridTransition' : 'ContentPhase'
+    const actNum = sp < 0.45 ? '1' : sp < 0.85 ? '2' : '3'
+    return `# Act ${actNum} · ${actName} · scroll ${pct}%`
+  }, [])
+
   return (
     <>
       <SceneCanvas>
@@ -258,7 +279,19 @@ export default function App() {
         <Act3ContentPhase visible={needsAct3(sp)} />
       </SceneCanvas>
 
-      <TerminalBar />
+      <TerminalBar
+        mode={terminalMode}
+        echoLines={echoLines}
+        inputValue={inputValue}
+        onModeChange={handleModeChange}
+        onEchoLinesChange={handleEchoLinesChange}
+        onInputValueChange={handleInputChange}
+        onTypewriterDoneChange={handleTypewriterDoneChange}
+        scrollProgress={sp}
+        buildStatusLine={handleBuildStatusLine}
+        onThemeUpdate={handleThemeUpdate}
+        onCommand={handleCommand}
+      />
 
       {/* 滚动提示 */}
       {hintVisible && (

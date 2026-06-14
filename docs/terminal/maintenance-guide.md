@@ -51,6 +51,12 @@
    │  │                 │
    │  │                 ▼
    │  │          ┌──────────────┐
+   │  │          │useTerminal   │
+   │  │          │State.ts      │
+   │  │          └──────┬───────┘
+   │  │                 │
+   │  │                 ▼
+   │  │          ┌──────────────┐
    │  │          │  Scrollable  │
    │  │          │  .tsx        │
    │  │          └──────────────┘
@@ -87,9 +93,14 @@
 | 改打字机速度 | `TerminalBar.tsx:119-123` | `startDelay` / `charInterval` |
 | 改回显策略 | `TerminalBar.tsx:82` | `echoStrategy` 变量 |
 | 改回显速度 | `useEchoSequence.ts:31-33` | 默认 `lineDelay` / `charInterval` |
-| 改高度动画速度 | `TerminalBar.tsx:15` 和 `useAnimateHeight.ts:76,107` | `HEIGHT_ANIM_PER_LINE` 和 `durationPerLine` |
-| 改最大可见行数 | `TerminalBar.tsx:14` | `MAX_ECHO_LINES` |
-| 改欢迎文本 | `TerminalBar.tsx:12` | `DEFAULT_ECHO_TEXT` |
+| 改高度动画速度 | `TerminalBar.tsx` DEFAULTS.animation.heightAnimPerLine 或传 `animation={{ heightAnimPerLine: 0.3 }}` | props 覆盖 |
+| 改最大可见行数 | `TerminalBar.tsx` DEFAULTS.layout.maxEchoLines 或传 `layout={{ maxEchoLines: 8 }}` | props 覆盖 |
+| 改欢迎文本 | `TerminalBar.tsx` DEFAULTS.text.welcomeText 或传 `text={{ welcomeText: '...' }}` | props 覆盖 |
+| 改颜色 | `App.tsx` 的 `handleThemeUpdate` 回调 | 注入 `onThemeUpdate` |
+| 改状态行格式 | `App.tsx` 的 `handleBuildStatusLine` 回调 | 注入 `buildStatusLine` |
+| 改 `clear` 行为 | `TerminalBar.tsx` handleKeyDown `clear`/`cls` 分支 | 一次构建含状态行的完整数组 |
+| 改命令 | `App.tsx` 的 `handleCommand` 回调 | 注入 `onCommand` |
+| 状态行更新时机 | `TerminalBar.tsx` `useEffect`（scrollProgress deps） | 注意：勿改回 `useLayoutEffect`，见 §6.8 |
 | 改颜色插值范围 | `TerminalBar.tsx:98` | `sp <= 0.40` / `sp >= 0.55` |
 | 改颜色的暗/亮值 | `TerminalBar.tsx:102-111` | `lerpHex` / `lerpRgba` 调用 |
 | 改玻璃强度 | `TerminalBar.css` | `.terminal-bar-inner` 的 `backdrop-filter` / `background` |
@@ -279,6 +290,8 @@ echoLines 引用变化 → useLayoutEffect 触发
 ┌─ curr < prev：SHRINK ───────────────────────┐
 │ 始终 lock oldH + 新 transition              │
 │ （不合并——收缩是用户主动操作如 clear）       │
+│ clear 特殊：一次构建完整数组（含状态行），    │
+│ 避免 useLayoutEffect 残留回调覆盖动画        │
 ├─ curr > prev：GROW ─────────────────────────┤
 │ animatingRef=false → lock oldH + 新         │
 │   transition + offsetHeight                 │
@@ -553,13 +566,9 @@ if (e.key === 'ArrowUp') {
 
 ## 6. 已知问题与注意事项
 
-### 6.1 useTerminalActivation 未被使用
+### 6.1 useTerminalActivation 已集成
 
-**状态：** `useTerminalActivation.ts` 已完整实现并有 7 个测试用例，但 App.tsx 内联了相同的逻辑。
-
-**影响：** 无功能影响。存在约 60 行重复逻辑。
-
-**解决：** 参见 [5.7 迁移指南](#57-迁移-apptsx-使用-useterminalactivation)。
+**状态：** ✅ 已迁移——App.tsx 现在通过 `useTerminalActivation()` 获取 `onKeyDown` 和 `isActive`，不再内联 `/` 键逻辑或手动 subscribe terminalMode。
 
 ### 6.2 TerminalBar.tsx 代码量较大
 
@@ -607,18 +616,33 @@ Safari 需要 `-webkit-backdrop-filter` 前缀。当前 `TerminalBar.css` 中已
 
 ### 6.7 clear 命令的特殊处理
 
-`clear` 命令的 handler 只返回 `''`，实际的清屏逻辑在 `TerminalBar.handleKeyDown` 第 270-272 行中特殊处理：
+`clear` 命令**不**经过 `useEchoSequence` 动画，而是直接构建完整数组并调用 `onEchoLinesChange`：
 
 ```typescript
 if (trimmed === 'clear' || trimmed === 'cls') {
-  useScrollStore.setState({ echoLines: [DEFAULT_ECHO_TEXT] })
-  return  // 跳过回显动画
+  const statusLine = props.buildStatusLine?.(props.scrollProgress ?? 0)
+  const lines = statusLine ? [welcomeText, statusLine] : [welcomeText]
+  props.onEchoLinesChange?.(lines)
+  return
 }
 ```
 
-这意味着 `clear` 命令**不会**经过 `useEchoSequence` 动画处理，而是直接重置。添加类似"立即生效"的命令时可参考此模式。
+**三个关键设计点：**
 
-### 6.8 类型导入路径
+1. **保持 mode 不变：** 不调用 `setMode('idle')`，终端保持 active——用户可继续输入
+2. **一次构建完整数组：** 欢迎文本 + 状态行在同一个 `onEchoLinesChange` 调用中完成，避免分步更新
+3. **分步更新的陷阱：** 若先设 `[welcomeText]` 再在 `useEffect` 中 `appendEcho`，React 的 `useLayoutEffect` 嵌套同步 re-render 会产生残留回调——正确的高动画被残留回调覆盖
+
+### 6.8 useLayoutEffect 与嵌套同步 re-render 陷阱
+
+在 TerminalBar 中，`useAnimateHeight` 内部使用 `useLayoutEffect` 管理 CSS transition。如果在同一个 commit 阶段的其他 `useLayoutEffect` 中触发状态更新（如 `appendEcho`），React 会同步处理新 render，但**原始 render 的剩余 `useLayoutEffect` 回调仍会以旧 state 执行**。这会导致：
+
+- `useAnimateHeight` 先为同步 render 正确设置 transition
+- 再被原始 render 的残留 `useLayoutEffect` 用旧 state 覆盖
+
+**教训：** 避免在 `useLayoutEffect` 中触发会影响同一动画目标的状态更新。需要同步更新时，应在事件处理器中一次构建最终状态（参考 §6.7 的 `clear` 处理），而非依赖 effect 链。
+
+### 6.9 类型导入路径
 
 `ScrollableHandle` 和 `ScrollOverlayState` 类型定义在 `Scrollable.tsx` 中，需从同一文件导入：
 
@@ -845,9 +869,9 @@ it('should render children', () => {
 
 | 常量 | 文件 | 默认值 | 说明 |
 |------|------|:---:|------|
-| `DEFAULT_ECHO_TEXT` | TerminalBar.tsx | `'# YeQuDesu · Personal Site · ready'` | 欢迎信息 |
-| `MAX_ECHO_LINES` | TerminalBar.tsx | `5` | 最大可见行数 |
-| `HEIGHT_ANIM_PER_LINE` | TerminalBar.tsx | `0.15` | 高度动画速度（s/行，增长与收缩共用） |
+| `DEFAULTS.text.welcomeText` | TerminalBar.tsx | `'# YeQuDesu · Personal Site · ready'` | 欢迎信息（可通过 props 覆盖） |
+| `DEFAULTS.layout.maxEchoLines` | TerminalBar.tsx | `5` | 最大可见行数（可通过 props 覆盖） |
+| `DEFAULTS.animation.heightAnimPerLine` | TerminalBar.tsx | `0.15` | 高度动画速度（可通过 props 覆盖） |
 | `ECHO_GROW_DELAY` | TerminalBar.tsx | `0.25` | 回显占位延迟（s） |
 | `startDelay` | useTypewriter | `800` | 打字机启动延迟（ms） |
 | `charInterval` | useTypewriter | `40` | 打字机字符间隔（ms） |

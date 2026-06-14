@@ -1,67 +1,131 @@
 import { useEffect, useRef, useCallback, useState } from 'react'
-import { useScrollStore } from '../stores/scrollStore'
 import { useTypewriter } from './useTypewriter'
-import { executeCommand } from './commands'
 import Scrollable from './Scrollable'
 import type { ScrollableHandle, ScrollOverlayState } from './Scrollable'
 import { useEchoSequence } from './useEchoSequence'
 import type { EchoStrategy } from './useEchoSequence'
 import { useAnimateHeight } from './useAnimateHeight'
+import { useTerminalState } from './useTerminalState'
+import type { TerminalMode } from '../stores/scrollStore'
 import './TerminalBar.css'
 
-// ---- 默认 typewriter 配置 ----
-const DEFAULT_ECHO_TEXT = '# YeQuDesu · Personal Site · ready'
-const MAX_ECHO_LINES = 5
-const HEIGHT_ANIM_PER_LINE = 0.15 // 高度动画每行时长 (s)，增长与收缩共用
-const ECHO_GROW_DELAY = 0.25
+// ============================================================
+// 默认配置 — 所有值可在 props 中覆盖
+// ============================================================
 
-const ACT_NAMES: Record<number, string> = {
-  0: 'OceanVoyage',
-  1: 'GridTransition',
-  2: 'ContentPhase',
+interface TerminalBarTextConfig {
+  welcomeText?: string
+  placeholder?: string
+  promptChar?: string
 }
 
-function getActName(sp: number): string {
-  if (sp < 0.45) return ACT_NAMES[0]
-  if (sp < 0.85) return ACT_NAMES[1]
-  return ACT_NAMES[2]
+interface TerminalBarLayoutConfig {
+  maxEchoLines?: number
+  maxWidth?: string
+  borderRadius?: string
+  padding?: string
+  fontSize?: string
+  fontFamily?: string
+  zIndex?: number
+  bottom?: string
 }
 
-// ---- 颜色插值工具 ----
-function lerpHex(a: string, b: string, t: number): string {
-  const p = (h: string) => [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)]
-  const [ar, ag, ab] = p(a)
-  const [br, bg, bb] = p(b)
-  const rv = Math.round(ar + (br - ar) * t)
-  const gv = Math.round(ag + (bg - ag) * t)
-  const bv = Math.round(ab + (bb - ab) * t)
-  return `#${rv.toString(16).padStart(2, '0')}${gv.toString(16).padStart(2, '0')}${bv.toString(16).padStart(2, '0')}`
+interface TerminalBarAnimationConfig {
+  typewriterStartDelay?: number
+  typewriterCharInterval?: number
+  echoLineDelay?: number
+  echoCharInterval?: number
+  echoStrategy?: EchoStrategy
+  echoGrowDelay?: number
+  heightAnimPerLine?: number
 }
 
-function lerpRgba(a: string, b: string, t: number): string {
-  const re = /rgba?\((\d+),\s*(\d+),\s*(\d+),?\s*([\d.]+)?\)/
-  const m = a.match(re)
-  const n = b.match(re)
-  if (!m || !n) return a
-  const r = Math.round(+m[1] + (+n[1] - +m[1]) * t)
-  const g = Math.round(+m[2] + (+n[2] - +m[2]) * t)
-  const bb = Math.round(+m[3] + (+n[3] - +m[3]) * t)
-  const alpha = +m[4] + (+n[4] - +m[4]) * t
-  return `rgba(${r},${g},${bb},${alpha.toFixed(2)})`
+interface TerminalBarBehaviorConfig {
+  activationKey?: string
+  blurTimeout?: number
 }
 
-export default function TerminalBar() {
-  const terminalMode = useScrollStore((s) => s.terminalMode)
-  const echoLines = useScrollStore((s) => s.echoLines)
-  const inputValue = useScrollStore((s) => s.inputValue)
-  const typewriterDone = useScrollStore((s) => s.typewriterDone)
-  const setTerminalMode = useScrollStore((s) => s.setTerminalMode)
-  const setInputValue = useScrollStore((s) => s.setInputValue)
-  const appendEcho = useScrollStore((s) => s.appendEcho)
-  const appendLastEcho = useScrollStore((s) => s.appendLastEcho)
-  const setEchoLine = useScrollStore((s) => s.setEchoLine)
-  const clearInput = useScrollStore((s) => s.clearInput)
-  const setTypewriterDone = useScrollStore((s) => s.setTypewriterDone)
+export interface TerminalBarProps {
+  // === 参数化配置 ===
+  text?: TerminalBarTextConfig
+  layout?: TerminalBarLayoutConfig
+  animation?: TerminalBarAnimationConfig
+  behavior?: TerminalBarBehaviorConfig
+
+  // === 受控状态（缺省时组件内部自管理） ===
+  mode?: TerminalMode
+  echoLines?: string[]
+  inputValue?: string
+  typewriterDone?: boolean
+  onModeChange?: (mode: TerminalMode) => void
+  onEchoLinesChange?: (lines: string[]) => void
+  onInputValueChange?: (value: string) => void
+  onTypewriterDoneChange?: (done: boolean) => void
+
+  // === 命令执行（缺省时仅 clear/cls 可用） ===
+  /** 返回命令输出字符串；缺省时仅 clear/cls 工作 */
+  onCommand?: (input: string) => string
+  /** clear 行为；缺省 = resetToWelcome */
+  onClear?: () => void
+
+  // === 滚动驱动注入（缺省时对应功能关闭） ===
+  scrollProgress?: number
+  /** 返回状态行文本；返回 null 表示跳过 */
+  buildStatusLine?: (sp: number) => string | null
+  /** 返回 CSS 变量名 → 值的映射；用于动态颜色过渡 */
+  onThemeUpdate?: (sp: number) => Record<string, string> | void
+}
+
+// ---- 内部默认值 ----
+const DEFAULTS = {
+  text: {
+    welcomeText: '# YeQuDesu · Personal Site · ready',
+    placeholder: "type 'help' for available commands",
+    promptChar: '$',
+  },
+  layout: {
+    maxEchoLines: 5,
+    maxWidth: 'min(90vw, 640px)',
+    borderRadius: '12px',
+    padding: '8px 14px',
+    fontSize: '0.68rem',
+    fontFamily: "'SF Mono','Fira Code','Cascadia Code','Consolas',monospace",
+    zIndex: 15,
+    bottom: '2rem',
+  },
+  animation: {
+    typewriterStartDelay: 800,
+    typewriterCharInterval: 40,
+    echoLineDelay: 60,
+    echoCharInterval: 25,
+    echoStrategy: 'line-by-line' as EchoStrategy,
+    echoGrowDelay: 0.25,
+    heightAnimPerLine: 0.15,
+  },
+  behavior: {
+    activationKey: '/',
+    blurTimeout: 100,
+  },
+}
+
+export default function TerminalBar(props: TerminalBarProps = {}) {
+  const T = { ...DEFAULTS.text, ...props.text }
+  const L = { ...DEFAULTS.layout, ...props.layout }
+  const A = { ...DEFAULTS.animation, ...props.animation }
+  const B = { ...DEFAULTS.behavior, ...props.behavior }
+
+  // ---- 状态（受控/非受控） ----
+  const state = useTerminalState({
+    mode: props.mode,
+    echoLines: props.echoLines,
+    inputValue: props.inputValue,
+    typewriterDone: props.typewriterDone,
+    welcomeText: T.welcomeText,
+    onModeChange: props.onModeChange,
+    onEchoLinesChange: props.onEchoLinesChange,
+    onInputValueChange: props.onInputValueChange,
+    onTypewriterDoneChange: props.onTypewriterDoneChange,
+  })
 
   const hiddenInputRef = useRef<HTMLInputElement | null>(null)
   const barInnerRef = useRef<HTMLDivElement | null>(null)
@@ -79,10 +143,9 @@ export default function TerminalBar() {
     if (nearBottom) el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' })
   }, [])
 
-  const echoStrategy: EchoStrategy = 'line-by-line'
   const { play: _playEcho, cancel: cancelEcho } = useEchoSequence(
-    appendEcho, setEchoLine,
-    { strategy: echoStrategy, growDelay: ECHO_GROW_DELAY, onLineRevealed: handleLineRevealed },
+    state.appendEcho, state.setEchoLine,
+    { strategy: A.echoStrategy, lineDelay: A.echoLineDelay, charInterval: A.echoCharInterval, growDelay: A.echoGrowDelay, onLineRevealed: handleLineRevealed },
   )
 
   const playEcho = useCallback(async (startIndex: number, lines: string[]) => {
@@ -91,66 +154,52 @@ export default function TerminalBar() {
     echoPlayingRef.current = false
   }, [_playEcho])
 
-  // ---- 随 canvas 背景白化动态调整字体颜色 ----
+  // ---- 动态颜色过渡（由调用方注入） ----
   useEffect(() => {
-    const update = () => {
-      const sp = useScrollStore.getState().scrollProgress
-      const raw = sp <= 0.40 ? 0 : sp >= 0.55 ? 1 : (sp - 0.40) / 0.15
-      const t = raw * raw * (3 - 2 * raw) // smoothstep
-      const el = barInnerRef.current
-      if (!el) return
-      el.style.setProperty('--tw-echo', lerpHex('#7c8aa0', '#475569', t))
-      el.style.setProperty('--tw-prefix', lerpHex('#64748b', '#334155', t))
-      el.style.setProperty('--tw-prompt', lerpHex('#0ea5e9', '#0369a1', t))
-      el.style.setProperty('--tw-placeholder', lerpRgba('rgba(255,255,255,0.15)', 'rgba(0,0,0,0.10)', t))
-      el.style.setProperty('--tw-input', lerpHex('#e2e8f0', '#1e293b', t))
-      el.style.setProperty('--tw-cursor-bright', lerpHex('#e2e8f0', '#1e293b', t))
-      el.style.setProperty('--tw-cursor-dim', lerpHex('#0ea5e9', '#0369a1', t))
-      el.style.setProperty('--tw-ring', lerpRgba('rgba(200,220,255,0.45)', 'rgba(30,64,175,0.30)', t))
-      el.style.setProperty('--tw-ring-outer', lerpRgba('rgba(180,210,255,0.14)', 'rgba(30,64,175,0.08)', t))
-      el.style.setProperty('--tw-ring-active', lerpRgba('rgba(180,210,255,0.30)', 'rgba(30,64,175,0.20)', t))
+    const sp = props.scrollProgress
+    if (sp === undefined || !props.onThemeUpdate) return
+    const el = barInnerRef.current
+    if (!el) return
+    const vars = props.onThemeUpdate(sp)
+    if (vars) {
+      for (const [key, value] of Object.entries(vars)) {
+        el.style.setProperty(key, value as string)
+      }
     }
-    update()
-    const unsub = useScrollStore.subscribe(() => update())
-    return unsub
-  }, [])
+  }, [props.scrollProgress, props.onThemeUpdate])
 
   // ---- Typewriter ----
   const { displayedText, isTyping, isDone } = useTypewriter({
-    startDelay: 800,
-    charInterval: 40,
-    echoText: DEFAULT_ECHO_TEXT,
+    startDelay: A.typewriterStartDelay,
+    charInterval: A.typewriterCharInterval,
+    echoText: T.welcomeText,
   })
 
   useEffect(() => {
-    if (isDone && !typewriterDone) {
-      setTypewriterDone(true)
-      setTerminalMode('idle')
-      // 仅设 DEFAULT_ECHO_TEXT，状态行由 updater 自动追加
-      useScrollStore.setState({ echoLines: [DEFAULT_ECHO_TEXT] })
+    if (isDone && !state.typewriterDone) {
+      state.setTypewriterDone(true)
+      state.setMode('idle')
+      if (state.echoLines.length === 0) state.resetToWelcome()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isDone, typewriterDone, setTypewriterDone, setTerminalMode])
+  }, [isDone, state.typewriterDone])
 
-  // ---- 状态行构建 ----
-  const buildStatusLine = useCallback(() => {
-    const sp = useScrollStore.getState().scrollProgress
-    const pct = Math.round(sp * 100)
-    const act = getActName(sp)
-    return `# Act ${sp < 0.45 ? '1' : sp < 0.85 ? '2' : '3'} · ${act} · scroll ${pct}%`
-  }, [])
-
-  // 实时更新状态行（末尾追加/更新，echo 动画期间抑制）
+  // ---- 状态行（由调用方注入 buildStatusLine） ----
   const statusLineIdx = useRef(-1)
 
+  // echoLines 被重置为仅欢迎文本时（如 clear），同步重置位置缓存
   useEffect(() => {
-    if (terminalMode === 'typing') return
+    if (state.echoLines.length <= 1) statusLineIdx.current = -1
+  }, [state.echoLines])
+
+  useEffect(() => {
+    if (state.mode === 'typing' || !props.buildStatusLine || props.scrollProgress === undefined) return
     const update = () => {
       if (echoPlayingRef.current) return
-      const line = buildStatusLine()
-      const lines = useScrollStore.getState().echoLines
+      const line = props.buildStatusLine!(props.scrollProgress!)
+      if (line === null) return
+      const lines = state.echoLines
       let idx = statusLineIdx.current
-      // 状态行尚未定位或已失效 → 在末尾查找状态行特征
       if (idx < 0 || idx >= lines.length || !lines[idx].startsWith('# Act ')) {
         idx = -1
         for (let i = lines.length - 1; i >= 0; i--) {
@@ -158,78 +207,69 @@ export default function TerminalBar() {
         }
       }
       if (idx >= 0 && idx < lines.length && lines[idx] !== line) {
-        const next = [...lines]
-        next[idx] = line
-        useScrollStore.setState({ echoLines: next })
+        state.setEchoLine(idx, line)
       } else if (idx < 0 && lines.length > 0) {
-        // 新增状态行到末尾
-        useScrollStore.setState({ echoLines: [...lines, line] })
+        state.appendEcho(line)
         statusLineIdx.current = lines.length
       }
     }
     update()
-    const unsubscribe = useScrollStore.subscribe(() => update())
-    return unsubscribe
-  }, [terminalMode, buildStatusLine])
+  }, [props.scrollProgress, props.buildStatusLine, state.mode, state.echoLines, state.setEchoLine, state.appendEcho])
 
-  // ---- echoLines 变化 → 高度动画 + 滚动 ----
+  // ---- 高度动画 ----
   useAnimateHeight(
     () => scrollableRef.current?.getScrollElement(),
-    echoLines,
-    {
-      durationPerLine: HEIGHT_ANIM_PER_LINE,
-      onComplete: () => scrollableRef.current?.scrollToBottom(),
-    },
+    state.echoLines,
+    { durationPerLine: A.heightAnimPerLine, onComplete: () => scrollableRef.current?.scrollToBottom() },
   )
 
-  // ---- active 时自动聚焦隐藏 input ----
+  // ---- active 时自动聚焦 ----
   useEffect(() => {
-    if (terminalMode === 'active' && hiddenInputRef.current) {
+    if (state.mode === 'active' && hiddenInputRef.current) {
       hiddenInputRef.current.focus()
     }
-  }, [terminalMode])
+  }, [state.mode])
 
-  // ---- 非 active 时强制重置焦点状态 ----
   useEffect(() => {
-    if (terminalMode !== 'active') {
-      setHasFocus(false)
-    }
-  }, [terminalMode])
+    if (state.mode !== 'active') setHasFocus(false)
+  }, [state.mode])
 
-  // ---- click-to-focus: 点击 bar 任意位置激活 ----
+  // ---- click-to-focus ----
   const handleBarClick = useCallback((e: React.MouseEvent) => {
     e.stopPropagation()
     e.nativeEvent.stopImmediatePropagation()
-    const mode = useScrollStore.getState().terminalMode
-    if (mode === 'idle') {
-      setTerminalMode('active')
-    }
-  }, [setTerminalMode])
+    if (state.mode === 'idle') state.setMode('active')
+  }, [state.mode, state.setMode])
 
   // ---- 键盘处理 ----
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLInputElement>) => {
       if (e.key === 'Escape') {
         e.preventDefault()
-        setTerminalMode('idle')
-        clearInput()
+        state.setMode('idle')
+        state.clearInput()
         return
       }
 
       if (e.key === 'Enter') {
         e.preventDefault()
-        const trimmed = inputValue.trim()
-        clearInput()
+        const trimmed = state.inputValue.trim()
+        state.clearInput()
 
         if (trimmed === 'clear' || trimmed === 'cls') {
-          useScrollStore.setState({ echoLines: [DEFAULT_ECHO_TEXT] })
+          if (props.onClear) { props.onClear(); return }
+          // 一次构建完整数组（欢迎文本 + 状态行），避免分步更新导致
+          // useLayoutEffect 残留回调覆盖动画状态（见 useAnimateHeight 时序）
+          const statusLine = props.buildStatusLine?.(props.scrollProgress ?? 0)
+          const lines = statusLine ? [T.welcomeText, statusLine] : [T.welcomeText]
+          props.onEchoLinesChange?.(lines)
           return
         }
 
-        const output = executeCommand(trimmed)
+        const output = props.onCommand?.(trimmed)
         if (output) {
-          const startIndex = useScrollStore.getState().echoLines.length
-          playEcho(startIndex, [`$ ${trimmed}`, ...output.split('\n')])
+          const startIndex = state.echoLines.length
+          playEcho(startIndex, [`${T.promptChar} ${trimmed}`, ...output.split('\n')])
         }
         return
       }
@@ -248,66 +288,63 @@ export default function TerminalBar() {
         return
       }
     },
-    [inputValue, appendEcho, clearInput, setTerminalMode]
+    [state.inputValue, state.clearInput, state.setMode, state.echoLines.length, props.onCommand, props.onClear, T.promptChar, playEcho, props.onEchoLinesChange, props.buildStatusLine, props.scrollProgress, T.welcomeText, state.mode],
   )
 
   const handleInputChange = useCallback(
-    (e: React.ChangeEvent<HTMLInputElement>) => {
-      setInputValue(e.target.value)
-    },
-    [setInputValue]
+    (e: React.ChangeEvent<HTMLInputElement>) => state.setInputValue(e.target.value),
+    [state.setInputValue],
   )
 
-  const handleFocus = useCallback(() => {
-    setHasFocus(true)
-  }, [])
+  const handleFocus = useCallback(() => setHasFocus(true), [])
 
   const handleBlur = useCallback(() => {
     setHasFocus(false)
     setTimeout(() => {
-      if (
-        hiddenInputRef.current &&
-        document.activeElement !== hiddenInputRef.current
-      ) {
-        setTerminalMode('idle')
-        clearInput()
+      if (hiddenInputRef.current && document.activeElement !== hiddenInputRef.current) {
+        state.setMode('idle')
+        state.clearInput()
       }
-    }, 100)
-  }, [setTerminalMode, clearInput])
+    }, B.blurTimeout)
+  }, [state.setMode, state.clearInput, B.blurTimeout])
 
   // ---- 渲染 ----
-  const isActive = terminalMode === 'active'
-  const isTypingPhase = terminalMode === 'typing'
+  const isActive = state.mode === 'active'
+  const isTypingPhase = state.mode === 'typing'
   const showInputLine = !isTypingPhase
-  const inputLineVisible = showInputLine && (hasFocus || inputValue.length > 0)
+  const inputLineVisible = showInputLine && (hasFocus || state.inputValue.length > 0)
 
-  // ---- 滚动指示器 overlay ----
   const renderOverlay = useCallback(
     ({ canScrollUp, canScrollDown }: ScrollOverlayState) => (
       <>
-        <span className={`echo-scroll-up${canScrollUp ? ' visible' : ''}`} aria-hidden="true">
-          {'▲'}
-        </span>
-        <span className={`echo-scroll-down${canScrollDown ? ' visible' : ''}`} aria-hidden="true">
-          {'▼'}
-        </span>
+        <span className={`echo-scroll-up${canScrollUp ? ' visible' : ''}`} aria-hidden="true">{'▲'}</span>
+        <span className={`echo-scroll-down${canScrollDown ? ' visible' : ''}`} aria-hidden="true">{'▼'}</span>
       </>
     ),
-    []
+    [],
   )
 
   return (
-    <div className="terminal-bar" aria-hidden={!isActive}>
+    <div className="terminal-bar" style={{
+      fontFamily: L.fontFamily,
+      fontSize: L.fontSize,
+      zIndex: L.zIndex,
+      bottom: L.bottom,
+    }} aria-hidden={!isActive}>
       <div
         ref={barInnerRef}
         className={`terminal-bar-inner${isActive ? ' active' : ''}`}
+        style={{
+          width: L.maxWidth,
+          borderRadius: L.borderRadius,
+          padding: L.padding,
+        }}
         onClick={handleBarClick}
       >
-        {/* 回显区 — Scrollable 驱动 */}
         <Scrollable
           ref={scrollableRef}
           scrollable={isActive}
-          maxHeight={`calc(${MAX_ECHO_LINES} * 1.6em)`}
+          maxHeight={`calc(${L.maxEchoLines} * 1.6em)`}
           overlay={renderOverlay}
           className="terminal-echo-scrollable"
         >
@@ -319,45 +356,39 @@ export default function TerminalBar() {
               </>
             ) : (
               <>
-                {echoLines.length > 0 && (
+                {state.echoLines.length > 0 && (
                   <span>
-                    <span className="echo-prefix">{echoLines[0]}</span>
+                    <span className="echo-prefix">{state.echoLines[0]}</span>
                   </span>
                 )}
-                {echoLines.slice(1).map((line, i) => (
-                  <span key={i}>
-                    {'\n'}
-                    {line}
-                  </span>
+                {state.echoLines.slice(1).map((line, i) => (
+                  <span key={i}>{'\n'}{line}</span>
                 ))}
               </>
             )}
           </div>
         </Scrollable>
 
-        {/* 输入行 */}
         {showInputLine && (
           <div className={`terminal-input-line${inputLineVisible ? ' visible' : ''}`}>
-            <span className="terminal-prompt">{'$'}</span>
-            {!isActive && !inputValue && (
+            <span className="terminal-prompt">{T.promptChar}</span>
+            {!isActive && !state.inputValue && (
               <span className="terminal-cursor dim">{'█'}</span>
             )}
-            {isActive && inputValue && (
-              <span className="terminal-input-text">{inputValue}</span>
+            {isActive && state.inputValue && (
+              <span className="terminal-input-text">{state.inputValue}</span>
             )}
             {isActive && (
               <span className="terminal-cursor bright">{'█'}</span>
             )}
-            {!inputValue && (
-              <span className="terminal-placeholder">
-                type 'help' for available commands
-              </span>
+            {!state.inputValue && (
+              <span className="terminal-placeholder">{T.placeholder}</span>
             )}
             {isActive && (
               <input
                 ref={hiddenInputRef}
                 type="text"
-                value={inputValue}
+                value={state.inputValue}
                 onChange={handleInputChange}
                 onKeyDown={handleKeyDown}
                 onFocus={handleFocus}
