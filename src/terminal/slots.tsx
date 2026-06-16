@@ -1,0 +1,114 @@
+import type { ReactNode } from 'react'
+
+// ============================================================
+// Slot 动画配置
+// ============================================================
+
+export interface SlotAnimationConfig {
+  /** 行内动画策略 */
+  inline: 'literal' | 'directly'
+  /** 逐字间隔 ms（inline: literal 时） */
+  charInterval?: number
+  /** 逐字开始前延迟 ms */
+  startDelay?: number
+
+  /** 行间动画策略（多行容器） */
+  rows?: 'lineByLine' | 'directly'
+  /** 行间间隔 ms（rows: lineByLine 时） */
+  rowInterval?: number
+
+  /** 溢出策略 */
+  overflow: 'static' | 'rolling'
+  /** 滚动间隔 ms（overflow: rolling 时） */
+  rollingInterval?: number
+}
+
+export const DEFAULT_ANIMATION: SlotAnimationConfig = {
+  inline: 'directly',
+  overflow: 'static',
+}
+
+// ============================================================
+// Slot 类型
+// ============================================================
+
+export interface SlotBase {
+  name: string
+  /** 统一格式 "type:name"，如 "welcome:greeting" */
+  appearAfter?: string
+  /** 该 slot 在 echo area 中占用的行数，默认 1 */
+  lineCount?: number
+  /** 动画配置 */
+  animation?: SlotAnimationConfig
+}
+
+export interface WelcomeSlot extends SlotBase {
+  type: 'welcome'
+  text: string
+  /** 完成后等待 ms */
+  exitGap?: number
+  children?: never
+}
+
+export interface SectionSlot extends SlotBase {
+  type: 'section'
+  getLines: () => string[]
+  children?: never
+}
+
+export interface ContentLineSlot extends SlotBase {
+  type: 'contentLine'
+  getLine: () => string
+  children?: never
+}
+
+export type TerminalSlot = WelcomeSlot | SectionSlot | ContentLineSlot
+
+// ============================================================
+// Slot 组件（仅捕获 props）
+// ============================================================
+
+function createSlotComponent(displayType: string) {
+  const SlotComponent = (_props: Record<string, unknown>) => null
+  SlotComponent.displayName = `TerminalBar.${displayType}`
+  return SlotComponent
+}
+
+export const Slot = {
+  Welcome: createSlotComponent('Welcome'),
+  Section: createSlotComponent('Section'),
+  ContentLine: createSlotComponent('ContentLine'),
+}
+
+// ============================================================
+// 从 children 中提取 Slot 配置
+// ============================================================
+
+export function collectSlots(children: ReactNode): TerminalSlot[] {
+  const slots: TerminalSlot[] = []
+  const arr = Array.isArray(children) ? children : [children]
+  for (const child of arr) {
+    if (!child || typeof child !== 'object' || !('type' in child) || !('props' in child)) continue
+    const el = child as { type: { displayName?: string }; props: Record<string, unknown> }
+    const typeName = el.type?.displayName ?? ''
+    const props = el.props
+    if (!props.name) continue
+
+    const anim = (props.animation ?? DEFAULT_ANIMATION) as SlotAnimationConfig
+    const lineCount = (props.lineCount ?? 1) as number
+    const appearAfter = props.appearAfter as string | undefined
+
+    if (typeName === 'TerminalBar.Welcome') {
+      slots.push({ type: 'welcome', name: props.name as string, text: (props.text ?? '') as string,
+        lineCount, animation: anim, exitGap: props.exitGap as number | undefined,
+        appearAfter })
+    } else if (typeName === 'TerminalBar.Section') {
+      slots.push({ type: 'section', name: props.name as string, getLines: props.getLines as () => string[],
+        lineCount, animation: anim, appearAfter })
+    } else if (typeName === 'TerminalBar.ContentLine') {
+      slots.push({ type: 'contentLine', name: props.name as string, getLine: props.getLine as () => string,
+        lineCount, animation: anim, appearAfter })
+    }
+  }
+  return slots
+}

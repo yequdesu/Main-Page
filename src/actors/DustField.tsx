@@ -3,6 +3,7 @@ import { useFrame, useThree } from '@react-three/fiber'
 import { Mesh, SphereGeometry, MeshBasicMaterial, Matrix4, Color, Quaternion, Vector3, type PerspectiveCamera } from 'three'
 import { InstancedMesh2 } from '@three.ez/instanced-mesh'
 import { useScrollStore } from '../stores/scrollStore'
+import { useRealtimeStore, type PlanetCoords } from '../stores/realtimeStore'
 import { useFrameCache } from '../behaviors/useFrameCache'
 import { calcOrbitPosition } from '../behaviors/useOrbitPosition'
 import { calcAppearance } from '../behaviors/useAppearanceFade'
@@ -230,6 +231,22 @@ export default function DustField() {
             if (!_planetWorldPositions[trackIdx]) _planetWorldPositions[trackIdx] = new Vector3()
             _planetWorldPositions[trackIdx]!.copy(mesh.position)
           }
+          // Publish planet coords + angle + speed to realtime store
+          const store = useRealtimeStore.getState()
+          const coords = [...store.planetCoords] as [PlanetCoords, PlanetCoords, PlanetCoords]
+          const angles = [...store.planetAngles] as [number, number, number]
+          const speeds = [...store.planetSpeeds] as [number, number, number]
+          const orbAngles = [...store.orbitAngles] as [number, number, number]
+          if (trackIdx >= 0 && trackIdx < 3) {
+            coords[trackIdx] = { x: px, y: py, z: pz }
+            angles[trackIdx] = d.orbitAngle
+            speeds[trackIdx] = d._baseSpeed ?? d.orbitSpeed
+          }
+          // Accumulate orbit angles (gyro ring simulation)
+          for (let oi = 0; oi < 3; oi++) {
+            orbAngles[oi] = (orbAngles[oi] + delta * store.orbitSpeeds[oi]) % (Math.PI * 2)
+          }
+          store.setPlanetData(coords, angles, speeds, store.orbitSpeeds, orbAngles as [number, number, number])
           mesh.scale.setScalar(appearance.scale)
           const mat = mesh.material as MeshBasicMaterial
           // Occlusion: fade planet if it blocks view of focused planet (逐字保留自原版)

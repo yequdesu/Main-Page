@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 import type { TerminalMode } from '../stores/scrollStore'
 
 // ============================================================
@@ -40,6 +40,8 @@ interface TerminalState {
   resetToWelcome: () => void
   /** 仅清空回显区为欢迎文本，保持 mode 不变（用于 clear/cls 命令） */
   clearEcho: () => void
+  /** 直接替换 echoLines（同步更新 internal + Zustand，一次 render） */
+  replaceEchoLines: (lines: string[]) => void
 }
 
 export function useTerminalState(opts: UseTerminalStateOptions): TerminalState {
@@ -63,22 +65,30 @@ export function useTerminalState(opts: UseTerminalStateOptions): TerminalState {
   }, [onModeChange])
 
   // functional update 保证同事件处理中多次调用的累积正确性
+  // onEchoLinesChange 不在 updater 内调用——updater 在 React render 阶段执行，
+  // 内部同步调用外部 setState 会触发 "Cannot update while rendering" 错误。
+  // 改为用 useEffect 在 commit 阶段同步。
+  const pendingEchoRef = useRef(false)
   const appendEcho = useCallback((line: string) => {
-    setInternalEchoLines(prev => {
-      const next = [...prev, line]
-      onEchoLinesChange?.(next)
-      return next
-    })
-  }, [onEchoLinesChange])
+    setInternalEchoLines(prev => [...prev, line])
+    pendingEchoRef.current = true
+  }, [])
 
   const setEchoLine = useCallback((index: number, text: string) => {
     setInternalEchoLines(prev => {
       const next = [...prev]
       if (index >= 0 && index < next.length) next[index] = text
-      onEchoLinesChange?.(next)
       return next
     })
-  }, [onEchoLinesChange])
+    pendingEchoRef.current = true
+  }, [])
+
+  useEffect(() => {
+    if (pendingEchoRef.current) {
+      pendingEchoRef.current = false
+      onEchoLinesChange?.(internalEchoLines)
+    }
+  }, [internalEchoLines, onEchoLinesChange])
 
   const setInputValue = useCallback((val: string) => {
     setInternalInputValue(val)
@@ -101,6 +111,11 @@ export function useTerminalState(opts: UseTerminalStateOptions): TerminalState {
     onEchoLinesChange?.(lines)
   }, [welcomeText, onEchoLinesChange])
 
+  const replaceEchoLines = useCallback((lines: string[]) => {
+    setInternalEchoLines(lines)
+    onEchoLinesChange?.(lines)
+  }, [onEchoLinesChange])
+
   const resetToWelcome = useCallback(() => {
     const lines = [welcomeText]
     setInternalMode('idle')
@@ -121,6 +136,7 @@ export function useTerminalState(opts: UseTerminalStateOptions): TerminalState {
     clearInput,
     setTypewriterDone,
     clearEcho,
+    replaceEchoLines,
     resetToWelcome,
   }
 }

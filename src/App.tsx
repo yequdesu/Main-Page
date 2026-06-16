@@ -13,6 +13,7 @@ import TerminalBar from './terminal/TerminalBar'
 import { useTerminalActivation } from './terminal/useTerminalActivation'
 import { executeCommand } from './terminal/commands'
 import { lerpHex, lerpRgba } from './utils/color'
+import ExperimentTerminal from './ExperimentTerminal'
 import './App.css'
 
 gsap.registerPlugin(ScrollTrigger)
@@ -292,6 +293,9 @@ export default function App() {
         onThemeUpdate={handleThemeUpdate}
         onCommand={handleCommand}
       />
+
+      {/* 实验 TerminalBar — 仅 Act 3 (ContentPhase) 渲染 */}
+      {needsAct3(sp) && <ExperimentTerminal />}
 
       {/* 滚动提示 */}
       {hintVisible && (

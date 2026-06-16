@@ -1,0 +1,19 @@
+/* ExperimentTerminal — 完全透明，hover 时浮现边框 */
+.experiment-terminal .terminal-bar-inner {
+  background: transparent;
+  backdrop-filter: blur(8px) saturate(120%);
+  -webkit-backdrop-filter: blur(8px) saturate(120%);
+  border: 1px solid transparent;
+  box-shadow: none;
+  transition: border-color 0.3s ease;
+}
+
+.experiment-terminal .terminal-bar-inner:hover {
+  border-color: rgba(100, 180, 255, 0.12);
+  box-shadow: none;
+}
+
+.experiment-terminal .terminal-bar-inner.active {
+  border-color: transparent;
+  box-shadow: none;
+}

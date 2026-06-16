@@ -660,6 +660,7 @@ import type { ScrollableHandle, ScrollOverlayState } from './Scrollable'
 | 文件 | 内容 |
 |------|------|
 | `react-effect-timing-traps.md` | `useLayoutEffect` 残留回调覆盖动画；`setTypewriterDone` 同步调用导致 `clearTimeout` 杀死 timer |
+| `slot-orchestration-debug.md` | Slot 轮询失效（pollRef Map 残留）、rolling 丢行（缓冲区未累积）、滚动闪烁（sub-pixel checkScroll） |
 | `tone-mapping-debug.md` | R3F ACES 色调映射导致颜色偏差 |
 | `instanced-mesh-shader-compile.md` | InstancedMesh2 `setColorAt` 后需 `materialsNeedsUpdate()` |
 | `scene-graph-visibility.md` | DustField 嵌套在 Act1 group 内导致跨 Act 不可见 |
