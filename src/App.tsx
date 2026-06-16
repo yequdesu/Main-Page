@@ -9,8 +9,7 @@ import Act3ContentPhase from './acts/Act3ContentPhase'
 import { useScrollStore } from './stores/scrollStore'
 import { WHITE_OUT_THRESHOLD, WHITE_OUT_END, GRID_START, GRID_SHIFT_START } from './r3f/ScrollRig'
 import { getLighthouseCapture } from './actors/LighthouseCapture'
-import TerminalBar from './terminal/TerminalBar'
-import { useTerminalActivation } from './terminal/useTerminalActivation'
+import MainTerminal from './MainTerminal'
 import { executeCommand } from './terminal/commands'
 import { lerpHex, lerpRgba } from './utils/color'
 import ExperimentTerminal from './ExperimentTerminal'
@@ -53,7 +52,7 @@ export default function App() {
   const [brandTextVisible, setBrandTextVisible] = useState(false)
   const [lighthouseImage, setLighthouseImage] = useState<string | null>(null)
   const overlayData = useScrollStore(s => s.overlayData)
-  const { onKeyDown: onTerminalKeyDown, isActive: isTerminalActive } = useTerminalActivation()
+  const isTerminalActive = terminalMode === 'active'
 
   // ---- Act visibility ----
   const needsAct1 = (sp: number) => sp < GRID_START + 0.01
@@ -161,13 +160,11 @@ export default function App() {
   useEffect(() => {
     window.addEventListener('wheel', onWheel, { passive: false })
     window.addEventListener('click', onClick)
-    window.addEventListener('keydown', onTerminalKeyDown)
     return () => {
       window.removeEventListener('wheel', onWheel)
       window.removeEventListener('click', onClick)
-      window.removeEventListener('keydown', onTerminalKeyDown)
     }
-  }, [onWheel, onClick, onTerminalKeyDown])
+  }, [onWheel, onClick])
 
   // ---- Act 3 focus state (block scroll wheel + brand text animation) ----
   useEffect(() => {
@@ -245,9 +242,6 @@ export default function App() {
   const handleInputChange = useCallback((v: string) => {
     useScrollStore.getState().setInputValue(v)
   }, [])
-  const handleTypewriterDoneChange = useCallback((d: boolean) => {
-    useScrollStore.getState().setTypewriterDone(d)
-  }, [])
   const handleCommand = useCallback((input: string) => executeCommand(input), [])
   const handleThemeUpdate = useCallback((sp: number) => {
     const raw = sp <= 0.40 ? 0 : sp >= 0.55 ? 1 : (sp - 0.40) / 0.15
@@ -280,14 +274,13 @@ export default function App() {
         <Act3ContentPhase visible={needsAct3(sp)} />
       </SceneCanvas>
 
-      <TerminalBar
+      <MainTerminal
         mode={terminalMode}
         echoLines={echoLines}
         inputValue={inputValue}
         onModeChange={handleModeChange}
         onEchoLinesChange={handleEchoLinesChange}
         onInputValueChange={handleInputChange}
-        onTypewriterDoneChange={handleTypewriterDoneChange}
         scrollProgress={sp}
         buildStatusLine={handleBuildStatusLine}
         onThemeUpdate={handleThemeUpdate}

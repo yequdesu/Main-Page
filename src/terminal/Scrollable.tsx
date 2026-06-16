@@ -72,6 +72,9 @@ const Scrollable = forwardRef<ScrollableHandle, ScrollableProps>(function Scroll
   const [canScrollUp, setCanScrollUp] = useState(false)
   const [canScrollDown, setCanScrollDown] = useState(false)
 
+  // 用户是否在底部 — 仅当已到底时新内容才自动滚动
+  const pinnedRef = useRef(true)
+
   // ---- 滚动状态检测 ----
   const checkScroll = useCallback(() => {
     const el = containerRef.current
@@ -91,6 +94,7 @@ const Scrollable = forwardRef<ScrollableHandle, ScrollableProps>(function Scroll
     const distFromBottom = sh - st - ch
     const up = distFromTop > 1
     const down = distFromBottom > 1
+    pinnedRef.current = distFromBottom <= 1
     setCanScrollUp(up)
     setCanScrollDown(down)
     onScrollStateChange?.({ canScrollUp: up, canScrollDown: down })
@@ -108,11 +112,12 @@ const Scrollable = forwardRef<ScrollableHandle, ScrollableProps>(function Scroll
   )
 
   const scrollToBottom = useCallback(() => {
+    if (!pinnedRef.current) return
     const el = containerRef.current
     if (!el) return
     el.scrollTop = el.scrollHeight
-    // 下一帧复查（内容可能异步渲染）
     requestAnimationFrame(() => {
+      if (!pinnedRef.current) return
       if (containerRef.current) {
         containerRef.current.scrollTop = containerRef.current.scrollHeight
         checkScroll()

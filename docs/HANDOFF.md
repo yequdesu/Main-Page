@@ -1,209 +1,91 @@
-# 项目交接文档
+# TerminalBar 抽象化重构 — 会话交接
 
-> 生成时间：2026-06-10  
-> 最后更新：2026-06-10（交接任务全部完成）  
-> 分支：`Editor-CyDlen`  
-> 最后提交：待提交 — 交接任务实施
+> 日期：2026-06-16
+> 分支：`componentization-experiment`
 
----
+## 当前状态
 
-## 一、项目概述
+TerminalBar 已抽象化为纯容器引擎。MainTerminal 承载 MainPage 专属配置，与 ExperimentTerminal 形成对称架构。**构建通过，34 测试通过。需要在 `pnpm dev` 中验证行为完整性。**
 
-**YeQuDesu · Personal Site** — 滚动驱动的 3D 单页个人网站。全视口 `<canvas>` 渲染，GSAP ScrollTrigger 驱动三幕叙事动画。
-
-### 技术栈
-
-| 层 | 技术 | 版本 |
-|----|------|------|
-| UI 框架 | React | 19 |
-| 3D 引擎 | React Three Fiber (R3F) | 9.6 |
-| 3D 辅助 | Drei | 10.7 |
-| 动画 | GSAP + @gsap/react | 3.15 |
-| 状态管理 | Zustand | 5.0 |
-| 语言 | TypeScript | 5.7 (tsc 6.0) |
-| 构建 | Vite | 6.4 |
-| 测试 | Vitest | 4.1 |
-| 后端 | Python (stats_server.py) | 3.x |
-
-### 包管理器
-
-npm 为主，pnpm 兼容。CLAUDE.md 约定默认使用 pnpm。安装时若用 pnpm 需额外运行 `pnpm approve-builds esbuild`。
-
----
-
-## 二、已完成工作
-
-### 2.1 框架迁移（Vanilla Three.js + Vue → R3F + React）
-
-| 变更 | 说明 |
-|------|------|
-| 移除 Vue 3 全家桶 | `vue`、`@vitejs/plugin-vue`、`.vue` 文件全部删除 |
-| 引入 React 19 + R3F | 27 个 TypeScript 源文件替代原来的 5 个 Vue 文件 |
-| LighthouseScene.vue 拆分 | 1580 行单文件 → 9 个 Actor + 3 个 Act + 6 个 behavior/hook |
-| 命令式 → 声明式 | `new THREE.Mesh()` 链式调用 → R3F JSX 组件树 |
-
-### 2.2 架构决策（均已归档于 `docs/TECH_STACK_EVALUATION.md`）
-
-| # | 决策 | 方案 |
-|---|------|------|
-| 1 | 技术栈 | React 19 + R3F v9 + TypeScript |
-| 2 | 滚动驱动 | GSAP ScrollTrigger（命令式）+ R3F useFrame（声明式渲染） |
-| 3 | 状态管理 | Zustand（渲染状态）+ React useState（UI 状态） |
-| 4 | Act 可见性 | `visible` prop 切换（始终挂载，不 mount/unmount） |
-| 5 | 粒子系统 | 3 主行星独立 Mesh + 132 碎片 InstancedMesh |
-| 6 | 测试策略 | L1 纯函数全覆盖 + L2 关键路径场景图验证 |
-
-### 2.3 源文件结构（34 个文件）
+## 架构
 
 ```
-src/
-├── main.tsx                        入口 + GSAP 注册
-├── App.tsx / App.css               滚动物理 + DOM 叠加层 + SVG 聚焦层 + CSS 变量
-├── vite-env.d.ts
-├── r3f/
-│   ├── Canvas.tsx                   R3F Canvas（frameloop:demand）
-│   ├── ScrollRig.ts                阈值 + sceneApplyWhiteOut
-│   ├── ScrollInvalidator.tsx       Zustand 订阅 → invalidate() 桥接
-│   └── PlanetClickHandler.tsx      NDC 投影点击检测 + 行星聚焦
-├── stores/
-│   └── scrollStore.ts              Zustand（scrollSlice + focusSlice）
-├── types/
-│   └── index.ts                    SCROLL_RIG + 所有共享类型
-├── acts/
-│   ├── Act1OceanVoyage.tsx         组装 OceanWaves + Lighthouse + LightBeam + DustField + LighthouseCapture
-│   ├── Act2GridTransition.tsx      组装 GridLines
-│   └── Act3ContentPhase.tsx        组装 OrbitRings + CentralStar + PlanetLabel + 相机聚焦
-├── actors/
-│   ├── Lighthouse.tsx              30 个 Mesh 声明式灯塔（暴露 ref 供截图）
-│   ├── LightBeam.tsx               3 锥体 + 2 射线 + 辉光 + 3 模式动画 + 灯光
-│   ├── OceanWaves.tsx              30 条线，逐顶点波浪动画 + 体积聚光照明
-│   ├── DustField.tsx               3 Planet + InstancedMesh(80 碎片)，per-frame 更新
-│   ├── CentralStar.tsx             核心 + 光晕 + Canvas 精灵 halo
-│   ├── OrbitRings.tsx              3 轨道参考线 + 编排 GYRO_RINGS → 3 陀螺仪环
-│   ├── OrbitalRing.tsx             单陀螺仪环力学组件（倾角 + 偏心率 + 进动），可独立复用
-│   ├── GridLines.tsx               28 垂直线 + 210 节点
-│   ├── PlanetLabel.tsx             Canvas → Sprite React 组件（位置跟随 + 聚焦淡出）
-│   ├── SceneLights.tsx             全局灯光（Canvas 根层级）
-│   └── LighthouseCapture.tsx       离屏渲染 → base64 PNG
-├── behaviors/
-│   ├── useCameraFocus.ts           相机双层平滑 + 绕行 + 30s 自动取消 + SVG overlay
-│   ├── useFrameCache.ts            帧缓存守卫
-│   ├── useOrbitPosition.ts         轨道位置纯函数（可测）
-│   ├── useAppearanceFade.ts        外观计算纯函数（可测）
-│   ├── useOcclusionFade.ts         遮挡淡化纯函数（可测）
-│   ├── useScreenSpaceHover.ts      屏幕空间悬停检测（NDC 投影 + 迟滞）
-│   └── __tests__/
-│       ├── smoothstep.test.ts
-│       ├── toward.test.ts
-│       └── r3f-components.test.tsx  7 个 L2 场景图测试
-├── shaders/
-│   └── VolumetricBeamShader.ts     自定义光束着色器
-└── utils/
-    ├── smoothstep.ts / toward.ts / shortestDelta.ts
-    └── __tests__/                  6 个纯函数测试
+App.tsx ── MainTerminal (布局/字体/welcome/status + / 键激活) ── TerminalBar (纯引擎)
+          ExperimentTerminal (实验布局 + planet/orbit slots) ── TerminalBar (纯引擎)
 ```
 
-### 2.4 脚本
+## 变更清单
 
-```bash
-npm run dev      # 启动开发服务器（HMR, :5173）
-npm run build    # 生产构建（tsc + vite）→ dist/
-npm run preview  # 预览生产构建
-npm run test     # 运行 vitest（13/13 通过）
-npm run test:ui  # 浏览器测试 UI
-npm run clean    # 清除 dist + .vite 缓存 + tsbuildinfo
-npm run mirror   # 监控后台进程（Vite :5173, Stats :9999）
+| 文件 | 状态 | 说明 |
+|------|:---:|------|
+| `src/terminal/TerminalBar.tsx` | 重写 | 移除所有默认值 + propsToSlots；layout 必传；内容仅通过 Slot children；移除 `'key'` activationMode；添加 `getDefaultLines` prop |
+| `src/MainTerminal.tsx` | **新建** | MainPage 专属封装：布局/字体/welcome/status line + `/` 键激活 |
+| `src/App.tsx` | 修改 | TerminalBar → MainTerminal；移除 useTerminalActivation + keydown 监听；移除 handleTypewriterDoneChange |
+| `src/terminal/useTerminalActivation.ts` | 删除 | 逻辑合并进 MainTerminal |
+| `src/ExperimentTerminal.tsx` | 修改 | 添加 `borderRadius` + `fontFamily` 到 layout（TerminalBarLayout 必需字段） |
+| `src/terminal/useCommandSystem.ts` | 修改 | `playEcho` 返回类型 `Promise<void>` → `void` |
+
+## 删除的 legacy 代码（本次 + 上次累计）
+
+**本次新增删除：**
+- `DEFAULTS` 对象（text/layout/animation/behavior 默认值合并）
+- `propsToSlots()` / `mergeSlots()` 函数
+- `latestPropsRef`
+- Props: `buildStatusLine`, `buildStatusLines`, `contentLines`, `statusLinePrefix`, `welcomeText`
+- Interfaces: `TerminalBarTextConfig`, `TerminalBarLayoutConfig`, `TerminalBarAnimationConfig`, `TerminalBarBehaviorConfig`, `TerminalBarContentLine`
+- `ActivationMode` 的 `'key'` 变体
+- `useTerminalActivation.ts` + 测试文件
+- App.tsx 中的 `handleTypewriterDoneChange`、`onTerminalKeyDown` 监听
+- 未使用的 `EchoStrategy` import、dead animation 字段、`typewriterDone`/`onTypewriterDoneChange` props
+
+**上次已删除：**
+- `buildStatusLine(s)` 的 useEffect（单行 + 多行，~65 行）
+- `contentLines` useEffect + `\0c:N` 内部标记（~45 行）
+- `displayLine` 函数
+- `isSlotMode` 三元分支渲染（~35 行）
+- `useTerminalState` 调用（TerminalBar 不再使用，文件保留）
+- legacy `useTypewriter` 实例
+- `echoLinesRef` / `statusLineIdx` / `contentLineIdxRef` 等 ref
+
+## 交互模型
+
+| 终端实例 | 激活方式 |
+|----------|----------|
+| **TerminalBar**（引擎） | click to toggle（唯一内置交互） |
+| **MainTerminal** | click + `/` 键激活 |
+| **ExperimentTerminal** | click only |
+
+## TerminalBar 精简后接口
+
+```ts
+interface TerminalBarProps {
+  layout: TerminalBarLayout        // 必传（maxEchoLines, maxWidth, borderRadius, padding, fontSize, fontFamily, zIndex, positioning）
+  text?: TerminalBarText            // promptChar（默认 '$'）+ placeholder
+  animation?: TerminalBarAnimation  // 仅 heightAnimPerLine
+  behavior?: TerminalBarBehavior    // activationMode（默认 'click'）+ blurTimeout（默认 100）
+  // 受控状态: mode, echoLines, inputValue
+  // 命令: onCommand, onClear, getDefaultLines
+  // 样式: scrollProgress, onThemeUpdate, className
+  // 内容: children (Slot.Welcome / Slot.Section / Slot.ContentLine)
+}
 ```
 
----
+## pnpm dev 验证清单
 
-## 三、当前状态：功能完备度
+1. **主终端**：Typewriter → status line 出现 → 点击激活 → `/` 激活 → `help` → `clear` → 状态行滚动更新
+2. **实验终端**（Act 3 左上角）：点击激活，planet/orbit 动画正常
+3. **高度动画**：`help` 输出增长平滑、`clear` 收缩平滑
+4. **颜色过渡**：Act 1→Act 2 文字颜色实时跟随 scrollProgress 变化
+5. **多终端共存**：底部主终端 + 实验终端各自独立运行
 
-### 已验证
+## 已知风险 / 可能需要修复
 
-| 项目 | 状态 |
-|------|:---:|
-| TypeScript 编译 | ✅ 零错误 |
-| 生产构建 | ✅ 1.2s，~1.2MB JS |
-| 单元测试 | ✅ 13/13 通过（smoothstep, toward, R3F 场景图） |
-| React 脚手架 | ✅ 含 App.tsx（GSAP 滚动 + DOM 层） |
-| Lighthouse actor | ✅ 30 个 Mesh 声明式组件 |
-| LightBeam actor | ✅ 3 锥体 + ShaderMaterial + 射线 |
-| OceanWaves actor | ✅ 50 条线，逐顶点动画 + 白化过渡 |
-| GridLines actor | ✅ 28 线 + 210 节点，交错延伸 |
-| DustField actor | ✅ 3 Planet + InstancedMesh(132)，per-frame 全参数更新 |
-| CentralStar actor | ✅ 核心 + 光晕 + Canvas halo |
-| OrbitRings actor | ✅ 3 轨道 + 3 陀螺仪环 |
-| PlanetLabel actor | ✅ Canvas → Sprite 工厂函数 |
-| Act 可见性控制 | ✅ visible prop（始终挂载） |
-| Zustand store | ✅ scrollSlice + focusSlice |
-| 相机聚焦 | ✅ 双层平滑 + 绕行 + 30s 自动取消 |
-| SVG 切线叠加层 | ✅ 屏幕空间投影 + 外公切线 |
-| CSS 样式迁移 | ✅ 品牌文字 + 滚动提示 + 聚焦动画 |
-| pnpm 兼容 | ✅ 构建/测试均通过 |
-| Mirror 进程监控 | ✅ Vite + Stats 端口检测 |
-| Clean 脚本 | ✅ 中间产物清理 |
+1. **命令输出回显**：`playEcho` 当前同步追加，未经过 `useEchoSequence` 两阶段动画。
+2. **`useCommandSystem` deps 对象**：每次 render 重建，回调每次重新创建。
+3. **`typewriterDone` store 字段**：`handleTypewriterDoneChange` 已移除，但 `scrollStore` 中 `typewriterDone` 字段和 `setTypewriterDone` 方法仍存在（无消费者）。可考虑后续清理。
 
-### 待完善（已全部完成 ✅ 2026-06-10）
+## 不变文件
 
-| # | 事项 | 说明 | 实施 |
-|---|------|------|:---:|
-| 1 | **frameloop 连接** | 新增 `ScrollInvalidator.tsx`，Zustand `subscribe` → `invalidate()` | ✅ |
-| 2 | **光束 idle 动画** | `LightBeam.tsx` 重构，三种模式（空闲漫游/滚动归位/白化增强）+ 灯光管理 | ✅ |
-| 3 | **行星标签跟随** | `PlanetLabel.tsx` 改为 React 组件，挂载到 `Act3ContentPhase`，跟随星球位置 | ✅ |
-| 4 | **灯塔截图** | 新增 `LighthouseCapture.tsx`，离屏渲染 → base64 PNG，品牌文字旁显示灯塔图标 | ✅ |
-| 5 | **行为 hook 补全** | 抽取 `calcOrbitPosition`、`calcAppearance`、`calcOcclusionFade`、`calcScreenSpaceHover` 至 `behaviors/` | ✅ |
-| 6 | **R3F 组件测试** | 7 个 L2 场景图测试（Lighthouse、LightBeam、OrbitRings、Act 可见性、useFrame） | ✅ |
-| 7 | **品牌文字 CSS 变量** | `--text-offset-y` 同步 Act 3 grid shift 位移，App.tsx `useEffect` 中更新 | ✅ |
-
----
-
-## 四、关键设计文档索引
-
-| 文档 | 路径 | 用途 |
-|------|------|------|
-| 架构分析（历史） | `docs/ARCHITECTURE.md` | Vue 原版源码逐函数拆解 + 重构建议（迁移前参考） |
-| 技术评估 | `docs/TECH_STACK_EVALUATION.md` | 11 项架构决策 + 援引来源 |
-| 可组合性/可测试性 | `docs/COMPOSABILITY_TESTABILITY.md` | R3F vs TresJS vs Vanilla 对比 |
-| 轨道系统 | `docs/orbital-system.md` | 力学模型、变换链、配置参考、新增轨道 |
-| 设计文档 | `docs/superpowers/specs/2026-06-10-r3f-refactor-design.md` | 9 章正式设计文档 |
-| 实施计划 | `docs/superpowers/plans/2026-06-10-r3f-refactor.md` | 16 Task 实施计划 |
-| 维护手册 | `docs/MAINTENANCE.md` | 调试/开发/维护流程 + 渲染特效 + 浏览器兼容性 |
-| 项目说明 | `README.md` | 体验概览 + 架构 + 维护约定 |
-| Claude 约束 | `CLAUDE.md` | 语言协定 + 维护约束 + 架构要点 |
-
----
-
-## 五、维护约束（CLAUDE.md 定义）
-
-1. 方案修正或项目结构变更时，必须同步更新 `README.md`
-2. 每个 R3F 方案决策必须援引社区成熟方案并说明来源
-3. `.superpowers/`、`.claude/`、`node_modules/`、`dist/`、`*.log`、`*.tsbuildinfo` 禁止提交至 git
-4. 面向人类的文档见 `README.md`，面向 Claude Code 的约束见 `CLAUDE.md`
-
----
-
-## 六、快速启动
-
-```bash
-git clone ... && cd YeQuDesu-Main-Page
-git checkout Editor-CyDlen
-npm install
-npm run dev          # → http://localhost:5173
-npm run mirror       # 监控后台进程
-```
-
----
-
-## 七、模块 README 索引
-
-| 目录 | README | 摘要 |
-|------|--------|------|
-| `src/actors/` | [`README.md`](../src/actors/README.md) | 12 个 3D 对象组件（创建 + useFrame 动画） |
-| `src/acts/` | [`README.md`](../src/acts/README.md) | 3 个 Act 编排组件（组装 + 可见性控制） |
-| `src/behaviors/` | [`README.md`](../src/behaviors/README.md) | 6 个纯函数行为 + Hook（可 L1 测试） |
-| `src/r3f/` | [`README.md`](../src/r3f/README.md) | Canvas 基础设施 + 渲染循环桥接 |
-| `src/stores/` | [`README.md`](../src/stores/README.md) | Zustand 状态管理（scrollSlice + focusSlice） |
-| `src/types/` | [`README.md`](../src/types/README.md) | 共享类型、SCROLL_RIG 阈值常量 |
-| `src/utils/` | [`README.md`](../src/utils/README.md) | 纯数学工具函数 |
-| `src/shaders/` | [`README.md`](../src/shaders/README.md) | VolumetricBeamShader 自定义着色器 |
+- `slots.tsx`、`useSlotOrchestration.ts`、`useCommandSystem.ts`（仅 playEcho 类型变更）、`useAnimateHeight.ts`、`useTypewriter.ts`
+- `Scrollable.tsx/css`、`commands.ts`
+- CSS 文件

@@ -20,16 +20,28 @@ interface SlotRuntime {
   rollingBuffer: string[]
 }
 
+export interface AnchorAPI {
+  follow(): void
+  release(): void
+  isFollowing(): boolean
+}
+
 interface Result {
   echoLines: string[]
   typewriterDisplayed: string
   isTypewriterDone: boolean
+  anchor: AnchorAPI
 }
 
 function slotLabel(name: string) { return `slot:${name}` }
 
-export function useSlotOrchestration(children: ReactNode, _active: boolean): Result | null {
-  const raw = collectSlots(children)
+export function useSlotOrchestration(
+  childrenOrSlots: ReactNode | TerminalSlot[] | null,
+  _active: boolean,
+  controlledEchoLines?: string[],
+  onEchoLinesChange?: (lines: string[]) => void,
+): Result | null {
+  const raw = Array.isArray(childrenOrSlots) ? childrenOrSlots : collectSlots(childrenOrSlots)
   const key = raw.map(s => `${s.type}:${s.name}:${s.type === 'welcome' ? s.text : ''}:${s.appearAfter ?? ''}`).join('|')
   const cache = useRef<{ key: string; slots: TerminalSlot[] }>({ key: '', slots: [] })
   if (cache.current.key !== key) cache.current = { key, slots: raw }
@@ -45,10 +57,11 @@ export function useSlotOrchestration(children: ReactNode, _active: boolean): Res
     echoText: useLiteral ? (welcomeSlot?.text ?? '') : '',
   })
 
-  const [echoLines, setEchoLines] = useState<string[]>([])
+  const [echoLines, setEchoLines] = useState<string[]>(controlledEchoLines ?? [])
   const runtimesRef = useRef<Map<string, SlotRuntime>>(new Map())
-  const rollingBufRef = useRef<Map<string, string[]>>(new Map()) // overflow:rolling 缓冲区
+  const rollingBufRef = useRef<Map<string, string[]>>(new Map())
   const tlRef = useRef<gsap.core.Timeline | null>(null)
+  const followingRef = useRef(true) // anchor: follow by default
 
   const reserveLines = (slot: TerminalSlot, start: number) => {
     const count = slot.lineCount ?? 1
@@ -106,6 +119,12 @@ export function useSlotOrchestration(children: ReactNode, _active: boolean): Res
     if (welcomeSlot && !twDone) return
     tlRef.current?.kill()
     const activeSlots = slots.filter(s => s.type !== 'welcome')
+
+    // 截断 echoLines 至当前 slot 总行数（移除已消失 slot 的残留行）
+    const totalLines = (welcomeSlot?.lineCount ?? 0) +
+      activeSlots.reduce((sum, s) => sum + (s.lineCount ?? 1), 0)
+    setEchoLines(prev => prev.slice(0, totalLines))
+
     if (activeSlots.length === 0) return
 
     const tl = gsap.timeline({ paused: true })
@@ -154,8 +173,7 @@ export function useSlotOrchestration(children: ReactNode, _active: boolean): Res
     }
 
     tl.play()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [twDone])
+  }, [twDone, slots])
 
   // ---- 定时轮询（Section 刷新 + ContentLine rolling） ----
   const pollRef = useRef<Map<string, ReturnType<typeof setInterval>>>(new Map())
@@ -172,7 +190,7 @@ export function useSlotOrchestration(children: ReactNode, _active: boolean): Res
       const anim = slot.animation
       const interval = anim?.overflow === 'rolling'
         ? (anim?.rollingInterval ?? 1000)
-        : (anim?.rowInterval ?? 250)
+        : (anim?.pollInterval ?? 250)
 
       const timer = setInterval(() => {
         const lines = slot.type === 'section' ? slot.getLines() : [slot.getLine()]
@@ -203,9 +221,25 @@ export function useSlotOrchestration(children: ReactNode, _active: boolean): Res
 
   useEffect(() => () => { tlRef.current?.kill() }, [])
 
+  // Controlled mode: sync echoLines to external store (write-only)
+  const prevEchoRef = useRef(echoLines)
+  useEffect(() => {
+    if (onEchoLinesChange && echoLines !== prevEchoRef.current) {
+      prevEchoRef.current = echoLines
+      onEchoLinesChange(echoLines)
+    }
+  }, [echoLines, onEchoLinesChange])
+
+  const anchor: AnchorAPI = {
+    follow: () => { followingRef.current = true },
+    release: () => { followingRef.current = false },
+    isFollowing: () => followingRef.current,
+  }
+
   return {
     echoLines,
     typewriterDisplayed: useLiteral ? displayedText : directText,
     isTypewriterDone: useLiteral ? twDone : true,
+    anchor,
   }
 }

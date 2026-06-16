@@ -61,18 +61,22 @@ export function useAnimateHeight(
     const newH = el.scrollHeight
     const oldH = prevHeightRef.current
 
-    // ---- SHRINK ----
+    // ---- SHRINK / GROW ----
+    let animating = false
+    let lineDelta = 0
+
     if (curr < prev && oldH > 0 && newH < oldH) {
+      animating = true
+      lineDelta = prev - curr
       animatingRef.current = true
-      const duration = (prev - curr) * durationPerLine
       el.style.overflow = 'hidden'
       el.style.height = oldH + 'px'
-      el.style.transition = `height ${duration}s ease`
-      el.offsetHeight // 强制布局快照：锁定起始高度
+      el.style.transition = `height ${(lineDelta * durationPerLine)}s ease`
+      el.offsetHeight
       el.style.height = newH + 'px'
-    }
-    // ---- GROW ----
-    else if (curr > prev && oldH > 0) {
+    } else if (curr > prev && oldH > 0) {
+      animating = true
+      lineDelta = curr - prev
       if (!animatingRef.current) {
         animatingRef.current = true
         el.style.overflow = 'hidden'
@@ -81,26 +85,28 @@ export function useAnimateHeight(
         el.offsetHeight
         el.style.height = newH + 'px'
       } else {
-        // 动画运行中：仅更新目标高度，transition 自然转向
         el.style.height = newH + 'px'
       }
-    }
-
-    // ---- 清理 ----
-    const cleanup = () => {
-      el.style.height = ''
-      el.style.transition = ''
-      el.style.overflow = ''
-      animatingRef.current = false
-      el.removeEventListener('transitionend', cleanup)
-      if (timerRef.current) clearTimeout(timerRef.current)
+    } else if (curr === prev && oldH > 0 && newH !== oldH && !animatingRef.current) {
+      // 行数不变但 scrollHeight 变化（内容填充致高度增减）→ 直接滚动
       onComplete?.()
     }
-    el.addEventListener('transitionend', cleanup, { once: true })
-    if (curr !== prev) {
+
+    if (animating) {
+      // ---- 仅在启动 transition 时注册清理回调 ----
+      const cleanup = () => {
+        el.style.height = ''
+        el.style.transition = ''
+        el.style.overflow = ''
+        animatingRef.current = false
+        el.removeEventListener('transitionend', cleanup)
+        if (timerRef.current) clearTimeout(timerRef.current)
+        onComplete?.()
+      }
+      el.addEventListener('transitionend', cleanup, { once: true })
       timerRef.current = setTimeout(
         cleanup,
-        (Math.abs(curr - prev) * durationPerLine) * 1000 + 200,
+        (lineDelta * durationPerLine) * 1000 + 200,
       )
     }
 

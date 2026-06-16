@@ -14,13 +14,16 @@ export interface SlotAnimationConfig {
 
   /** 行间动画策略（多行容器） */
   rows?: 'lineByLine' | 'directly'
-  /** 行间间隔 ms（rows: lineByLine 时） */
+  /** 逐行动画的步进间隔 ms（rows: lineByLine 时） */
   rowInterval?: number
 
   /** 溢出策略 */
   overflow: 'static' | 'rolling'
   /** 滚动间隔 ms（overflow: rolling 时） */
   rollingInterval?: number
+
+  /** 内容轮询间隔 ms（定时调用 getLines/getLine 刷新）。默认 250ms */
+  pollInterval?: number
 }
 
 export const DEFAULT_ANIMATION: SlotAnimationConfig = {
@@ -78,6 +81,7 @@ export const Slot = {
   Welcome: createSlotComponent('Welcome'),
   Section: createSlotComponent('Section'),
   ContentLine: createSlotComponent('ContentLine'),
+  collectSlots,
 }
 
 // ============================================================

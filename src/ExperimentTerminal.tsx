@@ -27,7 +27,9 @@ export default function ExperimentTerminal() {
       className="experiment-terminal"
       layout={{
         maxEchoLines: 6, maxWidth: '50ch', fontSize: '0.48rem',
-        padding: '4px 10px', top: '2rem', left: '2rem', right: 'auto', zIndex: 20,
+        padding: '4px 10px', borderRadius: '8px',
+        fontFamily: "'SF Mono','Fira Code','Cascadia Code','Consolas',monospace",
+        top: '2rem', left: '2rem', right: 'auto', zIndex: 20,
       }}
     >
       <TerminalBar.Welcome
