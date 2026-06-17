@@ -10,7 +10,7 @@ import type { TerminalMode } from './stores/scrollStore'
 //   - welcome / status / command 的 Slot 声明
 //   - / 键激活（MainPage 专属交互）
 //
-// 与 ExperimentTerminal 对称——均为 TerminalBar 的 thin wrapper。
+// 与 InfoPanelTerminal 对称——均为 TerminalBar 的 thin wrapper。
 // ============================================================
 
 const MAIN_LAYOUT = {

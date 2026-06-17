@@ -1,9 +1,15 @@
 import { useRef, useCallback } from 'react'
 import TerminalBar from './terminal/TerminalBar'
 import { useRealtimeStore } from './stores/realtimeStore'
-import './ExperimentTerminal.css'
+import './InfoPanelTerminal.css'
 
-export default function ExperimentTerminal() {
+/**
+ * InfoPanelTerminal — 信息面板终端（Act 3 左上角）。
+ *
+ * 实时显示行星坐标、轨道参数、摄像机状态和 debris 计数。
+ * 通过 TerminalBar Slot 声明式构建，与 MainTerminal 对称。
+ */
+export default function InfoPanelTerminal() {
   const handlePlanetLines = useCallback(() => {
     const { planetCoords, planetSpeeds } = useRealtimeStore.getState()
     return [
@@ -50,7 +56,7 @@ export default function ExperimentTerminal() {
 
   return (
     <TerminalBar
-      className="experiment-terminal"
+      className="info-panel-terminal"
       layout={{
         maxEchoLines: 8, maxWidth: '50ch', fontSize: '0.48rem',
         padding: '4px 10px', borderRadius: '8px',

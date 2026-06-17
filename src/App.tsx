@@ -12,7 +12,7 @@ import { getLighthouseCapture } from './actors/LighthouseCapture'
 import MainTerminal from './MainTerminal'
 import { executeCommand } from './terminal/commands'
 import { lerpHex, lerpRgba } from './utils/color'
-import ExperimentTerminal from './ExperimentTerminal'
+import InfoPanelTerminal from './InfoPanelTerminal'
 import './App.css'
 
 gsap.registerPlugin(ScrollTrigger)
@@ -287,8 +287,8 @@ export default function App() {
         onCommand={handleCommand}
       />
 
-      {/* 实验 TerminalBar — 仅 Act 3 (ContentPhase) 渲染 */}
-      {needsAct3(sp) && <ExperimentTerminal />}
+      {/* Info Panel Terminal — 仅 Act 3 (ContentPhase) 渲染 */}
+      {needsAct3(sp) && <InfoPanelTerminal />}
 
       {/* 滚动提示 */}
       {hintVisible && (
