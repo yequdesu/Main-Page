@@ -13,20 +13,46 @@ export default function ExperimentTerminal() {
     ]
   }, [])
 
-  const orbitIdxRef = useRef(0)
-  const handleOrbitLine = useCallback(() => {
-    const { orbitSpeeds, orbitAngles } = useRealtimeStore.getState()
-    const idx = orbitIdxRef.current
-    orbitIdxRef.current = (idx + 1) % 3
-    const labels = ['ring-0', 'ring-1', 'ring-2']
-    return `${labels[idx]}  speed:${orbitSpeeds[idx].toFixed(2)}  ∠:${orbitAngles[idx].toFixed(1)}`
+  const rollingIdxRef = useRef(0)
+  const handleRollingLine = useCallback(() => {
+    const { orbitSpeeds, orbitAngles, camera, debrisCount } = useRealtimeStore.getState()
+    const idx = rollingIdxRef.current
+    rollingIdxRef.current = (idx + 1) % 7
+
+    switch (idx) {
+      case 0: {
+        const labels = ['ring-0', 'ring-1', 'ring-2']
+        const i = idx % 3
+        return `${labels[i]}  speed:${orbitSpeeds[i].toFixed(2)}  ∠:${orbitAngles[i].toFixed(1)}`
+      }
+      case 1: {
+        const labels = ['ring-0', 'ring-1', 'ring-2']
+        const i = (idx + 1) % 3
+        return `${labels[i]}  speed:${orbitSpeeds[i].toFixed(2)}  ∠:${orbitAngles[i].toFixed(1)}`
+      }
+      case 2: {
+        const labels = ['ring-0', 'ring-1', 'ring-2']
+        const i = (idx + 2) % 3
+        return `${labels[i]}  speed:${orbitSpeeds[i].toFixed(2)}  ∠:${orbitAngles[i].toFixed(1)}`
+      }
+      case 3:
+        return `cam pos  x:${camera.pos.x.toFixed(2)} y:${camera.pos.y.toFixed(2)} z:${camera.pos.z.toFixed(2)}`
+      case 4:
+        return `cam look  x:${camera.look.x.toFixed(2)} y:${camera.look.y.toFixed(2)} z:${camera.look.z.toFixed(2)}`
+      case 5:
+        return `cam fov  ${camera.fov.toFixed(1)}°`
+      case 6:
+        return `debris instances  ${debrisCount}`
+      default:
+        return ''
+    }
   }, [])
 
   return (
     <TerminalBar
       className="experiment-terminal"
       layout={{
-        maxEchoLines: 6, maxWidth: '50ch', fontSize: '0.48rem',
+        maxEchoLines: 8, maxWidth: '50ch', fontSize: '0.48rem',
         padding: '4px 10px', borderRadius: '8px',
         fontFamily: "'SF Mono','Fira Code','Cascadia Code','Consolas',monospace",
         top: '2rem', left: '2rem', right: 'auto', zIndex: 20,
@@ -47,9 +73,9 @@ export default function ExperimentTerminal() {
         appearAfter="welcome:greeting"
       />
       <TerminalBar.ContentLine
-        name="orbits"
-        getLine={handleOrbitLine}
-        lineCount={2}
+        name="rolling"
+        getLine={handleRollingLine}
+        lineCount={4}
         animation={{ inline: 'directly', overflow: 'rolling', rollingInterval: 500 }}
         appearAfter="section:planets"
       />

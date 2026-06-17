@@ -57,6 +57,16 @@ export function useSlotOrchestration(
     echoText: useLiteral ? (welcomeSlot?.text ?? '') : '',
   })
 
+  // exitGap — typewriter 完成后延迟，期间 cursor 持续渲染
+  const exitGap = welcomeSlot?.exitGap ?? 0
+  const [typewriterDone, setTypewriterDone] = useState(false)
+  useEffect(() => {
+    if (twDone && !typewriterDone) {
+      const timer = setTimeout(() => setTypewriterDone(true), exitGap)
+      return () => clearTimeout(timer)
+    }
+  }, [twDone, typewriterDone, exitGap])
+
   const [echoLines, setEchoLines] = useState<string[]>(controlledEchoLines ?? [])
   const runtimesRef = useRef<Map<string, SlotRuntime>>(new Map())
   const rollingBufRef = useRef<Map<string, string[]>>(new Map())
@@ -116,7 +126,7 @@ export function useSlotOrchestration(
 
   // ---- GSAP Timeline：所有内容写入均在此 timeline 上 ----
   useEffect(() => {
-    if (welcomeSlot && !twDone) return
+    if (welcomeSlot && !typewriterDone) return
     tlRef.current?.kill()
     const activeSlots = slots.filter(s => s.type !== 'welcome')
 
@@ -130,8 +140,6 @@ export function useSlotOrchestration(
     const tl = gsap.timeline({ paused: true })
     tlRef.current = tl
     const addedLabels = new Set<string>()
-    const exitGap = welcomeSlot?.exitGap ?? 0
-    if (exitGap > 0) tl.delay(exitGap / 1000)
 
     for (const s of activeSlots) {
       const label = slotLabel(s.name)
@@ -173,7 +181,7 @@ export function useSlotOrchestration(
     }
 
     tl.play()
-  }, [twDone, slots])
+  }, [typewriterDone, slots])
 
   // ---- 定时轮询（Section 刷新 + ContentLine rolling） ----
   const pollRef = useRef<Map<string, ReturnType<typeof setInterval>>>(new Map())
@@ -239,7 +247,7 @@ export function useSlotOrchestration(
   return {
     echoLines,
     typewriterDisplayed: useLiteral ? displayedText : directText,
-    isTypewriterDone: useLiteral ? twDone : true,
+    isTypewriterDone: useLiteral ? typewriterDone : true,
     anchor,
   }
 }

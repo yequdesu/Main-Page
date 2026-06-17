@@ -1,4 +1,11 @@
 /* ExperimentTerminal — 完全透明，hover 时浮现边框 */
+
+/* welcome text bold */
+.experiment-terminal .echo-prefix,
+.experiment-terminal .terminal-echo > span:first-child {
+  font-weight: 600;
+}
+
 .experiment-terminal .terminal-bar-inner {
   background: transparent;
   backdrop-filter: blur(8px) saturate(120%);

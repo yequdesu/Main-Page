@@ -285,6 +285,17 @@ export default function DustField() {
     if (hoverResult.currentIdx !== useScrollStore.getState().hoveredIdx) {
       useScrollStore.getState().setHoveredIdx(hoverResult.currentIdx)
     }
+
+    // Publish camera + debris data to realtime store
+    const cam = camera as PerspectiveCamera
+    const lookDir = new Vector3()
+    cam.getWorldDirection(lookDir)
+    useRealtimeStore.getState().setCameraData({
+      pos: { x: cam.position.x, y: cam.position.y, z: cam.position.z },
+      look: { x: lookDir.x, y: lookDir.y, z: lookDir.z },
+      fov: cam.fov,
+    })
+    useRealtimeStore.getState().setDebrisCount(80)
   })
 
   // ---- Mouse move for hover detection ----

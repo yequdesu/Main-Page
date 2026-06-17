@@ -133,7 +133,7 @@ export default function TerminalBar(props: TerminalBarProps) {
   useEffect(() => { if (mode === 'active' && hiddenInputRef.current) hiddenInputRef.current.focus() }, [mode])
   useEffect(() => { if (mode !== 'active') setHasFocus(false) }, [mode])
 
-  // Typewriter 完成后，mode typing → idle
+  // Typewriter+exitGap 完成后，mode typing → idle
   useEffect(() => {
     if (slotOrch?.isTypewriterDone && mode === 'typing') {
       setMode('idle')
