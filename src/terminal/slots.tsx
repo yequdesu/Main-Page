@@ -1,3 +1,4 @@
+import { createContext, useContext } from 'react'
 import type { ReactNode } from 'react'
 
 // ============================================================
@@ -68,11 +69,26 @@ export interface ContentLineSlot extends SlotBase {
 export type TerminalSlot = WelcomeSlot | SectionSlot | ContentLineSlot
 
 // ============================================================
-// Slot 组件（仅捕获 props）
+// SlotContext — 校验 Slot 组件在 TerminalBar 内部使用
+// ============================================================
+
+const SlotContext = createContext(false)
+
+export function useSlotContext() {
+  return useContext(SlotContext)
+}
+
+// ============================================================
+// Slot 组件（仅捕获 props，零 DOM）
 // ============================================================
 
 function createSlotComponent(displayType: string) {
-  const SlotComponent = (_props: Record<string, unknown>) => null
+  const SlotComponent = (_props: Record<string, unknown>) => {
+    if (!useContext(SlotContext)) {
+      console.warn(`TerminalBar.${displayType} must be rendered inside <TerminalBar>. It is currently outside and will be ignored.`)
+    }
+    return null
+  }
   SlotComponent.displayName = `TerminalBar.${displayType}`
   return SlotComponent
 }
@@ -82,10 +98,15 @@ export const Slot = {
   Section: createSlotComponent('Section'),
   ContentLine: createSlotComponent('ContentLine'),
   collectSlots,
+  /** SlotContext Provider — TerminalBar 内部使用 */
+  Provider: SlotContext.Provider,
 }
 
 // ============================================================
-// 从 children 中提取 Slot 配置
+// 从 children 中同步提取 Slot 配置
+//
+// 使用 element.type 引用比较替代 displayName 字符串匹配，
+// 生产构建（minify）安全。
 // ============================================================
 
 export function collectSlots(children: ReactNode): TerminalSlot[] {
@@ -93,8 +114,7 @@ export function collectSlots(children: ReactNode): TerminalSlot[] {
   const arr = Array.isArray(children) ? children : [children]
   for (const child of arr) {
     if (!child || typeof child !== 'object' || !('type' in child) || !('props' in child)) continue
-    const el = child as { type: { displayName?: string }; props: Record<string, unknown> }
-    const typeName = el.type?.displayName ?? ''
+    const el = child as { type: unknown; props: Record<string, unknown> }
     const props = el.props
     if (!props.name) continue
 
@@ -102,16 +122,26 @@ export function collectSlots(children: ReactNode): TerminalSlot[] {
     const lineCount = (props.lineCount ?? 1) as number
     const appearAfter = props.appearAfter as string | undefined
 
-    if (typeName === 'TerminalBar.Welcome') {
-      slots.push({ type: 'welcome', name: props.name as string, text: (props.text ?? '') as string,
-        lineCount, animation: anim, exitGap: props.exitGap as number | undefined,
-        appearAfter })
-    } else if (typeName === 'TerminalBar.Section') {
-      slots.push({ type: 'section', name: props.name as string, getLines: props.getLines as () => string[],
-        lineCount, animation: anim, appearAfter })
-    } else if (typeName === 'TerminalBar.ContentLine') {
-      slots.push({ type: 'contentLine', name: props.name as string, getLine: props.getLine as () => string,
-        lineCount, animation: anim, appearAfter })
+    if (el.type === Slot.Welcome) {
+      slots.push({
+        type: 'welcome', name: props.name as string,
+        text: (props.text ?? '') as string,
+        lineCount, animation: anim,
+        exitGap: props.exitGap as number | undefined,
+        appearAfter,
+      })
+    } else if (el.type === Slot.Section) {
+      slots.push({
+        type: 'section', name: props.name as string,
+        getLines: props.getLines as () => string[],
+        lineCount, animation: anim, appearAfter,
+      })
+    } else if (el.type === Slot.ContentLine) {
+      slots.push({
+        type: 'contentLine', name: props.name as string,
+        getLine: props.getLine as () => string,
+        lineCount, animation: anim, appearAfter,
+      })
     }
   }
   return slots

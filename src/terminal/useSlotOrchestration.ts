@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef } from 'react'
 import type { ReactNode } from 'react'
 import gsap from 'gsap'
-import { collectSlots, type TerminalSlot } from './slots'
-import { useTypewriter } from './useTypewriter'
+import { collectSlots, type TerminalSlot, type WelcomeSlot } from './slots'
+import { useTypewriterGate } from './useTypewriterGate'
 
 // ============================================================
 // useSlotOrchestration — GSAP Timeline + 完整动画模型
@@ -48,24 +48,10 @@ export function useSlotOrchestration(
   const slots = cache.current.slots
   if (slots.length === 0) return null
 
-  const welcomeSlot = slots.find(s => s.type === 'welcome')
+  const welcomeSlot = slots.find(s => s.type === 'welcome') as WelcomeSlot | undefined
   const twCfg = welcomeSlot?.animation
   const useLiteral = twCfg?.inline === 'literal'
-  const { displayedText, isDone: twDone } = useTypewriter({
-    startDelay: useLiteral ? (twCfg?.startDelay ?? 800) : 0,
-    charInterval: useLiteral ? (twCfg?.charInterval ?? 40) : 1,
-    echoText: useLiteral ? (welcomeSlot?.text ?? '') : '',
-  })
-
-  // exitGap — typewriter 完成后延迟，期间 cursor 持续渲染
-  const exitGap = welcomeSlot?.exitGap ?? 0
-  const [typewriterDone, setTypewriterDone] = useState(false)
-  useEffect(() => {
-    if (twDone && !typewriterDone) {
-      const timer = setTimeout(() => setTypewriterDone(true), exitGap)
-      return () => clearTimeout(timer)
-    }
-  }, [twDone, typewriterDone, exitGap])
+  const { typewriterDone, twDone, typewriterDisplayed, isTypewriterDone } = useTypewriterGate(welcomeSlot)
 
   const [echoLines, setEchoLines] = useState<string[]>(controlledEchoLines ?? [])
   const runtimesRef = useRef<Map<string, SlotRuntime>>(new Map())
@@ -121,8 +107,8 @@ export function useSlotOrchestration(
 
   // Typewriter 进度
   useEffect(() => {
-    if (welcomeSlot && useLiteral && !twDone) setEchoLines([displayedText])
-  }, [displayedText, twDone, welcomeSlot, useLiteral])
+    if (welcomeSlot && useLiteral && !twDone) setEchoLines([typewriterDisplayed])
+  }, [typewriterDisplayed, twDone, welcomeSlot, useLiteral])
 
   // ---- GSAP Timeline：所有内容写入均在此 timeline 上 ----
   useEffect(() => {
@@ -246,8 +232,8 @@ export function useSlotOrchestration(
 
   return {
     echoLines,
-    typewriterDisplayed: useLiteral ? displayedText : directText,
-    isTypewriterDone: useLiteral ? typewriterDone : true,
+    typewriterDisplayed,
+    isTypewriterDone,
     anchor,
   }
 }

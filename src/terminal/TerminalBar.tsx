@@ -46,23 +46,34 @@ interface TerminalBarBehavior {
   blurTimeout?: number
 }
 
-export interface TerminalBarProps {
-  text?: TerminalBarText
-  layout: TerminalBarLayout
-  animation?: TerminalBarAnimation
-  behavior?: TerminalBarBehavior
-  className?: string
-
+export interface TerminalBarControlledState {
   mode?: TerminalMode; echoLines?: string[]; inputValue?: string
   onModeChange?: (mode: TerminalMode) => void
   onEchoLinesChange?: (lines: string[]) => void
   onInputValueChange?: (value: string) => void
+}
 
-  onCommand?: (input: string) => string; onClear?: () => void
+export interface TerminalBarCommandConfig {
+  onCommand?: (input: string) => string
+  onClear?: () => void
   /** 命令输出回调 — 消费方提供，将 lines 写入自己的 Section slot */
   onPlayEcho?: (lines: string[]) => void
   /** 清屏回调 — 消费方清除自己的命令 Section slot */
   onClearEcho?: () => void
+}
+
+export interface TerminalBarProps {
+  layout: TerminalBarLayout
+  text?: TerminalBarText
+  animation?: TerminalBarAnimation
+  behavior?: TerminalBarBehavior
+  className?: string
+
+  /** 受控状态 — mode / echoLines / inputValue */
+  state?: TerminalBarControlledState
+  /** 命令配置 — onCommand / onClear / onPlayEcho / onClearEcho */
+  commands?: TerminalBarCommandConfig
+
   /** 变化时 Scrollable 自动滚到底部 — 消费方（MainTerminal）主动触发 */
   autoScrollKey?: number
   scrollProgress?: number
@@ -83,26 +94,29 @@ export default function TerminalBar(props: TerminalBarProps) {
   const T = { promptChar: '$', placeholder: "type 'help' for available commands", ...props.text }
   const A = { ...ANIMATION_DEFAULTS, ...props.animation }
   const B = { ...BEHAVIOR_DEFAULTS, ...props.behavior }
+  const { mode: controlledMode, echoLines: controlledEchoLines, inputValue: controlledInputValue,
+    onModeChange, onEchoLinesChange, onInputValueChange } = props.state ?? {}
+  const { onCommand, onClear, onPlayEcho, onClearEcho } = props.commands ?? {}
 
   const slots = Slot.collectSlots(props.children)
 
   const slotOrch = useSlotOrchestration(
     slots,
-    true, props.echoLines, props.onEchoLinesChange,
+    true, controlledEchoLines, onEchoLinesChange,
   )
 
-  const [mode, setMode] = useState<TerminalMode>(props.mode ?? 'typing')
-  const [inputValue, setInputValue] = useState(props.inputValue ?? '')
+  const [mode, setMode] = useState<TerminalMode>(controlledMode ?? 'typing')
+  const [inputValue, setInputValue] = useState(controlledInputValue ?? '')
   const [hasFocus, setHasFocus] = useState(false)
 
-  useEffect(() => { if (props.mode !== undefined) setMode(props.mode) }, [props.mode])
-  useEffect(() => { if (props.inputValue !== undefined) setInputValue(props.inputValue) }, [props.inputValue])
+  useEffect(() => { if (controlledMode !== undefined) setMode(controlledMode) }, [controlledMode])
+  useEffect(() => { if (controlledInputValue !== undefined) setInputValue(controlledInputValue) }, [controlledInputValue])
 
   const hiddenInputRef = useRef<HTMLInputElement | null>(null)
   const barInnerRef = useRef<HTMLDivElement | null>(null)
   const scrollableRef = useRef<ScrollableHandle | null>(null)
-  const onModeChangeRef = useRef(props.onModeChange)
-  onModeChangeRef.current = props.onModeChange
+  const onModeChangeRef = useRef(onModeChange)
+  onModeChangeRef.current = onModeChange
 
   useEffect(() => {
     const sp = props.scrollProgress
@@ -114,12 +128,12 @@ export default function TerminalBar(props: TerminalBarProps) {
 
   const cmdDeps = {
     mode, inputValue,
-    setMode: (m: string) => { setMode(m as TerminalMode); props.onModeChange?.(m as TerminalMode) },
-    clearInput: () => { setInputValue(''); props.onInputValueChange?.('') },
-    setInputValue: (v: string) => { setInputValue(v); props.onInputValueChange?.(v) },
-    playEcho: (lines: string[]) => { props.onPlayEcho?.(lines) },
-    clearEcho: () => { props.onClearEcho?.() },
-    onCommand: props.onCommand, onClear: props.onClear, promptChar: T.promptChar,
+    setMode: (m: string) => { setMode(m as TerminalMode); onModeChange?.(m as TerminalMode) },
+    clearInput: () => { setInputValue(''); onInputValueChange?.('') },
+    setInputValue: (v: string) => { setInputValue(v); onInputValueChange?.(v) },
+    playEcho: (lines: string[]) => { onPlayEcho?.(lines) },
+    clearEcho: () => { onClearEcho?.() },
+    onCommand, onClear, promptChar: T.promptChar,
     scrollableRef, blurTimeout: B.blurTimeout ?? 100, hiddenInputRef, setHasFocus,
   }
   const cmd = useCommandSystem(cmdDeps)
@@ -144,8 +158,8 @@ export default function TerminalBar(props: TerminalBarProps) {
   const handleBarClick = useCallback((e: React.MouseEvent) => {
     if (B.activationMode === 'none') return
     e.stopPropagation(); e.nativeEvent.stopImmediatePropagation()
-    if (mode === 'idle') { setMode('active'); props.onModeChange?.('active') }
-  }, [mode, B.activationMode, props.onModeChange])
+    if (mode === 'idle') { setMode('active'); onModeChange?.('active') }
+  }, [mode, B.activationMode, onModeChange])
 
   const isActive = mode === 'active'
   const isTypingPhase = slotOrch ? !slotOrch.isTypewriterDone : mode === 'typing'
@@ -203,6 +217,7 @@ export default function TerminalBar(props: TerminalBarProps) {
           </div>
         )}
       </div>
+      <Slot.Provider value={true}>{props.children}</Slot.Provider>
     </div>
   )
 }

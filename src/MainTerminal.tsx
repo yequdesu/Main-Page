@@ -107,16 +107,8 @@ export default function MainTerminal(props: MainTerminalProps) {
     <TerminalBar
       layout={MAIN_LAYOUT}
       animation={MAIN_ANIMATION}
-      mode={mode}
-      echoLines={echoLines}
-      inputValue={inputValue}
-      onModeChange={onModeChange}
-      onEchoLinesChange={onEchoLinesChange}
-      onInputValueChange={onInputValueChange}
-      onCommand={onCommand}
-      onClear={onClear}
-      onPlayEcho={handlePlayEcho}
-      onClearEcho={handleClearEcho}
+      state={{ mode, echoLines, inputValue, onModeChange, onEchoLinesChange, onInputValueChange }}
+      commands={{ onCommand, onClear, onPlayEcho: handlePlayEcho, onClearEcho: handleClearEcho }}
       autoScrollKey={echoScrollKey}
       scrollProgress={scrollProgress}
       onThemeUpdate={onThemeUpdate}
