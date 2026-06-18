@@ -78,6 +78,8 @@ export interface TerminalBarProps {
   autoScrollKey?: number
   scrollProgress?: number
   onThemeUpdate?: (sp: number) => Record<string, string>
+  /** 主题切换时递增 → TerminalBar 立即重绘 --tw-* inline style */
+  themeKey?: number
   children?: ReactNode
 }
 
@@ -124,7 +126,7 @@ export default function TerminalBar(props: TerminalBarProps) {
     const el = barInnerRef.current; if (!el) return
     const vars = props.onThemeUpdate(sp)
     if (vars) for (const [k, v] of Object.entries(vars)) el.style.setProperty(k, v as string)
-  }, [props.scrollProgress, props.onThemeUpdate])
+  }, [props.scrollProgress, props.onThemeUpdate, props.themeKey])
 
   const cmdDeps = {
     mode, inputValue,

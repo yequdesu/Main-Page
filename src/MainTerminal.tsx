@@ -40,13 +40,14 @@ export interface MainTerminalProps {
   scrollProgress?: number
   buildStatusLine?: (sp: number) => string | null
   onThemeUpdate?: (sp: number) => Record<string, string>
+  themeKey?: number
 }
 
 export default function MainTerminal(props: MainTerminalProps) {
   const {
     mode, echoLines, inputValue,
     onModeChange, onEchoLinesChange, onInputValueChange,
-    onCommand, onClear, scrollProgress, buildStatusLine, onThemeUpdate,
+    onCommand, onClear, scrollProgress, buildStatusLine, onThemeUpdate, themeKey,
   } = props
 
   // ---- / 键激活（MainPage 专属） ----
@@ -112,6 +113,7 @@ export default function MainTerminal(props: MainTerminalProps) {
       autoScrollKey={echoScrollKey}
       scrollProgress={scrollProgress}
       onThemeUpdate={onThemeUpdate}
+      themeKey={themeKey}
     >
       <TerminalBar.Welcome
         name="welcome"

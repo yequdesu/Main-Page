@@ -267,6 +267,20 @@ grep "dataset.theme" src/theme/useDayNight.ts
 
 这是设计意图——Night 模式下 `_bgNightTarget = _bgBaseColor`，white-out lerp 不产生实际效果，Act 3 场景保持暗色调。
 
-### 6.4 InfoPanelTerminal 跟随主主题
+### 6.4 Act 1 Night-Only 约束
+
+Act 1（sp < `WHITE_OUT_THRESHOLD`，0.40）中终端强制使用 night 色板。
+
+实现位置：`src/theme/useDayNight.ts` → `handleThemeUpdate`：
+
+```ts
+const blend = sp < WHITE_OUT_THRESHOLD ? 0 : blendRef.current
+```
+
+`blendRef.current` 本身不受影响——`setDayNight` 的 effect 仍将其设为 target 值。抑制仅在渲染输出层，不影响状态。
+
+如需移除该约束，将 `blend` 改回 `blendRef.current` 即可。
+
+### 6.5 InfoPanelTerminal 跟随主主题
 
 信息面板终端通过 `MainTerminal` 间接消费 `handleThemeUpdate` 的 CSS 变量继承链。如果将来需要独立主题，需为 `InfoPanelTerminal` 提供独立的 `onThemeUpdate`。

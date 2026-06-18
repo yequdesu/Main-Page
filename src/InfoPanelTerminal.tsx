@@ -59,7 +59,7 @@ export default function InfoPanelTerminal() {
       className="info-panel-terminal"
       layout={{
         maxEchoLines: 8, maxWidth: '50ch', fontSize: '0.48rem',
-        padding: '4px 10px', borderRadius: '8px',
+        padding: '4px 10px', borderRadius: '12px',
         fontFamily: "'SF Mono','Fira Code','Cascadia Code','Consolas',monospace",
         top: '2rem', left: '2rem', right: 'auto', zIndex: 20,
       }}

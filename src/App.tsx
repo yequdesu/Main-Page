@@ -37,7 +37,7 @@ export default function App() {
   const terminalMode = useScrollStore(s => s.terminalMode)
   const echoLines = useScrollStore(s => s.echoLines)
   const inputValue = useScrollStore(s => s.inputValue)
-  const { handleThemeUpdate } = useDayNight()
+  const { handleThemeUpdate, themeKey } = useDayNight()
 
   // ---- Physics state (refs — no re-render) ----
   const physRef = useRef({ target: 0, velocity: 0, lastScrollbar: 0, lastPhysics: 0, active: true })
@@ -270,6 +270,7 @@ export default function App() {
         scrollProgress={sp}
         buildStatusLine={handleBuildStatusLine}
         onThemeUpdate={handleThemeUpdate}
+        themeKey={themeKey}
         onCommand={handleCommand}
       />
 

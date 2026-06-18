@@ -201,9 +201,34 @@ useDayNight Hook 重渲染 ─────────────────�
 
 ---
 
-## 6. 设计决策
+## 6. Act 1 Night-Only 约束
 
-### 6.1 Plan B（偏移）vs Plan A（覆盖）
+Act 1（sp < 0.40，OceanVoyage 暗色海洋场景）中，MainTerminal 强制使用 night 色板，忽略 `dayNight` 状态选择。
+
+### 行为矩阵
+
+| 场景 | 终端行为 |
+|------|---------|
+| Act 1 中切换 day/night | 终端不响应，保持 night 色板 |
+| Act 1 滚入 Act 2 (sp ≥ 0.40) | scrollT 从 0 开始过渡，blend 恢复实际选择 → 终端平滑过渡至目标色板 |
+| Act 2/3 滚回 Act 1 (sp < 0.40) | 下一帧 `handleThemeUpdate` 触发 → blend 强制为 0 → 终端立即切回 night |
+| Act 2/3 中切换 day/night | `themeKey` 递增 → TerminalBar 立即重绘 → 终端即时响应 |
+
+### 实现
+
+`handleThemeUpdate` 中一行约束：
+
+```ts
+const blend = sp < WHITE_OUT_THRESHOLD ? 0 : blendRef.current
+```
+
+`blendRef.current` 本身不受影响——`setDayNight` 的 effect 仍将其设为 target 值，抑制仅在渲染输出层。
+
+---
+
+## 7. 设计决策
+
+### 7.1 Plan B（偏移）vs Plan A（覆盖）
 
 | | Plan A | **Plan B（采用）** |
 |---|---|---|
@@ -211,31 +236,31 @@ useDayNight Hook 重渲染 ─────────────────�
 | 优点 | 简单 | scroll 驱动的 Act 过渡视觉仍有效 |
 | 缺点 | 丢失 Act 过渡感 | 需要双色板 crossfade |
 
-### 6.2 双色板 vs 动态色生成
+### 7.2 双色板 vs 动态色生成
 
 选择预定义 **4 个端点色板** 而非运行时 HSL 偏移：
 - **可预测**：精确控制每个主题的视觉效果
 - **可测试**：色值是常量，可直接对比
 - **性能**：无运行时颜色空间转换
 
-### 6.3 CSS 变量 vs JS inline style
+### 7.3 CSS 变量 vs JS inline style
 
 静态元素（body、footer 等）选 **CSS 变量 + data-theme 属性** 而非 JS inline：
 - CSS transition 天然支持平滑过渡
 - 无需 JS effect 逐元素设置
 - 主题色集中管理，修改只需改 theme.css
 
-### 6.4 Terminal 颜色保留 JS 驱动
+### 7.4 Terminal 颜色保留 JS 驱动
 
 Terminal 的颜色需要 scroll × blend 双重插值，复杂度超出 CSS `transition` 能力范围，保留 JS `handleThemeUpdate` 动态计算。
 
-### 6.5 setThemeBlend 模块级变量 vs Zustand store
+### 7.5 setThemeBlend 模块级变量 vs Zustand store
 
 选择 **模块级变量** (`ScrollRig._themeBlend`)：
 - `useFrame` 中每帧读取，Zustand subscription 开销过高
 - 只有一个 writer（GSAP tween onUpdate），不需要响应式
 - 符合项目性能约束："getState() 读 Zustand — useFrame 中使用，不触发 React re-render"
 
-### 6.6 useEchoSequence 废弃
+### 7.6 useEchoSequence 废弃
 
 `useEchoSequence` 的两阶段（grow→fill） + char-by-char 能力已被 Slot 管线 + GSAP + `useTypewriter` 覆盖，文件已删除。详见 `docs/HANDOFF.md`。
