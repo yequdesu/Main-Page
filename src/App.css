@@ -4,9 +4,10 @@
 
 html, body {
   width: 100%; overflow-x: hidden;
-  background: #0b101d;
+  background: var(--color-body-bg);
   font-family: 'Noto Sans SC', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
+  transition: background-color 0.5s ease;
 }
 
 #root { position: relative; width: 100%; }
@@ -16,15 +17,15 @@ canvas { display: block; }
 .scroll-hint {
   position: fixed; bottom: 2.8rem; left: 50%; transform: translateX(-50%);
   z-index: 5; display: flex; flex-direction: column; align-items: center;
-  gap: 0.5rem; color: #aab; font-size: 0.68rem; letter-spacing: 0.15em; pointer-events: none;
+  gap: 0.5rem; color: var(--color-scroll-hint); font-size: 0.68rem; letter-spacing: 0.15em; pointer-events: none;
 }
 .scroll-arrow {
   width: 20px; height: 20px;
-  border-right: 1.5px solid #889; border-bottom: 1.5px solid #889;
+  border-right: 1.5px solid var(--color-scroll-arrow); border-bottom: 1.5px solid var(--color-scroll-arrow);
   transform: rotate(45deg); opacity: 0.5;
   animation: sc-bounce 2s ease-in-out infinite;
 }
-.click-hint { font-size: 0.58rem; color: #778; opacity: 0.7; letter-spacing: 0.08em; }
+.click-hint { font-size: 0.58rem; color: var(--color-click-hint); opacity: 0.7; letter-spacing: 0.08em; }
 @keyframes sc-bounce {
   0%, 100% { transform: rotate(45deg) translateY(0); }
   50% { transform: rotate(45deg) translateY(6px); }
@@ -58,13 +59,13 @@ canvas { display: block; }
   margin: 0; margin-right: -0.05em;
   font-family: 'Georgia', 'Times New Roman', serif;
   font-size: clamp(1.8rem, 4.5vw, 3.5rem); font-weight: 600;
-  color: #222; letter-spacing: 0.05em; white-space: nowrap; text-align: left;
+  color: var(--color-brand-line1); letter-spacing: 0.05em; white-space: nowrap; text-align: left;
 }
 .brand-line-2 {
   margin: 0; margin-right: -0.04em;
   font-family: 'Georgia', 'Times New Roman', serif;
   font-size: clamp(0.55rem, 1.0vw, 0.75rem); font-weight: 400;
-  color: #888; letter-spacing: 0.04em; font-style: italic; text-align: left;
+  color: var(--color-brand-line2); letter-spacing: 0.04em; font-style: italic; text-align: left;
 }
 
 /* ---- focus overlay SVG ---- */
@@ -83,6 +84,6 @@ canvas { display: block; }
 /* ---- footer ---- */
 .app-footer {
   position: fixed; bottom: 0.7rem; left: 0; right: 0; z-index: 20;
-  text-align: center; font-size: 0.6rem; color: #888; pointer-events: none;
+  text-align: center; font-size: 0.6rem; color: var(--color-footer); pointer-events: none;
 }
-.app-footer a { color: #999; text-decoration: none; pointer-events: auto; }
+.app-footer a { color: var(--color-footer-link); text-decoration: none; pointer-events: auto; }

@@ -35,11 +35,14 @@ interface FocusActions {
 // ============================================================
 export type TerminalMode = 'typing' | 'idle' | 'active'
 
+export type DayNight = 'night' | 'day'
+
 interface TerminalSlice {
   terminalMode: TerminalMode
   echoLines: string[]
   inputValue: string
   typewriterDone: boolean
+  dayNight: DayNight
 }
 
 interface TerminalActions {
@@ -50,6 +53,8 @@ interface TerminalActions {
   setEchoLine: (index: number, text: string) => void
   clearInput: () => void
   setTypewriterDone: (done: boolean) => void
+  setDayNight: (mode: DayNight) => void
+  toggleDayNight: () => void
 }
 
 export type ScrollStore = ScrollSlice & FocusSlice & TerminalSlice & ScrollActions & FocusActions & TerminalActions
@@ -76,6 +81,7 @@ export const useScrollStore = create<ScrollStore>()((set) => ({
   echoLines: [] as string[],
   inputValue: '',
   typewriterDone: false,
+  dayNight: 'night' as DayNight,
 
   setFocusedPlanet: (idx) => set({ focusedPlanetIdx: idx }),
   setHoveredIdx: (idx) => set({ hoveredIdx: idx }),
@@ -108,4 +114,6 @@ export const useScrollStore = create<ScrollStore>()((set) => ({
     }),
   clearInput: () => set({ inputValue: '' }),
   setTypewriterDone: (done) => set({ typewriterDone: done }),
+  setDayNight: (mode) => set({ dayNight: mode }),
+  toggleDayNight: () => set((s) => ({ dayNight: s.dayNight === 'night' ? 'day' : 'night' })),
 }))

@@ -7,12 +7,13 @@ import Act1OceanVoyage from './acts/Act1OceanVoyage'
 import Act2GridTransition from './acts/Act2GridTransition'
 import Act3ContentPhase from './acts/Act3ContentPhase'
 import { useScrollStore } from './stores/scrollStore'
-import { WHITE_OUT_THRESHOLD, WHITE_OUT_END, GRID_START, GRID_SHIFT_START } from './r3f/ScrollRig'
+import { WHITE_OUT_THRESHOLD, GRID_START, GRID_SHIFT_START } from './r3f/ScrollRig'
 import { getLighthouseCapture } from './actors/LighthouseCapture'
 import MainTerminal from './MainTerminal'
 import { executeCommand } from './terminal/commands'
-import { lerpHex, lerpRgba } from './utils/color'
 import InfoPanelTerminal from './InfoPanelTerminal'
+import { useDayNight } from './theme/useDayNight'
+import './theme/theme.css'
 import './App.css'
 
 gsap.registerPlugin(ScrollTrigger)
@@ -36,6 +37,7 @@ export default function App() {
   const terminalMode = useScrollStore(s => s.terminalMode)
   const echoLines = useScrollStore(s => s.echoLines)
   const inputValue = useScrollStore(s => s.inputValue)
+  const { handleThemeUpdate } = useDayNight()
 
   // ---- Physics state (refs — no re-render) ----
   const physRef = useRef({ target: 0, velocity: 0, lastScrollbar: 0, lastPhysics: 0, active: true })
@@ -243,22 +245,6 @@ export default function App() {
     useScrollStore.getState().setInputValue(v)
   }, [])
   const handleCommand = useCallback((input: string) => executeCommand(input), [])
-  const handleThemeUpdate = useCallback((sp: number) => {
-    const raw = sp <= 0.40 ? 0 : sp >= 0.55 ? 1 : (sp - 0.40) / 0.15
-    const t = raw * raw * (3 - 2 * raw)
-    return {
-      '--tw-echo': lerpHex('#7c8aa0', '#475569', t),
-      '--tw-prefix': lerpHex('#64748b', '#334155', t),
-      '--tw-prompt': lerpHex('#0ea5e9', '#0369a1', t),
-      '--tw-placeholder': lerpRgba('rgba(255,255,255,0.15)', 'rgba(0,0,0,0.10)', t),
-      '--tw-input': lerpHex('#e2e8f0', '#1e293b', t),
-      '--tw-cursor-bright': lerpHex('#e2e8f0', '#1e293b', t),
-      '--tw-cursor-dim': lerpHex('#0ea5e9', '#0369a1', t),
-      '--tw-ring': lerpRgba('rgba(200,220,255,0.45)', 'rgba(30,64,175,0.30)', t),
-      '--tw-ring-outer': lerpRgba('rgba(180,210,255,0.14)', 'rgba(30,64,175,0.08)', t),
-      '--tw-ring-active': lerpRgba('rgba(180,210,255,0.30)', 'rgba(30,64,175,0.20)', t),
-    }
-  }, [])
   const handleBuildStatusLine = useCallback((sp: number) => {
     const pct = Math.round(sp * 100)
     const actName = sp < 0.45 ? 'OceanVoyage' : sp < 0.85 ? 'GridTransition' : 'ContentPhase'

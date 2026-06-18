@@ -8,10 +8,11 @@
 4. [日常开发流程](#四日常开发流程)
 5. [维护流程](#五维护流程)
 6. [常见问题排查](#六常见问题排查)
-7. [渲染管线](#七渲染管线)
-8. [渲染特效](#八渲染特效)
-9. [参考文档索引](#九参考文档索引)
-10. [浏览器兼容性](#十浏览器兼容性)
+7. [主题系统调试](#七主题系统调试)
+8. [渲染管线](#八渲染管线)
+9. [渲染特效](#九渲染特效)
+10. [参考文档索引](#十参考文档索引)
+11. [浏览器兼容性](#十一浏览器兼容性)
 
 ---
 
@@ -360,7 +361,54 @@ pnpm ls @react-three/test-renderer
 
 ---
 
-## 七、渲染管线
+## 七、主题系统调试
+
+### 7.1 检查主题状态
+
+浏览器 Console：
+
+```js
+// 当前主题
+document.documentElement.dataset.theme  // 'night' | 'day'
+
+// Zustand store
+// (需在 React DevTools 中查看 useScrollStore → dayNight)
+```
+
+### 7.2 切换无反应
+
+| 可能原因 | 检查方法 | 解决 |
+|----------|----------|------|
+| 命令未注册 | Terminal 中输入 `help`，确认 day/night 在列表中 | 检查 `commands.ts` |
+| store 未更新 | `useScrollStore.getState().dayNight` | 检查 `setDayNight` action |
+| CSS 变量未生效 | DevTools → `<html>` → 确认 `data-theme` 属性存在 | 检查 `useDayNight.ts` 中的 `dataset.theme` 赋值 |
+| Scene 背景未变 | Console 中无报错 | 检查 `setThemeBlend` 是否被 GSAP onUpdate 调用 |
+
+### 7.3 颜色不对
+
+| 症状 | 可能原因 | 解决 |
+|------|----------|------|
+| 首帧颜色闪烁 | CSS 初始值与 JS 色板不一致 | 对比 `theme.css` 的 `--tw-*` 和 `palettes.ts` 的同名色板（NIGHT_ACT1 / DAY_ACT1） |
+| 终端颜色不随滚动变化 | `handleThemeUpdate` 未连接 | 检查 `MainTerminal` → `TerminalBar` 的 `onThemeUpdate` prop |
+| 切换后终端颜色与静态元素不协调 | blend 不同步 | 确认 GSAP tween 的 `onUpdate` 正常执行 `setThemeBlend` |
+
+### 7.4 相关文件速查
+
+| 文件 | 角色 |
+|------|------|
+| `src/theme/theme.css` | CSS 变量定义（`:root` + `[data-theme]`） |
+| `src/theme/palettes.ts` | JS 色板常量 + 插值函数 |
+| `src/theme/useDayNight.ts` | Hook：data-theme 写入 + GSAP blend + handleThemeUpdate |
+| `src/r3f/ScrollRig.ts` | `setThemeBlend()` + `sceneApplyWhiteOut()` |
+| `src/r3f/ScrollInvalidator.tsx` | 每帧调用 `sceneApplyWhiteOut` |
+| `src/stores/scrollStore.ts` | `dayNight` 状态 |
+| `src/terminal/commands.ts` | `day` / `night` 命令 handler |
+
+详见 [`docs/theme/maintenance-guide.md`](docs/theme/maintenance-guide.md)。
+
+---
+
+## 八、渲染管线
 
 ### 7.1 渲染触发机制
 
@@ -438,7 +486,7 @@ Three.js 按 `renderOrder` 值从小到大分组渲染。同组内：不透明�
 
 ---
 
-## 八、渲染特效
+## 九、渲染特效
 
 ### 8.1 体积聚光照明（Volumetric Spotlight Illumination）
 
@@ -500,7 +548,7 @@ OceanWaves.useFrame
 
 ---
 
-## 九、参考文档索引
+## 十、参考文档索引
 
 ### 9.1 项目文档
 
@@ -508,6 +556,9 @@ OceanWaves.useFrame
 |------|------|------|
 | 项目概览 + 架构 | `README.md` | 体验概览、渲染管线、源文件结构 |
 | 交接文档 | `docs/HANDOFF.md` | 当前状态、已完成工作、快速启动 |
+| 主题设计 | `docs/theme/design.md` | 三层过渡模型、色板系统、设计决策 |
+| 主题操作 | `docs/theme/operation-guide.md` | day/night 命令、视觉对比、故障排除 |
+| 主题维护 | `docs/theme/maintenance-guide.md` | 代码地图、修改颜色、新增主题、调试 |
 | 架构分析（历史） | `docs/ARCHITECTURE.md` | Vue 原版源码逐函数拆解 |
 | 技术评估 | `docs/TECH_STACK_EVALUATION.md` | 11 项架构决策 + 援引来源 |
 | 可组合性/可测试性 | `docs/COMPOSABILITY_TESTABILITY.md` | R3F vs TresJS vs Vanilla 对比 |
@@ -537,7 +588,7 @@ OceanWaves.useFrame
 
 ---
 
-## 十、浏览器兼容性
+## 十一、浏览器兼容性
 
 ### 10.1 支持范围
 

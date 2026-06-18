@@ -1,3 +1,5 @@
+import { useScrollStore } from '../stores/scrollStore'
+
 export interface Command {
   name: string
   aliases?: string[]
@@ -31,8 +33,7 @@ export const commandRegistry: Command[] = [
     aliases: ['light'],
     description: 'Switch to day mode',
     handler: () => {
-      document.documentElement.classList.remove('dark')
-      document.documentElement.classList.add('light')
+      useScrollStore.getState().setDayNight('day')
       return 'switched to day mode'
     },
   },
@@ -41,8 +42,7 @@ export const commandRegistry: Command[] = [
     aliases: ['dark'],
     description: 'Switch to night mode',
     handler: () => {
-      document.documentElement.classList.remove('light')
-      document.documentElement.classList.add('dark')
+      useScrollStore.getState().setDayNight('night')
       return 'switched to night mode'
     },
   },

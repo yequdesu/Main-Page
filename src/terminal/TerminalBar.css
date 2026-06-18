@@ -24,7 +24,7 @@
   position: relative;
   margin: 0 auto;
   width: min(90vw, 640px);
-  background: rgba(15, 20, 35, 0.05);
+  background: var(--tw-glass-bg, rgba(15, 20, 35, 0.05));
   border: none;
   border-radius: 12px;
   padding: 8px 14px;

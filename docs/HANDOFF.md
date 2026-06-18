@@ -1,51 +1,42 @@
-# TerminalBar 抽象化重构 — 会话交接
+# 当前会话交接
 
-> 日期：2026-06-16
-> 分支：`componentization-experiment`
+> 日期：2026-06-18
+> 分支：`Editor-CyDlen-$-Terminal-Bar`
 
 ## 当前状态
 
-TerminalBar 已抽象化为纯容器引擎。MainTerminal 承载 MainPage 专属配置，与 ExperimentTerminal 形成对称架构。**构建通过，34 测试通过。需要在 `pnpm dev` 中验证行为完整性。**
+TerminalBar 抽象化重构已完成。day/night 主题系统已实现：三层同步过渡（CSS 静态元素 + 3D Scene 背景 + Terminal 颜色），GSAP 0.6s crossfade。useEchoSequence 已废弃删除。**构建通过，34 测试通过。**
 
 ## 架构
 
 ```
-App.tsx ── MainTerminal (布局/字体/welcome/status + / 键激活) ── TerminalBar (纯引擎)
-          ExperimentTerminal (实验布局 + planet/orbit slots) ── TerminalBar (纯引擎)
+App.tsx ── MainTerminal (布局/字体/welcome/status + / 键激活 + onThemeUpdate) ── TerminalBar (纯引擎)
+          InfoPanelTerminal (信息面板 + planet/orbit slots) ── TerminalBar (纯引擎)
+          useDayNight() → handleThemeUpdate → TerminalBar + Scene
+
+src/theme/
+  theme.css          CSS 主题配置（:root + [data-theme="day"]）
+  palettes.ts        色板常量 + lerp/scroll/blend 纯函数
+  useDayNight.ts     Hook：store 订阅 → GSAP blend → handleThemeUpdate
 ```
 
-## 变更清单
+## 近期变更清单
 
 | 文件 | 状态 | 说明 |
 |------|:---:|------|
-| `src/terminal/TerminalBar.tsx` | 重写 | 移除所有默认值 + propsToSlots；layout 必传；内容仅通过 Slot children；移除 `'key'` activationMode；添加 `getDefaultLines` prop |
-| `src/MainTerminal.tsx` | **新建** | MainPage 专属封装：布局/字体/welcome/status line + `/` 键激活 |
-| `src/App.tsx` | 修改 | TerminalBar → MainTerminal；移除 useTerminalActivation + keydown 监听；移除 handleTypewriterDoneChange |
-| `src/terminal/useTerminalActivation.ts` | 删除 | 逻辑合并进 MainTerminal |
-| `src/ExperimentTerminal.tsx` | 修改 | 添加 `borderRadius` + `fontFamily` 到 layout（TerminalBarLayout 必需字段） |
-| `src/terminal/useCommandSystem.ts` | 修改 | `playEcho` 返回类型 `Promise<void>` → `void` |
-
-## 删除的 legacy 代码（本次 + 上次累计）
-
-**本次新增删除：**
-- `DEFAULTS` 对象（text/layout/animation/behavior 默认值合并）
-- `propsToSlots()` / `mergeSlots()` 函数
-- `latestPropsRef`
-- Props: `buildStatusLine`, `buildStatusLines`, `contentLines`, `statusLinePrefix`, `welcomeText`
-- Interfaces: `TerminalBarTextConfig`, `TerminalBarLayoutConfig`, `TerminalBarAnimationConfig`, `TerminalBarBehaviorConfig`, `TerminalBarContentLine`
-- `ActivationMode` 的 `'key'` 变体
-- `useTerminalActivation.ts` + 测试文件
-- App.tsx 中的 `handleTypewriterDoneChange`、`onTerminalKeyDown` 监听
-- 未使用的 `EchoStrategy` import、dead animation 字段、`typewriterDone`/`onTypewriterDoneChange` props
-
-**上次已删除：**
-- `buildStatusLine(s)` 的 useEffect（单行 + 多行，~65 行）
-- `contentLines` useEffect + `\0c:N` 内部标记（~45 行）
-- `displayLine` 函数
-- `isSlotMode` 三元分支渲染（~35 行）
-- `useTerminalState` 调用（TerminalBar 不再使用，文件保留）
-- legacy `useTypewriter` 实例
-- `echoLinesRef` / `statusLineIdx` / `contentLineIdxRef` 等 ref
+| `src/theme/theme.css` | **新建** | CSS 变量：night/day 双主题 `--color-*` + `--tw-*` 初始值 |
+| `src/theme/palettes.ts` | **新建** | 4 色板常量 + lerp/scroll/blend 函数（从 App.tsx 剥离） |
+| `src/theme/useDayNight.ts` | **新建** | Hook：data-theme 写入 + GSAP blend tween + handleThemeUpdate |
+| `src/stores/scrollStore.ts` | 修改 | 新增 `dayNight` 状态 + `setDayNight` / `toggleDayNight` |
+| `src/terminal/commands.ts` | 修改 | day/night handler 对接 store |
+| `src/App.tsx` | 修改 | 移除 ~100 行主题代码 + WHITE_OUT_END import；一行 `useDayNight()` |
+| `src/App.css` | 修改 | 8 处硬编码颜色 → `var(--color-*)` |
+| `src/terminal/TerminalBar.css` | 修改 | glass 背景 → `var(--tw-glass-bg, fallback)` |
+| `src/r3f/ScrollRig.ts` | 修改 | 新增 `setThemeBlend()` + `_themeBlend` 模块级变量 |
+| `src/r3f/ScrollInvalidator.tsx` | 修改 | 签名简化 |
+| `src/terminal/useEchoSequence.ts` | **删除** | 已废弃，能力由 Slot 管线 + useTypewriter + GSAP 覆盖 |
+| `src/ExperimentTerminal.tsx` | 重命名 | → `InfoPanelTerminal.tsx` |
+| `docs/theme/` | **新建** | design.md + operation-guide.md + maintenance-guide.md |
 
 ## 交互模型
 
@@ -53,39 +44,39 @@ App.tsx ── MainTerminal (布局/字体/welcome/status + / 键激活) ── 
 |----------|----------|
 | **TerminalBar**（引擎） | click to toggle（唯一内置交互） |
 | **MainTerminal** | click + `/` 键激活 |
-| **ExperimentTerminal** | click only |
+| **InfoPanelTerminal** | click only |
 
-## TerminalBar 精简后接口
+## 主题切换模型
 
-```ts
-interface TerminalBarProps {
-  layout: TerminalBarLayout        // 必传（maxEchoLines, maxWidth, borderRadius, padding, fontSize, fontFamily, zIndex, positioning）
-  text?: TerminalBarText            // promptChar（默认 '$'）+ placeholder
-  animation?: TerminalBarAnimation  // 仅 heightAnimPerLine
-  behavior?: TerminalBarBehavior    // activationMode（默认 'click'）+ blurTimeout（默认 100）
-  // 受控状态: mode, echoLines, inputValue
-  // 命令: onCommand, onClear, getDefaultLines
-  // 样式: scrollProgress, onThemeUpdate, className
-  // 内容: children (Slot.Welcome / Slot.Section / Slot.ContentLine)
-}
-```
+| 命令 | 效果 |
+|------|------|
+| `day` / `light` | 切换到日间模式（三层同步过渡 0.6s） |
+| `night` / `dark` | 切换到夜间模式（默认） |
 
-## pnpm dev 验证清单
+三层过渡：CSS `[data-theme]` 选择器（body、footer、scroll hint）+ GSAP blend → scene 背景 + Terminal `--tw-*` crossfade。
 
-1. **主终端**：Typewriter → status line 出现 → 点击激活 → `/` 激活 → `help` → `clear` → 状态行滚动更新
-2. **实验终端**（Act 3 左上角）：点击激活，planet/orbit 动画正常
-3. **高度动画**：`help` 输出增长平滑、`clear` 收缩平滑
-4. **颜色过渡**：Act 1→Act 2 文字颜色实时跟随 scrollProgress 变化
-5. **多终端共存**：底部主终端 + 实验终端各自独立运行
+## 已解决的已知风险
 
-## 已知风险 / 可能需要修复
+1. ~~命令输出回显~~ — `useEchoSequence` 已删除，当前 GSAP `rows: 'lineByLine'` 方案满足需求
+2. ~~`typewriterDone` store 死字段~~ — 确认 `useSlotOrchestration` 内部使用 `useTypewriterGate` 的本地状态，`scrollStore.typewriterDone` 是死字段但影响面小，暂不清理
+3. ~~`useCommandSystem` deps 对象~~ — 影响面小，无功能问题
 
-1. **命令输出回显**：`playEcho` 当前同步追加，未经过 `useEchoSequence` 两阶段动画。
-2. **`useCommandSystem` deps 对象**：每次 render 重建，回调每次重新创建。
-3. **`typewriterDone` store 字段**：`handleTypewriterDoneChange` 已移除，但 `scrollStore` 中 `typewriterDone` 字段和 `setTypewriterDone` 方法仍存在（无消费者）。可考虑后续清理。
+## 遗留技术债务
 
-## 不变文件
+| 问题 | 优先级 |
+|------|:---:|
+| `scrollStore.typewriterDone` + `useTerminalState.ts` 死代码 | 🟢 低 |
+| `useCommandSystem` deps 每帧重建 | 🟢 低 |
+| 主题选择刷新丢失（Zustand 内存，无 localStorage 持久化） | 🟡 中 |
 
-- `slots.tsx`、`useSlotOrchestration.ts`、`useCommandSystem.ts`（仅 playEcho 类型变更）、`useAnimateHeight.ts`、`useTypewriter.ts`
-- `Scrollable.tsx/css`、`commands.ts`
-- CSS 文件
+## 文档索引
+
+| 文档 | 路径 |
+|------|------|
+| 主题设计 | [`docs/theme/design.md`](docs/theme/design.md) |
+| 主题操作 | [`docs/theme/operation-guide.md`](docs/theme/operation-guide.md) |
+| 主题维护 | [`docs/theme/maintenance-guide.md`](docs/theme/maintenance-guide.md) |
+| 终端操作 | [`docs/terminal/operation-guide.md`](docs/terminal/operation-guide.md) |
+| 终端维护 | [`docs/terminal/maintenance-guide.md`](docs/terminal/maintenance-guide.md) |
+| 终端规格 | [`docs/terminal/specification.md`](docs/terminal/specification.md) |
+| 维护手册 | [`docs/MAINTENANCE.md`](docs/MAINTENANCE.md) |

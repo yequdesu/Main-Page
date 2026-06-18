@@ -33,8 +33,12 @@ App.tsx
   │           └── slots.tsx               ← Slot 类型定义 + collectSlots + Context
   ├── InfoPanelTerminal.tsx   ← 信息面板终端（Act 3 左上角）
   │     └── TerminalBar.tsx   (同上)
+  ├── theme/
+  │     ├── useDayNight.ts    ← Hook：store 订阅 → GSAP blend → handleThemeUpdate
+  │     ├── palettes.ts       ← 色板常量 + lerp/scroll/blend 函数
+  │     └── theme.css         ← CSS 变量配置（:root + [data-theme="day"]）
   ├── stores/
-  │     ├── scrollStore.ts    ← Zustand — terminalMode / echoLines / inputValue
+  │     ├── scrollStore.ts    ← Zustand — terminalMode / echoLines / inputValue / dayNight
   │     └── realtimeStore.ts  ← Zustand — 行星/轨道/摄像机/debris 实时数据
   ├── actors/DustField.tsx    ← 发布摄像机 + debris 数据到 realtimeStore
   └── terminal/commands.ts    ← 命令注册（纯数据驱动）

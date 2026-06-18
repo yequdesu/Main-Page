@@ -1,0 +1,201 @@
+/* ============================================================
+   Day/Night CSS 主题配置
+   ============================================================
+
+   概述
+   ────
+   本文件是 day/night 主题的 CSS 层配置。切换由 JS 端通过
+   <html data-theme="night|day"> 属性驱动（见 useDayNight.ts）。
+
+   变量分为两组：
+     1. 静态页面颜色（--color-*）    — 完全由 CSS 管理，切换时自动过渡
+     2. 终端初始颜色（--tw-*）        — 仅首帧 JS 未接管时生效；后续
+                                       handleThemeUpdate 动态计算并覆盖
+
+   切换流程
+   ────────
+   user 输入 day/night 命令
+     → scrollStore.setDayNight()
+     → useDayNight useEffect
+     → document.documentElement.dataset.theme = 'night' | 'day'
+     → CSS 属性选择器 [data-theme="day"] 覆盖 :root 变量
+     → 所有 var() 引用的元素平滑过渡（body 有 transition: 0.5s）
+     → 同时 GSAP tween 驱动 Scene 背景 + Terminal --tw-* crossfade
+
+   相关文件
+   ────────
+     palettes.ts       — JS 色板定义 + 插值函数（--tw-* 动态值）
+     useDayNight.ts    — Hook：data-theme 写入 + GSAP blend + handleThemeUpdate
+     App.css           — 消费 --color-* 变量
+     TerminalBar.css   — 消费 --tw-* 变量
+
+   ============================================================ */
+
+/* =============================================================
+   Night 主题（默认）
+   =============================================================
+
+   所有变量在 :root 上定义即为 night 默认值。页面首次加载时
+   即应用此组，无需等待 JS 执行。
+
+   --color-* 命名规则： --color-<元素>-<属性可选>
+   ============================================================= */
+
+:root {
+  /* ---- 页面背景 ----
+     body 背景色。与 Three.js scene 的 _bgBaseColor (#050811)
+     保持色调一致但略亮，避免纯黑 canvas 边缘闪烁。
+     App.css: body { background: var(--color-body-bg); }
+     --------------------------------------------------------- */
+  --color-body-bg: #0b101d;
+
+  /* ---- 滚动提示 ----
+     Act 1 底部 "Scroll or click to skip" 提示文字。
+     App.css: .scroll-hint { color: var(--color-scroll-hint); }
+     --------------------------------------------------------- */
+  --color-scroll-hint: #aab;
+
+  /* ---- 点击提示 ----
+     "or click to skip" 副文字，比主提示更淡。
+     App.css: .click-hint { color: var(--color-click-hint); }
+     --------------------------------------------------------- */
+  --color-click-hint: #778;
+
+  /* ---- 滚动箭头 ----
+     提示下方跳动箭头，border 模拟 V 形。
+     App.css: .scroll-arrow { border-color: var(--color-scroll-arrow); }
+     --------------------------------------------------------- */
+  --color-scroll-arrow: #889;
+
+  /* ---- 页脚 ----
+     页面底部版权 + ICP 备案信息。
+     App.css: .app-footer { color: var(--color-footer); }
+     --------------------------------------------------------- */
+  --color-footer: #888;
+
+  /* ---- 页脚链接 ----
+     备案号链接，比页脚文字略亮以区分可点击。
+     App.css: .app-footer a { color: var(--color-footer-link); }
+     --------------------------------------------------------- */
+  --color-footer-link: #999;
+
+  /* ---- 品牌文字 第 1 行 ----
+     "Personal Site" 大标题。仅在 Act 3 显示，透明背景上
+     需深色文字，但 night 模式 scene 保持暗色故用亮色。
+     App.css: .brand-line-1 { color: var(--color-brand-line1); }
+     --------------------------------------------------------- */
+  --color-brand-line1: #f1f5f9;
+
+  /* ---- 品牌文字 第 2 行 ----
+     "By YeQuDesu" 副标题。
+     App.css: .brand-line-2 { color: var(--color-brand-line2); }
+     --------------------------------------------------------- */
+  --color-brand-line2: #cbd5e1;
+
+  /* ==========================================================
+     Terminal --tw-* 初始值（Night 色板 Act 1）
+     ==========================================================
+
+     这些值仅在页面首帧、JS handleThemeUpdate 尚未执行时生效。
+     handleThemeUpdate 第一帧后直接往 barInnerRef 写入同名变量，
+     覆盖此处的继承值。
+
+     值与 palettes.ts 中 NIGHT_ACT1 严格同步。
+     修改时需同时更新 palettes.ts。
+
+     TerminalBar.css 消费关系：
+       --tw-echo          → .terminal-echo color, .echo-scroll-* color,
+                             .terminal-typing-cursor color
+       --tw-prefix        → .echo-prefix color
+       --tw-prompt        → .terminal-prompt color
+       --tw-placeholder   → .terminal-placeholder color
+       --tw-input         → .terminal-input-text color
+       --tw-cursor-bright → .terminal-cursor.bright color
+       --tw-cursor-dim    → .terminal-cursor.dim color
+       --tw-ring          → .terminal-bar-inner:hover box-shadow
+       --tw-ring-outer    → .terminal-bar-inner:hover box-shadow
+       --tw-ring-active   → .terminal-bar-inner.active box-shadow
+       --tw-glass-bg      → .terminal-bar-inner background
+     ========================================================== */
+
+  --tw-echo: #7c8aa0;
+  --tw-prefix: #64748b;
+  --tw-prompt: #0ea5e9;
+  --tw-placeholder: rgba(255,255,255,0.15);
+  --tw-input: #e2e8f0;
+  --tw-cursor-bright: #e2e8f0;
+  --tw-cursor-dim: #0ea5e9;
+  --tw-ring: rgba(200,220,255,0.45);
+  --tw-ring-outer: rgba(180,210,255,0.14);
+  --tw-ring-active: rgba(180,210,255,0.30);
+  --tw-glass-bg: rgba(15,20,35,0.05);
+}
+
+/* =============================================================
+   Day 主题
+   =============================================================
+
+   通过 [data-theme="day"] 属性选择器覆盖 night 默认值。
+   CSS 权重与 :root 相同，靠源代码顺序覆盖（day 在 night 之后）。
+   ============================================================= */
+
+[data-theme="day"] {
+  /* ---- 页面背景 ----
+     Slate-100 暖灰白，与 day 模式 scene 白雾目标色 #f1f5f9 一致。
+     --------------------------------------------------------- */
+  --color-body-bg: #f1f5f9;
+
+  /* ---- 滚动提示 ----
+     day 模式亮背景上需深色文字，Slate-500。
+     --------------------------------------------------------- */
+  --color-scroll-hint: #64748b;
+
+  /* ---- 点击提示 ----
+     比主提示更淡，Slate-400。
+     --------------------------------------------------------- */
+  --color-click-hint: #94a3b8;
+
+  /* ---- 滚动箭头 ----
+     与主提示同色系，Slate-500。
+     --------------------------------------------------------- */
+  --color-scroll-arrow: #64748b;
+
+  /* ---- 页脚 ----
+     亮背景上需够对比度，Slate-500。
+     --------------------------------------------------------- */
+  --color-footer: #64748b;
+
+  /* ---- 页脚链接 ----
+     比页脚文字深一档，Slate-600。
+     --------------------------------------------------------- */
+  --color-footer-link: #475569;
+
+  /* ---- 品牌文字 第 1 行 ----
+     day 模式 scene 背景亮 → 深色文字可读。
+     --------------------------------------------------------- */
+  --color-brand-line1: #1e293b;
+
+  /* ---- 品牌文字 第 2 行 ----
+     副标题用中灰，与主标题拉开层次。
+     --------------------------------------------------------- */
+  --color-brand-line2: #64748b;
+
+  /* ==========================================================
+     Terminal --tw-* 初始值（Day 色板 Act 1）
+
+     值与 palettes.ts 中 DAY_ACT1 严格同步。
+     修改时需同时更新 palettes.ts。
+     ========================================================== */
+
+  --tw-echo: #475569;
+  --tw-prefix: #64748b;
+  --tw-prompt: #0369a1;
+  --tw-placeholder: rgba(0,0,0,0.08);
+  --tw-input: #1e293b;
+  --tw-cursor-bright: #1e293b;
+  --tw-cursor-dim: #0369a1;
+  --tw-ring: rgba(30,64,175,0.30);
+  --tw-ring-outer: rgba(30,64,175,0.08);
+  --tw-ring-active: rgba(30,64,175,0.20);
+  --tw-glass-bg: rgba(255,255,255,0.35);
+}
