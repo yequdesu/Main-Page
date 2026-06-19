@@ -3,7 +3,7 @@ import { useFrame } from '@react-three/fiber'
 import { CanvasTexture, SpriteMaterial, Sprite, LinearFilter, Vector3 } from 'three'
 import { useScrollStore } from '../stores/scrollStore'
 import { clamped, smoothstep, GRID_SHIFT_START } from '../r3f/ScrollRig'
-import { _mainPlanetIndices } from './DustField'
+import { _mainPlanetIndices } from './Planets'
 import type { PlanetLink } from '../types'
 
 // Smooth label opacity transition（逐字保留自原 act3.animate _labelOpacityCurrent）
