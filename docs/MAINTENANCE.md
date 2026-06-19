@@ -559,6 +559,9 @@ OceanWaves.useFrame
 | 主题设计 | `docs/theme/design.md` | 三层过渡模型、色板系统、设计决策 |
 | 主题操作 | `docs/theme/operation-guide.md` | day/night 命令、视觉对比、故障排除 |
 | 主题维护 | `docs/theme/maintenance-guide.md` | 代码地图、修改颜色、新增主题、调试 |
+| Actor 设计 | `docs/actors/design.md` | CentralStar / Planets 图层架构、渲染管线 |
+| Actor 操作 | `docs/actors/operation-guide.md` | 视觉效果说明、故障排除 |
+| Actor 维护 | `docs/actors/maintenance-guide.md` | 调参指南、新增光晕层、调试 |
 | 架构分析（历史） | `docs/ARCHITECTURE.md` | Vue 原版源码逐函数拆解 |
 | 技术评估 | `docs/TECH_STACK_EVALUATION.md` | 11 项架构决策 + 援引来源 |
 | 可组合性/可测试性 | `docs/COMPOSABILITY_TESTABILITY.md` | R3F vs TresJS vs Vanilla 对比 |

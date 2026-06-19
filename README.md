@@ -150,6 +150,9 @@ pnpm clean && pnpm mirror        # 辅助脚本
 | 主题设计文档 | [`docs/theme/design.md`](docs/theme/design.md) | 架构、三层过渡模型、色板系统 |
 | 主题操作手册 | [`docs/theme/operation-guide.md`](docs/theme/operation-guide.md) | 用户使用指南 |
 | 主题维护手册 | [`docs/theme/maintenance-guide.md`](docs/theme/maintenance-guide.md) | 代码地图、修改颜色、扩展指南 |
+| Actor 设计文档 | [`docs/actors/design.md`](docs/actors/design.md) | CentralStar / Planets 图层架构、渲染管线 |
+| Actor 操作手册 | [`docs/actors/operation-guide.md`](docs/actors/operation-guide.md) | 视觉效果说明、故障排除 |
+| Actor 维护手册 | [`docs/actors/maintenance-guide.md`](docs/actors/maintenance-guide.md) | 调参指南、新增光晕层、调试 |
 | 维护手册 | [`docs/MAINTENANCE.md`](docs/MAINTENANCE.md) | 调试/开发/维护流程 + 渲染特效 + 浏览器兼容性 |
 | 交接文档 | [`docs/HANDOFF.md`](docs/HANDOFF.md) | 当前状态、已完成工作、快速启动 |
 | 轨道系统 | [`docs/orbital-system.md`](docs/orbital-system.md) | 力学模型、变换推导、配置参考 |
