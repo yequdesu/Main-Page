@@ -49,7 +49,7 @@ const INNER_GLOW_OPACITY = 0.20
 /** 行星核心色  改色相→行星基调变化 */
 const PLANET_CORE_COLOR = '#f0f8ff'
 /** 内层光晕色  改色相→光晕冷暖偏移 */
-const INNER_GLOW_COLOR = '#f6f7f9b3'
+const INNER_GLOW_COLOR = '#f6f7f9'
 /** Fresnel 壳色  改色相→边缘辉光冷暖偏移 */
 const FRESNEL_SHELL_COLOR = '#d0d5de'
 /** Act1 基准色（冷白） */
