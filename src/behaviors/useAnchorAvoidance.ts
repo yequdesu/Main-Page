@@ -59,13 +59,20 @@ function pillRect(x: number, y: number, width: number): { left: number; right: n
   }
 }
 
-function overlaps(a: ReturnType<typeof pillRect>, b: ReturnType<typeof pillRect>): boolean {
+export function overlaps(a: ReturnType<typeof pillRect>, b: ReturnType<typeof pillRect>): boolean {
   return (
     a.left < b.right + COLLISION_TOLERANCE &&
     a.right > b.left - COLLISION_TOLERANCE &&
     a.top < b.bottom + COLLISION_TOLERANCE &&
     a.bottom > b.top - COLLISION_TOLERANCE
   )
+}
+
+export function pillRectsOverlap(
+  ax: number, ay: number, aw: number,
+  bx: number, by: number, bw: number,
+): boolean {
+  return overlaps(pillRect(ax, ay, aw), pillRect(bx, by, bw))
 }
 
 function clampToViewport(x: number, y: number, width: number, vp: Viewport): { x: number; y: number } {
@@ -119,7 +126,6 @@ export function calcAnchorPositions(
           hasCollision = true
           // 将外圈（trackIdx 更大）的 pill 沿候选方向滑动
           const outer = i > j ? i : j
-          const _inner = i > j ? j : i
           const dirIdx = tries % CANDIDATE_DIRECTIONS.length
           const [dx, dy] = CANDIDATE_DIRECTIONS[dirIdx]
           results[outer].x += dx * SLIDE_STEP

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { calcAnchorPositions, type AnchorInput, type AnchorResult } from '../useAnchorAvoidance'
+import { calcAnchorPositions, pillRectsOverlap, type AnchorInput, type AnchorResult } from '../useAnchorAvoidance'
 
 const DEFAULT_VP = { width: 1920, height: 1080 }
 
@@ -50,13 +50,11 @@ describe('calcAnchorPositions', () => {
       makeInput(500, 500, true, 0), makeInput(500, 500, true, 1), makeInput(500, 500, true, 2),
     ]
     const results = calcAnchorPositions(inputs, DEFAULT_VP, 160, 260)
-    // 验证两两不重叠（10px 容差）
+    // 验证两两不重叠（使用模块的 overlap 函数，含 10px 容差）
     for (let i = 0; i < 3; i++) {
       for (let j = i + 1; j < 3; j++) {
         const a = results[i], b = results[j]
-        const overlapX = Math.abs(a.x - b.x) < (160 + 10)
-        const overlapY = Math.abs(a.y - b.y) < (60 + 10)
-        expect(overlapX && overlapY).toBe(false)
+        expect(pillRectsOverlap(a.x, a.y, 160, b.x, b.y, 160)).toBe(false)
       }
     }
   })
@@ -89,9 +87,7 @@ describe('calcAnchorPositions', () => {
         const aW = results[i].expanded ? 260 : 160
         const bW = results[j].expanded ? 260 : 160
         const a = results[i], b = results[j]
-        const overlapX = Math.abs(a.x - b.x) < (Math.max(aW, bW) + 10)
-        const overlapY = Math.abs(a.y - b.y) < (60 + 10)
-        expect(overlapX && overlapY).toBe(false)
+        expect(pillRectsOverlap(a.x, a.y, aW, b.x, b.y, bW)).toBe(false)
       }
     }
   })
