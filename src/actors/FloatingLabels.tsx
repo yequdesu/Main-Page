@@ -1,10 +1,9 @@
-import { memo } from 'react'
+import { memo, useEffect } from 'react'
 import { useRealtimeStore } from '../stores/realtimeStore'
 import { useScrollStore } from '../stores/scrollStore'
 import TerminalBar from '../terminal/TerminalBar'
 import { createPlanetCommandHandler } from '../terminal/planetCommands'
 import { useFloatingLabels, type SequenceStrategy, type LabelConfig } from '../behaviors/useFloatingLabels'
-import type { PlanetLink } from '../types'
 import './FloatingLabels.css'
 
 /**
@@ -60,6 +59,18 @@ const FloatingLabels = memo(function FloatingLabels(props: FloatingLabelsProps) 
     isAnyFocused,
   )
 
+  // Fix 1: Escape key handler — dismiss when any expanded pill is active
+  useEffect(() => {
+    if (activeTrackIdx < 0) return
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        handleExternalDismiss()
+      }
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [activeTrackIdx, handleExternalDismiss])
+
   return (
     <div className="floating-labels-container">
       {labels.map((label) => {
@@ -75,6 +86,7 @@ const FloatingLabels = memo(function FloatingLabels(props: FloatingLabelsProps) 
               transform: `translate(${label.x}px, ${label.y}px)`,
               width: `${width}px`,
               opacity: label.visible ? undefined : 0,
+              pointerEvents: label.visible ? undefined : 'none',
               zIndex: isExpanded ? 11 : 10,
             } as React.CSSProperties}
             onClick={(e) => {
@@ -102,10 +114,13 @@ const FloatingLabels = memo(function FloatingLabels(props: FloatingLabelsProps) 
                 },
               }}
               commands={{
-                onCommand: createPlanetCommandHandler(
-                  label.trackIdx,
-                  label.config.planetLink,
-                ),
+                onCommand: (input: string) => {
+                  resetExitTimer()
+                  return createPlanetCommandHandler(
+                    label.trackIdx,
+                    label.config.planetLink,
+                  )(input)
+                },
                 onPlayEcho: undefined, // 使用 Slot Section 输出
               }}
               behavior={{

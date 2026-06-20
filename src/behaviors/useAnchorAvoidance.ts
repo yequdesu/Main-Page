@@ -145,7 +145,7 @@ export function calcAnchorPositions(
       if (overlaps(pillRect(results[i].x, results[i].y, results[i]._width), pillRect(results[j].x, results[j].y, results[j]._width))) {
         // fallback：外圈 pill 推到视口底部排列
         const outer = i > j ? i : j
-        results[outer].x = VP_MARGIN + outer * (collapsedW + 8)
+        results[outer].x = VP_MARGIN + outer * (results[outer]._width + 8)
         results[outer].y = viewport.height - PILL_HEIGHT - VP_MARGIN
       }
     }
