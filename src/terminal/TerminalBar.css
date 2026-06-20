@@ -48,6 +48,34 @@
     0 2px 12px rgba(0, 0, 0, 0.15);
 }
 
+/* ---- Variant: transparent — 半透明无 blur ---- */
+.terminal-bar[data-variant="transparent"] .terminal-bar-inner {
+  --tw-variant-bg: rgba(15, 23, 42, 0.55);
+  --tw-variant-blur: none;
+  --tw-variant-saturate: none;
+  background: var(--tw-variant-bg, rgba(15, 20, 35, 0.05));
+  backdrop-filter: var(--tw-variant-blur, blur(20px) saturate(180%));
+  -webkit-backdrop-filter: var(--tw-variant-blur, blur(20px) saturate(180%));
+  border: 1px solid rgba(148, 163, 184, 0.10);
+}
+
+/* ---- Variant: minimal — 无背景无描边 ---- */
+.terminal-bar[data-variant="minimal"] .terminal-bar-inner {
+  --tw-variant-bg: transparent;
+  --tw-variant-blur: none;
+  --tw-variant-saturate: none;
+  background: var(--tw-variant-bg);
+  backdrop-filter: var(--tw-variant-blur, blur(20px) saturate(180%));
+  -webkit-backdrop-filter: var(--tw-variant-blur, blur(20px) saturate(180%));
+  border: none;
+  box-shadow: none;
+}
+
+.terminal-bar[data-variant="minimal"] .terminal-bar-inner:hover,
+.terminal-bar[data-variant="minimal"] .terminal-bar-inner.active {
+  box-shadow: none;
+}
+
 /* ---- Scrollable wrapper in terminal context ---- */
 .terminal-echo-scrollable {
   /* no extra styles needed, scrollable handles internally */
