@@ -7,7 +7,7 @@ vi.mock('../../stores/scrollStore', () => ({
   useScrollStore: {
     getState: vi.fn(() => ({
       focusedPlanetIdx: -1,
-      setFocusedPlanetIdx: vi.fn(),
+      setFocusedPlanet: vi.fn(),
     })),
   },
 }))

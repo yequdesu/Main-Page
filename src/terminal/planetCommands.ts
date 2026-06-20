@@ -38,7 +38,7 @@ export function createPlanetCommandHandler(
         const store = useScrollStore.getState()
         const planetIdx = _mainPlanetIndices[trackIdx]
         if (planetIdx !== undefined) {
-          store.setFocusedPlanetIdx(planetIdx)
+          store.setFocusedPlanet(planetIdx)
         }
         return `已聚焦: ${link.label}`
       }
