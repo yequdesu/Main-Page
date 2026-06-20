@@ -1,21 +1,18 @@
 import { useMemo, useRef, useEffect } from 'react'
 import { useFrame } from '@react-three/fiber'
-import { Line, Color, BufferGeometry, BufferAttribute, LineBasicMaterial, Vector3 } from 'three'
+import { Line, Color, BufferGeometry, BufferAttribute, LineBasicMaterial } from 'three'
 import { useScrollStore } from '../stores/scrollStore'
 import { useFrameCache } from '../behaviors/useFrameCache'
 import { smoothstep, clamped, WHITE_OUT_THRESHOLD, WHITE_OUT_END, GRID_START, VERTICAL_START, GRID_SHIFT_START } from '../r3f/ScrollRig'
 import { _beamWorldOrigin, _beamWorldDirection } from './LightBeam'
 import type { WaveLineData, WaveBaseColor } from '../types'
 
-// 预分配 — 波面光束交运算
-const _toVertex = new Vector3()
-const _projOnBeam = new Vector3()
-
 /**
  * 海洋波浪线 — 30 条 Line，逐顶点动画。
  *
  * 原 buildOcean():227-265 + animateWavesAndLighting():511-589
  * 30 条线 × 151 顶点 = 4530 个顶点/帧。
+ * 深蓝海军底色 + 深度相关透明度，逐字保留自原版。
  *
  * 援引：R3F <threeLine> + bufferGeometry（逐顶点位置/颜色更新）
  */
@@ -35,11 +32,13 @@ export default function OceanWaves() {
       const frequency = 0.12 + curveT * 0.22
       const speed = 0.35 * curveT + 0.05
       const phase = Math.random() * Math.PI * 2
-      const opacity = 0.10
+      const opacity = 0.15 + curveT * 0.55   // 0.15→0.70 深度分层
       const span = 45 + curveT * 35
 
-      const v = Math.floor(200 + curveT * 55)
-      const hex = '#' + v.toString(16).padStart(2, '0').repeat(3)
+      const r = Math.floor(6 + curveT * 12)       // 6→18  深蓝 navy
+      const g = Math.floor(12 + curveT * 18)      // 12→30
+      const b = Math.floor(26 + curveT * 24)      // 26→50
+      const hex = `#${r.toString(16).padStart(2,'0')}${g.toString(16).padStart(2,'0')}${b.toString(16).padStart(2,'0')}`
       const bc = new Color(hex)
       baseColors.push({ r: bc.r, g: bc.g, b: bc.b })
 
@@ -74,7 +73,7 @@ export default function OceanWaves() {
 
   const { shouldSkip } = useFrameCache()
   const wavesVisibleRef = useRef(true)
-  const targetCol = useMemo(() => new Color('#ffffff'), [])
+  const targetCol = useMemo(() => new Color('#94a3b8'), [])
 
   useFrame((state, _delta) => {
     const sp = useScrollStore.getState().scrollProgress
@@ -112,7 +111,6 @@ export default function OceanWaves() {
 
       const rawZ = d.z
       const baseDepthFade = Math.max(0, Math.min(1, (rawZ - (-52)) / 20.0))
-      let lineMaxBf = 0
 
       for (let j = 0; j <= d.segCount; j++) {
         const idx = j * 3
@@ -124,35 +122,40 @@ export default function OceanWaves() {
 
         pArr[idx + 1] = waveY + (d.baseY - waveY) * gridFactor + shiftY
 
-        // Color: lerp from base to target based on gridFactor
-        cArr[idx]     = bc.r + (targetCol.r - bc.r) * gridFactor
-        cArr[idx + 1] = bc.g + (targetCol.g - bc.g) * gridFactor
-        cArr[idx + 2] = bc.b + (targetCol.b - bc.b) * gridFactor
-
-        // ---- Volumetric spotlight illumination ----
-        // 聚合该线上所有顶点的最大 beamFactor
-        const vy = pArr[idx + 1]
-        _toVertex.set(x, vy, rawZ).sub(_beamWorldOrigin)
-        const tBeam = _toVertex.dot(_beamWorldDirection)
-        if (tBeam > 0 && tBeam < 42) {
-          _projOnBeam.copy(_beamWorldDirection).multiplyScalar(tBeam)
-          const distFromAxis = _toVertex.distanceTo(_projOnBeam)
-          const beamRadius = tBeam * 0.14
-          const softEdge = beamRadius * 1.6
-          if (distFromAxis < softEdge) {
-            const bf = distFromAxis < beamRadius
-              ? 1.0
-              : 1.0 - (distFromAxis - beamRadius) / (softEdge - beamRadius)
-            if (bf > lineMaxBf) lineMaxBf = bf
+        // ---- Volumetric spotlight: per-vertex color highlight ----
+        // 原 animateWavesAndLighting():106-122
+        // 椭圆光束截面 + 高斯衰减，per-vertex 推向暖蓝白高光
+        let r = bc.r, g = bc.g, b = bc.b
+        if (hlWeight > 0) {
+          const vx = x - _beamWorldOrigin.x
+          const vy = waveY - _beamWorldOrigin.y
+          const vz = rawZ - _beamWorldOrigin.z
+          const proj = vx * _beamWorldDirection.x + vy * _beamWorldDirection.y + vz * _beamWorldDirection.z
+          const localX = vx * _beamWorldDirection.z - vz * _beamWorldDirection.x
+          const beamR = 1.2 + Math.max(0, proj) * 0.15
+          const distSq = (localX * localX) / (beamR * beamR) + (vy * vy) / 1.5
+          let di = Math.exp(-distSq * 0.9)
+          di *= Math.max(0, Math.min(1, (proj + 4) / 8))
+          di *= Math.max(0, 1 - (Math.max(0, proj) / 48))
+          let li = di * 1.5 * hlWeight
+          if (_beamWorldDirection.z > 0 && vz > 0) {
+            li += di * Math.exp(-(x * x) / 7) * _beamWorldDirection.z * 1.3 * hlWeight
           }
+          // 高光目标纯白 + 2 倍强度补偿亮色底色（原版 0.95 倍用于深蓝底色）
+          const hR = 1.0, hG = 1.0, hB = 1.0
+          r = bc.r + (hR - bc.r) * Math.min(1, li) * 2.0
+          g = bc.g + (hG - bc.g) * Math.min(1, li) * 2.0
+          b = bc.b + (hB - bc.b) * Math.min(1, li) * 2.0
         }
+
+        // Lerp to targetCol based on gridFactor (after beam highlight)
+        cArr[idx]     = r + (targetCol.r - r) * gridFactor
+        cArr[idx + 1] = g + (targetCol.g - g) * gridFactor
+        cArr[idx + 2] = b + (targetCol.b - b) * gridFactor
       }
       pa.needsUpdate = true
       ca.needsUpdate = true
-      // 透明度：基础 10%，光束扫过时平滑提升至 50%
-      const baseOpacity = d.opacity + (0.45 - d.opacity) * gridFactor
-      const litOpacity = 0.10 + lineMaxBf * 0.40  // 10% → 50%
-      ;(line.material as LineBasicMaterial).opacity = (baseOpacity + (litOpacity - baseOpacity) * lineMaxBf) * baseDepthFade * gridOpacityMult
+      ;(line.material as LineBasicMaterial).opacity = (d.opacity + (0.45 - d.opacity) * gridFactor) * baseDepthFade * gridOpacityMult
     }
   })
 

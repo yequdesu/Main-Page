@@ -7,6 +7,7 @@ import PlanetClickHandler from './PlanetClickHandler'
 import SceneLights from '../actors/SceneLights'
 import DustField from '../actors/DustField'
 import Planets from '../actors/Planets'
+import Lighthouse from '../actors/Lighthouse'
 
 /**
  * R3F Canvas 配置。
@@ -44,6 +45,7 @@ export default function SceneCanvas({ children }: CanvasProps) {
       <SceneLights />
       <Planets />
       <DustField />
+      <Lighthouse />
       {children}
     </R3FCanvas>
   )
