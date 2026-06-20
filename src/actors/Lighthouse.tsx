@@ -1,6 +1,8 @@
 import { useRef, useEffect } from 'react'
+import { useFrame } from '@react-three/fiber'
 import { type Group } from 'three'
-import { SCENE_CENTER_Z } from '../r3f/ScrollRig'
+import { SCENE_CENTER_Z, WHITE_OUT_END } from '../r3f/ScrollRig'
+import { useScrollStore } from '../stores/scrollStore'
 
 // Module-level ref — shared with LighthouseCapture for offscreen rendering
 export let _lighthouseGroupRef: Group | null = null
@@ -11,6 +13,8 @@ export let _lighthouseGroupRef: Group | null = null
  * 原 LighthouseScene.vue:267-366 的 30 个 Mesh 逐行转为 R3F JSX。
  * 所有 position / rotation / scale 值逐字保留。
  *
+ * 白化完成 (sp≥WHITE_OUT_END) 后隐藏，与背景白化同步。
+ *
  * 援引：R3F 声明式场景图 — pmndrs 官方 Getting Started
  */
 export default function Lighthouse() {
@@ -20,6 +24,14 @@ export default function Lighthouse() {
     _lighthouseGroupRef = groupRef.current
     return () => { _lighthouseGroupRef = null }
   }, [])
+
+  // 白化过渡后隐藏灯塔 — sp ≥ 0.55 时 visible=false
+  useFrame(() => {
+    const sp = useScrollStore.getState().scrollProgress
+    if (groupRef.current) {
+      groupRef.current.visible = sp < WHITE_OUT_END
+    }
+  })
 
   return (
     <group

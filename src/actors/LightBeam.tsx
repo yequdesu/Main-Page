@@ -17,8 +17,9 @@ function shortestDelta(from: number, to: number): number {
 const _lastBeam = { time: -1, sp: -1 }
 
 // 共享光束世界空间变换 — OceanWaves 读取用于波面照亮计算
-export const _beamWorldOrigin = new Vector3()
-export const _beamWorldDirection = new Vector3()
+// 初始化使用 beamPivot 已知位置 [0, -0.428, SCENE_CENTER_Z] + 朝向 (0,0,1)
+export const _beamWorldOrigin = new Vector3(0, -0.428, SCENE_CENTER_Z)
+export const _beamWorldDirection = new Vector3(0, 0, 1)
 const _beamQuat = new Quaternion()
 const _beamFwd = new Vector3()
 
@@ -68,6 +69,13 @@ export default function LightBeam({ lighthouseY = -0.428 }: LightBeamProps) {
     uLength: { value: cfg.length },
     uEdgePower: { value: cfg.power },
   })), [configs])
+
+  // Cone geometries — geo.translate(0,-len/2,0) 使 tip 在 y=0 → shader lengthFade 1→0
+  const coneGeos = useMemo(() => configs.map(cfg => {
+    const geo = new ConeGeometry(cfg.radius, cfg.length, 32, 1, true)
+    geo.translate(0, -cfg.length / 2, 0)
+    return geo
+  }), [configs])
 
   const rayGeomArrays = useMemo(() => [
     new Float32Array([0, 0, 0, -4.5, 0, 55]),
@@ -186,10 +194,10 @@ export default function LightBeam({ lighthouseY = -0.428 }: LightBeamProps) {
         position={[0, lighthouseY, SCENE_CENTER_Z]}
       />
       <group ref={beamPivotRef} position={[0, lighthouseY, SCENE_CENTER_Z]}>
-        {/* 3 个锥体同心光束 */}
+        {/* 3 个锥体同心光束 — geo.translate 已将 tip 移至原点 */}
         {configs.map((cfg, i) => (
-          <mesh key={`cone-${i}`} rotation={[-Math.PI / 2, 0, 0]} position={[0, 0, cfg.length / 2]} renderOrder={0}>
-            <coneGeometry args={[cfg.radius, cfg.length, 32, 1, true]} />
+          <mesh key={`cone-${i}`} rotation={[-Math.PI / 2, 0, 0]} renderOrder={0}>
+            <primitive object={coneGeos[i]} attach="geometry" />
             <shaderMaterial
               ref={setConeMat(i)}
               args={[{
