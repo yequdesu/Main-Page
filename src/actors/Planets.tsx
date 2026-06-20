@@ -14,7 +14,7 @@ import { type ParticleData } from '../types'
 import { useScreenProjection } from '../behaviors/useScreenProjection'
 
 // ============================================================
-// 共享状态 — PlanetClickHandler + Act3ContentPhase + PlanetLabel 消费
+// 共享状态 — PlanetClickHandler + Act3ContentPhase 消费
 // ============================================================
 
 export const _planetWorldPositions: (Vector3 | null)[] = [null, null, null]
