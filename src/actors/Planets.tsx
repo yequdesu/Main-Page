@@ -11,6 +11,7 @@ import { calcScreenSpaceHover } from '../behaviors/useScreenSpaceHover'
 import { smoothstep, clamped, SCENE_CENTER_Z, WHITE_OUT_THRESHOLD, WHITE_OUT_END, GRID_SHIFT_START, ORBIT_RADII, ORBIT_COUNT } from '../r3f/ScrollRig'
 import { atmosphereVertex, atmosphereFragment } from '../shaders/AtmosphereShader'
 import { type ParticleData } from '../types'
+import { useScreenProjection } from '../behaviors/useScreenProjection'
 
 // ============================================================
 // 共享状态 — PlanetClickHandler + Act3ContentPhase + PlanetLabel 消费
@@ -120,6 +121,7 @@ function getHaloTexture(): CanvasTexture {
  */
 export default function Planets() {
   const { camera } = useThree()
+  const { project } = useScreenProjection(_planetWorldPositions)
   const { shouldSkip } = useFrameCache()
 
   // Pre-allocated reusable objects
@@ -366,6 +368,9 @@ export default function Planets() {
         sMat2.opacity = planetOpacity * ATMOS_HALO_OPACITY * pulse
       }
     }
+
+    // 投影行星世界坐标到屏幕坐标（供 FloatingLabels 消费）
+    project()
 
     // ---- Hover detection ----
     const hoverResult = calcScreenSpaceHover(
