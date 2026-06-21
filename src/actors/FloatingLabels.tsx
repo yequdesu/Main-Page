@@ -32,7 +32,7 @@ interface FloatingLabelsProps {
 const FloatingLabels = memo(function FloatingLabels(props: FloatingLabelsProps) {
   const {
     configs, sequenceStrategy, staggerDelay, exitTimeout,
-    collapsedWidth = 130, expandedWidth = 260,
+    collapsedWidth = 85, expandedWidth = 200,
     collapsedHeight = 36, expandedHeight = 44,
     pbdParams,
   } = props

@@ -156,7 +156,7 @@ const CLOSE_REPEL_STIFFNESS = 150
  * 与 ANCHOR_STIFFNESS 的比值 (120:25 ≈ 5:1) 决定了碰撞时
  * 推开力 vs 回正力的竞争关系。
  */
-const SEPARATION_STIFFNESS = 120
+const SEPARATION_STIFFNESS = 180
 
 /**
  * 分离弹性（动量传递比例）。
@@ -185,8 +185,8 @@ const VP_MARGIN = 12
 /** 约束 B（行星遮挡）的最小安全边距（px） */
 const PLANET_AVOID_MARGIN = 2
 
-/** 约束 C（恒星遮挡）的最小安全边距（px），大于 PLANET_AVOID_MARGIN 因恒星光晕更敏感 */
-const STAR_AVOID_MARGIN = 4
+/** 约束 C（恒星遮挡）的固定安全边距（px），不叠加 label 半宽 */
+const STAR_AVOID_MARGIN = 8
 
 /** 速度平分系数（两 label 同权） */
 const HALF = 0.5
@@ -457,9 +457,9 @@ export function stepPBD(
         }
       }
 
-      // ---- C: 标签不遮挡中央恒星 ----
+      // ---- C: 标签不遮挡中央恒星（固定安全边距，不依赖 label 尺寸） ----
       if (centralStar.visible) {
-        const safeR = centralStar.r + Math.max(w2, h2) + STAR_AVOID_MARGIN
+        const safeR = centralStar.r + STAR_AVOID_MARGIN
         const pushed = pushOutOfCircle(cx, cy, centralStar.x, centralStar.y, safeR)
         b.x += pushed.x - cx
         b.y += pushed.y - cy

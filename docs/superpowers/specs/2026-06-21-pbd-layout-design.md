@@ -46,7 +46,7 @@ Müller et al. (2007) 的 PBD 对每个约束直接修改位置 `x += Δx`，对
 | A. 锚点向心 | 力 (v+=accel) | anchors 越出 anchorRangeRadius | ANCHOR_STIFFNESS=25 |
 | A2. 近距排斥 | 力 (v+=accel) | center 侵入 pr+10px 安全区 | CLOSE_REPEL_STIFFNESS=150 |
 | B. 行星遮挡 | 位置 (pos+=push) | center 进入任意行星视觉圆 | PLANET_AVOID_MARGIN=2 |
-| C. 恒星遮挡 | 位置 (pos+=push) | center 进入恒星光晕圆 | STAR_AVOID_MARGIN=4 |
+| C. 恒星遮挡 | 位置 (pos+=push) | center 进入恒星光晕圆+8px | STAR_AVOID_MARGIN=8 |
 | D. 视口截断 | 位置 (clamp) | rect 超出视口边距 | VP_MARGIN=12 |
 | E. 标签互斥 | 力+动量 (v+=accel+impulse) | rect 重叠>2px | SEPARATION_STIFFNESS=120, RESTITUTION=0.4 |
 

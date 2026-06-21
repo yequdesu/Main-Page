@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { stepPBD, resetPBD, type PBDInput, type PBDParams } from '../usePBDLayout'
 
-function inp(sx: number, sy: number, pr = 20, visible = true, lw = 130, lh = 44): PBDInput {
+function inp(sx: number, sy: number, pr = 20, visible = true, lw = 85, lh = 44): PBDInput {
   return { sx, sy, pr, visible, lw, lh }
 }
 
@@ -13,7 +13,7 @@ describe('stepPBD', () => {
     const inputs: [PBDInput, PBDInput, PBDInput] = [
       inp(500, 400), inp(900, 400), inp(1300, 400),
     ]
-    const results = stepPBD(inputs, NO_STAR, {}, 0.016, 1920, 1080, 130, 260, 44, 44, -1)
+    const results = stepPBD(inputs, NO_STAR, {}, 0.016, 1920, 1080, 85, 200, 44, 44, -1)
     expect(results).toHaveLength(3)
     results.forEach(r => {
       expect(r).toHaveProperty('x')
@@ -28,8 +28,8 @@ describe('stepPBD', () => {
     const inputs: [PBDInput, PBDInput, PBDInput] = [
       inp(500, 500), inp(900, 500, 20, false), inp(1300, 500, 20, false),
     ]
-    let results = stepPBD(inputs, starBelow, {}, 0.016, 1920, 1080, 130, 260, 44, 44, -1)
-    for (let i = 0; i < 200; i++) results = stepPBD(inputs, starBelow, {}, 0.016, 1920, 1080, 130, 260, 44, 44, -1)
+    let results = stepPBD(inputs, starBelow, {}, 0.016, 1920, 1080, 85, 200, 44, 44, -1)
+    for (let i = 0; i < 200; i++) results = stepPBD(inputs, starBelow, {}, 0.016, 1920, 1080, 85, 200, 44, 44, -1)
     // 含 8° spread，label 0 略偏左上但仍在上方
     expect(results[0].y + 44).toBeLessThan(520)  // 放宽：shadow spread 使 y 略有偏移
   })
@@ -40,8 +40,8 @@ describe('stepPBD', () => {
     const inputs: [PBDInput, PBDInput, PBDInput] = [
       inp(500, 500), inp(900, 500, 20, false), inp(1300, 500, 20, false),
     ]
-    let results = stepPBD(inputs, starLeft, {}, 0.016, 1920, 1080, 130, 260, 44, 44, -1)
-    for (let i = 0; i < 200; i++) results = stepPBD(inputs, starLeft, {}, 0.016, 1920, 1080, 130, 260, 44, 44, -1)
+    let results = stepPBD(inputs, starLeft, {}, 0.016, 1920, 1080, 85, 200, 44, 44, -1)
+    for (let i = 0; i < 200; i++) results = stepPBD(inputs, starLeft, {}, 0.016, 1920, 1080, 85, 200, 44, 44, -1)
     // 含 8° spread + EMA 平滑，target x ≈ 460
     expect(results[0].x).toBeGreaterThan(450)
   })
@@ -50,7 +50,7 @@ describe('stepPBD', () => {
     const inputs: [PBDInput, PBDInput, PBDInput] = [
       inp(500, 500, 20, false), inp(900, 500, 20, false), inp(1300, 500, 20, false),
     ]
-    const results = stepPBD(inputs, NO_STAR, {}, 0.016, 1920, 1080, 130, 260, 44, 44, -1)
+    const results = stepPBD(inputs, NO_STAR, {}, 0.016, 1920, 1080, 85, 200, 44, 44, -1)
     results.forEach(r => {
       expect(r.x).toBe(0); expect(r.y).toBe(0)
     })
@@ -64,10 +64,10 @@ describe('stepPBD', () => {
     // 120px 间距，K=2 弱弹簧 + EMA 平滑后应分离
     let final: any = null
     for (let i = 0; i < 200; i++) {
-      final = stepPBD(inputs, starBelow, {}, 0.016, 1920, 1080, 130, 260, 44, 44, -1)
+      final = stepPBD(inputs, starBelow, {}, 0.016, 1920, 1080, 85, 200, 44, 44, -1)
     }
     const a = final[0], b = final[1]
-    const ox = Math.max(0, Math.min(a.x + 130, b.x + 130) - Math.max(a.x, b.x))
+    const ox = Math.max(0, Math.min(a.x + 85, b.x + 85) - Math.max(a.x, b.x))
     const oy = Math.max(0, Math.min(a.y + 44, b.y + 44) - Math.max(a.y, b.y))
     expect(ox <= 0 || oy <= 0).toBe(true)
   })
@@ -77,10 +77,10 @@ describe('stepPBD', () => {
     const inputs: [PBDInput, PBDInput, PBDInput] = [
       inp(500, 500), inp(900, 500, 20, false), inp(1300, 500, 20, false),
     ]
-    const results = stepPBD(inputs, star, {}, 0.016, 1920, 1080, 130, 260, 44, 44, -1)
+    const results = stepPBD(inputs, star, {}, 0.016, 1920, 1080, 85, 200, 44, 44, -1)
     // label 不应覆盖恒星区域
     const r = results[0]
-    const cx = r.x + 65; const cy = r.y + 22
+    const cx = r.x + 42; const cy = r.y + 22
     const d = Math.hypot(cx - 500, cy - 500)
     expect(d).toBeGreaterThan(40)
   })
