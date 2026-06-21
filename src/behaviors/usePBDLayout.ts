@@ -142,7 +142,7 @@ const CLOSE_REPEL_MARGIN = 10
  * 值 150 高于 ANCHOR_STIFFNESS (25)，确保排斥力 > 向心力。
  * 日常不触发（shadow target 天然在排斥区外），仅在碰撞挤压时激活。
  */
-const CLOSE_REPEL_STIFFNESS = 150
+const CLOSE_REPEL_STIFFNESS = 400
 
 // -- 标签间分离 -----------------------------------------------
 

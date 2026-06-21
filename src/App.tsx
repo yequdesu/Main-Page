@@ -300,7 +300,7 @@ export default function App() {
           expandedHeight={44}
           pbdParams={{
             anchorRangeRadius: 70,
-            gap: 12,
+            gap: 16,
           }}
         />
       )}
