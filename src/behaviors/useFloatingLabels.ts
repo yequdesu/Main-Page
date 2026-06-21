@@ -79,6 +79,8 @@ interface FloatingLabelsOptions {
   collapsedHeight?: number
   expandedHeight?: number
   pbdParams?: PBDParams
+  /** per-label 折叠态实际宽度（px），typewriter 完成后由 FloatingLabels 传入 */
+  collapsedFitWidths?: Record<number, number>
 }
 
 /**
@@ -121,6 +123,7 @@ export function useFloatingLabels(
     collapsedHeight = 36,
     expandedHeight = 44,
     pbdParams = {},
+    collapsedFitWidths = {},
   } = options
 
   const [activeTrackIdx, setActiveTrackIdx] = useState(-1)
@@ -158,8 +161,8 @@ export function useFloatingLabels(
   )
   const [pbdReady, setPbdReady] = useState(false)
   let _pbdReadyLogged = false // module-level, survives re-renders
-  const stableRefs = useRef({ pbdParams, collapsedWidth, expandedWidth, collapsedHeight, expandedHeight, configs, activeTrackIdx })
-  stableRefs.current = { pbdParams, collapsedWidth, expandedWidth, collapsedHeight, expandedHeight, configs, activeTrackIdx }
+  const stableRefs = useRef({ pbdParams, collapsedWidth, expandedWidth, collapsedHeight, expandedHeight, configs, activeTrackIdx, collapsedFitWidths })
+  stableRefs.current = { pbdParams, collapsedWidth, expandedWidth, collapsedHeight, expandedHeight, configs, activeTrackIdx, collapsedFitWidths }
 
   useEffect(() => {
     let raf = 0
@@ -176,14 +179,19 @@ export function useFloatingLabels(
 
       const inputs = s.configs.map((_, i) => ({
         sx: sc[i].x, sy: sc[i].y, pr: sr[i], visible: sc[i].visible,
-        lw: s.activeTrackIdx === i ? s.expandedWidth : s.collapsedWidth,
+        lw: s.activeTrackIdx === i ? s.expandedWidth : (s.collapsedFitWidths[i] ?? s.collapsedWidth),
         lh: s.activeTrackIdx === i ? s.expandedHeight : s.collapsedHeight,
       })) as [PBDInput, PBDInput, PBDInput]
 
+      const fitW: [number, number, number] = [
+        s.collapsedFitWidths[0] ?? s.collapsedWidth,
+        s.collapsedFitWidths[1] ?? s.collapsedWidth,
+        s.collapsedFitWidths[2] ?? s.collapsedWidth,
+      ]
       const results = stepPBD(
         inputs, cs, s.pbdParams, dt, vp.width, vp.height,
         s.collapsedWidth, s.expandedWidth, s.collapsedHeight, s.expandedHeight,
-        s.activeTrackIdx,
+        s.activeTrackIdx, fitW,
       )
 
       const cached = results.map(r => ({

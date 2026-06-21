@@ -313,11 +313,15 @@ export function stepPBD(
   collapsedW: number, expandedW: number,
   collapsedH: number, expandedH: number,
   activeTrackIdx: number,
+  /** per-label 折叠态实际宽度（px），未提供则统一使用 collapsedW */
+  collapsedWidths?: [number, number, number],
 ): [PBDResult, PBDResult, PBDResult] {
   const R = p.anchorRangeRadius ?? 90
   const gap = p.gap ?? 6
   const spreadRad = (p.shadowAngleSpread ?? 8) * (Math.PI / 180)
   const dtClamped = Math.min(dt, 0.1)
+  // 每个 label 的有效折叠宽度（优先使用传入的 per-label 值）
+  const _cw = collapsedWidths ?? [collapsedW, collapsedW, collapsedW]
 
   // ==========================================================
   // Stage 1: 预测 — 速度前馈 + 位置修正
@@ -326,7 +330,7 @@ export function stepPBD(
   for (let i = 0; i < 3; i++) {
     const b = _bodies[i]
     const inp = inputs[i]
-    const w = activeTrackIdx === i ? expandedW : collapsedW
+    const w = activeTrackIdx === i ? expandedW : _cw[i]
     const h = activeTrackIdx === i ? expandedH : collapsedH
 
     // 不可见 → 失活
@@ -402,7 +406,7 @@ export function stepPBD(
       const b = _bodies[i]
       const inp = inputs[i]
       if (!b.active || !inp.visible) continue
-      const w = activeTrackIdx === i ? expandedW : collapsedW
+      const w = activeTrackIdx === i ? expandedW : _cw[i]
       const h = activeTrackIdx === i ? expandedH : collapsedH
       const w2 = w * HALF, h2 = h * HALF
       const cx = b.x + w2, cy = b.y + h2
@@ -475,9 +479,9 @@ export function stepPBD(
       for (let j = i + 1; j < 3; j++) {
         const bi = _bodies[i], bj = _bodies[j]
         if (!bi.active || !bj.active) continue
-        const wi = activeTrackIdx === i ? expandedW : collapsedW
+        const wi = activeTrackIdx === i ? expandedW : _cw[i]
         const hi = activeTrackIdx === i ? expandedH : collapsedH
-        const wj = activeTrackIdx === j ? expandedW : collapsedW
+        const wj = activeTrackIdx === j ? expandedW : _cw[j]
         const hj = activeTrackIdx === j ? expandedH : collapsedH
 
         // 计算重叠量
@@ -521,7 +525,7 @@ export function stepPBD(
   for (let i = 0; i < 3; i++) {
     const b = _bodies[i]
     const inp = inputs[i]
-    const w = activeTrackIdx === i ? expandedW : collapsedW
+    const w = activeTrackIdx === i ? expandedW : _cw[i]
     const h = activeTrackIdx === i ? expandedH : collapsedH
     if (!b.active || !inp.visible) {
       results.push({ x: 0, y: 0, anchorL: { x: 0, y: 0 }, anchorR: { x: 0, y: 0 } })

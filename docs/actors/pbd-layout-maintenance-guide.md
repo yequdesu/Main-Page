@@ -22,15 +22,18 @@ usePBDLayout.ts      核心引擎（纯函数 + 模块级状态）
   └─ 常量区           所有可调物理参数
 
 useFloatingLabels.ts React hook（编排层）
-  ├─ typewriterDelays  入场排序
-  ├─ rAF useEffect     独立 60fps 物理循环
-  ├─ exit mgmt          超时/点击/Esc 退出
-  └─ labels[]           构建 UI 数据
+  ├─ typewriterDelays     入场排序
+  ├─ collapsedFitWidths   per-label 折叠态实际宽度（回传 PBD）
+  ├─ rAF useEffect        独立 60fps 物理循环
+  ├─ exit mgmt             超时/点击/Esc 退出
+  └─ labels[]              构建 UI 数据
 
 FloatingLabels.tsx   React 渲染组件
-  ├─ Zustand 订阅       screenCoords / screenRadii / centralStar
-  ├─ TerminalBar × 3    Slot 声明（Welcome + Section）
-  └─ Debug SVG          cyan/red/green/white 调试覆盖层
+  ├─ Zustand 订阅          screenCoords / screenRadii / centralStar
+  ├─ Canvas 2D measureText 计算 welcome-text 像素宽度
+  ├─ collapsedFitWidths    收缩状态 → useFloatingLabels → stepPBD
+  ├─ TerminalBar × 3       Slot 声明（Welcome + Section）
+  └─ Debug SVG             cyan/red/green/white 调试覆盖层
 ```
 
 ## 参数调优指南
@@ -48,6 +51,26 @@ delay[i] = baseTypewriterDelay + rank × staggerDelay
 App.tsx 当前: staggerDelay=200（紧凑），baseTypewriterDelay 未传（默认 600）
 → label 间隔仅 200ms，首个 600ms 后快速依次登场
 ```
+
+### 折叠态自收缩宽度
+
+typewriter 完成后，折叠态 pill 通过 Canvas 2D `measureText()` 计算 welcome-text 像素宽度并收缩。
+
+```
+fitW = clamp(textWidth + 18px, 24, collapsedWidth)
+
+FS:     11.4px + 18 = 30px
+Code:   23px   + 18 = 41px
+GitHub: 34px   + 18 = 53px
+```
+
+收缩宽度通过 `collapsedFitWidths` 回传至 `useFloatingLabels` → `stableRefs` → rAF 循环 → `stepPBD(collapsedWidths)`，确保 PBD 碰撞检测和 anchor 位置使用各 label 的实际宽度。
+
+| 调整项 | 位置 | 效果 |
+|--------|------|------|
+| 最小宽度 | `FloatingLabels.tsx` `Math.max(24, ...)` | ↑增大最小宽度 |
+| 收缩速度 | `FloatingLabels.css` `width 0.5s` | ↑更慢，↓更快 |
+| padding 余量 | `FloatingLabels.tsx` `textW + 18` | ↑pill 更宽松 |
 
 ### 标签跟随过于松散（滞后大）
 
@@ -108,7 +131,9 @@ App.tsx 当前: staggerDelay=200（紧凑），baseTypewriterDelay 未传（默�
 | label 不出现 | rAF 未启动 / FloatingLabels 未挂载 | `needsAct3(sp)`、store 数据 |
 | label 瞬移 | 首次激活从 (0,0) 跳 | 正常，已处理为直接跳转 |
 | label 静止不动 | `screenCoords` 未更新 | Planets.useFrame 是否运行 |
-| green rect 与 DOM 大小不一 | `collapsedHeight/Width` 与实际 CSS 不匹配 | 更新 App.tsx 参数 |
+| green rect 与 DOM pill 大小不一 | `collapsedFitWidths` 未同步到 PBD | 检查 `stableRefs` 和 `stepPBD(collapsedWidths)` 传递链路 |
+| 收缩后 PBD 碰撞不准确 | `collapsedWidths` 未传入 `stepPBD` | 确认 rAF 循环中 `fitW` 数组正确构建 |
+| 收缩速度不理想 | CSS transition 时长 | 调整 `FloatingLabels.css` 中 `width 0.5s` |
 | label 频繁进入 fallback | 约束过严，无合法位置 | 尝试增大 anchorRangeRadius |
 
 ## 测试

@@ -12,7 +12,7 @@ import './FloatingLabels.css'
  * FloatingLabels — 行星标签 DOM 编排容器（PBD 物理驱动）。
  *
  * 通过 useFloatingLabels 管理 3 个 Pill 的 PBD 物理位置。
- * PBD 状态（速度）跨帧保持 → 天然平滑连续。
+ * 折叠态 label 在 typewriter 动画结束后自动收缩宽度至适配 welcome-text。
  *
  * 援引：Müller et al. (2007) "Position Based Dynamics"
  */
@@ -45,25 +45,51 @@ const FloatingLabels = memo(function FloatingLabels(props: FloatingLabelsProps) 
   const focusedPlanetIdx = useScrollStore(s => s.focusedPlanetIdx)
   const isAnyFocused = focusedPlanetIdx >= 0
 
+  // ---- 折叠态 typewriter 完成后自收缩宽度 ----
+  // Canvas 2D 文本测量（与 TerminalBar 相同字体）
+  const measureCtxRef = useRef<CanvasRenderingContext2D | null>(null)
+  const getTextWidth = useCallback((text: string): number => {
+    if (!measureCtxRef.current) {
+      const canvas = document.createElement('canvas')
+      const ctx = canvas.getContext('2d')!
+      ctx.font = "0.58rem 'SF Mono', 'Fira Code', 'Cascadia Code', 'Consolas', monospace"
+      measureCtxRef.current = ctx
+    }
+    return measureCtxRef.current.measureText(text).width
+  }, [])
+
+  // per-label 折叠态自适合宽度（px），typewriter 完成后写入
+  const [collapsedFitWidths, setCollapsedFitWidths] = useState<Record<number, number>>({})
+
   const {
     labels, activeTrackIdx,
     handlePillClick, handleExternalDismiss, resetExitTimer, pbdReady,
   } = useFloatingLabels(
     { configs, sequenceStrategy, staggerDelay, baseTypewriterDelay, exitTimeout,
-      collapsedWidth, expandedWidth, collapsedHeight, expandedHeight, pbdParams },
+      collapsedWidth, expandedWidth, collapsedHeight, expandedHeight, pbdParams,
+      collapsedFitWidths },
     screenCoords, screenRadii, centralStar, isAnyFocused,
   )
 
   // 顺序播放：label 0 先渲染，typing+exitGap 完成后 label 1，以此类推
   const [showCount, setShowCount] = useState(1)
   const typingDoneRef = useRef<Set<number>>(new Set())
+
   const handleLabelModeChange = useCallback((trackIdx: number, mode: string) => {
     if (mode === 'idle') {
       typingDoneRef.current = new Set(typingDoneRef.current).add(trackIdx)
       setShowCount(prev => Math.max(prev, trackIdx + 2)) // 解锁下一个 label
+      // 折叠态 typewriter 完成 → 计算适配 welcome-text 的宽度
+      if (activeTrackIdx < 0) {
+        const cfg = configs[trackIdx]
+        const textW = getTextWidth(cfg.planetLink.label)
+        // 文本宽度 + 左右 padding（6px × 2）+ 圆角余量
+        const fitW = Math.max(24, Math.min(collapsedWidth, Math.ceil(textW + 18)))
+        setCollapsedFitWidths(prev => ({ ...prev, [trackIdx]: fitW }))
+      }
     }
     if (mode === 'active') handlePillClick(trackIdx)
-  }, [handlePillClick])
+  }, [handlePillClick, activeTrackIdx, configs, collapsedWidth, getTextWidth])
 
   useEffect(() => {
     if (activeTrackIdx < 0) return
@@ -76,7 +102,10 @@ const FloatingLabels = memo(function FloatingLabels(props: FloatingLabelsProps) 
     <div className="floating-labels-container">
       {labels.map((label) => {
         const isExpanded = activeTrackIdx === label.trackIdx
-        const w = isExpanded ? expandedWidth : collapsedWidth
+        const fitW = collapsedFitWidths[label.trackIdx]
+        // 折叠 + 已收缩 → 用适配宽度；折叠 + 未收缩 → 默认宽度；展开 → 全宽
+        const w = isExpanded ? expandedWidth
+          : (fitW !== undefined ? fitW : collapsedWidth)
         const h = isExpanded ? expandedHeight : collapsedHeight
 
         return (
@@ -142,6 +171,7 @@ const FloatingLabels = memo(function FloatingLabels(props: FloatingLabelsProps) 
         collapsedHeight={collapsedHeight}
         expandedHeight={expandedHeight}
         pbdParams={pbdParams}
+        collapsedFitWidths={collapsedFitWidths}
       />
 
       {activeTrackIdx >= 0 && (

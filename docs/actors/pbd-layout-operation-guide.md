@@ -14,6 +14,20 @@ pnpm dev
 # 滚动到页面底部 → 行星标签出现
 ```
 
+## 折叠态自收缩
+
+typewriter 动画完成后，折叠态 pill 自动收缩至适配 welcome-text（星球名）的宽度，通过 Canvas 2D `measureText()` 计算文本像素宽度。
+
+- 最小宽度 24px，最大不超过 `collapsedWidth`（默认 60px）
+- CSS transition `width 0.5s` 控制收缩速度
+- PBD 碰撞检测同步使用各 label 的实际收缩宽度
+
+| Label | 文本 | 收缩后宽度 |
+|-------|------|-----------|
+| FS | "FS" | 30px |
+| Code | "Code" | 41px |
+| GitHub | "GitHub" | 53px |
+
 ## 配置
 
 所有布局参数通过 `App.tsx` 的 `<FloatingLabels>` 组件传入：
@@ -116,10 +130,10 @@ store (Zustand)
   │  screenCoords, planetScreenRadii, centralStarScreen
   ↓
 rAF loop (60fps, 独立于 3D)
-  │  stepPBD() → 速度前馈 → 约束投影 → 积分
+  │  stepPBD(inputs, ..., collapsedWidths) → 每 label 使用实际折叠宽度
   ↓
 React state (shallow compare)
-  │  transform: translate(x, y)
+  │  transform: translate(x, y) + collapsedFitWidths
   ↓
-DOM pills (3 × TerminalBar)
+DOM pills (3 × TerminalBar)  →  typewriter 完成 → Canvas 测量 → 收缩宽度回传 PBD
 ```

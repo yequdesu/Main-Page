@@ -27,6 +27,7 @@ interface Props {
   collapsedHeight: number
   expandedHeight: number
   pbdParams?: PBDParams
+  collapsedFitWidths?: Record<number, number>
 }
 
 /** 订阅 window.__DEBUG__ 的 React hook */
@@ -45,7 +46,7 @@ function useDebugFlag(): boolean {
 }
 
 export default function PlanetLabelDebug({
-  labels, collapsedWidth, expandedWidth, collapsedHeight, expandedHeight, pbdParams,
+  labels, collapsedWidth, expandedWidth, collapsedHeight, expandedHeight, pbdParams, collapsedFitWidths,
 }: Props) {
   const screenCoords = useRealtimeStore(s => s.screenCoords)
   const screenRadii = useRealtimeStore(s => s.planetScreenRadii)
@@ -74,7 +75,8 @@ export default function PlanetLabelDebug({
         const pr = screenRadii[i]
         const label = labels[i]
         const collapsed = label?.collapsed !== false
-        const w = collapsed ? collapsedWidth : expandedWidth
+        const fitW = collapsedFitWidths?.[i]
+        const w = collapsed ? (fitW ?? collapsedWidth) : expandedWidth
         const h = collapsed ? collapsedHeight : expandedHeight
 
         return (

@@ -74,7 +74,7 @@ pos      += v × dt
 
 ```
 shadow_dir = normalize(P_center − S_center)   // 行星背向恒星
-phase_i    = (i − 1) × spread°                 // per-label 分散（默认 15°）
+phase_i    = (i − 1) × spread°                 // per-label 分散（默认 8°）
 target     = P_center + rotate(shadow_dir, phase_i) × (pr + gap)
 ```
 
@@ -87,10 +87,16 @@ Planets.useFrame
   → screenCoords, planetScreenRadii, centralStarScreen → store
                                                            ↓
 FloatingLabels.useFloatingLabels (rAF loop @ 60fps)
-  → stepPBD(inputs, centralStar, params, dt, ...)
+  → stepPBD(inputs, centralStar, params, dt, ..., collapsedWidths)
+  → collapsedWidths[i] = collapsedFitWidths[i] ?? collapsedWidth
   → [PBDResult, PBDResult, PBDResult]
   → React state update (shallow compare)
   → DOM pills: transform: translate(x, y)
+
+FloatingLabels.tsx (typewriter 完成后)
+  → Canvas 2D measureText(welcomeText)
+  → collapsedFitWidths[trackIdx] = fitW
+  → 回传至 useFloatingLabels → stableRefs → rAF 循环
 ```
 
 ### 顺序播放与首次渲染
@@ -98,6 +104,14 @@ FloatingLabels.useFloatingLabels (rAF loop @ 60fps)
 - TerminalBar 在 PBD 首次计算出非零位置后才挂载（`pbdReady` 门控）
 - 标签按顺序逐个渲染：label 0 先出现 → typing+exitGap 完成 → label 1 出现 → ...
 - 确保进入 Act 3 后打字机动画可见，而非在屏幕外已完成
+
+### 折叠态自收缩
+
+typewriter 在折叠态完成后，通过 Canvas 2D 测量 welcome-text 像素宽度，收缩 pill 至适配尺寸。收缩后的宽度通过 `collapsedFitWidths` 回传 PBD 系统，确保碰撞检测和锚点计算使用各 label 的实际几何尺寸。
+
+```
+fitW = clamp(textWidth + 18px, 24, collapsedWidth)
+```
 
 ## 6. 可调参数
 
@@ -123,10 +137,18 @@ App.tsx 当前覆盖: `staggerDelay=200`（紧凑间隔），`baseTypewriterDela
 
 | 参数 | 默认值 | 说明 |
 |------|--------|------|
-| `collapsedWidth` | 60 | 紧凑模式宽度（≈5ch at 0.58rem） |
+| `collapsedWidth` | 60 | 折叠态最大宽度，typewriter 完成后可收缩至 ≥24px |
 | `expandedWidth` | 200 | 展开模式宽度 |
 | `collapsedHeight` | 36 | 紧凑模式高度（2行 × 1.6lh + padding） |
 | `expandedHeight` | 44 | 展开模式高度 |
+
+### 折叠自收缩参数（FloatingLabels.tsx 内部）
+
+| 参数 | 默认值 | 说明 |
+|------|--------|------|
+| 最小宽度 | 24px | `Math.max(24, ...)` 防止 pill 过窄 |
+| padding 余量 | 18px | `textW + 18`，含左右 padding（6px×2）和圆角余量 |
+| CSS transition | 0.5s | `FloatingLabels.css` 中 `width 0.5s cubic-bezier(...)` |
 
 ### 源码常量（需要修改源码）
 
