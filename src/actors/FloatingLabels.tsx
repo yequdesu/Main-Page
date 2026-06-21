@@ -32,7 +32,7 @@ interface FloatingLabelsProps {
 const FloatingLabels = memo(function FloatingLabels(props: FloatingLabelsProps) {
   const {
     configs, sequenceStrategy, staggerDelay, exitTimeout,
-    collapsedWidth = 85, expandedWidth = 200,
+    collapsedWidth = 50, expandedWidth = 200,
     collapsedHeight = 36, expandedHeight = 44,
     pbdParams,
   } = props
@@ -90,7 +90,8 @@ const FloatingLabels = memo(function FloatingLabels(props: FloatingLabelsProps) 
               <TerminalBar
                 layout={{ maxEchoLines: label.config.maxEchoLines, maxWidth: '100%',
                   borderRadius: '6px', padding: '3px 6px', fontSize: '0.58rem',
-                  fontFamily: '"JetBrains Mono", "Noto Sans SC", monospace', zIndex: 10, top: '0' }}
+                  fontFamily: "'SF Mono', 'Fira Code', 'Cascadia Code', 'Consolas', monospace",
+                  zIndex: 10, top: '0' }}
                 variant={isExpanded ? 'glass' : 'transparent'}
                 state={{
                   mode: isExpanded ? undefined

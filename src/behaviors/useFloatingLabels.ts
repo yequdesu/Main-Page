@@ -54,7 +54,7 @@ export function useFloatingLabels(
     sequenceStrategy = 'proximity',
     staggerDelay = 800,
     exitTimeout = 15000,
-    collapsedWidth = 85,
+    collapsedWidth = 50,
     expandedWidth = 200,
     collapsedHeight = 36,
     expandedHeight = 44,
