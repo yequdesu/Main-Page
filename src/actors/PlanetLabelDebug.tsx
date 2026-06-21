@@ -6,17 +6,19 @@
  *
  * 可视化元素:
  *   青色圆     = planet 视觉边缘
+ *   白色虚线圆 = 约束 B 行星遮挡避免区 (planetScreenRadius + 4px)
  *   灰白虚线圆 = 近距离排斥区 (planetScreenRadius + 10px)
  *   红色虚线圆 = anchor-range (planetScreenRadius + gap + anchorRangeRadius)
  *   绿色矩形   = 算法 label 矩形
  *   红色圆点   = 左右锚点
- *   白色虚线圆 = 中央恒星内层光晕
+ *   白色虚线圆 = 中央恒星内层光晕（不与行星关联）
  */
 
 import { useSyncExternalStore } from 'react'
 import { useRealtimeStore } from '../stores/realtimeStore'
 import type { LabelState } from '../behaviors/useFloatingLabels'
 import type { PBDParams } from '../behaviors/usePBDLayout'
+import { PLANET_AVOID_MARGIN } from '../behaviors/usePBDLayout'
 
 interface Props {
   labels: LabelState[]
@@ -79,6 +81,9 @@ export default function PlanetLabelDebug({
           <g key={`pld-${i}`}>
             {/* planet 视觉边缘 */}
             <circle cx={sc.x} cy={sc.y} r={pr} fill="none" stroke="cyan" strokeWidth="1" opacity={0.5} />
+            {/* 约束 B: 行星遮挡避免区（planetScreenRadius + PLANET_AVOID_MARGIN） */}
+            <circle cx={sc.x} cy={sc.y} r={pr + PLANET_AVOID_MARGIN}
+              fill="none" stroke="white" strokeWidth="0.7" strokeDasharray="2 3" opacity={0.6} />
             {/* 近距离排斥区 */}
             <circle cx={sc.x} cy={sc.y} r={pr + 10}
               fill="none" stroke="#ccc" strokeWidth="1" strokeDasharray="3 3" opacity={0.5} />

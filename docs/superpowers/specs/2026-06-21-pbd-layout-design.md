@@ -2,7 +2,7 @@
 
 **日期**: 2026-06-21  
 **状态**: 稳定版 v1  
-**关联**: `src/behaviors/usePBDLayout.ts`, `src/behaviors/useFloatingLabels.ts`, `src/actors/FloatingLabels.tsx`
+**关联**: `src/behaviors/usePBDLayout.ts`, `src/behaviors/useFloatingLabels.ts`, `src/actors/FloatingLabels.tsx`, `src/actors/PlanetLabelDebug.tsx`
 
 ---
 
@@ -24,11 +24,11 @@
 │                                                     │
 │  2. 计算 shadow target（背向恒星方向）               │
 │     target = planetPos + normalize(P − S) × (pr + gap) │
-│     + per-label 相位偏移 (-15°/0°/+15°)              │
+│     + per-label 相位偏移 (-spread° / 0° / +spread°)  │
 │                                                     │
 │  3. stepPBD(dt):                                    │
 │     Stage 1 — 速度前馈 + 位置修正                   │
-│     Stage 2 — 5 类约束投影（迭代 ×5）               │
+│     Stage 2 — 6 类约束投影（迭代 ×5）               │
 │     Stage 3 — 位置积分                              │
 │                                                     │
 │  4. 浅比较 → 仅位置变化 >0.5px 时触发 React re-render│
@@ -44,11 +44,11 @@ Müller et al. (2007) 的 PBD 对每个约束直接修改位置 `x += Δx`，对
 | 约束 | 驱动方式 | 触发条件 | 参数 |
 |------|---------|---------|------|
 | A. 锚点向心 | 力 (v+=accel) | anchors 越出 anchorRangeRadius | ANCHOR_STIFFNESS=25 |
-| A2. 近距排斥 | 力 (v+=accel) | center 侵入 pr+10px 安全区 | CLOSE_REPEL_STIFFNESS=150 |
-| B. 行星遮挡 | 位置 (pos+=push) | center 进入任意行星视觉圆 | PLANET_AVOID_MARGIN=2 |
+| A2. 近距排斥 | 力 (v+=accel) | center 侵入 planet 视觉圆外 10px | CLOSE_REPEL_STIFFNESS=400, MARGIN=10 |
+| B. 行星遮挡 | 位置 (pos+=push) | center 进入任意行星视觉圆 | PLANET_AVOID_MARGIN=4 |
 | C. 恒星遮挡 | 位置 (pos+=push) | center 进入恒星光晕圆+8px | STAR_AVOID_MARGIN=8 |
 | D. 视口截断 | 位置 (clamp) | rect 超出视口边距 | VP_MARGIN=12 |
-| E. 标签互斥 | 力+动量 (v+=accel+impulse) | rect 重叠>2px | SEPARATION_STIFFNESS=120, RESTITUTION=0.4 |
+| E. 标签互斥 | 力+动量 (v+=accel+impulse) | rect 重叠>2px | STIFFNESS=180, RESTITUTION=0.4 |
 
 ### 约束优先级
 
@@ -74,7 +74,7 @@ pos      += v × dt
 
 ```
 shadow_dir = normalize(P_center − S_center)   // 行星背向恒星
-phase_i    = (i − 1) × 15°                     // per-label 分散
+phase_i    = (i − 1) × spread°                 // per-label 分散（默认 15°）
 target     = P_center + rotate(shadow_dir, phase_i) × (pr + gap)
 ```
 
@@ -93,21 +93,83 @@ FloatingLabels.useFloatingLabels (rAF loop @ 60fps)
   → DOM pills: transform: translate(x, y)
 ```
 
+### 顺序播放与首次渲染
+
+- TerminalBar 在 PBD 首次计算出非零位置后才挂载（`pbdReady` 门控）
+- 标签按顺序逐个渲染：label 0 先出现 → typing+exitGap 完成 → label 1 出现 → ...
+- 确保进入 Act 3 后打字机动画可见，而非在屏幕外已完成
+
 ## 6. 可调参数
 
-| 参数 | 默认值 | 位置 | 调节效果 |
-|------|--------|------|---------|
-| `anchorRangeRadius` | 85 | App.tsx pbdParams | ↑标签允许漂更远 |
-| `gap` | 6 | App.tsx pbdParams | ↑标签与行星间距 |
-| `shadowAngleSpread` | 15 | App.tsx pbdParams | ↑三标签更分散 |
-| `K_CORRECT` | 3.0 | 源码常量 | ↑贴得更紧 |
-| `VEL_MATCH` | 0.65 | 源码常量 | ↑跟随更积极 |
-| `ANCHOR_STIFFNESS` | 25 | 源码常量 | ↑锚点回正更快 |
-| `CLOSE_REPEL_STIFFNESS` | 150 | 源码常量 | ↑排斥更有力 |
-| `SEPARATION_STIFFNESS` | 120 | 源码常量 | ↑碰撞分离更强 |
-| `SEPARATION_RESTITUTION` | 0.4 | 源码常量 | ↑碰撞更弹性 |
+### 运行时参数（App.tsx pbdParams）
 
-## 7. 性能特征
+| 参数 | 默认值 | 效果 |
+|------|--------|------|
+| `anchorRangeRadius` | 70 | ↑标签允许漂更远 |
+| `gap` | 16 | ↑标签与行星表面间距 |
+| `shadowAngleSpread` | 8 | ↑三标签更分散 |
+
+### 时间参数（App.tsx FloatingLabels props）
+
+| 参数 | 默认值 | 效果 |
+|------|--------|------|
+| `baseTypewriterDelay` | 600ms | typewriter 动画起始基础延迟，↑则标签更晚出现 |
+| `staggerDelay` | 600ms | label 间 typewriter 错开延迟，↑则逐个登场节奏更舒缓 |
+| `exitTimeout` | 15000ms | 展开后无操作自动退出超时 |
+
+App.tsx 当前覆盖: `staggerDelay=200`（紧凑间隔），`baseTypewriterDelay` 使用默认 600。
+
+### 标签尺寸参数（App.tsx FloatingLabels props）
+
+| 参数 | 默认值 | 说明 |
+|------|--------|------|
+| `collapsedWidth` | 60 | 紧凑模式宽度（≈5ch at 0.58rem） |
+| `expandedWidth` | 200 | 展开模式宽度 |
+| `collapsedHeight` | 36 | 紧凑模式高度（2行 × 1.6lh + padding） |
+| `expandedHeight` | 44 | 展开模式高度 |
+
+### 源码常量（需要修改源码）
+
+| 参数 | 默认值 | 效果 |
+|------|--------|------|
+| `K_CORRECT` | 3.0 | ↑贴得更紧 |
+| `VEL_MATCH` | 0.65 | ↑跟随更积极 |
+| `ANCHOR_STIFFNESS` | 25 | ↑锚点回正更快 |
+| `CLOSE_REPEL_STIFFNESS` | 400 | ↑近距离排斥更强 |
+| `CLOSE_REPEL_MARGIN` | 10 | ↑安全区更宽 |
+| `SEPARATION_STIFFNESS` | 180 | ↑碰撞分离更强 |
+| `SEPARATION_RESTITUTION` | 0.4 | ↑碰撞更弹性 |
+| `SEPARATION_THRESHOLD` | 2 | ↑需更大重叠才触发分离 |
+| `STAR_AVOID_MARGIN` | 8 | 中央恒星安全边距 |
+| `PLANET_AVOID_MARGIN` | 4 | 行星遮挡安全边距 |
+| `SOLVER_ITERS` | 5 | 约束迭代次数 |
+| `MAX_SPEED` | 800 | 单帧最大位移 (px) |
+| `VP_MARGIN` | 12 | 视口边距 |
+
+## 7. 视觉样式
+
+星球标签使用独立 CSS variant：`variant="label"`（`TerminalBar.css`）。
+- 背景：`rgba(200,210,225,0.22)`（灰白半透明）
+- 无边框
+- 文字：`rgba(235,242,255,0.95)`，`font-weight:500`
+- 字体：`'SF Mono','Fira Code','Cascadia Code','Consolas',monospace`
+- 字号：`0.58rem`
+- 用法：`<TerminalBar variant="label" ...>`
+
+Debug 覆盖层独立组件 `PlanetLabelDebug.tsx`，通过 MainTerminal `debug` 命令控制显隐。
+
+调试元素：
+| 颜色/形状 | 含义 |
+|-----------|------|
+| 青色圆 | planet 视觉边缘（pr） |
+| 白色虚线圆 | 约束 B 行星遮挡避免区（pr + 4px） |
+| 灰白虚线圆 | 近距离排斥区（pr + 10px） |
+| 红色虚线圆 | anchor-range 边界（pr + gap + anchorRangeRadius） |
+| 绿色矩形 | label 算法矩形 |
+| 红色圆点 | 左右锚点 |
+| 白色虚线圆 | 中央恒星内层光晕 |
+
+## 8. 性能特征
 
 - PBD 物理: 3 labels × 5 iterations × ~20 ops = ~300 ops/frame
 - rAF 循环: 60fps 独立于 R3F frameloop

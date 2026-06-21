@@ -21,14 +21,18 @@ pnpm dev
 ```tsx
 <FloatingLabels
   configs={labelConfigs}
-  collapsedWidth={130}     // 紧凑模式宽度 (px)
-  expandedWidth={260}      // 展开模式宽度 (px)
-  collapsedHeight={36}     // 紧凑模式高度 (px)
-  expandedHeight={44}      // 展开模式高度 (px)
+  sequenceStrategy="proximity" // 入场排序策略: 'index' | 'simultaneous' | 'proximity'
+  staggerDelay={200}           // label 间 typewriter 错开延迟 (ms)
+  baseTypewriterDelay={600}    // typewriter 起始基础延迟 (ms)，不传则默认 600
+  exitTimeout={15000}          // 展开后无操作自动退出超时 (ms)
+  collapsedWidth={60}          // 紧凑模式宽度 (px, ≈5ch at 0.58rem)
+  expandedWidth={200}          // 展开模式宽度 (px)
+  collapsedHeight={36}         // 紧凑模式高度 (px)
+  expandedHeight={44}          // 展开模式高度 (px)
   pbdParams={{
-    anchorRangeRadius: 85,  // 锚点允许范围半径 (px)
-    gap: 6,                 // label 距行星视觉边缘的间隙 (px)
-    shadowAngleSpread: 15,  // per-label shadow 偏移角度 (°)
+    anchorRangeRadius: 70,     // 锚点允许范围半径 (px)
+    gap: 16,                   // label 距行星视觉边缘的间隙 (px)
+    shadowAngleSpread: 8,      // per-label shadow 偏移角度 (°)，默认 8
   }}
 />
 ```
@@ -42,6 +46,9 @@ pnpm dev
 | 三标签更分散 | ↑ `shadowAngleSpread` |
 | 碰撞弹开更明显 | 增大 `SEPARATION_STIFFNESS`（源码常量） |
 | 跟随更紧密 | 增大 `K_CORRECT`（源码常量） |
+| label 更快出现 | ↓ `baseTypewriterDelay` |
+| label 间错开更紧凑 | ↓ `staggerDelay` |
+| label 逐个登场节奏更舒缓 | ↑ `staggerDelay` |
 
 ## 交互
 
@@ -69,7 +76,8 @@ debug mode: ON
 | 颜色/形状 | 含义 |
 |-----------|------|
 | **青色圆** | planet 屏幕视觉边缘（pr） |
-| **灰白虚线圆** | 近距离排斥区（pr + 10px） |
+| **白色虚线圆** | 约束 B 行星遮挡避免区（pr + 4px，PLANET_AVOID_MARGIN） |
+| **灰白虚线圆** | 近距离排斥区（pr + 10px，CLOSE_REPEL_MARGIN） |
 | **红色虚线圆** | anchor-range 边界（pr + gap + anchorRangeRadius） |
 | **绿色矩形** | 算法计算出的 label 矩形 |
 | **红色圆点** | 左右侧边中点锚点 |
@@ -82,8 +90,9 @@ debug mode: ON
 ```
 label 绿色矩形应与 pill DOM 位置一致 → 高度不一致请调 collapsedHeight
 红色锚点应在红色虚线圆内                     → 超出则有向心力拉回
-绿色矩形不应侵入青色圆                       → 侵入则位置投影推出
-绿色矩形不应侵入白色虚线圆                   → 侵入则推出
+绿色矩形不应侵入青色圆                       → 侵入则约束 B 位置投影推出
+绿色矩形不应侵入白色虚线圆（行星旁）          → 侵入则约束 B 位置投影推出（该圆 = pr+4px）
+绿色矩形不应侵入白色虚线圆（中央恒星）        → 侵入则约束 C 位置投影推出
 绿色矩形两两不重叠                          → 重叠则有加速度+动量推开
 ```
 
@@ -91,7 +100,7 @@ label 绿色矩形应与 pill DOM 位置一致 → 高度不一致请调 collaps
 
 | 症状 | 检查 |
 |------|------|
-| 标签抖动严重 | 检查 `anchorRangeRadius` 是否过小（应 >85） |
+| 标签抖动严重 | 检查 `anchorRangeRadius` 是否过小（当前 70，可加大） |
 | 标签黏在一起 | 增大 `SEPARATION_STIFFNESS` |
 | 标签不跟随行星 | 确认 Planets.useFrame 正在运行；检查 store 数据 |
 | 标签瞬移到新位置 | 正常行为（行星首次可见时初始化） |

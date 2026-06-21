@@ -35,6 +35,20 @@ FloatingLabels.tsx   React 渲染组件
 
 ## 参数调优指南
 
+### typewriter 入场动画节奏
+
+| 参数 | 默认 | 位置 | 效果 |
+|------|------|------|------|
+| `baseTypewriterDelay` | 600ms | `FloatingLabelsOptions` | 所有 label 的 typewriter 基础等待时间 |
+| `staggerDelay` | 600ms | `FloatingLabelsOptions` | label 间 typewriter 错开延迟 |
+
+```
+delay[i] = baseTypewriterDelay + rank × staggerDelay
+
+App.tsx 当前: staggerDelay=200（紧凑），baseTypewriterDelay 未传（默认 600）
+→ label 间隔仅 200ms，首个 600ms 后快速依次登场
+```
+
 ### 标签跟随过于松散（滞后大）
 
 ```
@@ -46,7 +60,7 @@ FloatingLabels.tsx   React 渲染组件
 ### 标签碰撞后"弹不开"
 
 ```
-调节: SEPARATION_STIFFNESS ↑ (120 → 200)  或  ANCHOR_STIFFNESS ↓ (25 → 15)
+调节: SEPARATION_STIFFNESS ↑ (180 → 250)  或  ANCHOR_STIFFNESS ↓ (25 → 15)
 效果: 碰撞推开力更强，回正更慢，动量传递更明显
 ```
 
@@ -79,11 +93,12 @@ FloatingLabels.tsx   React 渲染组件
 
 ```
 青色圆     = planet 视觉边缘 (pr)
-灰白虚线圆 = 近距排斥区 (pr + 10px)
+白色虚线圆 = 约束 B 行星遮挡避免区 (pr + 4px, PLANET_AVOID_MARGIN)
+灰白虚线圆 = 近距排斥区 (pr + 10px, CLOSE_REPEL_MARGIN)
 红色虚线圆 = anchor-range (pr + gap + anchorRangeRadius)
-绿色矩形   = label 算法矩形
-红色圆点   = 左右锚点
-白色虚线圆 = 中央恒星光晕
+绿色矩形   = label 算法矩形 (collapsedWidth × collapsedHeight)
+红色圆点   = 左右锚点 (label 左右侧边中点)
+白色虚线圆 = 中央恒星光晕（中央）
 ```
 
 ### 常见问题诊断

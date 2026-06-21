@@ -292,7 +292,7 @@ export default function App() {
         <FloatingLabels
           configs={labelConfigs}
           sequenceStrategy="proximity"
-          staggerDelay={800}
+          staggerDelay={200}
           exitTimeout={15000}
           collapsedWidth={60}
           expandedWidth={200}

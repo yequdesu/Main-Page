@@ -21,6 +21,8 @@ interface FloatingLabelsProps {
   configs: [LabelConfig, LabelConfig, LabelConfig]
   sequenceStrategy?: SequenceStrategy
   staggerDelay?: number
+  /** @see FloatingLabelsOptions.baseTypewriterDelay */
+  baseTypewriterDelay?: number
   exitTimeout?: number
   collapsedWidth?: number
   expandedWidth?: number
@@ -31,7 +33,7 @@ interface FloatingLabelsProps {
 
 const FloatingLabels = memo(function FloatingLabels(props: FloatingLabelsProps) {
   const {
-    configs, sequenceStrategy, staggerDelay, exitTimeout,
+    configs, sequenceStrategy, staggerDelay, baseTypewriterDelay, exitTimeout,
     collapsedWidth = 60, expandedWidth = 200,
     collapsedHeight = 36, expandedHeight = 44,
     pbdParams,
@@ -47,7 +49,7 @@ const FloatingLabels = memo(function FloatingLabels(props: FloatingLabelsProps) 
     labels, activeTrackIdx,
     handlePillClick, handleExternalDismiss, resetExitTimer, pbdReady,
   } = useFloatingLabels(
-    { configs, sequenceStrategy, staggerDelay, exitTimeout,
+    { configs, sequenceStrategy, staggerDelay, baseTypewriterDelay, exitTimeout,
       collapsedWidth, expandedWidth, collapsedHeight, expandedHeight, pbdParams },
     screenCoords, screenRadii, centralStar, isAnyFocused,
   )
@@ -118,7 +120,7 @@ const FloatingLabels = memo(function FloatingLabels(props: FloatingLabelsProps) 
                   text={label.config.planetLink.label}
                   lineCount={1}
                   animation={{ inline: 'literal', charInterval: 40, startDelay: label.typewriterDelay }}
-                  exitGap={1200}
+                  exitGap={400}
                 />
                 <TerminalBar.Section
                   name={label.config.planetLink.label}

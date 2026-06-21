@@ -182,8 +182,8 @@ const SEPARATION_THRESHOLD = 2
 /** 视口边距（px），标签矩形必须完全在距视口边缘此值之内 */
 const VP_MARGIN = 12
 
-/** 约束 B（行星遮挡）的最小安全边距（px） */
-const PLANET_AVOID_MARGIN = 2
+/** 约束 B（行星遮挡）的最小安全边距（px）。标签矩形需与行星视觉边缘保持此距离 */
+export const PLANET_AVOID_MARGIN = 4
 
 /** 约束 C（恒星遮挡）的固定安全边距（px），不叠加 label 半宽 */
 const STAR_AVOID_MARGIN = 8
