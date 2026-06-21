@@ -45,7 +45,7 @@ const FloatingLabels = memo(function FloatingLabels(props: FloatingLabelsProps) 
 
   const {
     labels, activeTrackIdx,
-    handlePillClick, handleExternalDismiss, resetExitTimer,
+    handlePillClick, handleExternalDismiss, resetExitTimer, pbdReady,
   } = useFloatingLabels(
     { configs, sequenceStrategy, staggerDelay, exitTimeout,
       collapsedWidth, expandedWidth, collapsedHeight, expandedHeight, pbdParams },
@@ -86,33 +86,43 @@ const FloatingLabels = memo(function FloatingLabels(props: FloatingLabelsProps) 
             } as React.CSSProperties}
             onClick={(e) => { e.stopPropagation(); handlePillClick(label.trackIdx) }}
           >
-            <TerminalBar
-              layout={{ maxEchoLines: label.config.maxEchoLines, maxWidth: '100%',
-                borderRadius: '6px', padding: '3px 6px', fontSize: '0.58rem',
-                fontFamily: '"JetBrains Mono", "Noto Sans SC", monospace', zIndex: 10, top: '0' }}
-              variant={isExpanded ? 'glass' : 'transparent'}
-              state={{
-                mode: isExpanded ? undefined
-                  : typingDoneRef.current.has(label.trackIdx) ? 'idle' : undefined,
-                onModeChange: (mode) => handleLabelModeChange(label.trackIdx, mode),
-              }}
-              commands={{
-                onCommand: (input: string) => {
-                  resetExitTimer()
-                  return createPlanetCommandHandler(label.trackIdx, label.config.planetLink)(input)
-                },
-                onPlayEcho: undefined,
-              }}
-              behavior={{ activationMode: 'click', blurTimeout: 100 }}
-              onThemeUpdate={undefined}
-            >
-              <TerminalBar.Welcome delay={label.typewriterDelay} charInterval={40} exitGap={1200}>
-                {label.config.planetLink.label}
-              </TerminalBar.Welcome>
-              <TerminalBar.Section rows="lineByLine" rowInterval={150} appearAfter="welcome">
-                {label.config.planetLink.url}
-              </TerminalBar.Section>
-            </TerminalBar>
+            {pbdReady && (
+              <TerminalBar
+                layout={{ maxEchoLines: label.config.maxEchoLines, maxWidth: '100%',
+                  borderRadius: '6px', padding: '3px 6px', fontSize: '0.58rem',
+                  fontFamily: '"JetBrains Mono", "Noto Sans SC", monospace', zIndex: 10, top: '0' }}
+                variant={isExpanded ? 'glass' : 'transparent'}
+                state={{
+                  mode: isExpanded ? undefined
+                    : typingDoneRef.current.has(label.trackIdx) ? 'idle' : undefined,
+                  onModeChange: (mode) => handleLabelModeChange(label.trackIdx, mode),
+                }}
+                commands={{
+                  onCommand: (input: string) => {
+                    resetExitTimer()
+                    return createPlanetCommandHandler(label.trackIdx, label.config.planetLink)(input)
+                  },
+                  onPlayEcho: undefined,
+                }}
+                behavior={{ activationMode: 'click', blurTimeout: 100 }}
+                onThemeUpdate={undefined}
+              >
+                <TerminalBar.Welcome
+                  name={label.config.planetLink.label}
+                  text={label.config.planetLink.label}
+                  lineCount={1}
+                  animation={{ inline: 'literal', charInterval: 40, startDelay: label.typewriterDelay }}
+                  exitGap={1200}
+                />
+                <TerminalBar.Section
+                  name={label.config.planetLink.label}
+                  getLines={() => [label.config.planetLink.url]}
+                  rows="lineByLine"
+                  rowInterval={150}
+                  appearAfter="welcome"
+                />
+              </TerminalBar>
+            )}
           </div>
         )
       })}

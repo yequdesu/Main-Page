@@ -93,6 +93,8 @@ export function useFloatingLabels(
   const [pbdCache, setPbdCache] = useState<{ x: number; y: number; aLx: number; aLy: number; aRx: number; aRy: number }[]>(
     () => [ {x:0,y:0,aLx:0,aLy:0,aRx:0,aRy:0}, {x:0,y:0,aLx:0,aLy:0,aRx:0,aRy:0}, {x:0,y:0,aLx:0,aLy:0,aRx:0,aRy:0} ]
   )
+  const [pbdReady, setPbdReady] = useState(false)
+  let _pbdReadyLogged = false // module-level, survives re-renders
   const stableRefs = useRef({ pbdParams, collapsedWidth, expandedWidth, collapsedHeight, expandedHeight, configs, activeTrackIdx })
   stableRefs.current = { pbdParams, collapsedWidth, expandedWidth, collapsedHeight, expandedHeight, configs, activeTrackIdx }
 
@@ -125,10 +127,14 @@ export function useFloatingLabels(
         x: r.x, y: r.y, aLx: r.anchorL.x, aLy: r.anchorL.y, aRx: r.anchorR.x, aRy: r.anchorR.y,
       }))
       setPbdCache(prev => {
-        // 浅比较避免无意义 re-render
         if (prev.length === 3 && prev.every((p, i) => Math.abs(p.x - cached[i].x) < 0.5 && Math.abs(p.y - cached[i].y) < 0.5)) return prev
         return cached
       })
+      // 等待至少一个 body 激活（screenCoords 已有有效值）后才允许渲染 TerminalBar
+      if (!_pbdReadyLogged && cached.some(c => c.x !== 0 || c.y !== 0)) {
+        _pbdReadyLogged = true
+        setPbdReady(true)
+      }
 
       raf = requestAnimationFrame(loop)
     }
@@ -171,5 +177,5 @@ export function useFloatingLabels(
   }, [])
   useEffect(() => { return () => clearExitTimer() }, [clearExitTimer])
 
-  return { labels, activeTrackIdx, handlePillClick, handleExternalDismiss, resetExitTimer }
+  return { labels, activeTrackIdx, handlePillClick, handleExternalDismiss, resetExitTimer, pbdReady }
 }
