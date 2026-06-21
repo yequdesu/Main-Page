@@ -69,7 +69,7 @@ export interface TerminalBarProps {
   behavior?: TerminalBarBehavior
   className?: string
   /** 视觉变体 — glass（默认，毛玻璃）/ transparent（半透明无 blur）/ minimal（无背景） */
-  variant?: 'glass' | 'transparent' | 'minimal'
+  variant?: 'glass' | 'transparent' | 'minimal' | 'label'
 
   /** 受控状态 — mode / echoLines / inputValue */
   state?: TerminalBarControlledState

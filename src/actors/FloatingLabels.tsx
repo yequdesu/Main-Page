@@ -1,4 +1,4 @@
-import { memo, useEffect, useRef, useCallback } from 'react'
+import { memo, useEffect, useRef, useCallback, useState } from 'react'
 import { useRealtimeStore } from '../stores/realtimeStore'
 import { useScrollStore } from '../stores/scrollStore'
 import TerminalBar from '../terminal/TerminalBar'
@@ -32,7 +32,7 @@ interface FloatingLabelsProps {
 const FloatingLabels = memo(function FloatingLabels(props: FloatingLabelsProps) {
   const {
     configs, sequenceStrategy, staggerDelay, exitTimeout,
-    collapsedWidth = 50, expandedWidth = 200,
+    collapsedWidth = 60, expandedWidth = 200,
     collapsedHeight = 36, expandedHeight = 44,
     pbdParams,
   } = props
@@ -52,9 +52,14 @@ const FloatingLabels = memo(function FloatingLabels(props: FloatingLabelsProps) 
     screenCoords, screenRadii, centralStar, isAnyFocused,
   )
 
+  // 顺序播放：label 0 先渲染，typing+exitGap 完成后 label 1，以此类推
+  const [showCount, setShowCount] = useState(1)
   const typingDoneRef = useRef<Set<number>>(new Set())
   const handleLabelModeChange = useCallback((trackIdx: number, mode: string) => {
-    if (mode === 'idle') typingDoneRef.current = new Set(typingDoneRef.current).add(trackIdx)
+    if (mode === 'idle') {
+      typingDoneRef.current = new Set(typingDoneRef.current).add(trackIdx)
+      setShowCount(prev => Math.max(prev, trackIdx + 2)) // 解锁下一个 label
+    }
     if (mode === 'active') handlePillClick(trackIdx)
   }, [handlePillClick])
 
@@ -86,13 +91,13 @@ const FloatingLabels = memo(function FloatingLabels(props: FloatingLabelsProps) 
             } as React.CSSProperties}
             onClick={(e) => { e.stopPropagation(); handlePillClick(label.trackIdx) }}
           >
-            {pbdReady && (
+            {pbdReady && label.trackIdx < showCount && (
               <TerminalBar
                 layout={{ maxEchoLines: label.config.maxEchoLines, maxWidth: '100%',
                   borderRadius: '6px', padding: '3px 6px', fontSize: '0.58rem',
                   fontFamily: "'SF Mono', 'Fira Code', 'Cascadia Code', 'Consolas', monospace",
                   zIndex: 10, top: '0' }}
-                variant={isExpanded ? 'glass' : 'transparent'}
+                variant={isExpanded ? 'glass' : 'label'}
                 state={{
                   mode: isExpanded ? undefined
                     : typingDoneRef.current.has(label.trackIdx) ? 'idle' : undefined,

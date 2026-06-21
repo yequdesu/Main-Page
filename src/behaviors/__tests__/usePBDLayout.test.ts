@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { stepPBD, resetPBD, type PBDInput, type PBDParams } from '../usePBDLayout'
 
-function inp(sx: number, sy: number, pr = 20, visible = true, lw = 50, lh = 44): PBDInput {
+function inp(sx: number, sy: number, pr = 20, visible = true, lw = 60, lh = 44): PBDInput {
   return { sx, sy, pr, visible, lw, lh }
 }
 
