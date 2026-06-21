@@ -1,15 +1,15 @@
 import { useState, useRef, useCallback, useEffect, useMemo } from 'react'
-import { calcAnchorPositions, type AnchorInput, type AnchorResult } from './useAnchorAvoidance'
-import type { ScreenCoord } from '../stores/realtimeStore'
+import { stepPBD, type PBDInput, type PBDResult, type PBDParams } from './usePBDLayout'
+import { useRealtimeStore, type ScreenCoord } from '../stores/realtimeStore'
 import type { PlanetLink } from '../types'
 
 /**
- * useFloatingLabels — 行星标签编排逻辑。
+ * useFloatingLabels — 行星标签编排逻辑（PBD 物理驱动）。
  *
- * 管理 3 个标签的：入场排序 + 锚点位置 + 展开/收起状态 + 退出超时。
- * 消费 realtimeStore.screenCoords，产出每个标签的 CSS 定位数据和状态。
+ * 管理 3 个标签的：入场排序 + PBD 物理位置 + 展开/收起状态 + 退出超时。
+ * PBD 状态（速度）跨帧保持 → 天然平滑连续。
  *
- * 援引：React Hooks 组合模式 — 逻辑与视图分离
+ * 援引：Müller et al. (2007) "Position Based Dynamics"
  */
 
 export type SequenceStrategy = 'index' | 'simultaneous' | 'proximity'
@@ -23,14 +23,11 @@ export interface LabelConfig {
 export interface LabelState {
   trackIdx: number
   config: LabelConfig
-  /** Pill 屏幕 X（左上角） */
-  x: number
-  /** Pill 屏幕 Y（左上角） */
-  y: number
+  x: number; y: number
   visible: boolean
   collapsed: boolean
-  /** Welcome Slot 的延迟（ms），由入场排序计算 */
   typewriterDelay: number
+  debugAnchors?: { anchorL: { x: number; y: number }; anchorR: { x: number; y: number } }
 }
 
 interface FloatingLabelsOptions {
@@ -40,13 +37,16 @@ interface FloatingLabelsOptions {
   exitTimeout?: number
   collapsedWidth?: number
   expandedWidth?: number
+  collapsedHeight?: number
+  expandedHeight?: number
+  pbdParams?: PBDParams
 }
 
 export function useFloatingLabels(
   options: FloatingLabelsOptions,
-  /** 当前帧的 screenCoords（由 FloatingLabels 组件通过 Zustand selector 订阅传入） */
   screenCoords: [ScreenCoord, ScreenCoord, ScreenCoord],
-  /** 是否有行星被聚焦 */
+  screenRadii: [number, number, number],
+  centralStarScreen: { x: number; y: number; r: number; visible: boolean },
   isAnyFocused: boolean,
 ) {
   const {
@@ -54,126 +54,122 @@ export function useFloatingLabels(
     sequenceStrategy = 'proximity',
     staggerDelay = 800,
     exitTimeout = 15000,
-    collapsedWidth = 160,
+    collapsedWidth = 130,
     expandedWidth = 260,
+    collapsedHeight = 36,
+    expandedHeight = 44,
+    pbdParams = {},
   } = options
 
   const [activeTrackIdx, setActiveTrackIdx] = useState(-1)
   const exitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const viewportRef = useRef({ width: window.innerWidth, height: window.innerHeight })
-  // 缓存入场排序结果（仅首次计算，不随 screenCoords 变化）
+  const lastTimeRef = useRef(performance.now())
   const entryOrderRef = useRef<number[] | null>(null)
 
-  // ---- 入场排序：计算每个标签的 typewriter 延迟（仅首次） ----
+  // ---- 入场排序 ----
   const typewriterDelays = useMemo(() => {
     const delays = [800, 800, 800]
-
     if (sequenceStrategy === 'index') {
-      delays[0] = 800
-      delays[1] = 800 + staggerDelay
-      delays[2] = 800 + staggerDelay * 2
+      delays[0] = 800; delays[1] = 800 + staggerDelay; delays[2] = 800 + staggerDelay * 2
       entryOrderRef.current = [0, 1, 2]
     } else if (sequenceStrategy === 'simultaneous') {
       entryOrderRef.current = [0, 1, 2]
-    } else if (sequenceStrategy === 'proximity') {
-      const cx = viewportRef.current.width / 2
-      const cy = viewportRef.current.height / 2
+    } else {
+      const cx = viewportRef.current.width / 2; const cy = viewportRef.current.height / 2
       const indexed = configs.map((cfg, i) => {
         const c = screenCoords[i]
-        const dist = c.visible
-          ? Math.hypot(c.x - cx, c.y - cy)
-          : Infinity
-        return { i, dist }
+        return { i, dist: c.visible ? Math.hypot(c.x - cx, c.y - cy) : Infinity }
       })
       indexed.sort((a, b) => a.dist - b.dist)
       entryOrderRef.current = indexed.map(x => x.i)
-      indexed.forEach(({ i }, rank) => {
-        delays[i] = 800 + rank * staggerDelay
-      })
+      indexed.forEach(({ i }, rank) => { delays[i] = 800 + rank * staggerDelay })
     }
-
     return delays
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sequenceStrategy, staggerDelay]) // 仅策略变更时重算，不依赖 screenCoords
+  }, [sequenceStrategy, staggerDelay])
 
-  // ---- 锚点计算（使用传入的 screenCoords，每次渲染重算） ----
-  const anchorResults: [AnchorResult, AnchorResult, AnchorResult] = (() => {
-    const inputs = configs.map((cfg, i) => ({
-      screenX: screenCoords[i].x,
-      screenY: screenCoords[i].y,
-      visible: screenCoords[i].visible,
-      trackIdx: i,
-      expanded: activeTrackIdx === i,
-    })) as [AnchorInput, AnchorInput, AnchorInput]
+  // ---- PBD 物理（rAF 驱动，独立于 R3F frameloop） ----
+  const [pbdCache, setPbdCache] = useState<{ x: number; y: number; aLx: number; aLy: number; aRx: number; aRy: number }[]>(
+    () => [ {x:0,y:0,aLx:0,aLy:0,aRx:0,aRy:0}, {x:0,y:0,aLx:0,aLy:0,aRx:0,aRy:0}, {x:0,y:0,aLx:0,aLy:0,aRx:0,aRy:0} ]
+  )
+  const stableRefs = useRef({ pbdParams, collapsedWidth, expandedWidth, collapsedHeight, expandedHeight, configs, activeTrackIdx })
+  stableRefs.current = { pbdParams, collapsedWidth, expandedWidth, collapsedHeight, expandedHeight, configs, activeTrackIdx }
 
-    return calcAnchorPositions(inputs, viewportRef.current, collapsedWidth, expandedWidth)
-  })()
+  useEffect(() => {
+    let raf = 0
+    const loop = () => {
+      const now = performance.now()
+      const dt = Math.min((now - lastTimeRef.current) / 1000, 0.1)
+      lastTimeRef.current = now
+
+      const s = stableRefs.current
+      const sc = useRealtimeStore.getState().screenCoords
+      const sr = useRealtimeStore.getState().planetScreenRadii
+      const cs = useRealtimeStore.getState().centralStarScreen
+      const vp = viewportRef.current
+
+      const inputs = s.configs.map((_, i) => ({
+        sx: sc[i].x, sy: sc[i].y, pr: sr[i], visible: sc[i].visible,
+        lw: s.activeTrackIdx === i ? s.expandedWidth : s.collapsedWidth,
+        lh: s.activeTrackIdx === i ? s.expandedHeight : s.collapsedHeight,
+      })) as [PBDInput, PBDInput, PBDInput]
+
+      const results = stepPBD(
+        inputs, cs, s.pbdParams, dt, vp.width, vp.height,
+        s.collapsedWidth, s.expandedWidth, s.collapsedHeight, s.expandedHeight,
+        s.activeTrackIdx,
+      )
+
+      const cached = results.map(r => ({
+        x: r.x, y: r.y, aLx: r.anchorL.x, aLy: r.anchorL.y, aRx: r.anchorR.x, aRy: r.anchorR.y,
+      }))
+      setPbdCache(prev => {
+        // 浅比较避免无意义 re-render
+        if (prev.length === 3 && prev.every((p, i) => Math.abs(p.x - cached[i].x) < 0.5 && Math.abs(p.y - cached[i].y) < 0.5)) return prev
+        return cached
+      })
+
+      raf = requestAnimationFrame(loop)
+    }
+    raf = requestAnimationFrame(loop)
+    return () => cancelAnimationFrame(raf)
+  }, [])
 
   // ---- 退出超时管理 ----
   const clearExitTimer = useCallback(() => {
-    if (exitTimerRef.current) {
-      clearTimeout(exitTimerRef.current)
-      exitTimerRef.current = null
-    }
+    if (exitTimerRef.current) { clearTimeout(exitTimerRef.current); exitTimerRef.current = null }
   }, [])
-
   const resetExitTimer = useCallback(() => {
     clearExitTimer()
-    exitTimerRef.current = setTimeout(() => {
-      setActiveTrackIdx(-1)
-    }, exitTimeout)
+    exitTimerRef.current = setTimeout(() => setActiveTrackIdx(-1), exitTimeout)
   }, [exitTimeout, clearExitTimer])
-
   const handlePillClick = useCallback((trackIdx: number) => {
-    if (activeTrackIdx === trackIdx) {
-      // 再次点击同一标签 → 退出
-      setActiveTrackIdx(-1)
-      clearExitTimer()
-    } else {
-      setActiveTrackIdx(trackIdx)
-      resetExitTimer()
-    }
+    if (activeTrackIdx === trackIdx) { setActiveTrackIdx(-1); clearExitTimer() }
+    else { setActiveTrackIdx(trackIdx); resetExitTimer() }
   }, [activeTrackIdx, resetExitTimer, clearExitTimer])
+  const handleExternalDismiss = useCallback(() => { setActiveTrackIdx(-1); clearExitTimer() }, [clearExitTimer])
 
-  // 外部点击 / Esc 退出
-  const handleExternalDismiss = useCallback(() => {
-    setActiveTrackIdx(-1)
-    clearExitTimer()
-  }, [clearExitTimer])
+  // ---- 构建 labels（pbdCache 由 rAF 异步更新） ----
+  const labels = configs.map((cfg, i): LabelState => ({
+    trackIdx: i, config: cfg,
+    x: pbdCache[i]?.x ?? 0, y: pbdCache[i]?.y ?? 0,
+    visible: screenCoords[i].visible && !isAnyFocused,
+    collapsed: activeTrackIdx !== i,
+    typewriterDelay: typewriterDelays[i],
+    debugAnchors: {
+      anchorL: { x: pbdCache[i]?.aLx ?? 0, y: pbdCache[i]?.aLy ?? 0 },
+      anchorR: { x: pbdCache[i]?.aRx ?? 0, y: pbdCache[i]?.aRy ?? 0 },
+    },
+  }))
 
-  // 构建 labels 数组（计算值，由 FloatingLabels 在渲染中调用）
-  const labels = (() => {
-    return configs.map((cfg, i): LabelState => ({
-      trackIdx: i,
-      config: cfg,
-      x: anchorResults[i].x,
-      y: anchorResults[i].y,
-      visible: screenCoords[i].visible && !isAnyFocused,
-      collapsed: activeTrackIdx !== i,
-      typewriterDelay: typewriterDelays[i],
-    }))
-  })()
-
-  // ---- resize 处理 ----
+  // ---- resize ----
   useEffect(() => {
-    const onResize = () => {
-      viewportRef.current = { width: window.innerWidth, height: window.innerHeight }
-    }
+    const onResize = () => { viewportRef.current = { width: window.innerWidth, height: window.innerHeight } }
     window.addEventListener('resize', onResize)
     return () => window.removeEventListener('resize', onResize)
   }, [])
+  useEffect(() => { return () => clearExitTimer() }, [clearExitTimer])
 
-  // ---- 清理 ----
-  useEffect(() => {
-    return () => clearExitTimer()
-  }, [clearExitTimer])
-
-  return {
-    labels,
-    activeTrackIdx,
-    handlePillClick,
-    handleExternalDismiss,
-    /** 输入任意键时重置退出计时器 */
-    resetExitTimer,
-  }
+  return { labels, activeTrackIdx, handlePillClick, handleExternalDismiss, resetExitTimer }
 }

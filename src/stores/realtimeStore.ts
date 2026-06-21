@@ -45,6 +45,10 @@ interface RealtimeSlice {
 
   /** 行星在屏幕上的投影坐标（trackIdx 0/1/2 → FS/Code/GitHub） */
   screenCoords: [ScreenCoord, ScreenCoord, ScreenCoord]
+  /** 行星的屏幕视觉半径（px），由 Planets.useFrame 每帧计算 */
+  planetScreenRadii: [number, number, number]
+  /** 中央恒星的屏幕坐标 {x, y} 和视觉半径 r（px），由 useScreenProjection 每帧计算 */
+  centralStarScreen: { x: number; y: number; r: number; visible: boolean }
 }
 
 interface RealtimeActions {
@@ -58,6 +62,8 @@ interface RealtimeActions {
   setCameraData: (camera: CameraData) => void
   setDebrisCount: (count: number) => void
   setScreenCoords: (coords: [ScreenCoord, ScreenCoord, ScreenCoord]) => void
+  setPlanetScreenRadii: (radii: [number, number, number]) => void
+  setCentralStarScreen: (cs: { x: number; y: number; r: number; visible: boolean }) => void
 }
 
 export type RealtimeStore = RealtimeSlice & RealtimeActions
@@ -80,10 +86,14 @@ export const useRealtimeStore = create<RealtimeStore>()((set) => ({
     { x: 0, y: 0, visible: false },
     { x: 0, y: 0, visible: false },
   ],
+  planetScreenRadii: [0, 0, 0],
+  centralStarScreen: { x: 0, y: 0, r: 0, visible: false },
 
   setPlanetData: (coords, angles, speeds, orbitSpeeds, orbitAngles) =>
     set({ planetCoords: coords, planetAngles: angles, planetSpeeds: speeds, orbitSpeeds, orbitAngles }),
   setCameraData: (camera) => set({ camera }),
   setDebrisCount: (count) => set({ debrisCount: count }),
   setScreenCoords: (coords) => set({ screenCoords: coords }),
+  setPlanetScreenRadii: (radii) => set({ planetScreenRadii: radii }),
+  setCentralStarScreen: (cs) => set({ centralStarScreen: cs }),
 }))

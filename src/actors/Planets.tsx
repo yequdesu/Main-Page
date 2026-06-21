@@ -20,6 +20,10 @@ import { useScreenProjection } from '../behaviors/useScreenProjection'
 export const _planetWorldPositions: (Vector3 | null)[] = [null, null, null]
 export let _mainPlanetIndices: number[] = []
 
+// DEBUG（临时）
+let _dbgPlanetsLast = 0
+let _dbgPlanetsNow = 0
+
 // ============================================================
 // Planet — 几何常量
 // ============================================================
@@ -120,7 +124,7 @@ function getHaloTexture(): CanvasTexture {
  *   R3F InstancedMesh + individual <mesh> for interactive objects
  */
 export default function Planets() {
-  const { camera } = useThree()
+  const { camera, gl } = useThree()
   const { project } = useScreenProjection(_planetWorldPositions)
   const { shouldSkip } = useFrameCache()
 
@@ -263,6 +267,9 @@ export default function Planets() {
     const time = state.clock.elapsedTime
     if (shouldSkip(time, sp)) return
 
+    // 本帧待写入的屏幕视觉半径（main planet 3 个）
+    const _screenRadii: [number, number, number] = [0, 0, 0]
+
     const wof = clamped(sp, WHITE_OUT_THRESHOLD, WHITE_OUT_END)
     const act3Progress = clamped(sp, GRID_SHIFT_START, 1.0)
     const smooth3 = smoothstep(act3Progress)
@@ -310,6 +317,15 @@ export default function Planets() {
       if (trackIdx >= 0 && trackIdx < 3) {
         if (!_planetWorldPositions[trackIdx]) _planetWorldPositions[trackIdx] = new Vector3()
         _planetWorldPositions[trackIdx]!.copy(mesh.position)
+
+        // 计算该行星的屏幕视觉半径（px），供径向布局使用
+        // worldRadius = 基准半径 × 当前 scale × 内层光晕倍率（视觉可见边缘）
+        const _worldR = PLANET_BASE_RADIUS * appearance.scale * INNER_GLOW_SCALE
+        const _pcam = camera as PerspectiveCamera
+        const _fovY = (_pcam.fov * Math.PI) / 180
+        // 屏幕半径 = worldRadius / 距离处的 frustum 高度 × 视口高度
+        const _screenR = (_worldR * gl.domElement.clientHeight) / (2 * cd * Math.tan(_fovY / 2))
+        _screenRadii[trackIdx] = Math.round(_screenR)
       }
 
       // Publish planet coords + orbit data to realtime store
@@ -369,8 +385,18 @@ export default function Planets() {
       }
     }
 
+    // 发布屏幕视觉半径（供径向布局使用）
+    useRealtimeStore.getState().setPlanetScreenRadii(_screenRadii)
+
     // 投影行星世界坐标到屏幕坐标（供 FloatingLabels 消费）
     project()
+
+    // DEBUG（临时，1 秒节流）
+    _dbgPlanetsNow = performance.now()
+    if (_dbgPlanetsNow - _dbgPlanetsLast > 1000) {
+      _dbgPlanetsLast = _dbgPlanetsNow
+      console.log('[Planets] screenRadii:', _screenRadii, 'visible[0]:', useRealtimeStore.getState().screenCoords[0]?.visible)
+    }
 
     // ---- Hover detection ----
     const hoverResult = calcScreenSpaceHover(

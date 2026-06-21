@@ -294,8 +294,14 @@ export default function App() {
           sequenceStrategy="proximity"
           staggerDelay={800}
           exitTimeout={15000}
-          collapsedWidth={160}
+          collapsedWidth={130}
           expandedWidth={260}
+          collapsedHeight={36}
+          expandedHeight={44}
+          pbdParams={{
+            anchorRangeRadius: 85,
+            gap: 6,
+          }}
         />
       )}
 
