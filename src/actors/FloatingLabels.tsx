@@ -5,6 +5,7 @@ import TerminalBar from '../terminal/TerminalBar'
 import { createPlanetCommandHandler } from '../terminal/planetCommands'
 import { useFloatingLabels, type SequenceStrategy, type LabelConfig } from '../behaviors/useFloatingLabels'
 import type { PBDParams } from '../behaviors/usePBDLayout'
+import PlanetLabelDebug from './PlanetLabelDebug'
 import './FloatingLabels.css'
 
 /**
@@ -116,42 +117,14 @@ const FloatingLabels = memo(function FloatingLabels(props: FloatingLabelsProps) 
         )
       })}
 
-      {/* Debug overlay */}
-      <svg style={{ position: 'fixed', inset: 0, zIndex: 8, pointerEvents: 'none' }} width="100%" height="100%">
-        {/* 中央恒星内层光晕（白色圆） */}
-        {centralStar.visible && (
-          <circle cx={centralStar.x} cy={centralStar.y} r={centralStar.r}
-            fill="none" stroke="white" strokeWidth="1.5" strokeDasharray="6 3" opacity={0.7} />
-        )}
-        {/* 行星视觉边缘 + label 矩形 + 锚点 */}
-        {screenCoords.map((sc, i) => {
-          if (!sc.visible) return null
-          const pr = screenRadii[i]
-          return (
-            <g key={`dbg-${i}`}>
-              <circle cx={sc.x} cy={sc.y} r={pr} fill="none" stroke="cyan" strokeWidth="1" opacity={0.5} />
-              {/* 近距离排斥区（灰白色虚线，5px） */}
-              <circle cx={sc.x} cy={sc.y} r={pr + 5}
-                fill="none" stroke="#ccc" strokeWidth="1" strokeDasharray="3 3" opacity={0.5} />
-              {/* anchor-range 圆（红色虚线） */}
-              <circle cx={sc.x} cy={sc.y} r={pr + (pbdParams?.gap ?? 6) + (pbdParams?.anchorRangeRadius ?? 90)}
-                fill="none" stroke="red" strokeWidth="1" strokeDasharray="4 4" opacity={0.5} />
-              {labels[i]?.debugAnchors && (
-                <>
-                  <rect x={labels[i].x} y={labels[i].y}
-                    width={labels[i].collapsed ? collapsedWidth : expandedWidth}
-                    height={labels[i].collapsed ? collapsedHeight : expandedHeight}
-                    fill="none" stroke="lime" strokeWidth="1" opacity={0.7} />
-                  <circle cx={labels[i].debugAnchors!.anchorL.x} cy={labels[i].debugAnchors!.anchorL.y}
-                    r={3} fill="red" opacity={0.8} />
-                  <circle cx={labels[i].debugAnchors!.anchorR.x} cy={labels[i].debugAnchors!.anchorR.y}
-                    r={3} fill="red" opacity={0.8} />
-                </>
-              )}
-            </g>
-          )
-        })}
-      </svg>
+      <PlanetLabelDebug
+        labels={labels}
+        collapsedWidth={collapsedWidth}
+        expandedWidth={expandedWidth}
+        collapsedHeight={collapsedHeight}
+        expandedHeight={expandedHeight}
+        pbdParams={pbdParams}
+      />
 
       {activeTrackIdx >= 0 && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 9, pointerEvents: 'auto' }}

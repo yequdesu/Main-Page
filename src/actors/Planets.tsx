@@ -20,10 +20,6 @@ import { useScreenProjection } from '../behaviors/useScreenProjection'
 export const _planetWorldPositions: (Vector3 | null)[] = [null, null, null]
 export let _mainPlanetIndices: number[] = []
 
-// DEBUG（临时）
-let _dbgPlanetsLast = 0
-let _dbgPlanetsNow = 0
-
 // ============================================================
 // Planet — 几何常量
 // ============================================================
@@ -390,13 +386,6 @@ export default function Planets() {
 
     // 投影行星世界坐标到屏幕坐标（供 FloatingLabels 消费）
     project()
-
-    // DEBUG（临时，1 秒节流）
-    _dbgPlanetsNow = performance.now()
-    if (_dbgPlanetsNow - _dbgPlanetsLast > 1000) {
-      _dbgPlanetsLast = _dbgPlanetsNow
-      console.log('[Planets] screenRadii:', _screenRadii, 'visible[0]:', useRealtimeStore.getState().screenCoords[0]?.visible)
-    }
 
     // ---- Hover detection ----
     const hoverResult = calcScreenSpaceHover(
