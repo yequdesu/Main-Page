@@ -44,12 +44,15 @@ export function sceneApplyWhiteOut(scene: Scene, sp: number): void {
   _bgLerpColor.copy(_bgBaseColor).lerp(_bgTargetColor, wof)
   scene.background = _bgLerpColor
 
+  const FOG_FADE_END = 0.65
   let fogDensity = 0.02
   if (sp >= WHITE_OUT_THRESHOLD && sp < WHITE_OUT_END) {
     fogDensity = 0.02 + wof * 0.08
-  } else if (sp >= WHITE_OUT_END) {
-    const fadeProgress = clamped(sp, WHITE_OUT_END, GRID_SHIFT_START)
-    fogDensity = 0.10 * (1.0 - fadeProgress)
+  } else if (sp >= WHITE_OUT_END && sp < FOG_FADE_END) {
+    const fogFade = clamped(sp, WHITE_OUT_END, FOG_FADE_END)
+    fogDensity = 0.10 * (1.0 - fogFade)
+  } else if (sp >= FOG_FADE_END) {
+    fogDensity = 0  // 0.65 后完全除雾
   }
 
   if (fogDensity > 0.001) {

@@ -7,7 +7,7 @@ import Act1OceanVoyage from './acts/Act1OceanVoyage'
 import Act2GridTransition from './acts/Act2GridTransition'
 import Act3ContentPhase from './acts/Act3ContentPhase'
 import { useScrollStore } from './stores/scrollStore'
-import { WHITE_OUT_THRESHOLD, GRID_START, VERTICAL_START, GRID_SHIFT_START } from './r3f/ScrollRig'
+import { WHITE_OUT_THRESHOLD, GRID_START, GRID_SHIFT_START } from './r3f/ScrollRig'
 import { getLighthouseCapture } from './actors/LighthouseCapture'
 import MainTerminal from './MainTerminal'
 import { executeCommand } from './terminal/commands'
@@ -18,7 +18,7 @@ import './App.css'
 
 gsap.registerPlugin(ScrollTrigger)
 
-const SCROLL_VH = 15
+const SCROLL_VH = 25
 const FRICTION = 0.955
 const MAX_VELOCITY = 0.025
 
@@ -57,10 +57,10 @@ export default function App() {
   const isTerminalActive = terminalMode === 'active'
 
   // ---- Act visibility ----
-  // Act 1 扩展到 VERTICAL_START(0.58) 确保：
-  //   光束完整淡出 (0.55 完成) + 海浪完整网格化 (0.58 完成) + 截图捕获 (0.54)
-  const needsAct1 = (sp: number) => sp < VERTICAL_START + 0.01
-  const needsAct2 = (sp: number) => sp >= WHITE_OUT_THRESHOLD - 0.01 && sp < GRID_SHIFT_START + 0.01
+  // Act 1 扩展到 GRID_SHIFT_START(0.85)：波浪展平后需与 Act2 竖线共存形成网格，
+  // Act3 开始后波浪自行通过 gridOpacityMult 淡出
+  const needsAct1 = (sp: number) => sp < GRID_SHIFT_START + 0.01
+  const needsAct2 = (sp: number) => sp >= WHITE_OUT_THRESHOLD - 0.01
   const needsAct3 = (sp: number) => sp >= GRID_SHIFT_START - 0.01
 
   // ---- syncScrollbar ----

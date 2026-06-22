@@ -336,6 +336,9 @@ export default function Planets() {
       mat.opacity = planetOpacity
       mat.color.copy(_scratch2)
 
+      // ---- Glow delay: 回收完成 (sp≥0.95) 后才启辉光 ----
+      const glowFactor = clamped(sp, 0.95, 1.0)
+
       // ---- Inner glow (pulse, follows core appearance scale) ----
       const glow = innerGlows[trackIdx]
       if (glow) {
@@ -343,7 +346,7 @@ export default function Planets() {
         glow.position.copy(mesh.position)
         glow.scale.setScalar(appearance.scale * gPulse)
         const gMat = glow.material as MeshBasicMaterial
-        gMat.opacity = planetOpacity * INNER_GLOW_OPACITY * gPulse
+        gMat.opacity = planetOpacity * INNER_GLOW_OPACITY * gPulse * glowFactor
       }
 
       // ---- Atmosphere shell (follows core appearance scale) ----
@@ -352,7 +355,7 @@ export default function Planets() {
         shell.position.copy(mesh.position)
         shell.scale.setScalar(appearance.scale)
         const sMat = shell.material as ShaderMaterial
-        sMat.uniforms.uOpacity.value = planetOpacity * ATMOS_SHELL_OPACITY
+        sMat.uniforms.uOpacity.value = planetOpacity * ATMOS_SHELL_OPACITY * glowFactor
       }
 
       // ---- Halo sprite (pulse) ----
@@ -363,7 +366,7 @@ export default function Planets() {
         sprite.position.copy(mesh.position)
         const baseScale = d.scale * d.scaleMult * ATMOS_HALO_SCALE
         sprite.scale.set(baseScale * pulse, baseScale * pulse, 1)
-        sMat2.opacity = planetOpacity * ATMOS_HALO_OPACITY * pulse
+        sMat2.opacity = planetOpacity * ATMOS_HALO_OPACITY * pulse * glowFactor
       }
     }
 

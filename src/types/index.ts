@@ -100,6 +100,8 @@ export interface GridLineData {
   x: number; baseY: number
   zStart: number; zEnd: number
   staggerOffset: number
+  arcHeight: number
+  basePositions: Float32Array  // 初始顶点位置（供每帧复位用）
 }
 
 // ============================================================

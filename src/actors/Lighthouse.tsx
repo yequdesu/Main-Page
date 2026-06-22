@@ -39,16 +39,16 @@ export default function Lighthouse() {
       position={[0, -2.5, SCENE_CENTER_Z]}
       scale={0.7}
     >
-      {/* 地基 */}
+      {/* 地基 — 材质与塔身一致 */}
       <mesh position={[0, -0.9, 0]}>
         <cylinderGeometry args={[0.7, 0.7, 1.4, 16]} />
-        <meshStandardMaterial color="#252930" roughness={0.8} />
+        <meshStandardMaterial color="#4d535c" roughness={0.5} metalness={0.1} />
       </mesh>
 
-      {/* 遮罩 — 半透明黑色，融入背景 */}
+      {/* 遮罩 — 不透明 */}
       <mesh position={[0, -0.95, 0]}>
         <cylinderGeometry args={[0.75, 1.3, 1.6, 16]} />
-        <meshBasicMaterial color="#050811" transparent opacity={0.88} depthWrite={false} />
+        <meshBasicMaterial color="#050811" />
       </mesh>
 
       {/* 岩石底座 */}
@@ -83,11 +83,11 @@ export default function Lighthouse() {
       <group position={[0, 1.0, 0.24]} rotation={[0, 0.5, 0]}>
         <mesh>
           <boxGeometry args={[0.06, 0.12, 0.05]} />
-          <meshBasicMaterial color="#111317" />
+          <meshBasicMaterial color="#111317" fog />
         </mesh>
         <mesh>
           <boxGeometry args={[0.04, 0.10, 0.055]} />
-          <meshBasicMaterial color="#ffdf6d" />
+          <meshBasicMaterial color="#ffdf6d" fog />
         </mesh>
       </group>
 
@@ -95,11 +95,11 @@ export default function Lighthouse() {
       <group position={[0, 1.9, 0.19]} rotation={[0, -0.8, 0]}>
         <mesh>
           <boxGeometry args={[0.06, 0.12, 0.05]} />
-          <meshBasicMaterial color="#111317" />
+          <meshBasicMaterial color="#111317" fog />
         </mesh>
         <mesh>
           <boxGeometry args={[0.04, 0.10, 0.055]} />
-          <meshBasicMaterial color="#ffdf6d" />
+          <meshBasicMaterial color="#ffdf6d" fog />
         </mesh>
       </group>
 
@@ -156,7 +156,7 @@ export default function Lighthouse() {
       {/* 灯泡 */}
       <mesh position={[0, 2.96, 0]}>
         <sphereGeometry args={[0.07, 12, 12]} />
-        <meshBasicMaterial color="#ffdf6d" transparent opacity={0.55} depthWrite={false} />
+        <meshBasicMaterial color="#ffdf6d" transparent opacity={0.55} depthWrite={false} fog />
       </mesh>
 
       {/* 玻璃框架柱 ×6 */}
