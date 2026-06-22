@@ -11,7 +11,7 @@ import { calcScreenSpaceHover } from '../behaviors/useScreenSpaceHover'
 import { smoothstep, clamped, SCENE_CENTER_Z, WHITE_OUT_THRESHOLD, WHITE_OUT_END, GRID_SHIFT_START, ORBIT_RADII, ORBIT_COUNT } from '../r3f/ScrollRig'
 import { atmosphereVertex, atmosphereFragment } from '../shaders/AtmosphereShader'
 import { type ParticleData } from '../types'
-import { getWindChimeProgress, ANCHOR_Y } from './WindChimeLines'
+import { getWindChimeProgress, ANCHOR_Y, DROP_START, DROP_END } from './WindChimeLines'
 
 // ============================================================
 // 共享状态 — PlanetClickHandler + Act3ContentPhase + PlanetLabel 消费
@@ -303,9 +303,12 @@ export default function Planets() {
       if (!mesh) continue
 
       mesh.position.set(px, py, pz)
-      // 风铃下落：行星 Y 根据 sp 独立计算（避免渲染顺序问题）
+      // 风铃下落：仅下落阶段(0.80→0.87)偏移 Y，之后留在目标位置
       const wc = getWindChimeProgress(sp)
-      if (wc.active) mesh.position.y = ANCHOR_Y + (py - ANCHOR_Y) * wc.smoothP
+      if (sp < DROP_END) {
+        const dropOnly = clamped(sp, DROP_START, DROP_END)
+        mesh.position.y = ANCHOR_Y + (py - ANCHOR_Y) * smoothstep(dropOnly)
+      }
       mesh.scale.setScalar(appearance.scale)
 
       // Track world position for camera focus + label following

@@ -3,7 +3,7 @@ import { useFrame } from '@react-three/fiber'
 import { CanvasTexture, SpriteMaterial, MeshBasicMaterial, AdditiveBlending, LinearFilter, type Mesh, type Group } from 'three'
 import { SCENE_CENTER_Z, clamped, smoothstep } from '../r3f/ScrollRig'
 import { useScrollStore } from '../stores/scrollStore'
-import { getWindChimeProgress, ANCHOR_Y } from './WindChimeLines'
+import { getWindChimeProgress, ANCHOR_Y, DROP_START, DROP_END } from './WindChimeLines'
 
 // ============================================================
 // CentralStar — 可调参数
@@ -106,11 +106,11 @@ export default function CentralStar() {
     const sp = useScrollStore.getState().scrollProgress
     const time = state.clock.elapsedTime
 
-    // 风铃下落：恒星 Y 独立计算（避免渲染顺序问题）
+    // 风铃下落：仅下落阶段(0.80→0.87)偏移 Y，之后留在目标位置
     if (groupRef.current) {
-      const wc = getWindChimeProgress(sp)
-      if (wc.active) {
-        groupRef.current.position.y = ANCHOR_Y + (GROUP_POSITION_Y - ANCHOR_Y) * wc.smoothP
+      if (sp >= DROP_START && sp < DROP_END) {
+        const dropOnly = clamped(sp, DROP_START, DROP_END)
+        groupRef.current.position.y = ANCHOR_Y + (GROUP_POSITION_Y - ANCHOR_Y) * smoothstep(dropOnly)
       } else {
         groupRef.current.position.y = GROUP_POSITION_Y
       }
