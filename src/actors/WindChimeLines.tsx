@@ -42,8 +42,9 @@ export default function WindChimeLines() {
       }
 
       const curY = WC_ANCHOR_Y + (ty - WC_ANCHOR_Y) * smoothP
-      pArr[0] = tx; pArr[1] = WC_ANCHOR_Y; pArr[2] = tz + 6        // 锚点也前移
-      pArr[3] = tx; pArr[4] = curY;        pArr[5] = tz + 6        // 底部匹配行星 Z 偏移
+      const zOffset = 6 * smoothP  // 与行星Z偏移同步
+      pArr[0] = tx; pArr[1] = WC_ANCHOR_Y; pArr[2] = tz + zOffset
+      pArr[3] = tx; pArr[4] = curY;        pArr[5] = tz + zOffset
       lines[i].geometry.attributes.position.needsUpdate = true
       ;(lines[i].material as LineBasicMaterial).opacity = smoothP
     }
