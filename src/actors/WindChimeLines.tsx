@@ -4,10 +4,12 @@ import { Line, BufferGeometry, BufferAttribute, LineBasicMaterial } from 'three'
 import { useScrollStore } from '../stores/scrollStore'
 import { SCENE_CENTER_Z } from '../r3f/ScrollRig'
 import { getWindChimeProgress, WC_ANCHOR_Y } from '../behaviors/useWindChime'
-import { _planetOrbitTargets, _planetRawOrbitY } from './Planets'
+import { _planetWorldPositions } from './Planets'
+
+const TARGET_Y = -1.0  // 所有星体轨道Y相同，不依赖 Planets 共享数组
 
 /**
- * WindChimeLines — 4 条亮线吊着行星/恒星从上方垂落，随后从下往上回收。
+ * WindChimeLines — 4 条亮线，Y 自行计算，仅从 _planetWorldPositions 取 X/Z。
  */
 export default function WindChimeLines() {
   const lines = useMemo(() => {
@@ -16,7 +18,7 @@ export default function WindChimeLines() {
       const pts = new Float32Array([0, WC_ANCHOR_Y, 0, 0, 0, 0])
       const g = new BufferGeometry()
       g.setAttribute('position', new BufferAttribute(pts, 3))
-      const mat = new LineBasicMaterial({ color: '#ffffff', transparent: true, opacity: 1.0, depthTest: false, depthWrite: false })
+      const mat = new LineBasicMaterial({ color: '#ffffff', transparent: true, opacity: 0, depthTest: false, depthWrite: false })
       const line = new Line(g, mat)
       line.renderOrder = 9999
       result.push(line)
@@ -24,26 +26,21 @@ export default function WindChimeLines() {
     return result
   }, [])
 
-  const starTarget = { x: 0, y: -1.0, z: SCENE_CENTER_Z }
-
   useFrame(() => {
     const sp = useScrollStore.getState().scrollProgress
     const { smoothP } = getWindChimeProgress(sp)
+    const curY = WC_ANCHOR_Y + (TARGET_Y - WC_ANCHOR_Y) * smoothP
+    const zOffset = 6 * smoothP
 
     for (let i = 0; i < 4; i++) {
       const pArr = lines[i].geometry.attributes.position.array as Float32Array
-      let tx: number, ty: number, tz: number
+      let tx = 0, tz = SCENE_CENTER_Z
 
       if (i < 3) {
-        const pos = _planetOrbitTargets[i]
-        tx = pos ? pos.x : 0; tz = pos ? pos.z : SCENE_CENTER_Z
-        ty = _planetRawOrbitY[i]  // 纯轨道Y(无偏移)
-      } else {
-        tx = starTarget.x; ty = starTarget.y; tz = starTarget.z
+        const pos = _planetWorldPositions[i]
+        if (pos) { tx = pos.x; tz = pos.z }
       }
 
-      const curY = WC_ANCHOR_Y + (ty - WC_ANCHOR_Y) * smoothP
-      const zOffset = 6 * smoothP
       pArr[0] = tx; pArr[1] = WC_ANCHOR_Y; pArr[2] = tz + zOffset
       pArr[3] = tx; pArr[4] = curY;        pArr[5] = tz + zOffset
       lines[i].geometry.attributes.position.needsUpdate = true
