@@ -5,6 +5,22 @@
 
 ---
 
+## 渲染排轴
+
+Act 3 进入后，元素按以下顺序渲染：
+
+```
+1. InfoPanelTerminal  welcome "solar system:" typewriter 播放
+                     ↓ (~2.3s)
+2. PBD 布局稳定        label 位置在后台计算，不可见
+                     ↓
+3. InfoPanel welcome 完成 → labelsGateOpen
+                     ↓
+4. label 0 TerminalBar 挂载 → typewriter → exitGap → label 1 → label 2
+```
+
+PBD 在 label 可见前有约 2.3s 稳定窗口，避免初始弹射。每次离开 Act 3 后重新进入，排轴完整重复。
+
 ## 快速开始
 
 标签布局在 Act 3（scrollProgress > 0.85）自动激活。无需手动配置。

@@ -3,6 +3,7 @@ import { useFrame } from '@react-three/fiber'
 import { type LineBasicMaterial } from 'three'
 import { SCENE_CENTER_Z, ORBIT_RADII, ORBIT_COUNT, clamped, smoothstep, GRID_SHIFT_START } from '../r3f/ScrollRig'
 import { useScrollStore } from '../stores/scrollStore'
+import { themeColor } from '../theme/colors'
 import OrbitalRing from './OrbitalRing'
 import type { OrbitalRingConfig } from '../types'
 
@@ -31,7 +32,7 @@ interface OrbitRingsProps {
 
 export default function OrbitRings({ speedScale = 1.0 }: OrbitRingsProps) {
   const dayNight = useScrollStore(s => s.dayNight)
-  const orbitColor = dayNight === 'day' ? '#64748b' : '#cbd5e1'
+  const orbitColor = themeColor('orbit', dayNight)
 
   // 轨道环顶点（静态 — 行星公转轨道的视觉参考线）
   const orbitPoints = useMemo(() =>

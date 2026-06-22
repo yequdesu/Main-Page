@@ -44,6 +44,7 @@ const FloatingLabels = memo(function FloatingLabels(props: FloatingLabelsProps) 
   const screenRadii = useRealtimeStore(s => s.planetScreenRadii)
   const centralStar = useRealtimeStore(s => s.centralStarScreen)
   const focusedPlanetIdx = useScrollStore(s => s.focusedPlanetIdx)
+  const labelsGateOpen = useScrollStore(s => s.labelsGateOpen)
   const isAnyFocused = focusedPlanetIdx >= 0
 
   // ---- 折叠态 typewriter 完成后自收缩宽度 ----
@@ -111,6 +112,11 @@ const FloatingLabels = memo(function FloatingLabels(props: FloatingLabelsProps) 
     if (mode === 'active') handlePillClick(trackIdx)
   }, [handlePillClick, activeTrackIdx, configs, collapsedWidth, getTextWidth])
 
+  // 每次进入 Act 3 重置门控，确保排轴顺序重复执行
+  useEffect(() => {
+    useScrollStore.getState().setLabelsGateOpen(false)
+  }, [])
+
   // 清理 PBD 与牵引线延迟定时器
   useEffect(() => {
     const pbd = pbdDelayTimers.current
@@ -152,7 +158,7 @@ const FloatingLabels = memo(function FloatingLabels(props: FloatingLabelsProps) 
             } as React.CSSProperties}
             onClick={(e) => { e.stopPropagation(); handlePillClick(label.trackIdx) }}
           >
-            {pbdReady && label.trackIdx < showCount && (
+            {pbdReady && labelsGateOpen && label.trackIdx < showCount && (
               <TerminalBar
                 layout={{ maxEchoLines: label.config.maxEchoLines, maxWidth: '100%',
                   borderRadius: '6px', padding: '3px 6px', fontSize: '0.58rem',

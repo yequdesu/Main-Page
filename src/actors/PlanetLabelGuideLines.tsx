@@ -8,6 +8,7 @@
 
 import { useRealtimeStore } from '../stores/realtimeStore'
 import { useScrollStore } from '../stores/scrollStore'
+import { themeColor } from '../theme/colors'
 import type { LabelState } from '../behaviors/useFloatingLabels'
 
 interface Props {
@@ -35,9 +36,7 @@ export default function PlanetLabelGuideLines({
   const screenCoords = useRealtimeStore(s => s.screenCoords)
   const screenRadii = useRealtimeStore(s => s.planetScreenRadii)
   const dayNight = useScrollStore(s => s.dayNight)
-  const guideStroke = dayNight === 'day'
-    ? 'rgba(60, 72, 90, 0.35)'
-    : 'rgba(200, 210, 225, 0.45)'
+  const guideStroke = themeColor('guideLine', dayNight)
 
   return (
     <svg

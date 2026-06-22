@@ -171,3 +171,11 @@ usePBDLayout.ts  ← useFloatingLabels.ts  ← FloatingLabels.tsx  ← App.tsx
 ```
 
 修改 `usePBDLayout.ts` 的常量或算法 → 运行 `pnpm test` 确认不退化 → 修改 App.tsx 的 `pbdParams` 可运行时调参。
+
+## 主题色管理
+
+场景级 day/night 色值集中在 `src/theme/colors.ts`，通过 `themeColor(key, dayNight)` 获取。新增场景元素主题色时：
+
+1. 在 `colors.ts` 的 `SCENE_COLORS` 中添加键值对
+2. 在 `theme.css` 的 `:root` 和 `[data-theme="day"]` 中添加对应 `--color-*` CSS 变量
+3. 组件中 `import { themeColor } from '../theme/colors'` 替代硬编码色值

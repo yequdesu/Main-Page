@@ -1,6 +1,7 @@
 import { useRef, useCallback } from 'react'
 import TerminalBar from './terminal/TerminalBar'
 import { useRealtimeStore } from './stores/realtimeStore'
+import { useScrollStore } from './stores/scrollStore'
 import './InfoPanelTerminal.css'
 
 /**
@@ -57,6 +58,11 @@ export default function InfoPanelTerminal() {
   return (
     <TerminalBar
       className="info-panel-terminal"
+      state={{
+        onModeChange: (mode) => {
+          if (mode === 'idle') useScrollStore.getState().setLabelsGateOpen(true)
+        },
+      }}
       layout={{
         maxEchoLines: 8, maxWidth: '50ch', fontSize: '0.48rem',
         padding: '4px 10px', borderRadius: '12px',
@@ -69,7 +75,7 @@ export default function InfoPanelTerminal() {
         text="solar system:"
         lineCount={1}
         animation={{ inline: 'literal', charInterval: 40, startDelay: 800, overflow: 'static' }}
-        exitGap={1000}
+        exitGap={600}
       />
       <TerminalBar.Section
         name="planets"

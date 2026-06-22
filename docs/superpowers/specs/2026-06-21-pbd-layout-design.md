@@ -99,11 +99,36 @@ FloatingLabels.tsx (typewriter 完成后)
   → 回传至 useFloatingLabels → stableRefs → rAF 循环
 ```
 
-### 顺序播放与首次渲染
+### 首次渲染排轴
 
-- TerminalBar 在 PBD 首次计算出非零位置后才挂载（`pbdReady` 门控）
-- 标签按顺序逐个渲染：label 0 先出现 → typing+exitGap 完成 → label 1 出现 → ...
-- 确保进入 Act 3 后打字机动画可见，而非在屏幕外已完成
+Act 3 进入后各元素的渲染顺序由 `labelsGateOpen` 门控协调，确保 PBD 有充足时间稳定布局：
+
+```
+Act 3 进入（scrollProgress ≥ GRID_SHIFT_START）
+  │
+  ├─ InfoPanelTerminal 挂载
+  │     └─ welcome "solar system:" typewriter 播放
+  │           ~800ms startDelay + ~520ms typing + exitGap → onModeChange('idle')
+  │
+  ├─ FloatingLabels 挂载 → labelsGateOpen = false（重置门控）
+  │     └─ PBD rAF 循环启动 → body 位置计算中（~2.3s 稳定窗口）
+  │         TerminalBar 不渲染（pbdReady && labelsGateOpen 双重门控）
+  │
+  └─ InfoPanel welcome 完成 → setLabelsGateOpen(true)
+        │
+        ├─ label 0 TerminalBar 挂载 → typewriter 播放
+        │     └─ 完成 → typingDone → exitGap → label 1 解锁
+        ├─ label 1 TerminalBar 挂载 → typewriter 播放
+        │     └─ 完成 → typingDone → exitGap → label 2 解锁
+        └─ label 2 TerminalBar 挂载 → typewriter 播放
+
+每次离开 Act 3 后重新进入，FloatingLabels 重挂载触发 labelsGateOpen 重置，
+排轴完整重复。
+```
+
+- `labelsGateOpen`：scrollStore 标志，InfoPanel welcome 完成时置位
+- `pbdReady`：PBD 首次计算出非零位置时置位
+- 双重门控确保 label 渲染时 PBD 已稳定（~2.3s 缓冲）
 
 ### 折叠态自收缩
 
