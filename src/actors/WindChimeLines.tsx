@@ -8,7 +8,6 @@ import { _planetWorldPositions } from './Planets'
 
 /**
  * WindChimeLines — 4 条亮线吊着行星/恒星从上方垂落，随后从下往上回收。
- * 始终挂载于 Canvas 根层级，基于 sp 纯函数驱动，可逆。
  */
 export default function WindChimeLines() {
   const lines = useMemo(() => {
@@ -17,9 +16,9 @@ export default function WindChimeLines() {
       const pts = new Float32Array([0, WC_ANCHOR_Y, 0, 0, 0, 0])
       const g = new BufferGeometry()
       g.setAttribute('position', new BufferAttribute(pts, 3))
-      const mat = new LineBasicMaterial({ color: '#ffffff', transparent: true, opacity: 0, depthTest: false, depthWrite: false })
+      const mat = new LineBasicMaterial({ color: '#ffffff', transparent: true, opacity: 1.0, depthTest: false, depthWrite: false })
       const line = new Line(g, mat)
-      line.renderOrder = 9999  // 最前
+      line.renderOrder = 9999
       result.push(line)
     }
     return result
