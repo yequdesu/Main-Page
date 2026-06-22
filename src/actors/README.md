@@ -20,8 +20,12 @@
 > **轨道系统完整文档：** [`docs/orbital-system.md`](../../docs/orbital-system.md) — 力学模型、变换推导、配置参考、操作手册
 
 | `GridLines.tsx` | 28 Line + 210 Points | Act2 group 内 | 2 | 延伸 + 透明度 |
-| `PlanetLabel.tsx` | 3 Sprite（Canvas 纹理） | Act3 group 内 | 9999 | 位置跟随 + lerp 淡入淡出 |
+| `FloatingLabels.tsx` | 3 DOM pill（TerminalBar） | App 根 DOM 层 | — | PBD 物理驱动，独立 rAF 60fps |
 | `LighthouseCapture.tsx` | 无渲染（离屏截图逻辑） | Act1 group 内 | — | 导出 `getLighthouseCapture()` |
+
+> **PBD 布局系统文档：** [`../../docs/actors/pbd-layout-operation-guide.md`](../../docs/actors/pbd-layout-operation-guide.md) — 操作手册  
+> [`../../docs/actors/pbd-layout-maintenance-guide.md`](../../docs/actors/pbd-layout-maintenance-guide.md) — 维护指南  
+> [`../../docs/superpowers/specs/2026-06-21-pbd-layout-design.md`](../../docs/superpowers/specs/2026-06-21-pbd-layout-design.md) — 设计文档
 
 ## 编写规范
 

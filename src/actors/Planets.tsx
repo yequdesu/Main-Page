@@ -11,9 +11,10 @@ import { calcScreenSpaceHover } from '../behaviors/useScreenSpaceHover'
 import { smoothstep, clamped, SCENE_CENTER_Z, WHITE_OUT_THRESHOLD, WHITE_OUT_END, GRID_SHIFT_START, ORBIT_RADII, ORBIT_COUNT } from '../r3f/ScrollRig'
 import { atmosphereVertex, atmosphereFragment } from '../shaders/AtmosphereShader'
 import { type ParticleData } from '../types'
+import { useScreenProjection } from '../behaviors/useScreenProjection'
 
 // ============================================================
-// 共享状态 — PlanetClickHandler + Act3ContentPhase + PlanetLabel 消费
+// 共享状态 — PlanetClickHandler + Act3ContentPhase 消费
 // ============================================================
 
 export const _planetWorldPositions: (Vector3 | null)[] = [null, null, null]
@@ -48,7 +49,7 @@ const INNER_GLOW_OPACITY = 0.20
 /** 行星核心色  改色相→行星基调变化 */
 const PLANET_CORE_COLOR = '#f0f8ff'
 /** 内层光晕色  改色相→光晕冷暖偏移 */
-const INNER_GLOW_COLOR = '#f6f7f9b3'
+const INNER_GLOW_COLOR = '#f6f7f9'
 /** Fresnel 壳色  改色相→边缘辉光冷暖偏移 */
 const FRESNEL_SHELL_COLOR = '#d0d5de'
 /** Act1 基准色（冷白） */
@@ -119,7 +120,8 @@ function getHaloTexture(): CanvasTexture {
  *   R3F InstancedMesh + individual <mesh> for interactive objects
  */
 export default function Planets() {
-  const { camera } = useThree()
+  const { camera, gl } = useThree()
+  const { project } = useScreenProjection(_planetWorldPositions)
   const { shouldSkip } = useFrameCache()
 
   // Pre-allocated reusable objects
@@ -261,6 +263,9 @@ export default function Planets() {
     const time = state.clock.elapsedTime
     if (shouldSkip(time, sp)) return
 
+    // 本帧待写入的屏幕视觉半径（main planet 3 个）
+    const _screenRadii: [number, number, number] = [0, 0, 0]
+
     const wof = clamped(sp, WHITE_OUT_THRESHOLD, WHITE_OUT_END)
     const act3Progress = clamped(sp, GRID_SHIFT_START, 1.0)
     const smooth3 = smoothstep(act3Progress)
@@ -308,6 +313,15 @@ export default function Planets() {
       if (trackIdx >= 0 && trackIdx < 3) {
         if (!_planetWorldPositions[trackIdx]) _planetWorldPositions[trackIdx] = new Vector3()
         _planetWorldPositions[trackIdx]!.copy(mesh.position)
+
+        // 计算该行星的屏幕视觉半径（px），供径向布局使用
+        // worldRadius = 基准半径 × 当前 scale × 内层光晕倍率（视觉可见边缘）
+        const _worldR = PLANET_BASE_RADIUS * appearance.scale * INNER_GLOW_SCALE
+        const _pcam = camera as PerspectiveCamera
+        const _fovY = (_pcam.fov * Math.PI) / 180
+        // 屏幕半径 = worldRadius / 距离处的 frustum 高度 × 视口高度
+        const _screenR = (_worldR * gl.domElement.clientHeight) / (2 * cd * Math.tan(_fovY / 2))
+        _screenRadii[trackIdx] = Math.round(_screenR)
       }
 
       // Publish planet coords + orbit data to realtime store
@@ -366,6 +380,12 @@ export default function Planets() {
         sMat2.opacity = planetOpacity * ATMOS_HALO_OPACITY * pulse
       }
     }
+
+    // 发布屏幕视觉半径（供径向布局使用）
+    useRealtimeStore.getState().setPlanetScreenRadii(_screenRadii)
+
+    // 投影行星世界坐标到屏幕坐标（供 FloatingLabels 消费）
+    project()
 
     // ---- Hover detection ----
     const hoverResult = calcScreenSpaceHover(

@@ -129,6 +129,10 @@
   --tw-ring-outer: rgba(180,210,255,0.14);
   --tw-ring-active: rgba(180,210,255,0.30);
   --tw-glass-bg: rgba(15,20,35,0.05);
+
+  /* ---- 场景元素颜色（Night） ---- */
+  --color-orbit: #cbd5e1;
+  --color-guide-line: rgba(200, 210, 225, 0.45);
 }
 
 /* =============================================================
@@ -198,4 +202,8 @@
   --tw-ring-outer: rgba(30,64,175,0.08);
   --tw-ring-active: rgba(30,64,175,0.20);
   --tw-glass-bg: rgba(255,255,255,0.35);
+
+  /* ---- 场景元素颜色（Day） ---- */
+  --color-orbit: #64748b;
+  --color-guide-line: rgba(60, 72, 90, 0.35);
 }

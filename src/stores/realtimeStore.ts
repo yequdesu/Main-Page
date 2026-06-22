@@ -13,6 +13,15 @@ export interface PlanetCoords {
   z: number
 }
 
+export interface ScreenCoord {
+  /** 屏幕像素 X（行星中心投影） */
+  x: number
+  /** 屏幕像素 Y */
+  y: number
+  /** NDC.z < 1 且在视口内（±1.2 margin） */
+  visible: boolean
+}
+
 export interface CameraData {
   pos: { x: number; y: number; z: number }
   /** 朝向（forward 向量） */
@@ -33,6 +42,13 @@ interface RealtimeSlice {
   camera: CameraData
   /** dust field 中的 mesh 实例总数量 */
   debrisCount: number
+
+  /** 行星在屏幕上的投影坐标（trackIdx 0/1/2 → FS/Code/GitHub） */
+  screenCoords: [ScreenCoord, ScreenCoord, ScreenCoord]
+  /** 行星的屏幕视觉半径（px），由 Planets.useFrame 每帧计算 */
+  planetScreenRadii: [number, number, number]
+  /** 中央恒星的屏幕坐标 {x, y} 和视觉半径 r（px），由 useScreenProjection 每帧计算 */
+  centralStarScreen: { x: number; y: number; r: number; visible: boolean }
 }
 
 interface RealtimeActions {
@@ -45,6 +61,9 @@ interface RealtimeActions {
   ) => void
   setCameraData: (camera: CameraData) => void
   setDebrisCount: (count: number) => void
+  setScreenCoords: (coords: [ScreenCoord, ScreenCoord, ScreenCoord]) => void
+  setPlanetScreenRadii: (radii: [number, number, number]) => void
+  setCentralStarScreen: (cs: { x: number; y: number; r: number; visible: boolean }) => void
 }
 
 export type RealtimeStore = RealtimeSlice & RealtimeActions
@@ -62,8 +81,19 @@ export const useRealtimeStore = create<RealtimeStore>()((set) => ({
   camera: { pos: { x: 0, y: 0, z: 0 }, look: { x: 0, y: 0, z: 0 }, fov: 50 },
   debrisCount: 0,
 
+  screenCoords: [
+    { x: 0, y: 0, visible: false },
+    { x: 0, y: 0, visible: false },
+    { x: 0, y: 0, visible: false },
+  ],
+  planetScreenRadii: [0, 0, 0],
+  centralStarScreen: { x: 0, y: 0, r: 0, visible: false },
+
   setPlanetData: (coords, angles, speeds, orbitSpeeds, orbitAngles) =>
     set({ planetCoords: coords, planetAngles: angles, planetSpeeds: speeds, orbitSpeeds, orbitAngles }),
   setCameraData: (camera) => set({ camera }),
   setDebrisCount: (count) => set({ debrisCount: count }),
+  setScreenCoords: (coords) => set({ screenCoords: coords }),
+  setPlanetScreenRadii: (radii) => set({ planetScreenRadii: radii }),
+  setCentralStarScreen: (cs) => set({ centralStarScreen: cs }),
 }))

@@ -75,8 +75,8 @@ export interface PlanetLink {
 }
 
 export const PLANET_LINKS: PlanetLink[] = [
-  { label: 'FS',     accent: '#94a3b8', url: 'https://fs.yequdesu.top' },
-  { label: 'Code',   accent: '#0ea5e9', url: 'https://code.yequdesu.top' },
+  { label: 'FS',     accent: '#7888a0', url: 'https://fs.yequdesu.top' },
+  { label: 'Code',   accent: '#3898b0', url: 'https://code.yequdesu.top' },
   { label: 'GitHub', accent: '#818cf8', url: 'https://github.com/yequdesu' },
 ]
 
