@@ -4,34 +4,100 @@ import { CanvasTexture, SpriteMaterial, MeshBasicMaterial, AdditiveBlending, Lin
 import { SCENE_CENTER_Z, clamped, smoothstep, GRID_SHIFT_START } from '../r3f/ScrollRig'
 import { useScrollStore } from '../stores/scrollStore'
 
+// ============================================================
+// CentralStar — 可调参数
+// ============================================================
+
+// -- 几何 --
+/** 核心半径  ↑=恒星更大更亮  ↓=恒星更小更收敛 */
+const CORE_RADIUS = 0.42
+const CORE_SEGMENTS = 32
+/** 内层光晕半径  ↑=近场散射更扩散  ↓=光晕紧贴核心 */
+const INNER_GLOW_RADIUS = 0.70
+const INNER_GLOW_SEGMENTS = 32
+const GROUP_POSITION_Y = -1.0
+
+// -- 颜色 --
+/** 核心色（暖白）  改色相→恒星色调变化 */
+const CORE_COLOR = '#fff8e7'
+/** 内层光晕色（暖金）  改色相→光晕冷暖偏移 */
+const INNER_GLOW_COLOR = '#ffe8c0'
+
+// -- 内层光晕动画 --
+/** 光晕不透明度系数  ↑=光晕更亮更明显  ↓=光晕更暗更收敛 */
+const GLOW_OPACITY_COEFF = 0.30       // × smooth3 × pulse
+/** 呼吸频率1  ↑=脉动更快  ↓=脉动更慢 */
+const PULSE_FREQ_1 = 1.8
+/** 呼吸振幅1  ↑=亮度波动更大  ↓=更接近静态 */
+const PULSE_AMP_1 = 0.06
+/** 呼吸频率2  ↑=高频微抖更快  ↓=更平滑 */
+const PULSE_FREQ_2 = 3.3
+/** 呼吸振幅2  ↑=微抖更明显  ↓=更平滑 */
+const PULSE_AMP_2 = 0.04
+
+// -- 外层 Sprite（金色近场） --
+/** Sprite 缩放  ↑=近场柔光扩散更远  ↓=收窄 */
+const SPRITE_SCALE = 5.5
+/** Sprite 不透明度系数  ↑=近场柔光更亮  ↓=更暗 */
+const SPRITE_OPACITY_COEFF = 0.55      // × smooth3 × pulse
+
+// -- 远场 Sprite（灰白，大扩散） --
+/** 远场缩放  ↑=扩散范围更大  ↓=收窄 */
+const FAR_SPRITE_SCALE = 20.0
+/** 远场不透明度系数  ↑=远场更亮  ↓=更暗 */
+const FAR_SPRITE_OPACITY_COEFF = 0.32   // × smooth3 × pulse
+
+// -- halo 纹理 --
+const HALO_TEX_SIZE = 128
+/** 金色近场径向渐变  [位置, rgba] */
+const HALO_COLOR_STOPS: [number, string][] = [
+  [0,    'rgba(255,240,210,0.6)'],
+  [0.15, 'rgba(255,220,170,0.35)'],
+  [0.4,  'rgba(255,180,100,0.08)'],
+  [0.7,  'rgba(255,140,60,0.01)'],
+  [1,    'rgba(0,0,0,0)'],
+]
+/** 灰白远场径向渐变  [位置, rgba] */
+const FAR_HALO_COLOR_STOPS: [number, string][] = [
+  [0,    'rgba(180,190,210,0.18)'],
+  [0.1,  'rgba(160,170,195,0.10)'],
+  [0.3,  'rgba(140,150,180,0.03)'],
+  [0.6,  'rgba(120,130,160,0.005)'],
+  [1,    'rgba(0,0,0,0)'],
+]
+
+/** 共享纹理工厂 — 根据色阶表创建 CanvasTexture */
+function makeHaloTexture(stops: [number, string][]): CanvasTexture {
+  const c = document.createElement('canvas')
+  c.width = c.height = HALO_TEX_SIZE
+  const ctx = c.getContext('2d')!
+  const gradient = ctx.createRadialGradient(
+    HALO_TEX_SIZE / 2, HALO_TEX_SIZE / 2, 0,
+    HALO_TEX_SIZE / 2, HALO_TEX_SIZE / 2, HALO_TEX_SIZE / 2,
+  )
+  for (const [pos, color] of stops) {
+    gradient.addColorStop(pos, color)
+  }
+  ctx.fillStyle = gradient
+  ctx.fillRect(0, 0, HALO_TEX_SIZE, HALO_TEX_SIZE)
+  const tex = new CanvasTexture(c)
+  tex.minFilter = LinearFilter
+  return tex
+}
+
 /**
- * 中央恒星 — 核心球 + 光晕球 + Canvas 精灵 halo。
+ * 中央恒星 — 4 层结构：核心 + 内层光晕 + 近场金色 Sprite + 远场灰白 Sprite。
  *
  * 原 act3.build() StarNode:1190-1243。
- * 三层结构：核心提供亮白实体，光晕球提供近场散射，精灵提供远场柔光。
  *
  * 援引：Drei Sparkles（Canvas Sprite for soft glow）
  */
 export default function CentralStar() {
-  const haloTexture = useMemo(() => {
-    const size = 128
-    const c = document.createElement('canvas')
-    c.width = c.height = size
-    const ctx = c.getContext('2d')!
-    const gradient = ctx.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2)
-    gradient.addColorStop(0, 'rgba(255,240,210,0.6)')
-    gradient.addColorStop(0.15, 'rgba(255,220,170,0.35)')
-    gradient.addColorStop(0.4, 'rgba(255,180,100,0.08)')
-    gradient.addColorStop(0.7, 'rgba(255,140,60,0.01)')
-    gradient.addColorStop(1, 'rgba(0,0,0,0)')
-    ctx.fillStyle = gradient
-    ctx.fillRect(0, 0, size, size)
-    const tex = new CanvasTexture(c)
-    tex.minFilter = LinearFilter
-    return tex
-  }, [])
+  const haloTex = useMemo(() => makeHaloTexture(HALO_COLOR_STOPS), [])
+  const farHaloTex = useMemo(() => makeHaloTexture(FAR_HALO_COLOR_STOPS), [])
 
   const spriteMatRef = useRef<SpriteMaterial | null>(null)
+  const farSpriteMatRef = useRef<SpriteMaterial | null>(null)
   const glowMeshRef = useRef<Mesh | null>(null)
 
   useFrame((state) => {
@@ -39,40 +105,55 @@ export default function CentralStar() {
     const time = state.clock.elapsedTime
     const act3Progress = clamped(sp, GRID_SHIFT_START, 1.0)
     const smooth3 = smoothstep(act3Progress)
-    const pulse = 1 + Math.sin(time * 1.8) * 0.06 + Math.sin(time * 3.3) * 0.04
+    const pulse = 1 + Math.sin(time * PULSE_FREQ_1) * PULSE_AMP_1 + Math.sin(time * PULSE_FREQ_2) * PULSE_AMP_2
 
-    // Inner glow: opacity + scale pulse (逐字保留自原 act3.animate)
     if (glowMeshRef.current) {
       const mat = glowMeshRef.current.material as MeshBasicMaterial
-      mat.opacity = smooth3 * 0.30 * pulse
+      mat.opacity = smooth3 * GLOW_OPACITY_COEFF * pulse
       glowMeshRef.current.scale.setScalar(pulse)
     }
 
-    // Halo sprite: opacity (逐字保留自原版)
     if (spriteMatRef.current) {
-      spriteMatRef.current.opacity = smooth3 * 0.55 * pulse
+      spriteMatRef.current.opacity = smooth3 * SPRITE_OPACITY_COEFF * pulse
+    }
+
+    if (farSpriteMatRef.current) {
+      farSpriteMatRef.current.opacity = smooth3 * FAR_SPRITE_OPACITY_COEFF * pulse
     }
   })
 
   return (
-    <group position={[0, -1.0, SCENE_CENTER_Z]} renderOrder={1}>
-      {/* 核心：暖白实体球 */}
+    <group position={[0, GROUP_POSITION_Y, SCENE_CENTER_Z]} renderOrder={1}>
+      {/* 1. 核心：暖白实体球 */}
       <mesh renderOrder={1}>
-        <sphereGeometry args={[0.42, 32, 32]} />
-        <meshBasicMaterial color="#fff8e7" />
+        <sphereGeometry args={[CORE_RADIUS, CORE_SEGMENTS, CORE_SEGMENTS]} />
+        <meshBasicMaterial color={CORE_COLOR} />
       </mesh>
 
-      {/* 内层光晕：透明金色包裹（脉冲呼吸） */}
+      {/* 2. 内层光晕：透明金色包裹（脉冲呼吸） */}
       <mesh ref={glowMeshRef} renderOrder={1}>
-        <sphereGeometry args={[0.70, 32, 32]} />
-        <meshBasicMaterial color="#ffe8c0" transparent opacity={0.30} depthWrite={false} />
+        <sphereGeometry args={[INNER_GLOW_RADIUS, INNER_GLOW_SEGMENTS, INNER_GLOW_SEGMENTS]} />
+        <meshBasicMaterial color={INNER_GLOW_COLOR} transparent opacity={GLOW_OPACITY_COEFF} depthWrite={false} />
       </mesh>
 
-      {/* 外层光晕：Canvas 径向渐变精灵 */}
-      <sprite renderOrder={1} scale={[5.5, 5.5, 1]}>
+      {/* 3. 近场 Sprite：金色径向渐变 */}
+      <sprite renderOrder={1} scale={[SPRITE_SCALE, SPRITE_SCALE, 1]}>
         <spriteMaterial
           ref={(mat) => { spriteMatRef.current = mat }}
-          map={haloTexture}
+          map={haloTex}
+          blending={AdditiveBlending}
+          transparent
+          opacity={0}
+          depthWrite={false}
+          depthTest
+        />
+      </sprite>
+
+      {/* 4. 远场 Sprite：灰白径向渐变，大范围扩散 */}
+      <sprite renderOrder={1} scale={[FAR_SPRITE_SCALE, FAR_SPRITE_SCALE, 1]}>
+        <spriteMaterial
+          ref={(mat) => { farSpriteMatRef.current = mat }}
+          map={farHaloTex}
           blending={AdditiveBlending}
           transparent
           opacity={0}

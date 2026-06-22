@@ -1,0 +1,232 @@
+/* ============================================================
+   TerminalBar v2 — Liquid Glass + Scrollable overlay
+   援引：
+     Apple Vision Pro glass design language
+     Radix UI ScrollArea — viewport + scrollbar 分层模式
+   ============================================================ */
+
+.terminal-bar {
+  position: fixed;
+  bottom: 2rem;
+  left: 0;
+  right: 0;
+  z-index: 15;
+  display: flex;
+  flex-direction: column;
+  font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', 'Consolas', monospace;
+  font-size: 0.68rem;
+  line-height: 1.6;
+  pointer-events: none;
+}
+
+/* ---- Glass ---- */
+.terminal-bar-inner {
+  position: relative;
+  margin: 0 auto;
+  width: min(90vw, 640px);
+  background: var(--tw-glass-bg, rgba(15, 20, 35, 0.05));
+  border: none;
+  border-radius: 12px;
+  padding: 8px 14px;
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.12);
+  transition: background-color 0.3s ease, box-shadow 0.2s ease;
+  pointer-events: auto;
+}
+
+.terminal-bar-inner:hover {
+  box-shadow:
+    0 0 0 1px var(--tw-ring, rgba(200, 220, 255, 0.45)),
+    0 0 0 4px var(--tw-ring-outer, rgba(180, 210, 255, 0.14)),
+    0 2px 12px rgba(0, 0, 0, 0.12);
+}
+
+.terminal-bar-inner.active {
+  box-shadow:
+    0 0 0 1px var(--tw-ring-active, rgba(180, 210, 255, 0.30)),
+    0 2px 12px rgba(0, 0, 0, 0.15);
+}
+
+/* ---- Variant: transparent — 半透明无 blur ---- */
+.terminal-bar[data-variant="transparent"] .terminal-bar-inner {
+  --tw-variant-bg: rgba(15, 23, 42, 0.55);
+  --tw-variant-blur: none;
+  --tw-variant-saturate: none;
+  background: var(--tw-variant-bg, rgba(15, 20, 35, 0.05));
+  backdrop-filter: var(--tw-variant-blur, blur(20px) saturate(180%));
+  -webkit-backdrop-filter: var(--tw-variant-blur, blur(20px) saturate(180%));
+  border: 1px solid rgba(148, 163, 184, 0.10);
+}
+
+/* ---- Variant: label — 行星标签专用（灰白基调 + 无边框 + 文字更亮） ---- */
+.terminal-bar[data-variant="label"] .terminal-bar-inner {
+  --tw-variant-bg: rgba(200, 210, 225, 0.22);
+  --tw-variant-blur: none;
+  --tw-variant-saturate: none;
+  background: var(--tw-variant-bg);
+  backdrop-filter: var(--tw-variant-blur, blur(20px) saturate(180%));
+  -webkit-backdrop-filter: var(--tw-variant-blur, blur(20px) saturate(180%));
+  border: none;
+}
+.terminal-bar[data-variant="label"] .terminal-bar-inner .terminal-echo {
+  color: rgba(235, 242, 255, 0.95);
+  font-weight: 500;
+}
+.terminal-bar[data-variant="label"] .terminal-bar-inner .terminal-echo .echo-prefix {
+  color: rgba(235, 242, 255, 0.95);
+}
+.terminal-bar[data-variant="label"] .terminal-bar-inner:hover {
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--pill-accent) 80%, transparent), 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+/* ---- Variant: minimal — 无背景无描边 ---- */
+.terminal-bar[data-variant="minimal"] .terminal-bar-inner {
+  --tw-variant-bg: transparent;
+  --tw-variant-blur: none;
+  --tw-variant-saturate: none;
+  background: var(--tw-variant-bg);
+  backdrop-filter: var(--tw-variant-blur, blur(20px) saturate(180%));
+  -webkit-backdrop-filter: var(--tw-variant-blur, blur(20px) saturate(180%));
+  border: none;
+  box-shadow: none;
+}
+
+.terminal-bar[data-variant="minimal"] .terminal-bar-inner:hover,
+.terminal-bar[data-variant="minimal"] .terminal-bar-inner.active {
+  box-shadow: none;
+}
+
+/* ---- Planet-label expanded: accent 色背景 + day/night 适配 ---- */
+.floating-label-pill.expanded .terminal-bar-inner {
+  background: color-mix(in srgb, var(--pill-accent) 12%, rgba(8, 12, 24, 0.88));
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+[data-theme="day"] .floating-label-pill.expanded .terminal-bar-inner {
+  background: color-mix(in srgb, var(--pill-accent) 18%, rgba(248, 250, 252, 0.82));
+}
+
+/* ---- Variant: label day/night 字体适配 ---- */
+[data-theme="day"] .terminal-bar[data-variant="label"] .terminal-bar-inner {
+  background: rgba(100, 116, 139, 0.18);
+}
+[data-theme="day"] .terminal-bar[data-variant="label"] .terminal-bar-inner .terminal-echo,
+[data-theme="day"] .terminal-bar[data-variant="label"] .terminal-bar-inner .terminal-echo .echo-prefix {
+  color: rgba(15, 23, 42, 0.88);
+}
+[data-theme="day"] .terminal-bar[data-variant="label"] .terminal-bar-inner:hover {
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--pill-accent) 80%, transparent), 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+/* ---- Planet-label expanded: placeholder 提亮 ---- */
+.floating-label-pill.expanded .terminal-placeholder {
+  color: rgba(255, 255, 255, 0.28);
+}
+[data-theme="day"] .floating-label-pill.expanded .terminal-placeholder {
+  color: rgba(0, 0, 0, 0.20);
+}
+
+/* ---- Scrollable wrapper in terminal context ---- */
+.terminal-echo-scrollable {
+  /* no extra styles needed, scrollable handles internally */
+}
+
+/* ---- Echo area ---- */
+.terminal-echo {
+  color: var(--tw-echo, #7c8aa0);
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+  word-break: normal;
+  text-align: left;
+}
+
+.terminal-echo .echo-prefix {
+  color: var(--tw-prefix, #64748b);
+}
+
+/* ---- Scroll indicators (overlay arrows) ----
+   由 Scrollable overlay flexbox 定位：
+     justify-content: space-between → ▲ 在顶、▼ 在底
+     align-self: flex-end → 右对齐
+   ============================================ */
+
+.echo-scroll-up,
+.echo-scroll-down {
+  align-self: flex-end;
+  font-size: 0.68rem;
+  line-height: 1.6;
+  color: var(--tw-echo, rgba(255, 255, 255, 0.25));
+  opacity: 0;
+  transition: opacity 0.15s ease;
+  pointer-events: none;
+  user-select: none;
+  padding: 0 4px;
+}
+
+.echo-scroll-up.visible,
+.echo-scroll-down.visible {
+  opacity: 1;
+}
+
+/* ---- Input line ---- */
+.terminal-input-line {
+  position: relative;
+  display: flex;
+  align-items: baseline;
+  text-align: left;
+  margin-top: 0;
+  max-height: 0;
+  overflow: hidden;
+  opacity: 0;
+  transform: translateY(2px);
+  pointer-events: none;
+  transition: opacity 0.3s ease, margin-top 0.3s ease, max-height 0.3s ease, transform 0.3s ease;
+}
+
+.terminal-input-line.visible {
+  margin-top: 5px;
+  max-height: 2em;
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+
+.terminal-prompt {
+  color: var(--tw-prompt, #0ea5e9);
+  flex-shrink: 0;
+  margin-right: 0.5em;
+}
+
+.terminal-cursor {
+  flex-shrink: 0;
+}
+
+.terminal-cursor.dim {
+  color: var(--tw-cursor-dim, #0ea5e9);
+  opacity: 0.25;
+}
+
+.terminal-cursor.bright {
+  color: var(--tw-cursor-bright, #e2e8f0);
+  animation: cursor-blink 1s step-end infinite;
+}
+
+@keyframes cursor-blink {
+  50% { opacity: 0; }
+}
+
+.terminal-placeholder {
+  color: var(--tw-placeholder, rgba(255, 255, 255, 0.15));
+  font-style: italic;
+  margin-left: 4px;
+}
+
+.terminal-input-text {
+  color: var(--tw-input, #e2e8f0);
+}
+
+.terminal-typing-cursor {
+  color: var(--tw-echo, #7c8aa0);
+  animation: cursor-blink 1s step-end infinite;
+}

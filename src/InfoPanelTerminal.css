@@ -1,0 +1,35 @@
+/* InfoPanelTerminal — 完全透明，hover 时浮现边框 */
+
+/* welcome text bold */
+.info-panel-terminal .echo-prefix,
+.info-panel-terminal .terminal-echo > span:first-child {
+  font-weight: 600;
+}
+
+.info-panel-terminal .terminal-bar-inner {
+  background: transparent;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  border: 1px solid transparent;
+  box-shadow: none;
+  transition: border-color 0.3s ease;
+}
+[data-theme="day"] .info-panel-terminal .terminal-bar-inner {
+  background: transparent;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  color: rgba(15, 23, 42, 0.88);
+}
+
+.info-panel-terminal .terminal-bar-inner:hover {
+  border-color: rgba(100, 180, 255, 0.12);
+  box-shadow: none;
+}
+[data-theme="day"] .info-panel-terminal .terminal-bar-inner:hover {
+  border-color: rgba(30, 64, 175, 0.25);
+}
+
+.info-panel-terminal .terminal-bar-inner.active {
+  border-color: transparent;
+  box-shadow: none;
+}

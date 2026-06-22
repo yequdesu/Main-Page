@@ -30,7 +30,37 @@ interface FocusActions {
   clearFocus: () => void
 }
 
-export type ScrollStore = ScrollSlice & FocusSlice & ScrollActions & FocusActions
+// ============================================================
+// Terminal slice
+// ============================================================
+export type TerminalMode = 'typing' | 'idle' | 'active'
+
+export type DayNight = 'night' | 'day'
+
+interface TerminalSlice {
+  terminalMode: TerminalMode
+  echoLines: string[]
+  inputValue: string
+  typewriterDone: boolean
+  dayNight: DayNight
+  /** InfoPanel welcome 完成 → 放行 planet-label TerminalBar 渲染 */
+  labelsGateOpen: boolean
+}
+
+interface TerminalActions {
+  setTerminalMode: (mode: TerminalMode) => void
+  setInputValue: (val: string) => void
+  appendEcho: (line: string) => void
+  appendLastEcho: (text: string) => void
+  setEchoLine: (index: number, text: string) => void
+  clearInput: () => void
+  setTypewriterDone: (done: boolean) => void
+  setDayNight: (mode: DayNight) => void
+  toggleDayNight: () => void
+  setLabelsGateOpen: (open: boolean) => void
+}
+
+export type ScrollStore = ScrollSlice & FocusSlice & TerminalSlice & ScrollActions & FocusActions & TerminalActions
 
 // ============================================================
 // Store
@@ -49,6 +79,14 @@ export const useScrollStore = create<ScrollStore>()((set) => ({
   focusStartTime: 0,
   overlayData: { focused: false },
 
+  // ---- Terminal slice ----
+  terminalMode: 'typing' as TerminalMode,
+  echoLines: [] as string[],
+  inputValue: '',
+  typewriterDone: false,
+  labelsGateOpen: false,
+  dayNight: 'night' as DayNight,
+
   setFocusedPlanet: (idx) => set({ focusedPlanetIdx: idx }),
   setHoveredIdx: (idx) => set({ hoveredIdx: idx }),
   setFocusStartTime: (t) => set({ focusStartTime: t }),
@@ -59,4 +97,28 @@ export const useScrollStore = create<ScrollStore>()((set) => ({
     focusStartTime: 0,
     overlayData: { focused: false },
   }),
+
+  // ---- Terminal actions ----
+  setTerminalMode: (mode) => set({ terminalMode: mode }),
+  setInputValue: (val) => set({ inputValue: val }),
+  appendEcho: (line) =>
+    set((s) => ({ echoLines: [...s.echoLines, line] })),
+  appendLastEcho: (text) =>
+    set((s) => {
+      const lines = [...s.echoLines]
+      if (lines.length === 0) lines.push(text)
+      else lines[lines.length - 1] += text
+      return { echoLines: lines }
+    }),
+  setEchoLine: (index, text) =>
+    set((s) => {
+      const lines = [...s.echoLines]
+      if (index >= 0 && index < lines.length) lines[index] = text
+      return { echoLines: lines }
+    }),
+  clearInput: () => set({ inputValue: '' }),
+  setTypewriterDone: (done) => set({ typewriterDone: done }),
+  setDayNight: (mode) => set({ dayNight: mode }),
+  toggleDayNight: () => set((s) => ({ dayNight: s.dayNight === 'night' ? 'day' : 'night' })),
+  setLabelsGateOpen: (open) => set({ labelsGateOpen: open }),
 }))

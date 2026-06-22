@@ -3,7 +3,7 @@ import { useThree } from '@react-three/fiber'
 import { Vector3, type PerspectiveCamera } from 'three'
 import { useScrollStore } from '../stores/scrollStore'
 import { GRID_SHIFT_START } from './ScrollRig'
-import { _planetWorldPositions, _mainPlanetIndices } from '../actors/DustField'
+import { _planetWorldPositions, _mainPlanetIndices } from '../actors/Planets'
 import { PLANET_LINKS } from '../types'
 
 // Pre-allocated

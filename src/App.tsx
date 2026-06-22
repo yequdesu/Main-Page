@@ -7,8 +7,16 @@ import Act1OceanVoyage from './acts/Act1OceanVoyage'
 import Act2GridTransition from './acts/Act2GridTransition'
 import Act3ContentPhase from './acts/Act3ContentPhase'
 import { useScrollStore } from './stores/scrollStore'
-import { WHITE_OUT_THRESHOLD, WHITE_OUT_END, GRID_START, GRID_SHIFT_START } from './r3f/ScrollRig'
+import { WHITE_OUT_THRESHOLD, GRID_START, GRID_SHIFT_START } from './r3f/ScrollRig'
 import { getLighthouseCapture } from './actors/LighthouseCapture'
+import MainTerminal from './MainTerminal'
+import { executeCommand } from './terminal/commands'
+import InfoPanelTerminal from './InfoPanelTerminal'
+import FloatingLabels from './actors/FloatingLabels'
+import type { LabelConfig, SequenceStrategy } from './behaviors/useFloatingLabels'
+import { PLANET_LINKS } from './types'
+import { useDayNight } from './theme/useDayNight'
+import './theme/theme.css'
 import './App.css'
 
 gsap.registerPlugin(ScrollTrigger)
@@ -29,6 +37,10 @@ const MAX_VELOCITY = 0.025
 export default function App() {
   // ---- Zustand store ----
   const { scrollProgress, setScrollProgress } = useScrollStore()
+  const terminalMode = useScrollStore(s => s.terminalMode)
+  const echoLines = useScrollStore(s => s.echoLines)
+  const inputValue = useScrollStore(s => s.inputValue)
+  const { handleThemeUpdate, themeKey } = useDayNight()
 
   // ---- Physics state (refs — no re-render) ----
   const physRef = useRef({ target: 0, velocity: 0, lastScrollbar: 0, lastPhysics: 0, active: true })
@@ -45,6 +57,7 @@ export default function App() {
   const [brandTextVisible, setBrandTextVisible] = useState(false)
   const [lighthouseImage, setLighthouseImage] = useState<string | null>(null)
   const overlayData = useScrollStore(s => s.overlayData)
+  const isTerminalActive = terminalMode === 'active'
 
   // ---- Act visibility ----
   const needsAct1 = (sp: number) => sp < GRID_START + 0.01
@@ -110,6 +123,7 @@ export default function App() {
   // ---- wheel handler ----
   const onWheel = useCallback((e: WheelEvent) => {
     e.preventDefault()
+    if (isTerminalActive) return
     if (isAct3Focused) return
     if (isClickPlaying && clickTweenRef.current) {
       clickTweenRef.current.kill()
@@ -119,10 +133,11 @@ export default function App() {
     const step = e.deltaY / (window.innerHeight * SCROLL_VH) * 0.65
     physRef.current.velocity += step
     physRef.current.velocity = Math.max(-MAX_VELOCITY, Math.min(MAX_VELOCITY, physRef.current.velocity))
-  }, [isAct3Focused, isClickPlaying])
+  }, [isTerminalActive, isAct3Focused, isClickPlaying])
 
   // ---- click fast-forward ----
   const onClick = useCallback(() => {
+    if (isTerminalActive) return
     if (isClickPlaying) return
     if (isAct3Focused) return  // block fast-forward during planet focus
     if (scrollProgress >= 0.995) return
@@ -144,7 +159,7 @@ export default function App() {
         clickTweenRef.current = null
       },
     })
-  }, [isClickPlaying, isAct3Focused, scrollProgress, setScrollProgress, syncScrollbar])
+  }, [isTerminalActive, isClickPlaying, isAct3Focused, scrollProgress, setScrollProgress, syncScrollbar])
 
   // ---- event listeners ----
   useEffect(() => {
@@ -222,6 +237,31 @@ export default function App() {
 
   const sp = scrollProgress
 
+  // ---- Terminal callbacks ----
+  const handleModeChange = useCallback((m: typeof terminalMode) => {
+    useScrollStore.getState().setTerminalMode(m)
+  }, [])
+  const handleEchoLinesChange = useCallback((lines: string[]) => {
+    useScrollStore.setState({ echoLines: lines })
+  }, [])
+  const handleInputChange = useCallback((v: string) => {
+    useScrollStore.getState().setInputValue(v)
+  }, [])
+  const handleCommand = useCallback((input: string) => executeCommand(input), [])
+  const labelConfigs: [LabelConfig, LabelConfig, LabelConfig] = PLANET_LINKS.map(
+    (link, i) => ({
+      trackIdx: i as 0 | 1 | 2,
+      planetLink: link,
+      maxEchoLines: 2,
+    }),
+  ) as [LabelConfig, LabelConfig, LabelConfig]
+  const handleBuildStatusLine = useCallback((sp: number) => {
+    const pct = Math.round(sp * 100)
+    const actName = sp < 0.45 ? 'OceanVoyage' : sp < 0.85 ? 'GridTransition' : 'ContentPhase'
+    const actNum = sp < 0.45 ? '1' : sp < 0.85 ? '2' : '3'
+    return `# Act ${actNum} · ${actName} · scroll ${pct}%`
+  }, [])
+
   return (
     <>
       <SceneCanvas>
@@ -229,6 +269,41 @@ export default function App() {
         <Act2GridTransition visible={needsAct2(sp)} />
         <Act3ContentPhase visible={needsAct3(sp)} />
       </SceneCanvas>
+
+      <MainTerminal
+        mode={terminalMode}
+        echoLines={echoLines}
+        inputValue={inputValue}
+        onModeChange={handleModeChange}
+        onEchoLinesChange={handleEchoLinesChange}
+        onInputValueChange={handleInputChange}
+        scrollProgress={sp}
+        buildStatusLine={handleBuildStatusLine}
+        onThemeUpdate={handleThemeUpdate}
+        themeKey={themeKey}
+        onCommand={handleCommand}
+      />
+
+      {/* Info Panel Terminal — 仅 Act 3 (ContentPhase) 渲染 */}
+      {needsAct3(sp) && <InfoPanelTerminal />}
+
+      {/* Planet Labels — 仅 Act 3 可见，组件不卸载 */}
+      {needsAct3(sp) && (
+        <FloatingLabels
+          configs={labelConfigs}
+          sequenceStrategy="proximity"
+          staggerDelay={200}
+          exitTimeout={15000}
+          collapsedWidth={60}
+          expandedWidth={200}
+          collapsedHeight={36}
+          expandedHeight={44}
+          pbdParams={{
+            anchorRangeRadius: 70,
+            gap: 16,
+          }}
+        />
+      )}
 
       {/* 滚动提示 */}
       {hintVisible && (

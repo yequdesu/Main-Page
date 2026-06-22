@@ -17,6 +17,8 @@
 - **滚动** — 物理动量惯性（`FRICTION=0.955`），驱动全部 3D 动画
 - **点击** — 快进跳至末尾（2s GSAP tween）；Act 3 点击行星聚焦（NDC 投影检测）
 - **行星聚焦** — 相机绕行 + SVG 切线连接线 + 30s 自动取消；再次点击打开链接；聚焦时阻止滚轮
+- **终端系统** — 底部主终端（click + `/` 激活，支持 help / debug / day / night / clear 命令）；Act 3 左上角信息面板终端（实时显示行星/轨道/摄像机/debris 数据）
+- **主题切换** — `day` / `night` 命令切换全局主题（CSS 静态元素 + Scene 背景 + Terminal 颜色三层同步过渡，0.6s crossfade）
 
 ## 架构
 
@@ -26,9 +28,9 @@
 | 3D | R3F v9 + Three.js 0.170 + InstancedMesh2 |
 | 状态 | Zustand v5（渲染态）+ useState（UI 态） |
 | 动画 | GSAP ScrollTrigger（命令式）+ R3F useFrame（声明式） |
-| 构建 | Vite 6 + TypeScript + Vitest (13 tests) |
+| 构建 | Vite 6 + TypeScript + Vitest (34 tests) |
 
-**组件分工：** `App.tsx` 滚动物理 + DOM 叠加层 + 品牌文字 + SVG 聚焦叠加层；R3F Canvas 内组件负责全部 3D 场景、动画循环、Act 调度。
+**组件分工：** `App.tsx` 滚动物理 + DOM 叠加层 + 品牌文字 + SVG 聚焦叠加层；R3F Canvas 内组件负责全部 3D 场景、动画循环、Act 调度。终端系统由 `TerminalBar`（纯引擎）+ `MainTerminal` / `InfoPanelTerminal`（thin wrapper）组成，通过 Slot 声明式构建。主题系统由 `src/theme/` 模块管理：`palettes.ts`（色板定义）+ `useDayNight.ts`（Hook）+ `theme.css`（CSS 变量配置），通过 GSAP blend crossfade 驱动三层平滑过渡。
 
 **场景常量：**
 
@@ -47,12 +49,32 @@
 src/
 ├── main.tsx                       入口 + extend() 注册
 ├── App.tsx / App.css              滚动物理 + DOM 叠加层
+├── MainTerminal.tsx               主终端（底部居中，click + / 键）
+├── InfoPanelTerminal.tsx + .css   信息面板终端（Act 3 左上角）
 ├── r3f/
 │   ├── Canvas.tsx                 flat + frameloop:demand
 │   ├── ScrollRig.ts              阈值 + sceneApplyWhiteOut
 │   ├── ScrollInvalidator.tsx     订阅→invalidate + 全局雾
 │   └── PlanetClickHandler.tsx    NDC 投影点击检测
-├── stores/scrollStore.ts         Zustand（scroll + focus）
+├── stores/
+│   ├── scrollStore.ts              Zustand（scroll + focus + terminal + dayNight）
+│   └── realtimeStore.ts            Zustand（行星/轨道/摄像机/debris）
+├── theme/                         主题系统
+│   ├── theme.css                   CSS 变量配置（:root + [data-theme]）
+│   ├── palettes.ts                 色板常量 + lerp/scroll/blend 纯函数
+│   └── useDayNight.ts              Hook（store 订阅 → GSAP blend → handleThemeUpdate）
+├── terminal/                      终端系统
+│   ├── TerminalBar.tsx + .css     纯抽象容器引擎（layout 必传，内容 Slot children）
+│   ├── slots.tsx                  Slot 类型 + collectSlots + Context
+│   ├── useSlotOrchestration.ts    GSAP Timeline + echoLines 状态 + 轮询
+│   ├── useTypewriterGate.ts       typewriter 动画 + exitGap 延迟
+│   ├── useCommandSystem.ts        命令交互 hook
+│   ├── useAnimateHeight.ts        CSS transition 高度动画
+│   ├── Scrollable.tsx + .css      通用滚动容器（pinnedToBottom）
+│   ├── useTypewriter.ts           逐字打字机 hook
+│   ├── useEchoSequence.ts         回显序列动画（保留，未使用）
+│   ├── commands.ts                命令注册
+│   └── __tests__/                 terminal 测试
 ├── types/index.ts                SCROLL_RIG + 数据接口
 ├── acts/                          Act 编排（group visible，始终挂载）
 │   ├── Act1OceanVoyage.tsx        OceanWaves + Lighthouse + LightBeam
@@ -68,7 +90,7 @@ src/
 │   ├── useCameraFocus.ts + useFrameCache.ts
 │   ├── useOrbitPosition.ts + useAppearanceFade.ts
 │   ├── useOcclusionFade.ts + useScreenSpaceHover.ts
-│   └── __tests__/                 13 tests
+│   └── __tests__/                 34 tests
 ├── shaders/VolumetricBeamShader.ts
 └── utils/                         smoothstep / toward / shortestDelta
 ```
@@ -108,7 +130,7 @@ Three.js 按 `renderOrder` 从小到大分组渲染。`renderOrder` 不继承—
 ```bash
 pnpm install && pnpm dev         # → localhost:5173
 pnpm build                       # tsc + vite → dist/
-pnpm test                        # vitest（13 tests / 3 suites）
+pnpm test                        # vitest（34 tests / 6 suites）
 pnpm clean && pnpm mirror        # 辅助脚本
 ```
 
@@ -122,6 +144,15 @@ pnpm clean && pnpm mirror        # 辅助脚本
 
 | 文档 | 路径 | 用途 |
 |------|------|------|
+| 终端操作手册 | [`docs/terminal/operation-guide.md`](docs/terminal/operation-guide.md) | 用户使用指南 |
+| 终端维护手册 | [`docs/terminal/maintenance-guide.md`](docs/terminal/maintenance-guide.md) | 代码地图、动画系统、扩展指南 |
+| 终端技术规格 | [`docs/terminal/specification.md`](docs/terminal/specification.md) | API、设计决策 |
+| 主题设计文档 | [`docs/theme/design.md`](docs/theme/design.md) | 架构、三层过渡模型、色板系统 |
+| 主题操作手册 | [`docs/theme/operation-guide.md`](docs/theme/operation-guide.md) | 用户使用指南 |
+| 主题维护手册 | [`docs/theme/maintenance-guide.md`](docs/theme/maintenance-guide.md) | 代码地图、修改颜色、扩展指南 |
+| Actor 设计文档 | [`docs/actors/design.md`](docs/actors/design.md) | CentralStar / Planets 图层架构、渲染管线 |
+| Actor 操作手册 | [`docs/actors/operation-guide.md`](docs/actors/operation-guide.md) | 视觉效果说明、故障排除 |
+| Actor 维护手册 | [`docs/actors/maintenance-guide.md`](docs/actors/maintenance-guide.md) | 调参指南、新增光晕层、调试 |
 | 维护手册 | [`docs/MAINTENANCE.md`](docs/MAINTENANCE.md) | 调试/开发/维护流程 + 渲染特效 + 浏览器兼容性 |
 | 交接文档 | [`docs/HANDOFF.md`](docs/HANDOFF.md) | 当前状态、已完成工作、快速启动 |
 | 轨道系统 | [`docs/orbital-system.md`](docs/orbital-system.md) | 力学模型、变换推导、配置参考 |

@@ -43,6 +43,11 @@ pnpm dev / build / preview / test / clean / mirror
 - **帧缓存** — `useFrameCache` 守卫，同帧同参数跳过
 - **`getState()` 读 Zustand** — useFrame 中使用，不触发 React re-render
 
+## Git 约束
+
+- **切换分支** — 必须先询问确认（`git worktree` 操作不受此限）
+- **提交** — 仅在完整任务阶段结束时提交，禁止每修复一个问题就提交一次；提交前必须先询问确认
+
 ## 维护约束
 
 - 方案修正或项目结构变更时，必须同步更新 `README.md`

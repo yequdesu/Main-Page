@@ -3,13 +3,11 @@ import { useFrame, useThree } from '@react-three/fiber'
 import { type PerspectiveCamera, Vector3 } from 'three'
 import OrbitRings from '../actors/OrbitRings'
 import CentralStar from '../actors/CentralStar'
-import PlanetLabel from '../actors/PlanetLabel'
 import { useScrollStore } from '../stores/scrollStore'
 import { useFrameCache } from '../behaviors/useFrameCache'
 import { smoothstep, clamped, GRID_SHIFT_START } from '../r3f/ScrollRig'
 import { updateCameraFocus } from '../behaviors/useCameraFocus'
-import { _planetWorldPositions, _mainPlanetIndices } from '../actors/DustField'
-import { PLANET_LINKS } from '../types'
+import { _planetWorldPositions, _mainPlanetIndices } from '../actors/Planets'
 
 /**
  * Act 3 "ContentPhase" — 轨道环、中央恒星、相机聚焦。
@@ -28,11 +26,6 @@ const Act3ContentPhase = memo(function Act3ContentPhase({ visible }: Act3Props) 
   const getPlanetPosition = useCallback((particleIdx: number): Vector3 | null => {
     const trackIdx = _mainPlanetIndices.indexOf(particleIdx)
     if (trackIdx === -1) return null
-    return _planetWorldPositions[trackIdx] || null
-  }, [])
-
-  // PlanetLabel uses trackIdx (0-2) directly
-  const getPositionByTrackIdx = useCallback((trackIdx: number): Vector3 | null => {
     return _planetWorldPositions[trackIdx] || null
   }, [])
 
@@ -57,14 +50,6 @@ const Act3ContentPhase = memo(function Act3ContentPhase({ visible }: Act3Props) 
     <group visible={visible}>
       <OrbitRings />
       <CentralStar />
-      {PLANET_LINKS.map((link, i) => (
-        <PlanetLabel
-          key={`label-${i}`}
-          trackIdx={i}
-          planetData={link}
-          getWorldPosition={getPositionByTrackIdx}
-        />
-      ))}
     </group>
   )
 })
