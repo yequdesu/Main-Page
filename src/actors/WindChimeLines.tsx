@@ -37,7 +37,7 @@ export default function WindChimeLines() {
       const pts = new Float32Array([0, ANCHOR_Y, 0, 0, 0, 0])
       const g = new BufferGeometry()
       g.setAttribute('position', new BufferAttribute(pts, 3))
-      const mat = new LineBasicMaterial({ color: '#ffffff', transparent: true, opacity: 1.0, depthTest: true, depthWrite: false })
+      const mat = new LineBasicMaterial({ color: '#ffffff', transparent: true, opacity: 1.0, depthTest: false, depthWrite: false })
       const line = new Line(g, mat)
       line.renderOrder = 3
       result.push(line)
@@ -50,7 +50,7 @@ export default function WindChimeLines() {
   useFrame(() => {
     const sp = useScrollStore.getState().scrollProgress
     const { smoothP } = getWindChimeProgress(sp)
-    const opacity = smoothP * 0.8
+    const opacity = smoothP
 
     for (let i = 0; i < 4; i++) {
       const pArr = lines[i].geometry.attributes.position.array as Float32Array
