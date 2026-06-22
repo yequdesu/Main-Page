@@ -109,8 +109,9 @@ export default function PlanetLabel({ trackIdx, planetData, getWorldPosition }: 
     const time = state.clock.elapsedTime
     const { focusedPlanetIdx } = useScrollStore.getState()
 
-    const inAct3 = sp >= GRID_SHIFT_START
-    const act3Progress = clamped(sp, GRID_SHIFT_START, 1.0)
+    const LABEL_START = 0.94  // 风铃+网格回收完毕后
+    const inAct3 = sp >= LABEL_START
+    const act3Progress = clamped(sp, LABEL_START, 1.0)
     const smooth3 = smoothstep(act3Progress)
 
     // Follow planet position

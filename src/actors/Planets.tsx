@@ -308,9 +308,10 @@ export default function Planets() {
       if (!mesh) continue
 
       mesh.position.set(px, py, pz)
-      // 风铃下落：下落阶段偏移 Y，之后留在目标位置
-      if (wc.active) {
-        mesh.position.y = ANCHOR_Y + (py - ANCHOR_Y) * wc.smoothP
+      // 风铃下落：仅下落阶段(0.80→0.87)偏移 Y，之后留在目标位置
+      if (sp >= DROP_START && sp < DROP_END) {
+        const dropOnly = clamped(sp, DROP_START, DROP_END)
+        mesh.position.y = ANCHOR_Y + (py - ANCHOR_Y) * smoothstep(dropOnly)
       }
       mesh.scale.setScalar(appearance.scale)
 

@@ -37,7 +37,7 @@ export default function WindChimeLines() {
       const pts = new Float32Array([0, ANCHOR_Y, 0, 0, 0, 0])
       const g = new BufferGeometry()
       g.setAttribute('position', new BufferAttribute(pts, 3))
-      const mat = new LineBasicMaterial({ color: '#f1f5f9', transparent: true, opacity: 0.8, depthTest: true, depthWrite: false })
+      const mat = new LineBasicMaterial({ color: '#ffffff', transparent: true, opacity: 1.0, depthTest: true, depthWrite: false })
       const line = new Line(g, mat)
       line.renderOrder = 3
       result.push(line)
