@@ -132,16 +132,24 @@ Act 3 进入（scrollProgress ≥ GRID_SHIFT_START）
 
 ### 折叠态自收缩
 
-typewriter 在折叠态完成后，通过 Canvas 2D 测量 welcome-text 像素宽度，收缩 pill 至适配尺寸。收缩后的宽度通过 `collapsedFitWidths` 回传 PBD 系统，确保碰撞检测和锚点计算使用各 label 的实际几何尺寸。
+typewriter 在折叠态完成后，通过 DOM 实时测量 welcome-text 渲染宽度，收缩 pill 至适配尺寸。
+
+**测量方式**：`rAF` 等待 React commit → `querySelector('.terminal-echo')` → `firstElementChild.getBoundingClientRect().width` → 获得跨浏览器一致的文本像素宽度。Canvas `measureText` 仅作为 fallback（使用 `getComputedStyle(el).font` 消除字体引擎差异）。
+
+调试记录见 `docs/dev-blog/fitting-width-cross-browser.md`。
 
 ```
-fitW = clamp(textWidth + 18px, 24, collapsedWidth)
+domW = span.getBoundingClientRect().width
+fitW = clamp(ceil(domW + 18), 24, collapsedWidth)
+// +18 = 左右 padding (12px) + 圆角余量 (6px)
+```
 
 宽度更新分两阶段：
   0ms:    visualFitWidths 立即更新 → pill CSS transition 0.5s 播放收缩动画
   250ms:  collapsedFitWidths 更新 → PBD 碰撞盒开始跟随
           （动画播放过半后同步，避免锚点因宽度突变而抖动）
-```
+
+收缩后的宽度通过 `collapsedFitWidths` 回传 PBD 系统，确保碰撞检测和锚点计算使用各 label 的实际几何尺寸。
 
 ## 6. 可调参数
 

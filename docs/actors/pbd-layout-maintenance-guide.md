@@ -30,7 +30,7 @@ useFloatingLabels.ts React hook（编排层）
 
 FloatingLabels.tsx   React 渲染组件
   ├─ Zustand 订阅          screenCoords / screenRadii / centralStar
-  ├─ Canvas 2D measureText 计算 welcome-text 像素宽度
+  ├─ DOM getBoundingClientRect 实测 welcome-text 像素宽度
   ├─ collapsedFitWidths    收缩状态 → useFloatingLabels → stepPBD
   ├─ TerminalBar × 3       Slot 声明（Welcome + Section）
   ├─ PlanetLabelGuideLines 引导虚线（独立组件，anchor→planet）
