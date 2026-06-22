@@ -18,7 +18,8 @@ import { WC_ANCHOR_Y, WC_DROP_START, WC_DROP_END, WC_RETRACT_END, getWindChimePr
 // ============================================================
 
 export const _planetWorldPositions: (Vector3 | null)[] = [null, null, null]
-export const _planetOrbitTargets: (Vector3 | null)[] = [null, null, null]  // Y偏移前的轨道位置(WindChimeLines用)
+export const _planetOrbitTargets: (Vector3 | null)[] = [null, null, null]
+export const _planetRawOrbitY: number[] = [0, 0, 0]  // 纯轨道Y(WindChimeLines计算用)
 export let _mainPlanetIndices: number[] = []
 
 // ============================================================
@@ -312,10 +313,11 @@ export default function Planets() {
       if (!mesh) continue
 
       // 风铃期间：行星靠前(+Z) + 从上方垂落
-      // 先存轨道目标供 WindChimeLines 读取
+      // 存轨道目标供 WindChimeLines 计算线位置
       if (trackIdx >= 0 && trackIdx < 3) {
         if (!_planetOrbitTargets[trackIdx]) _planetOrbitTargets[trackIdx] = new Vector3()
         _planetOrbitTargets[trackIdx]!.set(px, py, pz)
+        _planetRawOrbitY[trackIdx] = py  // 偏移前的纯轨道Y
       }
 
       mesh.position.set(px, py, pz)
