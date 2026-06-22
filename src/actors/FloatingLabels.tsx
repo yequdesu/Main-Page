@@ -48,17 +48,9 @@ const FloatingLabels = memo(function FloatingLabels(props: FloatingLabelsProps) 
   const isAnyFocused = focusedPlanetIdx >= 0
 
   // ---- 折叠态 typewriter 完成后自收缩宽度 ----
-  // Canvas 2D 文本测量（与 TerminalBar 相同字体）
-  const measureCtxRef = useRef<CanvasRenderingContext2D | null>(null)
-  const getTextWidth = useCallback((text: string): number => {
-    if (!measureCtxRef.current) {
-      const canvas = document.createElement('canvas')
-      const ctx = canvas.getContext('2d')!
-      ctx.font = "0.58rem 'SF Mono', 'Fira Code', 'Cascadia Code', 'Consolas', monospace"
-      measureCtxRef.current = ctx
-    }
-    return measureCtxRef.current.measureText(text).width
-  }, [])
+  // DOM 实时测量：读 <span> 的 getBoundingClientRect，比 Canvas measureText
+  // 更准确（不受浏览器字体引擎差异影响）。Canvas 仅作 fallback。
+  const pillRefs = useRef<Record<number, HTMLDivElement | null>>({})
 
   // per-label 折叠态自适合宽度（px），typewriter 完成后写入
   // visualFitWidths: 立即更新 → 触发 CSS width transition（0.5s）
@@ -88,31 +80,41 @@ const FloatingLabels = memo(function FloatingLabels(props: FloatingLabelsProps) 
     if (mode === 'idle') {
       typingDoneRef.current = new Set(typingDoneRef.current).add(trackIdx)
       setShowCount(prev => Math.max(prev, trackIdx + 2)) // 解锁下一个 label
-      // 折叠态 typewriter 完成 → 计算适配 welcome-text 的宽度
+      // 折叠态 typewriter 完成 → DOM 实测 welcome-text 渲染宽度
       if (activeTrackIdx < 0) {
-        const cfg = configs[trackIdx]
-        const textW = getTextWidth(cfg.planetLink.label)
-        // 文本宽度 + 左右 padding（6px × 2）+ 圆角余量
-        const fitW = Math.max(24, Math.min(collapsedWidth, Math.ceil(textW + 18)))
-        // 视觉宽度：立即更新 → CSS transition 0.5s 播放收缩动画
-        setVisualFitWidths(prev => ({ ...prev, [trackIdx]: fitW }))
-        // PBD 碰撞盒：延迟至 CSS 动画完成后更新 → 避免锚点频繁抖动
-        if (pbdDelayTimers.current[trackIdx]) clearTimeout(pbdDelayTimers.current[trackIdx])
-        // PBD 碰撞盒：CSS 动画播放 0.25s 后开始跟随实时宽度
-        pbdDelayTimers.current[trackIdx] = setTimeout(() => {
-          setCollapsedFitWidths(prev => ({ ...prev, [trackIdx]: fitW }))
-        }, 250)
-        // 牵引线：CSS 动画 0.5s 完成后才绘制
-        if (guideTimers.current[trackIdx]) clearTimeout(guideTimers.current[trackIdx])
-        guideTimers.current[trackIdx] = setTimeout(() => {
-          setGuidesReady(prev => ({ ...prev, [trackIdx]: true }))
-        }, 500)
+        requestAnimationFrame(() => {
+          const pill = pillRefs.current[trackIdx]
+          if (!pill) return
+          // 读 <span> 的实际渲染宽度（getBoundingClientRect 跨浏览器一致）
+          const echoEl = pill.querySelector('.terminal-echo') as HTMLElement | null
+          const firstSpan = echoEl?.firstElementChild as HTMLElement | null
+          const domW = firstSpan ? firstSpan.getBoundingClientRect().width : 0
+          // Canvas fallback：使用元素实际 computed font，消除浏览器字体引擎差异
+          const measuredW = domW > 0 ? domW : (() => {
+            const canvas = document.createElement('canvas')
+            const ctx = canvas.getContext('2d')!
+            ctx.font = firstSpan ? getComputedStyle(firstSpan).font
+              : "0.58rem 'SF Mono', 'Fira Code', 'Cascadia Code', 'Consolas', monospace"
+            return ctx.measureText(configs[trackIdx].planetLink.label).width
+          })()
+          // 文本宽度 + 左右 padding（6px × 2）+ 圆角余量
+          const fitW = Math.max(24, Math.min(collapsedWidth, Math.ceil(measuredW + 18)))
+          setVisualFitWidths(prev => ({ ...prev, [trackIdx]: fitW }))
+          if (pbdDelayTimers.current[trackIdx]) clearTimeout(pbdDelayTimers.current[trackIdx])
+          pbdDelayTimers.current[trackIdx] = setTimeout(() => {
+            setCollapsedFitWidths(prev => ({ ...prev, [trackIdx]: fitW }))
+          }, 250)
+          if (guideTimers.current[trackIdx]) clearTimeout(guideTimers.current[trackIdx])
+          guideTimers.current[trackIdx] = setTimeout(() => {
+            setGuidesReady(prev => ({ ...prev, [trackIdx]: true }))
+          }, 500)
+        })
       }
     }
     if (mode === 'active') handlePillClick(trackIdx)
-  }, [handlePillClick, activeTrackIdx, configs, collapsedWidth, getTextWidth])
+  }, [handlePillClick, activeTrackIdx, configs, collapsedWidth])
 
-  // 每次进入 Act 3 重置门控，确保排轴顺序重复执行
+  // 每次进入 Act 3 重置门控
   useEffect(() => {
     useScrollStore.getState().setLabelsGateOpen(false)
   }, [])
@@ -147,6 +149,7 @@ const FloatingLabels = memo(function FloatingLabels(props: FloatingLabelsProps) 
         return (
           <div
             key={label.trackIdx}
+            ref={(el) => { pillRefs.current[label.trackIdx] = el }}
             className={`floating-label-pill${isExpanded ? ' expanded' : ''}`}
             style={{
               '--pill-accent': label.config.planetLink.accent,
