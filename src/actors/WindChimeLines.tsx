@@ -4,7 +4,7 @@ import { Line, BufferGeometry, BufferAttribute, LineBasicMaterial } from 'three'
 import { useScrollStore } from '../stores/scrollStore'
 import { SCENE_CENTER_Z } from '../r3f/ScrollRig'
 import { getWindChimeProgress, WC_ANCHOR_Y } from '../behaviors/useWindChime'
-import { _planetWorldPositions } from './Planets'
+import { _planetOrbitTargets } from './Planets'
 
 /**
  * WindChimeLines — 4 条亮线吊着行星/恒星从上方垂落，随后从下往上回收。
@@ -35,15 +35,15 @@ export default function WindChimeLines() {
       let tx: number, ty: number, tz: number
 
       if (i < 3) {
-        const pos = _planetWorldPositions[i]
+        const pos = _planetOrbitTargets[i]  // 轨道位置(Y偏移前)
         tx = pos ? pos.x : 0; ty = pos ? pos.y : -1.0; tz = pos ? pos.z : SCENE_CENTER_Z
       } else {
         tx = starTarget.x; ty = starTarget.y; tz = starTarget.z
       }
 
       const curY = WC_ANCHOR_Y + (ty - WC_ANCHOR_Y) * smoothP
-      pArr[0] = tx; pArr[1] = WC_ANCHOR_Y; pArr[2] = tz
-      pArr[3] = tx; pArr[4] = curY;        pArr[5] = tz
+      pArr[0] = tx; pArr[1] = WC_ANCHOR_Y; pArr[2] = tz + 6        // 锚点也前移
+      pArr[3] = tx; pArr[4] = curY;        pArr[5] = tz + 6        // 底部匹配行星 Z 偏移
       lines[i].geometry.attributes.position.needsUpdate = true
       ;(lines[i].material as LineBasicMaterial).opacity = smoothP
     }

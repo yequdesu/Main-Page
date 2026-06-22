@@ -3,7 +3,7 @@ import { useFrame } from '@react-three/fiber'
 import { CanvasTexture, SpriteMaterial, MeshBasicMaterial, AdditiveBlending, LinearFilter, type Mesh, type Group } from 'three'
 import { SCENE_CENTER_Z, clamped, smoothstep } from '../r3f/ScrollRig'
 import { useScrollStore } from '../stores/scrollStore'
-import { WC_ANCHOR_Y, WC_DROP_START, WC_DROP_END } from '../behaviors/useWindChime'
+import { WC_ANCHOR_Y, WC_DROP_START, WC_DROP_END, WC_RETRACT_END } from '../behaviors/useWindChime'
 
 // ============================================================
 // CentralStar — 可调参数
@@ -106,7 +106,8 @@ export default function CentralStar() {
     const sp = useScrollStore.getState().scrollProgress
     const time = state.clock.elapsedTime
 
-    // 风铃下落：仅下落阶段(0.80→0.87)偏移 Y，之后留在目标位置
+    // 风铃下落：下落阶段偏移 Y/Z，之后留在目标位置
+    const inWindChime = sp >= WC_DROP_START && sp < WC_RETRACT_END
     if (groupRef.current) {
       if (sp >= WC_DROP_START && sp < WC_DROP_END) {
         const dropOnly = clamped(sp, WC_DROP_START, WC_DROP_END)
@@ -114,6 +115,7 @@ export default function CentralStar() {
       } else {
         groupRef.current.position.y = GROUP_POSITION_Y
       }
+      groupRef.current.position.z = SCENE_CENTER_Z + (inWindChime ? 6 : 0)
     }
 
     const GLOW_START = 0.94

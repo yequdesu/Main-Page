@@ -11,13 +11,14 @@ import { calcScreenSpaceHover } from '../behaviors/useScreenSpaceHover'
 import { smoothstep, clamped, SCENE_CENTER_Z, WHITE_OUT_THRESHOLD, WHITE_OUT_END, GRID_SHIFT_START, ORBIT_RADII, ORBIT_COUNT } from '../r3f/ScrollRig'
 import { atmosphereVertex, atmosphereFragment } from '../shaders/AtmosphereShader'
 import { type ParticleData } from '../types'
-import { WC_ANCHOR_Y, WC_DROP_START, WC_DROP_END } from '../behaviors/useWindChime'
+import { WC_ANCHOR_Y, WC_DROP_START, WC_DROP_END, WC_RETRACT_END } from '../behaviors/useWindChime'
 
 // ============================================================
 // 共享状态 — PlanetClickHandler + Act3ContentPhase + PlanetLabel 消费
 // ============================================================
 
 export const _planetWorldPositions: (Vector3 | null)[] = [null, null, null]
+export const _planetOrbitTargets: (Vector3 | null)[] = [null, null, null]  // Y偏移前的轨道位置(WindChimeLines用)
 export let _mainPlanetIndices: number[] = []
 
 // ============================================================
@@ -295,8 +296,10 @@ export default function Planets() {
       _scratch.set(px, py, pz)
       const cd = _scratch.distanceTo(camera.position)
 
-      // Appearance
-      const appearance = calcAppearance(d, sp, wof, smooth3, cd, 0)
+      // Appearance — 主行星用 orbitSmooth3 避免风铃阶段显示为 dust
+      const isMain = mainPlanetIndices.includes(i)
+      const appearanceSmooth3 = isMain ? orbitSmooth3 : smooth3
+      const appearance = calcAppearance(d, sp, wof, appearanceSmooth3, cd, 0)
 
       // Color
       _color2.set(d.grayHex)
@@ -306,15 +309,27 @@ export default function Planets() {
       const mesh = mainPlanets[trackIdx]
       if (!mesh) continue
 
+      // 风铃期间：行星靠前(+Z) + 从上方垂落
+      // 先存轨道目标供 WindChimeLines 读取
+      if (trackIdx >= 0 && trackIdx < 3) {
+        if (!_planetOrbitTargets[trackIdx]) _planetOrbitTargets[trackIdx] = new Vector3()
+        _planetOrbitTargets[trackIdx]!.set(px, py, pz)
+      }
+
       mesh.position.set(px, py, pz)
-      // 风铃下落：仅下落阶段偏移 Y，之后留在目标位置
-      if (sp >= WC_DROP_START && sp < WC_DROP_END) {
-        const dropOnly = clamped(sp, WC_DROP_START, WC_DROP_END)
-        mesh.position.y = WC_ANCHOR_Y + (py - WC_ANCHOR_Y) * smoothstep(dropOnly)
+      const inWindChime = sp >= WC_DROP_START && sp < WC_RETRACT_END
+      if (inWindChime) {
+        // 下落阶段偏移 Y / 回收阶段行星留在原地
+        if (sp < WC_DROP_END) {
+          const dropOnly = clamped(sp, WC_DROP_START, WC_DROP_END)
+          mesh.position.y = WC_ANCHOR_Y + (py - WC_ANCHOR_Y) * smoothstep(dropOnly)
+        }
+        // 风铃期间拉近摄像机 6 单位
+        mesh.position.z += 6
       }
       mesh.scale.setScalar(appearance.scale)
 
-      // Track world position for camera focus + label following
+      // Track world position
       if (trackIdx >= 0 && trackIdx < 3) {
         if (!_planetWorldPositions[trackIdx]) _planetWorldPositions[trackIdx] = new Vector3()
         _planetWorldPositions[trackIdx]!.copy(mesh.position)
