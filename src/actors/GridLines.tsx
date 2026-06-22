@@ -3,7 +3,7 @@ import { useFrame } from '@react-three/fiber'
 import { Line, Color, BufferGeometry, BufferAttribute, LineBasicMaterial } from 'three'
 import { useScrollStore } from '../stores/scrollStore'
 import { useFrameCache } from '../behaviors/useFrameCache'
-import { smoothstep, clamped, GRID_SHIFT_START } from '../r3f/ScrollRig'
+import { clamped } from '../r3f/ScrollRig'
 import type { GridLineData } from '../types'
 
 // ============================================================
@@ -105,23 +105,20 @@ export default function GridLines() {
     const sp = useScrollStore.getState().scrollProgress
     if (shouldSkipSp(sp)) return
 
-    const EXT_START = 0.60, EXT_END = 0.85, RECYCLE_END = 0.95
-    const act3Progress = clamped(sp, GRID_SHIFT_START, 1.0)
-    const smooth3 = smoothstep(act3Progress)
-    const shiftY = -32.0 * smooth3
+    const EXT_START = 0.60, EXT_END = 0.85, RETRACT_END = 0.95
 
-    // 完全隐藏
-    if (sp < EXT_START || sp >= RECYCLE_END) {
+    // 延伸前或回收后：完全隐藏
+    if (sp < EXT_START || sp >= RETRACT_END) {
       for (const vd of gridLines) {
         ;(vd.line.material as LineBasicMaterial).opacity = 0
       }
       return
     }
 
-    // 阶段判断
-    const isRecycle = sp >= EXT_END
-    const phaseFactor = isRecycle
-      ? 1.0 - clamped(sp, EXT_END, RECYCLE_END)  // 1→0
+    // 0.60-0.85: 延伸(A→B)  /  0.85-0.95: 回收(A→B，近先消失如擦除)
+    const retracting = sp >= EXT_END
+    const rawLp = retracting
+      ? 1.0 - clamped(sp, EXT_END, RETRACT_END)  // 1→0
       : clamped(sp, EXT_START, EXT_END)            // 0→1
 
     for (const vd of gridLines) {
@@ -130,36 +127,40 @@ export default function GridLines() {
       const vCount = TOTAL_SEGS + 1
       pArr.set(base)
 
-      let lp: number
-      if (isRecycle) {
-        lp = Math.max(0, Math.min(1, (phaseFactor - vd.staggerOffset * 0.3) / 0.7))
-      } else {
-        lp = Math.max(0, Math.min(1, (phaseFactor - vd.staggerOffset) / 0.35))
-      }
+      const lp = Math.max(0, Math.min(1, (rawLp - vd.staggerOffset) / 0.35))
 
-      const curProgress = lp * TOTAL_SEGS
-      const endJ = Math.floor(curProgress)
-      const endFrac = curProgress - endJ
-      const endIdx = Math.min(endJ, TOTAL_SEGS)
-      const nextIdx = Math.min(endJ + 1, TOTAL_SEGS)
+      if (retracting) {
+        // 回收 A→B：近端先消失，hidden 区间从 near→far 增长
+        const retractStart = (1.0 - lp) * TOTAL_SEGS
+        const startJ = Math.floor(retractStart)
+        const startFrac = retractStart - startJ
+        const startIdx = Math.min(startJ, TOTAL_SEGS)
+        const nextIdx = Math.min(startJ + 1, TOTAL_SEGS)
 
-      if (isRecycle) {
-        // 回收：近端（低索引）拉向远端（高索引）
         for (let j = 0; j < vCount; j++) {
-          if (j <= endIdx) {
-            pArr[j * 3]     = pArr[TOTAL_SEGS * 3]
-            pArr[j * 3 + 1] = pArr[TOTAL_SEGS * 3 + 1]
-            pArr[j * 3 + 2] = pArr[TOTAL_SEGS * 3 + 2]
-          } else if (j === nextIdx && endFrac > 0) {
-            const t = 1.0 - endFrac
-            pArr[j * 3]     = pArr[TOTAL_SEGS * 3]     + (pArr[j * 3]     - pArr[TOTAL_SEGS * 3])     * t
-            pArr[j * 3 + 1] = pArr[TOTAL_SEGS * 3 + 1] + (pArr[j * 3 + 1] - pArr[TOTAL_SEGS * 3 + 1]) * t
-            pArr[j * 3 + 2] = pArr[TOTAL_SEGS * 3 + 2] + (pArr[j * 3 + 2] - pArr[TOTAL_SEGS * 3 + 2]) * t
+          if (j >= nextIdx) {
+            // 可见：保持原位
+          } else if (j === startIdx && startFrac > 0) {
+            // 过渡顶点：插值到下一个可见顶点
+            const t = 1.0 - startFrac
+            pArr[j * 3]     = pArr[nextIdx * 3]     + (pArr[j * 3]     - pArr[nextIdx * 3])     * t
+            pArr[j * 3 + 1] = pArr[nextIdx * 3 + 1] + (pArr[j * 3 + 1] - pArr[nextIdx * 3 + 1]) * t
+            pArr[j * 3 + 2] = pArr[nextIdx * 3 + 2] + (pArr[j * 3 + 2] - pArr[nextIdx * 3 + 2]) * t
+          } else {
+            // 已擦除：停在下一个可见顶点（无尾巴）
+            pArr[j * 3]     = pArr[nextIdx * 3]
+            pArr[j * 3 + 1] = pArr[nextIdx * 3 + 1]
+            pArr[j * 3 + 2] = pArr[nextIdx * 3 + 2]
           }
-          pArr[j * 3 + 1] += shiftY
         }
       } else {
-        // 延伸：近端（低索引）先生长
+        // 延伸 A→B：近端先出现
+        const curProgress = lp * TOTAL_SEGS
+        const endJ = Math.floor(curProgress)
+        const endFrac = curProgress - endJ
+        const endIdx = Math.min(endJ, TOTAL_SEGS)
+        const nextIdx = Math.min(endJ + 1, TOTAL_SEGS)
+
         for (let j = 0; j < vCount; j++) {
           if (j <= endIdx) {
           } else if (j === nextIdx && endFrac > 0) {
@@ -172,7 +173,6 @@ export default function GridLines() {
             pArr[j * 3 + 1] = pArr[endIdx * 3 + 1]
             pArr[j * 3 + 2] = pArr[endIdx * 3 + 2]
           }
-          pArr[j * 3 + 1] += shiftY
         }
       }
 
