@@ -4,7 +4,6 @@ import { type PerspectiveCamera, Vector3 } from 'three'
 import OrbitRings from '../actors/OrbitRings'
 import CentralStar from '../actors/CentralStar'
 import PlanetLabel from '../actors/PlanetLabel'
-import WindChimeLines from '../actors/WindChimeLines'
 import { useScrollStore } from '../stores/scrollStore'
 import { useFrameCache } from '../behaviors/useFrameCache'
 import { smoothstep, clamped, GRID_SHIFT_START } from '../r3f/ScrollRig'
@@ -56,7 +55,6 @@ const Act3ContentPhase = memo(function Act3ContentPhase({ visible }: Act3Props) 
 
   return (
     <group visible={visible}>
-      <WindChimeLines />
       <OrbitRings />
       <CentralStar />
       {PLANET_LINKS.map((link, i) => (

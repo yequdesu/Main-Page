@@ -263,7 +263,8 @@ export default function Planets() {
     if (shouldSkip(time, sp)) return
 
     const wof = clamped(sp, WHITE_OUT_THRESHOLD, WHITE_OUT_END)
-    const act3Progress = clamped(sp, GRID_SHIFT_START, 1.0)
+    const ORBIT_START = 0.80  // 风铃下落前即开始轨道过渡
+    const act3Progress = clamped(sp, ORBIT_START, 1.0)
     const smooth3 = smoothstep(act3Progress)
 
     const cx = 0, cy = -1.0, cz = SCENE_CENTER_Z
