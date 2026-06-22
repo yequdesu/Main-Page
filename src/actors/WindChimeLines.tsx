@@ -5,13 +5,30 @@ import { useScrollStore } from '../stores/scrollStore'
 import { clamped, smoothstep, SCENE_CENTER_Z } from '../r3f/ScrollRig'
 import { _planetWorldPositions } from './Planets'
 
-const DROP_START = 0.80, DROP_END = 0.87
-const RETRACT_END = 0.94
-const ANCHOR_Y = 30.0
+export const DROP_START = 0.80, DROP_END = 0.87
+export const RETRACT_END = 0.94
+export const ANCHOR_Y = 30.0
+
+/** 计算风铃下落进度 — Planets/CentralStar 各自调用以独立获取正确的值 */
+export function getWindChimeProgress(sp: number): { smoothP: number; active: boolean } {
+  const dropFactor = clamped(sp, DROP_START, DROP_END)
+  const retractFactor = clamped(sp, DROP_END, RETRACT_END)
+  const active = sp >= DROP_START && sp < RETRACT_END
+
+  let lineProgress: number
+  if (sp < DROP_END) {
+    lineProgress = dropFactor
+  } else if (sp < RETRACT_END) {
+    lineProgress = 1.0 - retractFactor
+  } else {
+    lineProgress = 0
+  }
+  return { smoothP: smoothstep(lineProgress), active }
+}
 
 /**
  * WindChimeLines — 4 条亮线吊着行星/恒星从上方垂落，随后从下往上回收。
- * 0.80→0.87 下落，0.87→0.94 回收，0.94 后完全消失。
+ * 同时通过 _windChimeDropY / _windChimeActive 驱动行星和恒星的实际 Y 位移。
  */
 export default function WindChimeLines() {
   const lines = useMemo(() => {
@@ -20,7 +37,7 @@ export default function WindChimeLines() {
       const pts = new Float32Array([0, ANCHOR_Y, 0, 0, 0, 0])
       const g = new BufferGeometry()
       g.setAttribute('position', new BufferAttribute(pts, 3))
-      const mat = new LineBasicMaterial({ color: '#e2e8f0', transparent: true, opacity: 0.7, depthTest: true, depthWrite: false })
+      const mat = new LineBasicMaterial({ color: '#f1f5f9', transparent: true, opacity: 0.8, depthTest: true, depthWrite: false })
       const line = new Line(g, mat)
       line.renderOrder = 3
       result.push(line)
@@ -32,21 +49,8 @@ export default function WindChimeLines() {
 
   useFrame(() => {
     const sp = useScrollStore.getState().scrollProgress
-
-    // 下落阶段 0.80→0.87，回收阶段 0.87→0.94
-    const dropFactor = clamped(sp, DROP_START, DROP_END)
-    const retractFactor = clamped(sp, DROP_END, RETRACT_END)
-
-    let lineProgress: number
-    if (sp < DROP_END) {
-      lineProgress = dropFactor  // 0→1 下落
-    } else if (sp < RETRACT_END) {
-      lineProgress = 1.0 - retractFactor  // 1→0 回收
-    } else {
-      lineProgress = 0
-    }
-    const smoothP = smoothstep(lineProgress)
-    const opacity = smoothP * 0.7
+    const { smoothP } = getWindChimeProgress(sp)
+    const opacity = smoothP * 0.8
 
     for (let i = 0; i < 4; i++) {
       const pArr = lines[i].geometry.attributes.position.array as Float32Array

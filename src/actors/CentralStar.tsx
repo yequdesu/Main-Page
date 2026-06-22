@@ -1,8 +1,9 @@
 import { useMemo, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
-import { CanvasTexture, SpriteMaterial, MeshBasicMaterial, AdditiveBlending, LinearFilter, type Mesh } from 'three'
-import { SCENE_CENTER_Z, clamped, smoothstep, GRID_SHIFT_START } from '../r3f/ScrollRig'
+import { CanvasTexture, SpriteMaterial, MeshBasicMaterial, AdditiveBlending, LinearFilter, type Mesh, type Group } from 'three'
+import { SCENE_CENTER_Z, clamped, smoothstep } from '../r3f/ScrollRig'
 import { useScrollStore } from '../stores/scrollStore'
+import { getWindChimeProgress, ANCHOR_Y } from './WindChimeLines'
 
 // ============================================================
 // CentralStar — 可调参数
@@ -96,6 +97,7 @@ export default function CentralStar() {
   const haloTex = useMemo(() => makeHaloTexture(HALO_COLOR_STOPS), [])
   const farHaloTex = useMemo(() => makeHaloTexture(FAR_HALO_COLOR_STOPS), [])
 
+  const groupRef = useRef<Group>(null)
   const spriteMatRef = useRef<SpriteMaterial | null>(null)
   const farSpriteMatRef = useRef<SpriteMaterial | null>(null)
   const glowMeshRef = useRef<Mesh | null>(null)
@@ -103,7 +105,18 @@ export default function CentralStar() {
   useFrame((state) => {
     const sp = useScrollStore.getState().scrollProgress
     const time = state.clock.elapsedTime
-    const GLOW_START = 0.94  // 线条回收完毕后
+
+    // 风铃下落：恒星 Y 独立计算（避免渲染顺序问题）
+    if (groupRef.current) {
+      const wc = getWindChimeProgress(sp)
+      if (wc.active) {
+        groupRef.current.position.y = ANCHOR_Y + (GROUP_POSITION_Y - ANCHOR_Y) * wc.smoothP
+      } else {
+        groupRef.current.position.y = GROUP_POSITION_Y
+      }
+    }
+
+    const GLOW_START = 0.94
     const act3Progress = clamped(sp, GLOW_START, 1.0)
     const smooth3 = smoothstep(act3Progress)
     const pulse = 1 + Math.sin(time * PULSE_FREQ_1) * PULSE_AMP_1 + Math.sin(time * PULSE_FREQ_2) * PULSE_AMP_2
@@ -124,7 +137,7 @@ export default function CentralStar() {
   })
 
   return (
-    <group position={[0, GROUP_POSITION_Y, SCENE_CENTER_Z]} renderOrder={1}>
+    <group ref={groupRef} position={[0, GROUP_POSITION_Y, SCENE_CENTER_Z]} renderOrder={1}>
       {/* 1. 核心：暖白实体球 */}
       <mesh renderOrder={1}>
         <sphereGeometry args={[CORE_RADIUS, CORE_SEGMENTS, CORE_SEGMENTS]} />
