@@ -66,6 +66,13 @@ GitHub: 34px   + 18 = 53px
 
 收缩宽度通过 `collapsedFitWidths` 回传至 `useFloatingLabels` → `stableRefs` → rAF 循环 → `stepPBD(collapsedWidths)`，确保 PBD 碰撞检测和 anchor 位置使用各 label 的实际宽度。
 
+宽度更新分两阶段避免锚点抖动：
+
+| 阶段 | 时机 | 更新内容 |
+|------|------|---------|
+| 视觉 | typewriter 完成立即 | `visualFitWidths` → pill `width` CSS transition 0.5s |
+| PBD | 延迟 250ms | `collapsedFitWidths` → `stepPBD(collapsedWidths)` |
+
 | 调整项 | 位置 | 效果 |
 |--------|------|------|
 | 最小宽度 | `FloatingLabels.tsx` `Math.max(24, ...)` | ↑增大最小宽度 |
@@ -75,7 +82,7 @@ GitHub: 34px   + 18 = 53px
 ### 标签跟随过于松散（滞后大）
 
 ```
-调节: K_CORRECT ↑ (3.0 → 5.0)  或  VEL_MATCH ↑ (0.65 → 0.8)
+调节: K_CORRECT ↑ (2.5 → 4.0)  或  VEL_MATCH ↑ (0.65 → 0.8)
 效果: 标签更紧密跟踪 shadow 方向
 注意: 过大可能引起过冲
 ```
@@ -83,7 +90,7 @@ GitHub: 34px   + 18 = 53px
 ### 标签碰撞后"弹不开"
 
 ```
-调节: SEPARATION_STIFFNESS ↑ (180 → 250)  或  ANCHOR_STIFFNESS ↓ (25 → 15)
+调节: SEPARATION_STIFFNESS ↑ (180 → 250)  或  ANCHOR_STIFFNESS ↓ (20 → 12)
 效果: 碰撞推开力更强，回正更慢，动量传递更明显
 ```
 

@@ -43,7 +43,7 @@ Müller et al. (2007) 的 PBD 对每个约束直接修改位置 `x += Δx`，对
 
 | 约束 | 驱动方式 | 触发条件 | 参数 |
 |------|---------|---------|------|
-| A. 锚点向心 | 力 (v+=accel) | anchors 越出 anchorRangeRadius | ANCHOR_STIFFNESS=25 |
+| A. 锚点向心 | 力 (v+=accel) | anchors 越出 anchorRangeRadius | ANCHOR_STIFFNESS=20 |
 | A2. 近距排斥 | 力 (v+=accel) | center 侵入 planet 视觉圆外 10px | CLOSE_REPEL_STIFFNESS=400, MARGIN=10 |
 | B. 行星遮挡 | 位置 (pos+=push) | center 进入任意行星视觉圆 | PLANET_AVOID_MARGIN=4 |
 | C. 恒星遮挡 | 位置 (pos+=push) | center 进入恒星光晕圆+8px | STAR_AVOID_MARGIN=8 |
@@ -66,7 +66,7 @@ pos      += v × dt
 ```
 
 - **target_velocity** = (shadow_target_t − shadow_target_t−1)/dt（前馈，匹配行星运动）
-- **K_CORRECT** = 3.0（反馈，修正位置偏差）
+- **K_CORRECT** = 2.5（反馈，修正位置偏差）
 - **VEL_MATCH** = 0.65（平滑速率）
 - **DAMPING** = 0.92（过阻尼，收敛快且无振荡）
 
@@ -111,6 +111,11 @@ typewriter 在折叠态完成后，通过 Canvas 2D 测量 welcome-text 像素�
 
 ```
 fitW = clamp(textWidth + 18px, 24, collapsedWidth)
+
+宽度更新分两阶段：
+  0ms:    visualFitWidths 立即更新 → pill CSS transition 0.5s 播放收缩动画
+  250ms:  collapsedFitWidths 更新 → PBD 碰撞盒开始跟随
+          （动画播放过半后同步，避免锚点因宽度突变而抖动）
 ```
 
 ## 6. 可调参数
@@ -154,9 +159,9 @@ App.tsx 当前覆盖: `staggerDelay=200`（紧凑间隔），`baseTypewriterDela
 
 | 参数 | 默认值 | 效果 |
 |------|--------|------|
-| `K_CORRECT` | 3.0 | ↑贴得更紧 |
+| `K_CORRECT` | 2.5 | ↑贴得更紧 |
 | `VEL_MATCH` | 0.65 | ↑跟随更积极 |
-| `ANCHOR_STIFFNESS` | 25 | ↑锚点回正更快 |
+| `ANCHOR_STIFFNESS` | 20 | ↑锚点回正更快 |
 | `CLOSE_REPEL_STIFFNESS` | 400 | ↑近距离排斥更强 |
 | `CLOSE_REPEL_MARGIN` | 10 | ↑安全区更宽 |
 | `SEPARATION_STIFFNESS` | 180 | ↑碰撞分离更强 |
@@ -177,6 +182,8 @@ App.tsx 当前覆盖: `staggerDelay=200`（紧凑间隔），`baseTypewriterDela
 - 字体：`'SF Mono','Fira Code','Cascadia Code','Consolas',monospace`
 - 字号：`0.58rem`
 - 用法：`<TerminalBar variant="label" ...>`
+- hover 边框：`color-mix(in srgb, var(--pill-accent) 80%, transparent)`（20% 透明度）
+- pill hover：仅 `opacity` 变化，无 box-shadow；展开态 `.expanded` 持久显示顶射灯 box-shadow
 
 Debug 覆盖层独立组件 `PlanetLabelDebug.tsx`，通过 MainTerminal `debug` 命令控制显隐。
 

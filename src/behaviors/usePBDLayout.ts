@@ -65,9 +65,9 @@ const EPSILON = 0.001
  *       K_CORRECT 越大，标签贴 target 越紧，但过大可能引起过冲。
  *
  * 值 3.0 意味着距离 target 每 1px，产生 3 px/s 的修正速度。
- * 在 60fps (dt≈0.016s) 下，100px 偏差约 0.5s 内收敛。
+ * 在 60fps (dt≈0.016s) 下，100px 偏差约 0.8s 内收敛。
  */
-const K_CORRECT = 3.0
+const K_CORRECT = 2.5
 
 /**
  * 速度匹配强度。
@@ -115,11 +115,11 @@ const MAX_ACCEL = 200
  * 计算：acceleration = exceedance(px) × ANCHOR_STIFFNESS × dt
  *       exceedance = max(0, dist(anchor, planetCenter) − anchorRangeRadius)
  *
- * 值 25 意味着越出 10px 时，加速度约 25×10×0.016 = 4 px/s²。
- * 需 < SEPARATION_STIFFNESS (120)，否则碰撞后向心力会淹没动量传递，
+ * 值 20 意味着越出 10px 时，加速度约 20×10×0.016 = 3.2 px/s²。
+ * 需 < SEPARATION_STIFFNESS (180)，否则碰撞后向心力会淹没动量传递，
  * 导致标签"弹不开"。
  */
-const ANCHOR_STIFFNESS = 25
+const ANCHOR_STIFFNESS = 20
 
 // -- 近距离排斥 -----------------------------------------------
 
@@ -139,7 +139,7 @@ const CLOSE_REPEL_MARGIN = 10
  * 计算：acceleration = penetration(px) × CLOSE_REPEL_STIFFNESS × dt
  *       penetration = (planetScreenRadius + CLOSE_REPEL_MARGIN) − dist(labelCenter, planetCenter)
  *
- * 值 150 高于 ANCHOR_STIFFNESS (25)，确保排斥力 > 向心力。
+ * 值 400 高于 ANCHOR_STIFFNESS (20)，确保排斥力 > 向心力。
  * 日常不触发（shadow target 天然在排斥区外），仅在碰撞挤压时激活。
  */
 const CLOSE_REPEL_STIFFNESS = 400
@@ -153,7 +153,7 @@ const CLOSE_REPEL_STIFFNESS = 400
  * 计算：acceleration = penetration × SEPARATION_STIFFNESS × dt
  *
  * 值 120 意味着重叠 10px 时加速度约 120×10×0.016 = 19 px/s²。
- * 与 ANCHOR_STIFFNESS 的比值 (120:25 ≈ 5:1) 决定了碰撞时
+ * 与 ANCHOR_STIFFNESS 的比值 (180:20 = 9:1) 决定了碰撞时
  * 推开力 vs 回正力的竞争关系。
  */
 const SEPARATION_STIFFNESS = 180

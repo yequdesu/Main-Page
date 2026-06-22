@@ -85,7 +85,7 @@ export default function PlanetLabelDebug({
             <circle cx={sc.x} cy={sc.y} r={pr} fill="none" stroke="cyan" strokeWidth="1" opacity={0.5} />
             {/* 约束 B: 行星遮挡避免区（planetScreenRadius + PLANET_AVOID_MARGIN） */}
             <circle cx={sc.x} cy={sc.y} r={pr + PLANET_AVOID_MARGIN}
-              fill="none" stroke="white" strokeWidth="0.7" strokeDasharray="2 3" opacity={0.6} />
+              fill="none" stroke="white" strokeWidth="0.7" strokeDasharray="1 3" opacity={0.6} />
             {/* 近距离排斥区 */}
             <circle cx={sc.x} cy={sc.y} r={pr + 10}
               fill="none" stroke="#ccc" strokeWidth="1" strokeDasharray="3 3" opacity={0.5} />

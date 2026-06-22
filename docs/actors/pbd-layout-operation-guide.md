@@ -20,7 +20,7 @@ typewriter 动画完成后，折叠态 pill 自动收缩至适配 welcome-text�
 
 - 最小宽度 24px，最大不超过 `collapsedWidth`（默认 60px）
 - CSS transition `width 0.5s` 控制收缩速度
-- PBD 碰撞检测同步使用各 label 的实际收缩宽度
+- PBD 碰撞盒在动画播放 250ms 后开始跟随（避免锚点因宽度突变而抖动）
 
 | Label | 文本 | 收缩后宽度 |
 |-------|------|-----------|

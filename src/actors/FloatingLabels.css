@@ -22,9 +22,8 @@
 
 .floating-label-pill:hover {
   opacity: 1;
-  box-shadow: 0 0 0 1px var(--pill-accent), 0 4px 12px rgba(0, 0, 0, 0.3);
 }
 
-.floating-label-pill.expanded:hover {
+.floating-label-pill.expanded {
   box-shadow: 0 0 0 1.5px var(--pill-accent), 0 6px 20px rgba(0, 0, 0, 0.4);
 }

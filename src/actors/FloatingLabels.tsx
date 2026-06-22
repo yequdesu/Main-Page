@@ -59,7 +59,11 @@ const FloatingLabels = memo(function FloatingLabels(props: FloatingLabelsProps) 
   }, [])
 
   // per-label 折叠态自适合宽度（px），typewriter 完成后写入
+  // visualFitWidths: 立即更新 → 触发 CSS width transition（0.5s）
+  const [visualFitWidths, setVisualFitWidths] = useState<Record<number, number>>({})
+  // collapsedFitWidths: 延迟至 CSS 动画完成后更新 → 传入 PBD，避免锚点抖动
   const [collapsedFitWidths, setCollapsedFitWidths] = useState<Record<number, number>>({})
+  const pbdDelayTimers = useRef<Record<number, ReturnType<typeof setTimeout>>>({})
 
   const {
     labels, activeTrackIdx,
@@ -85,11 +89,24 @@ const FloatingLabels = memo(function FloatingLabels(props: FloatingLabelsProps) 
         const textW = getTextWidth(cfg.planetLink.label)
         // 文本宽度 + 左右 padding（6px × 2）+ 圆角余量
         const fitW = Math.max(24, Math.min(collapsedWidth, Math.ceil(textW + 18)))
-        setCollapsedFitWidths(prev => ({ ...prev, [trackIdx]: fitW }))
+        // 视觉宽度：立即更新 → CSS transition 0.5s 播放收缩动画
+        setVisualFitWidths(prev => ({ ...prev, [trackIdx]: fitW }))
+        // PBD 碰撞盒：延迟至 CSS 动画完成后更新 → 避免锚点频繁抖动
+        if (pbdDelayTimers.current[trackIdx]) clearTimeout(pbdDelayTimers.current[trackIdx])
+        // PBD 碰撞盒：CSS 动画播放 0.25s 后开始跟随实时宽度
+        pbdDelayTimers.current[trackIdx] = setTimeout(() => {
+          setCollapsedFitWidths(prev => ({ ...prev, [trackIdx]: fitW }))
+        }, 250)
       }
     }
     if (mode === 'active') handlePillClick(trackIdx)
   }, [handlePillClick, activeTrackIdx, configs, collapsedWidth, getTextWidth])
+
+  // 清理 PBD 延迟定时器
+  useEffect(() => {
+    const timers = pbdDelayTimers.current
+    return () => { Object.values(timers).forEach(t => clearTimeout(t)) }
+  }, [])
 
   useEffect(() => {
     if (activeTrackIdx < 0) return
@@ -102,7 +119,7 @@ const FloatingLabels = memo(function FloatingLabels(props: FloatingLabelsProps) 
     <div className="floating-labels-container">
       {labels.map((label) => {
         const isExpanded = activeTrackIdx === label.trackIdx
-        const fitW = collapsedFitWidths[label.trackIdx]
+        const fitW = visualFitWidths[label.trackIdx]
         // 折叠 + 已收缩 → 用适配宽度；折叠 + 未收缩 → 默认宽度；展开 → 全宽
         const w = isExpanded ? expandedWidth
           : (fitW !== undefined ? fitW : collapsedWidth)
