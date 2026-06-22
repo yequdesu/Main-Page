@@ -33,7 +33,14 @@ FloatingLabels.tsx   React 渲染组件
   ├─ Canvas 2D measureText 计算 welcome-text 像素宽度
   ├─ collapsedFitWidths    收缩状态 → useFloatingLabels → stepPBD
   ├─ TerminalBar × 3       Slot 声明（Welcome + Section）
+  ├─ PlanetLabelGuideLines 引导虚线（独立组件，anchor→planet）
   └─ Debug SVG             cyan/red/green/white 调试覆盖层
+
+PlanetLabelGuideLines.tsx  独立组件
+  ├─ 4 个计算点            anchorL + anchorR + topLeft + topRight
+  ├─ 蒙版 3px              两端缩进，不穿透 label / planet
+  ├─ guidesReady           收缩动画 0.5s 完成后才绘制
+  └─ 展开态跳过             activeTrackIdx === trackIdx → return null
 ```
 
 ## 参数调优指南
@@ -141,6 +148,8 @@ GitHub: 34px   + 18 = 53px
 | green rect 与 DOM pill 大小不一 | `collapsedFitWidths` 未同步到 PBD | 检查 `stableRefs` 和 `stepPBD(collapsedWidths)` 传递链路 |
 | 收缩后 PBD 碰撞不准确 | `collapsedWidths` 未传入 `stepPBD` | 确认 rAF 循环中 `fitW` 数组正确构建 |
 | 收缩速度不理想 | CSS transition 时长 | 调整 `FloatingLabels.css` 中 `width 0.5s` |
+| 牵引线不出现 | `guidesReady` 未置位 / 距离 ≤ 11px | 检查 `DISTANCE_THRESHOLD` 和 500ms 定时器 |
+| 牵引线方向异常 | 计算点选择错误 | 检查 4 个点的最近者判定逻辑 |
 | label 频繁进入 fallback | 约束过严，无合法位置 | 尝试增大 anchorRangeRadius |
 
 ## 测试

@@ -96,6 +96,16 @@ debug mode: ON
 | **绿色矩形** | 算法计算出的 label 矩形 |
 | **红色圆点** | 左右侧边中点锚点 |
 | **白色虚线圆** | 中央恒星内层光晕 |
+| **灰白虚线（引导线）** | label 锚点 → planet 质心，gap > 11px 时出现，蒙版 3px |
+
+### 牵引线
+
+独立组件 `PlanetLabelGuideLines.tsx`，不嵌入布局系统。折叠态 label 收缩动画完成后自动出现：
+
+- 4 个计算点取距 planet 最近者作为连线起点
+- 蒙版 3px：两端缩进，不穿透 label / planet
+- 展开态自动隐藏
+- 距离阈值：11px
 
 `debug` 再次输入关闭。覆盖层独立组件 `PlanetLabelDebug.tsx`，通过 `window.__DEBUG__` 标志位控制。
 

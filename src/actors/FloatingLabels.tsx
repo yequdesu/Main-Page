@@ -6,6 +6,7 @@ import { createPlanetCommandHandler } from '../terminal/planetCommands'
 import { useFloatingLabels, type SequenceStrategy, type LabelConfig } from '../behaviors/useFloatingLabels'
 import type { PBDParams } from '../behaviors/usePBDLayout'
 import PlanetLabelDebug from './PlanetLabelDebug'
+import PlanetLabelGuideLines from './PlanetLabelGuideLines'
 import './FloatingLabels.css'
 
 /**
@@ -64,6 +65,9 @@ const FloatingLabels = memo(function FloatingLabels(props: FloatingLabelsProps) 
   // collapsedFitWidths: 延迟至 CSS 动画完成后更新 → 传入 PBD，避免锚点抖动
   const [collapsedFitWidths, setCollapsedFitWidths] = useState<Record<number, number>>({})
   const pbdDelayTimers = useRef<Record<number, ReturnType<typeof setTimeout>>>({})
+  // 牵引线就绪标志（收缩动画 0.5s 完成后才绘制）
+  const [guidesReady, setGuidesReady] = useState<Record<number, boolean>>({})
+  const guideTimers = useRef<Record<number, ReturnType<typeof setTimeout>>>({})
 
   const {
     labels, activeTrackIdx,
@@ -97,15 +101,24 @@ const FloatingLabels = memo(function FloatingLabels(props: FloatingLabelsProps) 
         pbdDelayTimers.current[trackIdx] = setTimeout(() => {
           setCollapsedFitWidths(prev => ({ ...prev, [trackIdx]: fitW }))
         }, 250)
+        // 牵引线：CSS 动画 0.5s 完成后才绘制
+        if (guideTimers.current[trackIdx]) clearTimeout(guideTimers.current[trackIdx])
+        guideTimers.current[trackIdx] = setTimeout(() => {
+          setGuidesReady(prev => ({ ...prev, [trackIdx]: true }))
+        }, 500)
       }
     }
     if (mode === 'active') handlePillClick(trackIdx)
   }, [handlePillClick, activeTrackIdx, configs, collapsedWidth, getTextWidth])
 
-  // 清理 PBD 延迟定时器
+  // 清理 PBD 与牵引线延迟定时器
   useEffect(() => {
-    const timers = pbdDelayTimers.current
-    return () => { Object.values(timers).forEach(t => clearTimeout(t)) }
+    const pbd = pbdDelayTimers.current
+    const guide = guideTimers.current
+    return () => {
+      Object.values(pbd).forEach(t => clearTimeout(t))
+      Object.values(guide).forEach(t => clearTimeout(t))
+    }
   }, [])
 
   useEffect(() => {
@@ -180,6 +193,17 @@ const FloatingLabels = memo(function FloatingLabels(props: FloatingLabelsProps) 
           </div>
         )
       })}
+
+      <PlanetLabelGuideLines
+        labels={labels}
+        collapsedWidth={collapsedWidth}
+        expandedWidth={expandedWidth}
+        collapsedHeight={collapsedHeight}
+        expandedHeight={expandedHeight}
+        activeTrackIdx={activeTrackIdx}
+        collapsedFitWidths={visualFitWidths}
+        guidesReady={guidesReady}
+      />
 
       <PlanetLabelDebug
         labels={labels}

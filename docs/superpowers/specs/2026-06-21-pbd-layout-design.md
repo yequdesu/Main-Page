@@ -198,7 +198,24 @@ Debug 覆盖层独立组件 `PlanetLabelDebug.tsx`，通过 MainTerminal `debug`
 | 红色圆点 | 左右锚点 |
 | 白色虚线圆 | 中央恒星内层光晕 |
 
-## 8. 性能特征
+## 8. 牵引线
+
+独立组件 `PlanetLabelGuideLines.tsx`，不嵌入布局系统主代码。在 label 收缩动画完成后，当锚点距 planet 超过 11px 时绘制灰白色引导虚线。
+
+- **计算点**：label 左右锚点 + 左上/右上角，取距 planet 质心最近者
+- **距离判定**：`gap = dist(最近点, planet) - planetRadius > 11px`
+- **蒙版**：连线两端各缩进 3px（label 边界外 3px → planet 表面外 3px）
+- **时间轴**：收缩 CSS 动画 0.5s 完成后 `guidesReady=true` 才绘制
+- **展开态**：点击展开时不绘制（`activeTrackIdx === trackIdx` 跳过）
+
+```
+stroke: rgba(200, 210, 225, 0.45)
+strokeWidth: 0.7
+strokeDasharray: "2 1"
+zIndex: 5（pill 之下，debug 之下）
+```
+
+## 9. 性能特征
 
 - PBD 物理: 3 labels × 5 iterations × ~20 ops = ~300 ops/frame
 - rAF 循环: 60fps 独立于 R3F frameloop
