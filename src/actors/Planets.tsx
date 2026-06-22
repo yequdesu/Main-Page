@@ -263,9 +263,13 @@ export default function Planets() {
     if (shouldSkip(time, sp)) return
 
     const wof = clamped(sp, WHITE_OUT_THRESHOLD, WHITE_OUT_END)
-    const ORBIT_START = 0.80  // 风铃下落前即开始轨道过渡
+    const ORBIT_START = 0.95  // 重组延迟到回收完毕后
     const act3Progress = clamped(sp, ORBIT_START, 1.0)
     const smooth3 = smoothstep(act3Progress)
+
+    // 风铃下落期间强制轨道位置(smooth3=1)，使行星在正确 XZ 上垂落
+    const wc = getWindChimeProgress(sp)
+    const orbitSmooth3 = (sp >= DROP_START && sp < DROP_END) ? 1.0 : smooth3
 
     const cx = 0, cy = -1.0, cz = SCENE_CENTER_Z
     const { hoveredIdx, focusedPlanetIdx } = useScrollStore.getState()
@@ -286,7 +290,7 @@ export default function Planets() {
       d.hoverFactor += (targetHover - d.hoverFactor) * 0.10
 
       // Position
-      const { x: px, y: py, z: pz } = calcOrbitPosition(d, time, delta, cx, cy, cz, smooth3)
+      const { x: px, y: py, z: pz } = calcOrbitPosition(d, time, delta, cx, cy, cz, orbitSmooth3)
 
       // Distance for appearance
       _scratch.set(px, py, pz)
@@ -304,11 +308,9 @@ export default function Planets() {
       if (!mesh) continue
 
       mesh.position.set(px, py, pz)
-      // 风铃下落：仅下落阶段(0.80→0.87)偏移 Y，之后留在目标位置
-      const wc = getWindChimeProgress(sp)
-      if (sp < DROP_END) {
-        const dropOnly = clamped(sp, DROP_START, DROP_END)
-        mesh.position.y = ANCHOR_Y + (py - ANCHOR_Y) * smoothstep(dropOnly)
+      // 风铃下落：下落阶段偏移 Y，之后留在目标位置
+      if (wc.active) {
+        mesh.position.y = ANCHOR_Y + (py - ANCHOR_Y) * wc.smoothP
       }
       mesh.scale.setScalar(appearance.scale)
 
