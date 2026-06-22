@@ -11,7 +11,7 @@ import { calcScreenSpaceHover } from '../behaviors/useScreenSpaceHover'
 import { smoothstep, clamped, SCENE_CENTER_Z, WHITE_OUT_THRESHOLD, WHITE_OUT_END, GRID_SHIFT_START, ORBIT_RADII, ORBIT_COUNT } from '../r3f/ScrollRig'
 import { atmosphereVertex, atmosphereFragment } from '../shaders/AtmosphereShader'
 import { type ParticleData } from '../types'
-import { getWindChimeProgress, ANCHOR_Y, DROP_START, DROP_END } from './WindChimeLines'
+import { WC_ANCHOR_Y, WC_DROP_START, WC_DROP_END } from '../behaviors/useWindChime'
 
 // ============================================================
 // 共享状态 — PlanetClickHandler + Act3ContentPhase + PlanetLabel 消费
@@ -268,8 +268,7 @@ export default function Planets() {
     const smooth3 = smoothstep(act3Progress)
 
     // 风铃下落期间强制轨道位置(smooth3=1)，使行星在正确 XZ 上垂落
-    const wc = getWindChimeProgress(sp)
-    const orbitSmooth3 = (sp >= DROP_START && sp < DROP_END) ? 1.0 : smooth3
+    const orbitSmooth3 = (sp >= WC_DROP_START && sp < WC_DROP_END) ? 1.0 : smooth3
 
     const cx = 0, cy = -1.0, cz = SCENE_CENTER_Z
     const { hoveredIdx, focusedPlanetIdx } = useScrollStore.getState()
@@ -308,10 +307,10 @@ export default function Planets() {
       if (!mesh) continue
 
       mesh.position.set(px, py, pz)
-      // 风铃下落：仅下落阶段(0.80→0.87)偏移 Y，之后留在目标位置
-      if (sp >= DROP_START && sp < DROP_END) {
-        const dropOnly = clamped(sp, DROP_START, DROP_END)
-        mesh.position.y = ANCHOR_Y + (py - ANCHOR_Y) * smoothstep(dropOnly)
+      // 风铃下落：仅下落阶段偏移 Y，之后留在目标位置
+      if (sp >= WC_DROP_START && sp < WC_DROP_END) {
+        const dropOnly = clamped(sp, WC_DROP_START, WC_DROP_END)
+        mesh.position.y = WC_ANCHOR_Y + (py - WC_ANCHOR_Y) * smoothstep(dropOnly)
       }
       mesh.scale.setScalar(appearance.scale)
 
