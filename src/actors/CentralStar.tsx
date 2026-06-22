@@ -103,7 +103,8 @@ export default function CentralStar() {
   useFrame((state) => {
     const sp = useScrollStore.getState().scrollProgress
     const time = state.clock.elapsedTime
-    const act3Progress = clamped(sp, GRID_SHIFT_START, 1.0)
+    const GLOW_START = 0.94  // 线条回收完毕后
+    const act3Progress = clamped(sp, GLOW_START, 1.0)
     const smooth3 = smoothstep(act3Progress)
     const pulse = 1 + Math.sin(time * PULSE_FREQ_1) * PULSE_AMP_1 + Math.sin(time * PULSE_FREQ_2) * PULSE_AMP_2
 

@@ -45,7 +45,8 @@ export default function OrbitRings({ speedScale = 1.0 }: OrbitRingsProps) {
 
   useFrame(() => {
     const sp = useScrollStore.getState().scrollProgress
-    const act3Progress = clamped(sp, GRID_SHIFT_START, 1.0)
+    const ORBIT_START = 0.94
+    const act3Progress = clamped(sp, ORBIT_START, 1.0)
     const smooth3 = smoothstep(act3Progress)
 
     orbitMatRefs.current.forEach((mat) => {
