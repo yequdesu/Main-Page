@@ -1,0 +1,16 @@
+cameraFov: 25
+cameraZ: 9
+cameraY: -1.5
+ambientColor: '#29172e'
+ambientIntensity: 0.5
+keyColor: '#ffffff'
+keyIntensity: 0.5
+keyX: 4
+keyY: 6
+keyZ: 8
+fillColor: '#c8d6ff'
+fillIntensity: 1
+fillX: -4
+fillY: 2
+fillZ: 4
+cloneY: -0.965

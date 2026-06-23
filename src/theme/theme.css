@@ -80,15 +80,14 @@
   --color-footer-link: #999;
 
   /* ---- 品牌文字 第 1 行 ----
-     "Personal Site" 大标题。仅在 Act 3 显示，透明背景上
-     需深色文字，但 night 模式 scene 保持暗色故用亮色。
-     App.css: .brand-line-1 { color: var(--color-brand-line1); }
+     "Personal Site" 大标题。Act 2 出现，Act 3 grid shift 期间上移。
+     BrandTitle.css: .brand-title-main { color: var(--color-brand-line1); }
      --------------------------------------------------------- */
   --color-brand-line1: #f1f5f9;
 
   /* ---- 品牌文字 第 2 行 ----
      "By YeQuDesu" 副标题。
-     App.css: .brand-line-2 { color: var(--color-brand-line2); }
+     BrandTitle.css: .brand-title-sub { color: var(--color-brand-line2); }
      --------------------------------------------------------- */
   --color-brand-line2: #cbd5e1;
 

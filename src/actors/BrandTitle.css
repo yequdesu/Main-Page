@@ -1,0 +1,55 @@
+/* ============================================================
+   BrandTitle — 品牌标题叠加层（Act 2-3）
+
+   由 BrandTitle 组件渲染，从 App.tsx 抽离独立维护。
+   ============================================================ */
+
+/* ---- 容器：fixed 全屏居中 ---- */
+.brand-title {
+  position: fixed; inset: 0; z-index: 10;
+  display: flex; align-items: center; justify-content: center;
+  pointer-events: none;
+  transform: translateY(calc(var(--text-offset-y, 0px) - 4vh));
+}
+
+/* 点击快进期间禁用 CSS transition，避免 smoothstep 计算值与
+   CSS transition 叠加导致动画撕裂 */
+.brand-title.no-transition,
+.brand-title.no-transition * {
+  transition: none !important;
+}
+
+/* ---- 行容器 ---- */
+.brand-title-row { display: flex; align-items: flex-end; gap: 0; }
+
+/* ---- 灯塔图标 ---- */
+.brand-title-icon {
+  font-size: clamp(1.8rem, 4.5vw, 3.5rem);
+  height: 2.8em;
+  width: auto;
+  margin-bottom: -0.08em;
+  vertical-align: baseline;
+  object-fit: contain;
+  transform: translateY(-6px);
+}
+
+/* ---- 文字组 ---- */
+.brand-title-text {
+  display: flex; flex-direction: column; align-items: flex-end; gap: 0.05rem; margin-left: 0.15em;
+}
+
+/* ---- 主标题 "Personal Site" ---- */
+.brand-title-main {
+  margin: 0; margin-right: -0.05em;
+  font-family: 'Georgia', 'Times New Roman', serif;
+  font-size: clamp(1.8rem, 4.5vw, 3.5rem); font-weight: 600;
+  color: var(--color-brand-line1); letter-spacing: 0.05em; white-space: nowrap; text-align: left;
+}
+
+/* ---- 副标题 "By YeQuDesu" ---- */
+.brand-title-sub {
+  margin: 0; margin-right: -0.04em;
+  font-family: 'Georgia', 'Times New Roman', serif;
+  font-size: clamp(0.55rem, 1.0vw, 0.75rem); font-weight: 400;
+  color: var(--color-brand-line2); letter-spacing: 0.04em; font-style: italic; text-align: left;
+}

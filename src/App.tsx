@@ -13,6 +13,7 @@ import MainTerminal from './MainTerminal'
 import { executeCommand } from './terminal/commands'
 import InfoPanelTerminal from './InfoPanelTerminal'
 import FloatingLabels from './actors/FloatingLabels'
+import BrandTitle from './actors/BrandTitle'
 import type { LabelConfig, SequenceStrategy } from './behaviors/useFloatingLabels'
 import { PLANET_LINKS } from './types'
 import { useDayNight } from './theme/useDayNight'
@@ -45,8 +46,6 @@ export default function App() {
   // ---- Physics state (refs — no re-render) ----
   const physRef = useRef({ target: 0, velocity: 0, lastScrollbar: 0, lastPhysics: 0, active: true })
   const clickTweenRef = useRef<gsap.core.Tween | null>(null)
-  const focusTweenRef = useRef<gsap.core.Tween | null>(null)
-  const brandTextElRef = useRef<HTMLDivElement | null>(null)
   const lighthouseCapturedRef = useRef(false)
   const stRef = useRef<ScrollTrigger | null>(null)
 
@@ -54,7 +53,6 @@ export default function App() {
   const [hintVisible, setHintVisible] = useState(true)
   const [isClickPlaying, setIsClickPlaying] = useState(false)
   const [isAct3Focused, setIsAct3Focused] = useState(false)
-  const [brandTextVisible, setBrandTextVisible] = useState(false)
   const [lighthouseImage, setLighthouseImage] = useState<string | null>(null)
   const overlayData = useScrollStore(s => s.overlayData)
   const isTerminalActive = terminalMode === 'active'
@@ -173,47 +171,11 @@ export default function App() {
     }
   }, [onWheel, onClick])
 
-  // ---- Act 3 focus state (block scroll wheel + brand text animation) ----
+  // ---- Act 3 focus state (block scroll wheel) ----
   useEffect(() => {
     const focused = overlayData.focused && scrollProgress >= GRID_SHIFT_START
     setIsAct3Focused(focused)
-
-    const el = brandTextElRef.current
-    if (!el) return
-
-    if (focusTweenRef.current) focusTweenRef.current.kill()
-
-    focusTweenRef.current = gsap.to(el, {
-      opacity: focused ? 0 : 1,
-      marginTop: focused ? -24 : 0,
-      duration: 0.5,
-      ease: 'power2.out',
-      overwrite: 'auto',
-    })
   }, [overlayData.focused, scrollProgress])
-
-  // ---- brand text visibility ----
-  useEffect(() => {
-    setBrandTextVisible(scrollProgress >= 0.70)
-  }, [scrollProgress])
-
-  // computeTextOffset — Act 3 grid shift 同步到品牌文字位移（逐字保留自原 updateTextOffsetCSS）
-  const textOffsetY = (() => {
-    if (scrollProgress < GRID_SHIFT_START) return 0
-    const progress = (scrollProgress - GRID_SHIFT_START) / (1.0 - GRID_SHIFT_START)
-    const smoothProgress = progress * progress * (3 - 2 * progress) // smoothstep
-    return Math.round(-90 * smoothProgress * 10) / 10
-  })()
-
-  // Brand text opacity — 逐行渐进淡入（逐字保留自原 App.vue computed）
-  const brandLine1Opacity = (() => {
-    const t = Math.max(0, Math.min(1, (scrollProgress - 0.70) / (0.82 - 0.70)))
-    return t * t * (3 - 2 * t) // smoothstep
-  })()
-  const brandLine2Opacity = (() => {
-    const t = Math.max(0, Math.min(1, (scrollProgress - 0.82) / (0.92 - 0.82)))
-    return t * t * (3 - 2 * t) // smoothstep
-  })()
 
   // ---- lighthouse screenshot ----
   useEffect(() => {
@@ -316,23 +278,13 @@ export default function App() {
         </div>
       )}
 
-      {/* 品牌文字 */}
-      {brandTextVisible && (
-        <div ref={brandTextElRef}
-          className={`brand-text${isClickPlaying ? ' no-transition' : ''}`} aria-hidden="true"
-          style={{ '--text-offset-y': `${textOffsetY}px` } as React.CSSProperties}>
-          <div className="brand-text-row">
-            {lighthouseImage && (
-              <img src={lighthouseImage} alt="" className="brand-lighthouse-icon"
-                style={{ opacity: brandLine1Opacity }} />
-            )}
-            <div className="brand-text-inner">
-              <p className="brand-line-1" style={{ opacity: brandLine1Opacity }}>Personal Site</p>
-              <p className="brand-line-2" style={{ opacity: brandLine2Opacity }}>By YeQuDesu</p>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* 品牌标题（Act 2-3） */}
+      <BrandTitle
+        scrollProgress={sp}
+        lighthouseImage={lighthouseImage}
+        isClickPlaying={isClickPlaying}
+        isFocused={overlayData.focused && sp >= GRID_SHIFT_START}
+      />
 
       {/* 聚焦 SVG 叠加层 */}
       {overlayData.focused && (
