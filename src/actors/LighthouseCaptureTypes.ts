@@ -2,9 +2,10 @@ import {
   WebGLRenderer, Scene, PerspectiveCamera,
   AmbientLight, DirectionalLight,
   Mesh, Color, AdditiveBlending, BackSide,
-  MeshBasicMaterial,
+  MeshBasicMaterial, BufferGeometry,
   type Group,
 } from 'three'
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js'
 import { edgeGlowVertex, edgeGlowFragment } from '../shaders/EdgeGlowShader'
 
 /**
@@ -133,39 +134,37 @@ export function offscreenCapture(
     const tempScene = new Scene()
     tempScene.add(clone)
 
-    // ---- 轮廓辉光层（Fresnel 倒置外壳副本） ----
+    // ---- 轮廓描边层（合并几何体 → 单一外轮廓 Inverted Hull） ----
     if (config.edgeGlowIntensity > 0) {
-      const glowGroup = lighthouseGroup.clone(true)
-      glowGroup.position.set(0, config.cloneY, 0)
-      glowGroup.scale.copy(lighthouseGroup.scale)
+      const geometries: BufferGeometry[] = []
 
-      const toRemove: Mesh[] = []
-
-      glowGroup.traverse((child) => {
+      lighthouseGroup.traverse((child) => {
         if (!(child instanceof Mesh)) return
-
         // 排除遮罩（最底边，与场景背景同色 #050811）
-        if (child.position.y < -0.85) {
-          toRemove.push(child)
-          return
-        }
+        if (child.position.y < -0.85) return
 
-        // 轮廓副本略大于原 mesh
-        child.scale.multiplyScalar(1.04)
+        const geo = child.geometry.clone()
+        child.updateMatrix()
+        geo.applyMatrix4(child.matrix)
+        geometries.push(geo)
+      })
 
-        child.material = new MeshBasicMaterial({
+      if (geometries.length > 0) {
+        const mergedGeo = mergeGeometries(geometries, false)
+
+        const outline = new Mesh(mergedGeo, new MeshBasicMaterial({
           color: new Color(config.edgeGlowColor),
           opacity: config.edgeGlowIntensity,
           side: BackSide,
           transparent: true,
           depthWrite: false,
           blending: AdditiveBlending,
-        })
-      })
+        }))
+        outline.position.set(0, config.cloneY, 0)
+        outline.scale.copy(lighthouseGroup.scale).multiplyScalar(1.04)
 
-      toRemove.forEach((m) => m.removeFromParent())
-
-      tempScene.add(glowGroup)
+        tempScene.add(outline)
+      }
     }
 
     // ---- 光照 ----
