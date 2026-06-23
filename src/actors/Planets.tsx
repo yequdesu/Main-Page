@@ -269,11 +269,11 @@ export default function Planets() {
     const act3Progress = clamped(sp, ORBIT_START, 1.0)
     const smooth3 = smoothstep(act3Progress)
 
-    // 0.68 起行星进入轨道，不再参与 dust→orbit
+    // 0.68→0.80 行星从 dust 渐变为轨道，避免闪现
     const VISIBLE_START = 0.68
     const wc = getWindChimeProgress(sp)
     const inWindChime = wc.active
-    const orbitSmooth3 = (sp >= VISIBLE_START) ? 1.0 : smooth3
+    const orbitSmooth3 = clamped(sp, VISIBLE_START, WC_DROP_END)  // 0→1 渐变
 
     const cx = 0, cy = -1.0, cz = SCENE_CENTER_Z
     const { hoveredIdx, focusedPlanetIdx } = useScrollStore.getState()
