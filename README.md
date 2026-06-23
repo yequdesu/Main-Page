@@ -19,6 +19,7 @@
 - **行星聚焦** — 相机绕行 + SVG 切线连接线 + 30s 自动取消；再次点击打开链接；聚焦时阻止滚轮
 - **终端系统** — 底部主终端（click + `/` 激活，支持 help / debug / day / night / clear 命令）；Act 3 左上角信息面板终端（实时显示行星/轨道/摄像机/debris 数据）
 - **主题切换** — `day` / `night` 命令切换全局主题（CSS 静态元素 + Scene 背景 + Terminal 颜色三层同步过渡，0.6s crossfade）
+- **灯塔截图调试** — `pnpm debug` 启动独立调试面板，Leva 实时调参 + 离屏烘焙预览 + YAML 配置持久化
 
 ## 架构
 
@@ -28,9 +29,9 @@
 | 3D | R3F v9 + Three.js 0.170 + InstancedMesh2 |
 | 状态 | Zustand v5（渲染态）+ useState（UI 态） |
 | 动画 | GSAP ScrollTrigger（命令式）+ R3F useFrame（声明式） |
-| 构建 | Vite 6 + TypeScript + Vitest (34 tests) |
+| 构建 | Vite 6 + TypeScript + Vitest (45 tests) |
 
-**组件分工：** `App.tsx` 滚动物理 + DOM 叠加层 + 品牌文字 + SVG 聚焦叠加层；R3F Canvas 内组件负责全部 3D 场景、动画循环、Act 调度。终端系统由 `TerminalBar`（纯引擎）+ `MainTerminal` / `InfoPanelTerminal`（thin wrapper）组成，通过 Slot 声明式构建。主题系统由 `src/theme/` 模块管理：`palettes.ts`（色板定义）+ `useDayNight.ts`（Hook）+ `theme.css`（CSS 变量配置），通过 GSAP blend crossfade 驱动三层平滑过渡。
+**组件分工：** `App.tsx` 滚动物理 + DOM 叠加层 + SVG 聚焦叠加层；`BrandTitle`（品牌文字 + 灯塔图标）已从 App 抽离独立维护。R3F Canvas 内组件负责全部 3D 场景、动画循环、Act 调度。终端系统由 `TerminalBar`（纯引擎）+ `MainTerminal` / `InfoPanelTerminal`（thin wrapper）组成，通过 Slot 声明式构建。主题系统由 `src/theme/` 模块管理：`palettes.ts`（色板定义）+ `useDayNight.ts`（Hook）+ `theme.css`（CSS 变量配置），通过 GSAP blend crossfade 驱动三层平滑过渡。灯塔品牌图标由 `LighthouseCapture` 运行时离屏烘焙生成，支持 YAML 配置文件覆盖截图参数。
 
 **场景常量：**
 
@@ -48,6 +49,7 @@
 ```
 src/
 ├── main.tsx                       入口 + extend() 注册
+├── debug.tsx                      调试面板入口（debug.html 加载）
 ├── App.tsx / App.css              滚动物理 + DOM 叠加层
 ├── MainTerminal.tsx               主终端（底部居中，click + / 键）
 ├── InfoPanelTerminal.tsx + .css   信息面板终端（Act 3 左上角）
@@ -58,7 +60,14 @@ src/
 │   └── PlanetClickHandler.tsx    NDC 投影点击检测
 ├── stores/
 │   ├── scrollStore.ts              Zustand（scroll + focus + terminal + dayNight）
-│   └── realtimeStore.ts            Zustand（行星/轨道/摄像机/debris）
+│   └── realtimeStore.ts            Zustand（行星/轨道/摄像机/debris + screenCoords）
+├── debug/                         灯塔截图调试系统
+│   ├── README.md                   系统说明
+│   ├── OPERATION.md                操作手册
+│   ├── MAINTENANCE.md              维护指南
+│   ├── LighthousePreviewPanel.tsx  双栏调试面板（R3F Canvas + Leva + 烘焙预览）
+│   ├── LighthousePreviewPanel.css  双栏布局样式
+│   └── useLevaCaptureConfig.ts     Leva useControls hook
 ├── theme/                         主题系统
 │   ├── theme.css                   CSS 变量配置（:root + [data-theme]）
 │   ├── palettes.ts                 色板常量 + lerp/scroll/blend 纯函数
@@ -72,25 +81,31 @@ src/
 │   ├── useAnimateHeight.ts        CSS transition 高度动画
 │   ├── Scrollable.tsx + .css      通用滚动容器（pinnedToBottom）
 │   ├── useTypewriter.ts           逐字打字机 hook
-│   ├── useEchoSequence.ts         回显序列动画（保留，未使用）
 │   ├── commands.ts                命令注册
 │   └── __tests__/                 terminal 测试
 ├── types/index.ts                SCROLL_RIG + 数据接口
 ├── acts/                          Act 编排（group visible，始终挂载）
 │   ├── Act1OceanVoyage.tsx        OceanWaves + Lighthouse + LightBeam
 │   ├── Act2GridTransition.tsx     GridLines
-│   └── Act3ContentPhase.tsx       OrbitRings + CentralStar + PlanetLabel
+│   └── Act3ContentPhase.tsx       OrbitRings（标签由 App.tsx 的 FloatingLabels 管理）
 ├── actors/                        3D 对象（创建 + useFrame 动画）
 │   ├── SceneLights.tsx            全局灯光（Canvas 根层级）
 │   ├── DustField.tsx              3 主行星 + InstancedMesh2×80（Canvas 根层级）
 │   ├── Lighthouse.tsx + LightBeam.tsx + OceanWaves.tsx
 │   ├── CentralStar.tsx + OrbitRings.tsx + OrbitalRing.tsx + GridLines.tsx
-│   ├── PlanetLabel.tsx + LighthouseCapture.tsx
+│   ├── BrandTitle.tsx + .css      品牌标题 DOM 叠加层（BrandIcon + BrandText）
+│   ├── FloatingLabels.tsx + .css  行星标签 DOM 编排容器（PBD 物理驱动）
+│   ├── LighthouseCapture.tsx      灯塔离屏烘焙截图
+│   ├── LighthouseCaptureTypes.ts  CaptureConfig + 默认值 + offscreenCapture 纯函数
+│   └── PlanetLabelDebug.tsx + PlanetLabelGuideLines.tsx  PBD 调试覆盖层
 ├── behaviors/                     纯函数 + Hook
 │   ├── useCameraFocus.ts + useFrameCache.ts
 │   ├── useOrbitPosition.ts + useAppearanceFade.ts
 │   ├── useOcclusionFade.ts + useScreenSpaceHover.ts
-│   └── __tests__/                 34 tests
+│   ├── useScreenProjection.ts     3D→2D 屏幕坐标投影
+│   ├── useFloatingLabels.ts       标签编排逻辑（PBD + 入场排序 + 退出超时）
+│   ├── usePBDLayout.ts            PBD 物理布局（连续时间约束动力学）
+│   └── __tests__/                 45 tests
 ├── shaders/VolumetricBeamShader.ts
 └── utils/                         smoothstep / toward / shortestDelta
 ```
@@ -117,7 +132,7 @@ Three.js 按 `renderOrder` 从小到大分组渲染。`renderOrder` 不继承—
 | 0 | 0 | 海浪线、灯塔、光束锥体/射线/辉光 | false |
 | 1 | 1 | 恒星光晕+Halo、主行星×3 | 行星=true, 其余=false |
 | 2 | 2 | 恒星核心、轨道环、陀螺仪环、网格线、碎片×80 | 核心=true, 其余=false |
-| 9999 | 9999 | 行星标签 Sprite（depthTest=false） | false |
+| — | — | 行星标签（DOM overlay，非 3D 对象） | — |
 
 - `depthWrite=true` → 写入深度缓冲，遮挡后方对象
 - `depthWrite=false` → 不写深度，不遮挡任何对象
@@ -128,11 +143,14 @@ Three.js 按 `renderOrder` 从小到大分组渲染。`renderOrder` 不继承—
 ## 开发
 
 ```bash
-pnpm install && pnpm dev         # → localhost:5173
+pnpm install && pnpm dev         # → localhost:5173（主应用 + debug.html）
+pnpm debug                       # → localhost:5173/debug.html（仅灯塔截图调试面板）
 pnpm build                       # tsc + vite → dist/
-pnpm test                        # vitest（34 tests / 6 suites）
+pnpm test                        # vitest（45 tests / 8 suites）
 pnpm clean && pnpm mirror        # 辅助脚本
 ```
+
+`pnpm debug` 与 `pnpm dev` 的区别见 [`src/debug/README.md`](src/debug/README.md)。
 
 ## 维护约束
 
@@ -159,6 +177,9 @@ pnpm clean && pnpm mirror        # 辅助脚本
 | 技术评估 | [`docs/TECH_STACK_EVALUATION.md`](docs/TECH_STACK_EVALUATION.md) | 11 项架构决策 + 援引来源 |
 | 可测试性 | [`docs/COMPOSABILITY_TESTABILITY.md`](docs/COMPOSABILITY_TESTABILITY.md) | R3F vs TresJS vs Vanilla 对比 |
 | 架构分析（历史） | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | Vue 原版源码分析（迁移前参考） |
+| 调试系统说明 | [`src/debug/README.md`](src/debug/README.md) | 架构、配置流、文件清单 |
+| 调试操作手册 | [`src/debug/OPERATION.md`](src/debug/OPERATION.md) | 启动方式、参数分组、工作流 |
+| 调试维护指南 | [`src/debug/MAINTENANCE.md`](src/debug/MAINTENANCE.md) | 新增参数清单、端点说明、配置流向 |
 | 调试记录 | [`docs/dev-blog/`](docs/dev-blog/) | 4 篇问题排查记录 |
 | 模块说明 | [`src/*/README.md`](src/) | 各目录的职责和依赖说明 |
 
