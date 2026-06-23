@@ -138,6 +138,8 @@ export function offscreenCapture(
     // ---- 轮廓辉光层（Fresnel 倒置外壳副本） ----
     if (config.edgeGlowIntensity > 0) {
       const glowGroup = lighthouseGroup.clone(true)
+      glowGroup.position.set(0, config.cloneY, 0)
+      glowGroup.scale.copy(lighthouseGroup.scale)
 
       const toRemove: Mesh[] = []
 
