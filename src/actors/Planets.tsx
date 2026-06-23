@@ -269,11 +269,11 @@ export default function Planets() {
     const act3Progress = clamped(sp, ORBIT_START, 1.0)
     const smooth3 = smoothstep(act3Progress)
 
-    // 0.68→0.80 行星从 dust 渐变为轨道，避免闪现
+    // 行星始终在轨道 XZ，不参与 dust。0.68 前不可见，0.68 起从上方下落
     const VISIBLE_START = 0.68
     const wc = getWindChimeProgress(sp)
     const inWindChime = wc.active
-    const orbitSmooth3 = clamped(sp, VISIBLE_START, WC_DROP_END)  // 0→1 渐变
+    const orbitSmooth3 = 1.0  // 始终轨道位置，永不 dust-lerp
 
     const cx = 0, cy = -1.0, cz = SCENE_CENTER_Z
     const { hoveredIdx, focusedPlanetIdx } = useScrollStore.getState()
@@ -331,6 +331,7 @@ export default function Planets() {
       if (inWindChime) {
         mesh.position.z += 6 * wc.smoothP
       }
+      mesh.visible = sp >= VISIBLE_START  // 0.68 前隐藏
       mesh.scale.setScalar(appearance.scale)
 
       // Track world position
