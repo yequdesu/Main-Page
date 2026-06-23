@@ -139,12 +139,14 @@ export function offscreenCapture(
     if (config.edgeGlowIntensity > 0) {
       const glowGroup = lighthouseGroup.clone(true)
 
+      const toRemove: Mesh[] = []
+
       glowGroup.traverse((child) => {
         if (!(child instanceof Mesh)) return
 
         // 排除底座：地基(-0.9) / 遮罩(-0.95) / 岩石底座(-0.1) / 过渡环(0.12)
         if (child.position.y < 0.30) {
-          child.removeFromParent()
+          toRemove.push(child)
           return
         }
 
@@ -164,6 +166,8 @@ export function offscreenCapture(
           blending: AdditiveBlending,
         })
       })
+
+      toRemove.forEach((m) => m.removeFromParent())
 
       tempScene.add(glowGroup)
     }

@@ -34,6 +34,6 @@ uniform float uFalloff;
 void main() {
   float fresnel = 1.0 - abs(dot(normalize(vNormal), normalize(vViewDir)));
   float alpha = pow(fresnel, uFalloff) * uIntensity;
-  gl_FragColor = vec4(uColor, alpha);
+  gl_FragColor = vec4(uColor * alpha, alpha);
 }
 `
