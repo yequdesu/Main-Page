@@ -146,8 +146,8 @@ export function offscreenCapture(
       glowGroup.traverse((child) => {
         if (!(child instanceof Mesh)) return
 
-        // 排除底座：地基(-0.9) / 遮罩(-0.95) / 岩石底座(-0.1) / 过渡环(0.12)
-        if (child.position.y < 0.30) {
+        // 排除遮罩（最底边，与场景背景同色 #050811）
+        if (child.position.y < -0.85) {
           toRemove.push(child)
           return
         }
