@@ -270,7 +270,7 @@ export default function Planets() {
     const smooth3 = smoothstep(act3Progress)
 
     // 行星始终在轨道 XZ，不参与 dust。0.68 前不可见，0.68 起从上方下落
-    const VISIBLE_START = 0.68
+    const VISIBLE_START = 0.60
     const wc = getWindChimeProgress(sp)
     const inWindChime = wc.active
     const orbitSmooth3 = 1.0  // 始终轨道位置，永不 dust-lerp

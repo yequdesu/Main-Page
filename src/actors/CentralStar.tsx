@@ -107,7 +107,7 @@ export default function CentralStar() {
     const time = state.clock.elapsedTime
 
     // 0.68 出现，从锚点开始下落避免闪现
-    const VISIBLE_START = 0.68
+    const VISIBLE_START = 0.60
     const visible = sp >= VISIBLE_START
     const wc = getWindChimeProgress(sp)
     if (groupRef.current) {
