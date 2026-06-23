@@ -8,7 +8,6 @@ import { useFrameCache } from '../behaviors/useFrameCache'
 import { smoothstep, clamped, GRID_SHIFT_START } from '../r3f/ScrollRig'
 import { updateCameraFocus } from '../behaviors/useCameraFocus'
 import { _planetWorldPositions, _mainPlanetIndices } from '../actors/Planets'
-import { PLANET_LINKS } from '../types'
 
 /**
  * Act 3 "ContentPhase" — 轨道环、中央恒星、相机聚焦。
@@ -30,7 +29,6 @@ const Act3ContentPhase = memo(function Act3ContentPhase({ visible }: Act3Props) 
     return _planetWorldPositions[trackIdx] || null
   }, [])
 
-  // PlanetLabel uses trackIdx (0-2) directly
   const getPositionByTrackIdx = useCallback((trackIdx: number): Vector3 | null => {
     return _planetWorldPositions[trackIdx] || null
   }, [])

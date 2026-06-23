@@ -48,6 +48,85 @@
     0 2px 12px rgba(0, 0, 0, 0.15);
 }
 
+/* ---- Variant: transparent — 半透明无 blur ---- */
+.terminal-bar[data-variant="transparent"] .terminal-bar-inner {
+  --tw-variant-bg: rgba(15, 23, 42, 0.55);
+  --tw-variant-blur: none;
+  --tw-variant-saturate: none;
+  background: var(--tw-variant-bg, rgba(15, 20, 35, 0.05));
+  backdrop-filter: var(--tw-variant-blur, blur(20px) saturate(180%));
+  -webkit-backdrop-filter: var(--tw-variant-blur, blur(20px) saturate(180%));
+  border: 1px solid rgba(148, 163, 184, 0.10);
+}
+
+/* ---- Variant: label — 行星标签专用（灰白基调 + 无边框 + 文字更亮） ---- */
+.terminal-bar[data-variant="label"] .terminal-bar-inner {
+  --tw-variant-bg: rgba(200, 210, 225, 0.22);
+  --tw-variant-blur: none;
+  --tw-variant-saturate: none;
+  background: var(--tw-variant-bg);
+  backdrop-filter: var(--tw-variant-blur, blur(20px) saturate(180%));
+  -webkit-backdrop-filter: var(--tw-variant-blur, blur(20px) saturate(180%));
+  border: none;
+}
+.terminal-bar[data-variant="label"] .terminal-bar-inner .terminal-echo {
+  color: rgba(235, 242, 255, 0.95);
+  font-weight: 500;
+}
+.terminal-bar[data-variant="label"] .terminal-bar-inner .terminal-echo .echo-prefix {
+  color: rgba(235, 242, 255, 0.95);
+}
+.terminal-bar[data-variant="label"] .terminal-bar-inner:hover {
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--pill-accent) 80%, transparent), 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+/* ---- Variant: minimal — 无背景无描边 ---- */
+.terminal-bar[data-variant="minimal"] .terminal-bar-inner {
+  --tw-variant-bg: transparent;
+  --tw-variant-blur: none;
+  --tw-variant-saturate: none;
+  background: var(--tw-variant-bg);
+  backdrop-filter: var(--tw-variant-blur, blur(20px) saturate(180%));
+  -webkit-backdrop-filter: var(--tw-variant-blur, blur(20px) saturate(180%));
+  border: none;
+  box-shadow: none;
+}
+
+.terminal-bar[data-variant="minimal"] .terminal-bar-inner:hover,
+.terminal-bar[data-variant="minimal"] .terminal-bar-inner.active {
+  box-shadow: none;
+}
+
+/* ---- Planet-label expanded: accent 色背景 + day/night 适配 ---- */
+.floating-label-pill.expanded .terminal-bar-inner {
+  background: color-mix(in srgb, var(--pill-accent) 12%, rgba(8, 12, 24, 0.88));
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+[data-theme="day"] .floating-label-pill.expanded .terminal-bar-inner {
+  background: color-mix(in srgb, var(--pill-accent) 18%, rgba(248, 250, 252, 0.82));
+}
+
+/* ---- Variant: label day/night 字体适配 ---- */
+[data-theme="day"] .terminal-bar[data-variant="label"] .terminal-bar-inner {
+  background: rgba(100, 116, 139, 0.18);
+}
+[data-theme="day"] .terminal-bar[data-variant="label"] .terminal-bar-inner .terminal-echo,
+[data-theme="day"] .terminal-bar[data-variant="label"] .terminal-bar-inner .terminal-echo .echo-prefix {
+  color: rgba(15, 23, 42, 0.88);
+}
+[data-theme="day"] .terminal-bar[data-variant="label"] .terminal-bar-inner:hover {
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--pill-accent) 80%, transparent), 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+/* ---- Planet-label expanded: placeholder 提亮 ---- */
+.floating-label-pill.expanded .terminal-placeholder {
+  color: rgba(255, 255, 255, 0.28);
+}
+[data-theme="day"] .floating-label-pill.expanded .terminal-placeholder {
+  color: rgba(0, 0, 0, 0.20);
+}
+
 /* ---- Scrollable wrapper in terminal context ---- */
 .terminal-echo-scrollable {
   /* no extra styles needed, scrollable handles internally */

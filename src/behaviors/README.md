@@ -14,6 +14,13 @@
 | `useAppearanceFade.ts` | 纯函数 | `calcAppearance`——计算粒子缩放/透明度/颜色过渡（可 L1 单测）|
 | `useOcclusionFade.ts` | 纯函数 | `calcOcclusionFade`——聚焦遮挡检测（可 L1 单测）|
 | `useScreenSpaceHover.ts` | 纯函数 | `calcScreenSpaceHover`——NDC 投影悬停检测 + 迟滞阈值（可 L1 单测）|
+| `useScreenProjection.ts` | Hook | 3D 世界坐标 → 屏幕坐标投影（NDC 管线），包括中央恒星 |
+| `usePBDLayout.ts` | 纯函数 | PBD 标签布局引擎——速度前馈 + 6 类约束投影 |
+| `useFloatingLabels.ts` | Hook | PBD 编排层——rAF 驱动 60fps 物理 + 入场排序 + 退出管理 |
+
+> **PBD 文档：** [`../../docs/actors/pbd-layout-operation-guide.md`](../../docs/actors/pbd-layout-operation-guide.md)  
+> [`../../docs/actors/pbd-layout-maintenance-guide.md`](../../docs/actors/pbd-layout-maintenance-guide.md)  
+> [`../../docs/superpowers/specs/2026-06-21-pbd-layout-design.md`](../../docs/superpowers/specs/2026-06-21-pbd-layout-design.md)
 
 ## 命名约定
 
@@ -30,6 +37,7 @@
 | `smoothstep.test.ts` | `smoothstep` / `toward` 纯函数 | L1 |
 | `toward.test.ts` | `shortestDelta` / `clamped` | L1 |
 | `r3f-components.test.tsx` | Lighthouse, LightBeam, OrbitRings, Act 可见性 | L2 |
+| `usePBDLayout.test.ts` | `stepPBD` — shadow 方向 / 分离收敛 / 恒星避让 | L1 |
 
 ## 新增 Behavior 步骤
 

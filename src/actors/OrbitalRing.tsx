@@ -36,9 +36,11 @@ interface OrbitalRingProps {
   config: OrbitalRingConfig
   /** 全局进动速度缩放，默认 1.0；设为 0 冻结 */
   speedScale?: number
+  /** 覆盖 config.color，用于 day/night 主题切换 */
+  color?: string
 }
 
-export default function OrbitalRing({ config, speedScale = 1.0 }: OrbitalRingProps) {
+export default function OrbitalRing({ config, speedScale = 1.0, color: colorOverride }: OrbitalRingProps) {
   const {
     radius,
     innerRadius = radius - 0.04,
@@ -46,7 +48,7 @@ export default function OrbitalRing({ config, speedScale = 1.0 }: OrbitalRingPro
     eccentricity,
     speed,
     phase,
-    color = '#cbd5e1',
+    color: configColor = '#cbd5e1',
     maxOpacity = 0.28,
     segments = 96,
   } = config
@@ -89,7 +91,7 @@ export default function OrbitalRing({ config, speedScale = 1.0 }: OrbitalRingPro
           <ringGeometry args={[innerRadius, radius, segments]} />
           <lineBasicMaterial
             ref={matRef}
-            color={color}
+            color={colorOverride ?? configColor}
             transparent
             opacity={0}
             depthWrite={false}

@@ -31,6 +31,7 @@
 src/theme/
   theme.css          CSS 主题配置：:root / [data-theme] 变量定义
   palettes.ts        色板数据 + 纯函数（无框架依赖）
+  colors.ts          场景级主题色（JS 可访问，orbit/guideLine）
   useDayNight.ts     Hook：store 订阅 → GSAP blend → handleThemeUpdate
 
 src/r3f/
@@ -45,6 +46,17 @@ src/terminal/
   TerminalBar.tsx    消费 handleThemeUpdate → --tw-* CSS 变量
 ```
 
+### 场景级主题色（`colors.ts`）
+
+非终端（--tw-*）的 JS 可访问颜色集中管理，避免散落各组件：
+
+| 键 | Night | Day | 消费者 |
+|----|-------|-----|--------|
+| `orbit` | `#cbd5e1` | `#64748b` | OrbitRings / OrbitalRing |
+| `guideLine` | `rgba(200,210,225,0.45)` | `rgba(60,72,90,0.35)` | PlanetLabelGuideLines |
+
+CSS 侧对应变量 `--color-orbit` / `--color-guide-line` 定义在 theme.css。
+
 ### 依赖方向
 
 ```
@@ -54,6 +66,10 @@ commands.ts → scrollStore
           /       |        \
     theme.css   palettes   ScrollRig (setThemeBlend)
     (CSS vars)  (色板)     (scene bg + fog)
+
+colors.ts ← 组件（OrbitRings, PlanetLabelGuideLines）
+  └─ themeColor(key, dayNight) → 色值
+```
          \       |        /
         TerminalBar + Scene + Body
 ```

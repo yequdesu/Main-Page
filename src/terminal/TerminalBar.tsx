@@ -68,6 +68,8 @@ export interface TerminalBarProps {
   animation?: TerminalBarAnimation
   behavior?: TerminalBarBehavior
   className?: string
+  /** 视觉变体 — glass（默认，毛玻璃）/ transparent（半透明无 blur）/ minimal（无背景） */
+  variant?: 'glass' | 'transparent' | 'minimal' | 'label'
 
   /** 受控状态 — mode / echoLines / inputValue */
   state?: TerminalBarControlledState
@@ -93,6 +95,7 @@ const BEHAVIOR_DEFAULTS: TerminalBarBehavior = {
 
 export default function TerminalBar(props: TerminalBarProps) {
   const { layout: L } = props
+  const variant = props.variant ?? 'glass'
   const T = { promptChar: '$', placeholder: "type 'help' for available commands", ...props.text }
   const A = { ...ANIMATION_DEFAULTS, ...props.animation }
   const B = { ...BEHAVIOR_DEFAULTS, ...props.behavior }
@@ -198,7 +201,9 @@ export default function TerminalBar(props: TerminalBarProps) {
   ), [])
 
   return (
-    <div className={`terminal-bar${props.className ? ' ' + props.className : ''}`} style={{
+    <div className={`terminal-bar${props.className ? ' ' + props.className : ''}`}
+      data-variant={variant}
+      style={{
       fontFamily: L.fontFamily, fontSize: L.fontSize, zIndex: L.zIndex,
       bottom: L.top !== undefined ? 'auto' : L.bottom, top: L.top,
       left: L.left ?? (L.right === undefined ? '0' : undefined),

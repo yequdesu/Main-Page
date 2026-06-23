@@ -12,6 +12,9 @@ import { getLighthouseCapture } from './actors/LighthouseCapture'
 import MainTerminal from './MainTerminal'
 import { executeCommand } from './terminal/commands'
 import InfoPanelTerminal from './InfoPanelTerminal'
+import FloatingLabels from './actors/FloatingLabels'
+import type { LabelConfig, SequenceStrategy } from './behaviors/useFloatingLabels'
+import { PLANET_LINKS } from './types'
 import { useDayNight } from './theme/useDayNight'
 import './theme/theme.css'
 import './App.css'
@@ -247,6 +250,13 @@ export default function App() {
     useScrollStore.getState().setInputValue(v)
   }, [])
   const handleCommand = useCallback((input: string) => executeCommand(input), [])
+  const labelConfigs: [LabelConfig, LabelConfig, LabelConfig] = PLANET_LINKS.map(
+    (link, i) => ({
+      trackIdx: i as 0 | 1 | 2,
+      planetLink: link,
+      maxEchoLines: 2,
+    }),
+  ) as [LabelConfig, LabelConfig, LabelConfig]
   const handleBuildStatusLine = useCallback((sp: number) => {
     const pct = Math.round(sp * 100)
     const actName = sp < 0.45 ? 'OceanVoyage' : sp < 0.85 ? 'GridTransition' : 'ContentPhase'
@@ -278,6 +288,24 @@ export default function App() {
 
       {/* Info Panel Terminal — 仅 Act 3 (ContentPhase) 渲染 */}
       {needsAct3(sp) && <InfoPanelTerminal />}
+
+      {/* Planet Labels — 仅 Act 3 可见，组件不卸载 */}
+      {needsAct3(sp) && (
+        <FloatingLabels
+          configs={labelConfigs}
+          sequenceStrategy="proximity"
+          staggerDelay={200}
+          exitTimeout={15000}
+          collapsedWidth={60}
+          expandedWidth={200}
+          collapsedHeight={36}
+          expandedHeight={44}
+          pbdParams={{
+            anchorRangeRadius: 70,
+            gap: 16,
+          }}
+        />
+      )}
 
       {/* 滚动提示 */}
       {hintVisible && (

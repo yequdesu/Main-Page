@@ -43,6 +43,8 @@ interface TerminalSlice {
   inputValue: string
   typewriterDone: boolean
   dayNight: DayNight
+  /** InfoPanel welcome 完成 → 放行 planet-label TerminalBar 渲染 */
+  labelsGateOpen: boolean
 }
 
 interface TerminalActions {
@@ -55,6 +57,7 @@ interface TerminalActions {
   setTypewriterDone: (done: boolean) => void
   setDayNight: (mode: DayNight) => void
   toggleDayNight: () => void
+  setLabelsGateOpen: (open: boolean) => void
 }
 
 export type ScrollStore = ScrollSlice & FocusSlice & TerminalSlice & ScrollActions & FocusActions & TerminalActions
@@ -81,6 +84,7 @@ export const useScrollStore = create<ScrollStore>()((set) => ({
   echoLines: [] as string[],
   inputValue: '',
   typewriterDone: false,
+  labelsGateOpen: false,
   dayNight: 'night' as DayNight,
 
   setFocusedPlanet: (idx) => set({ focusedPlanetIdx: idx }),
@@ -116,4 +120,5 @@ export const useScrollStore = create<ScrollStore>()((set) => ({
   setTypewriterDone: (done) => set({ typewriterDone: done }),
   setDayNight: (mode) => set({ dayNight: mode }),
   toggleDayNight: () => set((s) => ({ dayNight: s.dayNight === 'night' ? 'day' : 'night' })),
+  setLabelsGateOpen: (open) => set({ labelsGateOpen: open }),
 }))

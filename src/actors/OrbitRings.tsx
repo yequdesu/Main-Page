@@ -3,6 +3,7 @@ import { useFrame } from '@react-three/fiber'
 import { type LineBasicMaterial } from 'three'
 import { SCENE_CENTER_Z, ORBIT_RADII, ORBIT_COUNT, clamped, smoothstep, GRID_SHIFT_START } from '../r3f/ScrollRig'
 import { useScrollStore } from '../stores/scrollStore'
+import { themeColor } from '../theme/colors'
 import OrbitalRing from './OrbitalRing'
 import type { OrbitalRingConfig } from '../types'
 
@@ -30,6 +31,9 @@ interface OrbitRingsProps {
 }
 
 export default function OrbitRings({ speedScale = 1.0 }: OrbitRingsProps) {
+  const dayNight = useScrollStore(s => s.dayNight)
+  const orbitColor = themeColor('orbit', dayNight)
+
   // 轨道环顶点（静态 — 行星公转轨道的视觉参考线）
   const orbitPoints = useMemo(() =>
     Array.from({ length: ORBIT_COUNT }, (_, t) => {
@@ -65,13 +69,13 @@ export default function OrbitRings({ speedScale = 1.0 }: OrbitRingsProps) {
               args={[new Float32Array(pts.flat()), 3]}
             />
           </bufferGeometry>
-          <lineBasicMaterial ref={(mat) => { orbitMatRefs.current[t] = mat }} color="#cbd5e1" transparent opacity={0} depthWrite={false} depthTest />
+          <lineBasicMaterial ref={(mat) => { orbitMatRefs.current[t] = mat }} color={orbitColor} transparent opacity={0} depthWrite={false} depthTest />
         </threeLine>
       ))}
 
       {/* 陀螺仪装饰环（每条独立力学模拟） */}
       {GYRO_RINGS.map((cfg, i) => (
-        <OrbitalRing key={`gyro-${i}`} config={cfg} speedScale={speedScale} />
+        <OrbitalRing key={`gyro-${i}`} config={cfg} speedScale={speedScale} color={orbitColor} />
       ))}
     </>
   )
