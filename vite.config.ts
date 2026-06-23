@@ -41,6 +41,9 @@ interface DebugYamlConfig {
   fillY: number
   fillZ: number
   cloneY: number
+  edgeGlowIntensity: number
+  edgeGlowColor: string
+  edgeGlowFalloff: number
 }
 
 // ============================================================

@@ -10,6 +10,7 @@
 | **生产烘焙** | `src/actors/LighthouseCapture.tsx` | 配置合并逻辑 |
 | **调试面板** | `src/debug/LighthousePreviewPanel.tsx` | UI 布局、按钮逻辑 |
 | **调试面板样式** | `src/debug/LighthousePreviewPanel.css` | 布局、颜色 |
+| **Shader** | `src/shaders/EdgeGlowShader.ts` | 顶点/片元 shader 逻辑 |
 
 ## Vite 插件：pnpm dev vs pnpm debug
 
@@ -105,6 +106,8 @@ const SAVABLE_KEYS = [
 ### 6. 文档更新
 
 更新本文件 + [操作手册](./OPERATION.md) 中的参数表。
+
+如果新参数涉及 YAML 持久化，还需在 `vite.config.ts` 的 `SAVABLE_KEYS` 中追加字段名。
 
 ## YAML 端点
 
