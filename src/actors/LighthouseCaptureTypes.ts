@@ -1,4 +1,10 @@
-import { WebGLRenderer, Scene, PerspectiveCamera, AmbientLight, DirectionalLight, type Group } from 'three'
+import {
+  WebGLRenderer, Scene, PerspectiveCamera,
+  AmbientLight, DirectionalLight,
+  ShaderMaterial, Mesh, Color, AdditiveBlending,
+  type Group,
+} from 'three'
+import { edgeGlowVertex, edgeGlowFragment } from '../shaders/EdgeGlowShader'
 
 /**
  * LighthouseCaptureTypes — 离屏截图可调参数的类型定义 + 默认值 + 纯函数。
@@ -46,6 +52,14 @@ export interface CaptureConfig {
   fillX: number
   fillY: number
   fillZ: number
+
+  // ---- 轮廓辉光 ----
+  /** 辉光强度，0=关闭。动画时序中 GSAP tween 此值 */
+  edgeGlowIntensity: number
+  /** 辉光颜色（hex），默认 Slate-400 */
+  edgeGlowColor: string
+  /** 衰减曲线幂次。2.0=柔和扩散，4.0=锐利边缘 */
+  edgeGlowFalloff: number
 }
 
 // ============================================================
@@ -74,6 +88,10 @@ export const DEFAULT_CAPTURE_CONFIG: CaptureConfig = {
   fillX: -4,
   fillY: 2,
   fillZ: 4,
+
+  edgeGlowIntensity: 0.0,
+  edgeGlowColor: '#94a3b8',
+  edgeGlowFalloff: 3.0,
 }
 
 // ============================================================
@@ -116,6 +134,39 @@ export function offscreenCapture(
 
     const tempScene = new Scene()
     tempScene.add(clone)
+
+    // ---- 轮廓辉光层（Fresnel 倒置外壳副本） ----
+    if (config.edgeGlowIntensity > 0) {
+      const glowGroup = lighthouseGroup.clone(true)
+
+      glowGroup.traverse((child) => {
+        if (!(child instanceof Mesh)) return
+
+        // 排除底座：地基(-0.9) / 遮罩(-0.95) / 岩石底座(-0.1) / 过渡环(0.12)
+        if (child.position.y < 0.30) {
+          glowGroup.remove(child)
+          return
+        }
+
+        // 轮廓副本略大于原 mesh
+        child.scale.multiplyScalar(1.04)
+
+        child.material = new ShaderMaterial({
+          vertexShader: edgeGlowVertex,
+          fragmentShader: edgeGlowFragment,
+          uniforms: {
+            uColor: { value: new Color(config.edgeGlowColor) },
+            uIntensity: { value: config.edgeGlowIntensity },
+            uFalloff: { value: config.edgeGlowFalloff },
+          },
+          transparent: true,
+          depthWrite: false,
+          blending: AdditiveBlending,
+        })
+      })
+
+      tempScene.add(glowGroup)
+    }
 
     // ---- 光照 ----
     tempScene.add(new AmbientLight(config.ambientColor, config.ambientIntensity))
