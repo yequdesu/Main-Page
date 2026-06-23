@@ -322,13 +322,13 @@ export default function Planets() {
       }
 
       mesh.position.set(px, py, pz)
+      // 下落：0.68 开始(早于风铃线)，到 WC_DROP_END 到位
+      if (sp >= VISIBLE_START && sp < WC_DROP_END) {
+        const dropOnly = clamped(sp, VISIBLE_START, WC_DROP_END)
+        mesh.position.y = WC_ANCHOR_Y + (py - WC_ANCHOR_Y) * smoothstep(dropOnly)
+      }
+      // 风铃期间拉近摄像机
       if (inWindChime) {
-        // 从 0.68 开始下落(早于风铃线)，到 WC_DROP_END 到位
-        if (sp >= VISIBLE_START && sp < WC_DROP_END) {
-          const dropOnly = clamped(sp, VISIBLE_START, WC_DROP_END)
-          mesh.position.y = WC_ANCHOR_Y + (py - WC_ANCHOR_Y) * smoothstep(dropOnly)
-        }
-        // 风铃期间拉近摄像机，平滑过渡
         mesh.position.z += 6 * wc.smoothP
       }
       mesh.scale.setScalar(appearance.scale)
