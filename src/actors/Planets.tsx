@@ -269,10 +269,11 @@ export default function Planets() {
     const act3Progress = clamped(sp, ORBIT_START, 1.0)
     const smooth3 = smoothstep(act3Progress)
 
-    // 风铃开始后行星永久留在轨道位置，不再参与 dust→orbit 过渡
+    // 0.68 起行星进入轨道，不再参与 dust→orbit
+    const VISIBLE_START = 0.68
     const wc = getWindChimeProgress(sp)
     const inWindChime = wc.active
-    const orbitSmooth3 = (sp >= WC_DROP_START) ? 1.0 : smooth3
+    const orbitSmooth3 = (sp >= VISIBLE_START) ? 1.0 : smooth3
 
     const cx = 0, cy = -1.0, cz = SCENE_CENTER_Z
     const { hoveredIdx, focusedPlanetIdx } = useScrollStore.getState()
@@ -322,9 +323,9 @@ export default function Planets() {
 
       mesh.position.set(px, py, pz)
       if (inWindChime) {
-        // 下落阶段偏移 Y / 回收阶段行星留在原地
-        if (sp < WC_DROP_END) {
-          const dropOnly = clamped(sp, WC_DROP_START, WC_DROP_END)
+        // 从 0.68 开始下落(早于风铃线)，到 WC_DROP_END 到位
+        if (sp >= VISIBLE_START && sp < WC_DROP_END) {
+          const dropOnly = clamped(sp, VISIBLE_START, WC_DROP_END)
           mesh.position.y = WC_ANCHOR_Y + (py - WC_ANCHOR_Y) * smoothstep(dropOnly)
         }
         // 风铃期间拉近摄像机，平滑过渡
