@@ -9,6 +9,8 @@ export default defineConfig({
   },
   server: {
     host: '0.0.0.0',
+    allowedHosts: ['yequdesu.top', 'localhost', '10.0.0.2'],
+    allowedHosts: ['yequdesu.top', 'localhost', '10.0.0.2'],
     port: 5173,
     allowedHosts: ['yequdesu.top', 'localhost', '10.0.0.2'],
     proxy: {

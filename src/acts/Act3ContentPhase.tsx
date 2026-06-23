@@ -8,6 +8,7 @@ import { useFrameCache } from '../behaviors/useFrameCache'
 import { smoothstep, clamped, GRID_SHIFT_START } from '../r3f/ScrollRig'
 import { updateCameraFocus } from '../behaviors/useCameraFocus'
 import { _planetWorldPositions, _mainPlanetIndices } from '../actors/Planets'
+import { PLANET_LINKS } from '../types'
 
 /**
  * Act 3 "ContentPhase" — 轨道环、中央恒星、相机聚焦。

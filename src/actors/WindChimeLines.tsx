@@ -34,7 +34,7 @@ export default function WindChimeLines() {
 
     for (let i = 0; i < 4; i++) {
       const pArr = lines[i].geometry.attributes.position.array as Float32Array
-      let tx = 0, tz = SCENE_CENTER_Z
+      let tx = 0, tz: number = SCENE_CENTER_Z
 
       if (i < 3) {
         const pos = _planetWorldPositions[i]
