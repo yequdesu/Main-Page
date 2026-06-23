@@ -105,6 +105,9 @@ const MAX_PBD_DT = 0.1
  */
 const PBD_CACHE_THRESHOLD = 0.5
 
+/** PBD 就绪标志 — 模块级，跨 React re-render 保持。rAF 循环首次检测到有效坐标后置 true */
+let _pbdReadyLogged = false
+
 export function useFloatingLabels(
   options: FloatingLabelsOptions,
   screenCoords: [ScreenCoord, ScreenCoord, ScreenCoord],
@@ -160,7 +163,6 @@ export function useFloatingLabels(
     () => [ {x:0,y:0,aLx:0,aLy:0,aRx:0,aRy:0}, {x:0,y:0,aLx:0,aLy:0,aRx:0,aRy:0}, {x:0,y:0,aLx:0,aLy:0,aRx:0,aRy:0} ]
   )
   const [pbdReady, setPbdReady] = useState(false)
-  let _pbdReadyLogged = false // module-level, survives re-renders
   const stableRefs = useRef({ pbdParams, collapsedWidth, expandedWidth, collapsedHeight, expandedHeight, configs, activeTrackIdx, collapsedFitWidths })
   stableRefs.current = { pbdParams, collapsedWidth, expandedWidth, collapsedHeight, expandedHeight, configs, activeTrackIdx, collapsedFitWidths }
 
@@ -210,7 +212,10 @@ export function useFloatingLabels(
       raf = requestAnimationFrame(loop)
     }
     raf = requestAnimationFrame(loop)
-    return () => cancelAnimationFrame(raf)
+    return () => {
+      cancelAnimationFrame(raf)
+      _pbdReadyLogged = false
+    }
   }, [])
 
   // ---- 退出超时管理 ----

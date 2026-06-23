@@ -8,7 +8,7 @@ import ReactThreeTestRenderer from '@react-three/test-renderer'
  * 使用 @react-three/test-renderer 的 create() + advanceFrames()
  * 验证组件挂载、场景图结构、useFrame 调用。
  *
- * 注意：涉及 document.createElement('canvas') 的组件（PlanetLabel、CentralStar、DustField）
+ * 注意：涉及 document.createElement('canvas') 的组件（CentralStar、DustField）
  * 需要 jsdom 环境。当前仅测试不需要 DOM API 的组件。
  *
  * 援引：R3F 官方 Testing 文档，@react-three/test-renderer advanceFrames()
