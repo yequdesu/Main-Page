@@ -9,6 +9,7 @@ import DustField from '../actors/DustField'
 import Planets from '../actors/Planets'
 import Lighthouse from '../actors/Lighthouse'
 import WindChimeLines from '../actors/WindChimeLines'
+import CentralStar from '../actors/CentralStar'
 
 /**
  * R3F Canvas 配置。
@@ -48,6 +49,7 @@ export default function SceneCanvas({ children }: CanvasProps) {
       <DustField />
       <Lighthouse />
       <WindChimeLines />
+      <CentralStar />
       {children}
     </R3FCanvas>
   )

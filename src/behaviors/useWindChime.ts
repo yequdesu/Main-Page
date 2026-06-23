@@ -4,9 +4,9 @@ import { clamped, smoothstep } from '../r3f/ScrollRig'
 // Wind Chime — 共享常量与纯函数（Planets/CentralStar/WindChimeLines 共用）
 // ============================================================
 
-export const WC_DROP_START = 0.80
-export const WC_DROP_END   = 0.87
-export const WC_RETRACT_END = 0.94
+export const WC_DROP_START = 0.70
+export const WC_DROP_END   = 0.80
+export const WC_RETRACT_END = 0.90
 export const WC_ANCHOR_Y   = 10.0  // 屏幕上方可见区域边缘
 
 /** 计算风铃下落进度 — 纯函数，可逆 */

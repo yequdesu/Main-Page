@@ -106,9 +106,11 @@ export default function CentralStar() {
     const sp = useScrollStore.getState().scrollProgress
     const time = state.clock.elapsedTime
 
-    // 风铃下落：下落阶段偏移 Y/Z，回收阶段留在目标位置
+    // 0.75 开始出现，风铃阶段偏移 Y/Z
+    const visible = sp >= 0.75
     const wc = getWindChimeProgress(sp)
     if (groupRef.current) {
+      groupRef.current.visible = visible
       if (sp >= WC_DROP_START && sp < WC_DROP_END) {
         const dropOnly = clamped(sp, WC_DROP_START, WC_DROP_END)
         groupRef.current.position.y = WC_ANCHOR_Y + (GROUP_POSITION_Y - WC_ANCHOR_Y) * smoothstep(dropOnly)

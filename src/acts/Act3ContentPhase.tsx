@@ -2,7 +2,6 @@ import { useCallback, memo } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
 import { type PerspectiveCamera, Vector3 } from 'three'
 import OrbitRings from '../actors/OrbitRings'
-import CentralStar from '../actors/CentralStar'
 import PlanetLabel from '../actors/PlanetLabel'
 import { useScrollStore } from '../stores/scrollStore'
 import { useFrameCache } from '../behaviors/useFrameCache'
@@ -56,7 +55,6 @@ const Act3ContentPhase = memo(function Act3ContentPhase({ visible }: Act3Props) 
   return (
     <group visible={visible}>
       <OrbitRings />
-      <CentralStar />
       {PLANET_LINKS.map((link, i) => (
         <PlanetLabel
           key={`label-${i}`}
