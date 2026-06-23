@@ -14,3 +14,5 @@ fillX: -4
 fillY: 2
 fillZ: 4
 cloneY: -0.965
+edgeGlowIntensity: 2
+edgeGlowColor: '#94a3b8'

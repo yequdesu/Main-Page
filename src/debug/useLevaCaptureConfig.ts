@@ -71,11 +71,10 @@ export function useLevaCaptureConfig(initialConfig?: Partial<CaptureConfig>): Ca
       { collapsed: true },
     ),
 
-    轮廓辉光: folder(
+    轮廓描边: folder(
       {
-        edgeGlowIntensity: { value: defaults.edgeGlowIntensity, min: 0, max: 2, step: 0.05, label: '强度' },
+        edgeGlowIntensity: { value: defaults.edgeGlowIntensity, min: 0, max: 1, step: 0.05, label: '不透明度' },
         edgeGlowColor: { value: defaults.edgeGlowColor, label: '颜色' },
-        edgeGlowFalloff: { value: defaults.edgeGlowFalloff, min: 1, max: 6, step: 0.1, label: '衰减' },
       },
       { collapsed: true },
     ),

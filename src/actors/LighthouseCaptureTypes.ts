@@ -1,7 +1,8 @@
 import {
   WebGLRenderer, Scene, PerspectiveCamera,
   AmbientLight, DirectionalLight,
-  ShaderMaterial, Mesh, Color, AdditiveBlending,
+  Mesh, Color, AdditiveBlending, BackSide,
+  MeshBasicMaterial,
   type Group,
 } from 'three'
 import { edgeGlowVertex, edgeGlowFragment } from '../shaders/EdgeGlowShader'
@@ -56,10 +57,8 @@ export interface CaptureConfig {
   // ---- 轮廓辉光 ----
   /** 辉光强度，0=关闭。动画时序中 GSAP tween 此值 */
   edgeGlowIntensity: number
-  /** 辉光颜色（hex），默认 Slate-400 */
+  /** 描边颜色（hex），默认 Slate-400 */
   edgeGlowColor: string
-  /** 衰减曲线幂次。2.0=柔和扩散，4.0=锐利边缘 */
-  edgeGlowFalloff: number
 }
 
 // ============================================================
@@ -91,7 +90,6 @@ export const DEFAULT_CAPTURE_CONFIG: CaptureConfig = {
 
   edgeGlowIntensity: 0.0,
   edgeGlowColor: '#94a3b8',
-  edgeGlowFalloff: 3.0,
 }
 
 // ============================================================
@@ -155,14 +153,10 @@ export function offscreenCapture(
         // 轮廓副本略大于原 mesh
         child.scale.multiplyScalar(1.04)
 
-        child.material = new ShaderMaterial({
-          vertexShader: edgeGlowVertex,
-          fragmentShader: edgeGlowFragment,
-          uniforms: {
-            uColor: { value: new Color(config.edgeGlowColor) },
-            uIntensity: { value: config.edgeGlowIntensity },
-            uFalloff: { value: config.edgeGlowFalloff },
-          },
+        child.material = new MeshBasicMaterial({
+          color: new Color(config.edgeGlowColor),
+          opacity: config.edgeGlowIntensity,
+          side: BackSide,
           transparent: true,
           depthWrite: false,
           blending: AdditiveBlending,
