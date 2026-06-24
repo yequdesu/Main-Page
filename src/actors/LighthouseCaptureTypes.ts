@@ -1,12 +1,10 @@
 import {
   WebGLRenderer, Scene, PerspectiveCamera,
   AmbientLight, DirectionalLight,
-  Mesh, Color, AdditiveBlending, BackSide,
-  MeshBasicMaterial, BufferGeometry,
+  Mesh, Color,
+  MeshBasicMaterial,
   type Group,
 } from 'three'
-import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js'
-import { edgeGlowVertex, edgeGlowFragment } from '../shaders/EdgeGlowShader'
 
 /**
  * LighthouseCaptureTypes — 离屏截图可调参数的类型定义 + 默认值 + 纯函数。
@@ -55,11 +53,17 @@ export interface CaptureConfig {
   fillY: number
   fillZ: number
 
-  // ---- 轮廓辉光 ----
-  /** 辉光强度，0=关闭。动画时序中 GSAP tween 此值 */
+  // ---- 剪影 / 轮廓 ----
+  /** 主灯塔渲染：real=真实3D（原始材质+光照）| solid=纯色剪影（无细节） */
+  silhouetteType: 'real' | 'solid'
+  /** 轮廓描边：none=不渲染 | silhouette=合并几何体外轮廓 */
+  outlineType: 'none' | 'silhouette'
+  /** 描边不透明度，0–1 */
   edgeGlowIntensity: number
-  /** 描边颜色（hex），默认 Slate-400 */
+  /** 描边颜色（hex），默认白色 */
   edgeGlowColor: string
+  /** 描边粗细，1–10，对应外扩百分比。默认 4 */
+  edgeGlowThickness: number
 }
 
 // ============================================================
@@ -89,8 +93,97 @@ export const DEFAULT_CAPTURE_CONFIG: CaptureConfig = {
   fillY: 2,
   fillZ: 4,
 
-  edgeGlowIntensity: 0.0,
-  edgeGlowColor: '#94a3b8',
+  silhouetteType: 'real' as const,
+  outlineType: 'none' as const,
+  edgeGlowIntensity: 0.8,
+  edgeGlowColor: '#ffffff',
+  edgeGlowThickness: 4,
+}
+
+// ============================================================
+// 2D 边缘描边（纯 Canvas 后处理，不依赖 3D 光照）
+// ============================================================
+
+/**
+ * 对透明背景 PNG 的 alpha 通道做边缘检测，在最外层轮廓上绘制描边。
+ *
+ * 算法：
+ *   1. 找到 alpha>0 且邻接 alpha=0 的像素 → 外轮廓边缘
+ *   2. 按 thickness 做形态学膨胀
+ *   3. 以 edgeGlowColor + edgeGlowIntensity 绘制描边像素
+ *
+ * @returns 描边后的 dataURL
+ */
+function applyEdgeStroke(
+  sourceCanvas: HTMLCanvasElement,
+  color: string,
+  opacity: number,
+  thickness: number,
+): string {
+  const w = sourceCanvas.width
+  const h = sourceCanvas.height
+
+  const ctx2d = document.createElement('canvas')
+  ctx2d.width = w; ctx2d.height = h
+  const ctx = ctx2d.getContext('2d')!
+
+  ctx.drawImage(sourceCanvas, 0, 0)
+  const imageData = ctx.getImageData(0, 0, w, h)
+  const data = imageData.data
+
+  // ---- 边缘检测：alpha>0 且任意邻居 alpha=0 ----
+  const edge = new Uint8Array(w * h)
+  for (let y = 1; y < h - 1; y++) {
+    for (let x = 1; x < w - 1; x++) {
+      const i = (y * w + x) * 4
+      if (data[i + 3] === 0) continue
+      // 检查 4-邻域
+      if (
+        data[((y - 1) * w + x) * 4 + 3] === 0 ||
+        data[((y + 1) * w + x) * 4 + 3] === 0 ||
+        data[(y * w + (x - 1)) * 4 + 3] === 0 ||
+        data[(y * w + (x + 1)) * 4 + 3] === 0
+      ) {
+        edge[y * w + x] = 1
+      }
+    }
+  }
+
+  // ---- 形态学膨胀（thickness 次迭代，每次外扩 1px） ----
+  const dilated = new Uint8Array(w * h)
+  dilated.set(edge)
+  for (let t = 1; t < Math.round(thickness); t++) {
+    const prev = new Uint8Array(dilated)
+    for (let y = 1; y < h - 1; y++) {
+      for (let x = 1; x < w - 1; x++) {
+        if (prev[y * w + x]) continue
+        if (
+          prev[(y - 1) * w + x] || prev[(y + 1) * w + x] ||
+          prev[y * w + (x - 1)] || prev[y * w + (x + 1)]
+        ) {
+          dilated[y * w + x] = 1
+        }
+      }
+    }
+  }
+
+  // ---- 绘制描边像素 ----
+  const rgba = new Color(color)
+  const a = Math.round(opacity * 255)
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      if (dilated[y * w + x]) {
+        const i = (y * w + x) * 4
+        data[i] = Math.round(rgba.r * 255)
+        data[i + 1] = Math.round(rgba.g * 255)
+        data[i + 2] = Math.round(rgba.b * 255)
+        data[i + 3] = a
+      }
+    }
+  }
+
+  ctx.putImageData(imageData, 0, 0)
+  return ctx2d.toDataURL('image/png')
 }
 
 // ============================================================
@@ -131,42 +224,33 @@ export function offscreenCapture(
     clone.position.set(0, config.cloneY, 0)
     clone.scale.copy(lighthouseGroup.scale)
 
+    // solid 剪影：主灯塔替换为纯色，保留窗户黄色发光
+    if (config.silhouetteType === 'solid') {
+      const windowGlow = new Color('#ffdf6d')
+      const silhouetteMat = new MeshBasicMaterial({
+        color: new Color('#0b101d'),
+        transparent: true,
+        depthWrite: true,
+      })
+      clone.traverse((child) => {
+        if (!(child instanceof Mesh)) return
+        // 保留窗户发光（BoxGeometry + MeshBasicMaterial #ffdf6d + 非透明）
+        const mat = child.material
+        if (
+          mat instanceof MeshBasicMaterial &&
+          !mat.transparent &&
+          mat.color.getHex() === windowGlow.getHex()
+        ) {
+          return
+        }
+        child.material = silhouetteMat
+      })
+    }
+
     const tempScene = new Scene()
     tempScene.add(clone)
 
-    // ---- 轮廓描边层（合并几何体 → 单一外轮廓 Inverted Hull） ----
-    if (config.edgeGlowIntensity > 0) {
-      const geometries: BufferGeometry[] = []
-
-      lighthouseGroup.traverse((child) => {
-        if (!(child instanceof Mesh)) return
-        // 排除遮罩（最底边，与场景背景同色 #050811）
-        if (child.position.y < -0.85) return
-
-        const geo = child.geometry.clone()
-        child.updateMatrix()
-        geo.applyMatrix4(child.matrix)
-        geometries.push(geo)
-      })
-
-      if (geometries.length > 0) {
-        const mergedGeo = mergeGeometries(geometries, false)
-
-        const outline = new Mesh(mergedGeo, new MeshBasicMaterial({
-          color: new Color(config.edgeGlowColor),
-          opacity: config.edgeGlowIntensity,
-          side: BackSide,
-          transparent: true,
-          depthWrite: false,
-          blending: AdditiveBlending,
-        }))
-        outline.position.set(0, config.cloneY, 0)
-        outline.scale.copy(lighthouseGroup.scale).multiplyScalar(1.04)
-
-        tempScene.add(outline)
-      }
-    }
-
+  
     // ---- 光照 ----
     tempScene.add(new AmbientLight(config.ambientColor, config.ambientIntensity))
 
@@ -190,7 +274,19 @@ export function offscreenCapture(
 
     // ---- 渲染 & 捕获 ----
     offRenderer.render(tempScene, capCam)
-    const dataUrl = offRenderer.domElement.toDataURL('image/png')
+
+    // 2D 后处理：边缘描边
+    let dataUrl: string
+    if (config.outlineType === 'silhouette') {
+      dataUrl = applyEdgeStroke(
+        offRenderer.domElement,
+        config.edgeGlowColor,
+        config.edgeGlowIntensity,
+        config.edgeGlowThickness,
+      )
+    } else {
+      dataUrl = offRenderer.domElement.toDataURL('image/png')
+    }
 
     // ---- 清理 ----
     offRenderer.dispose()

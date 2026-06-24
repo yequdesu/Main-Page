@@ -71,10 +71,13 @@ export function useLevaCaptureConfig(initialConfig?: Partial<CaptureConfig>): Ca
       { collapsed: true },
     ),
 
-    轮廓描边: folder(
+    剪影: folder(
       {
-        edgeGlowIntensity: { value: defaults.edgeGlowIntensity, min: 0, max: 1, step: 0.05, label: '不透明度' },
-        edgeGlowColor: { value: defaults.edgeGlowColor, label: '颜色' },
+        silhouetteType: { value: defaults.silhouetteType, options: ['real', 'solid'], label: '主渲染' },
+        outlineType: { value: defaults.outlineType, options: ['none', 'silhouette'], label: '轮廓描边' },
+        edgeGlowIntensity: { value: defaults.edgeGlowIntensity, min: 0, max: 1, step: 0.05, label: '描边不透明度' },
+        edgeGlowColor: { value: defaults.edgeGlowColor, label: '描边颜色' },
+        edgeGlowThickness: { value: defaults.edgeGlowThickness, min: 1, max: 10, step: 0.5, label: '描边粗细' },
       },
       { collapsed: true },
     ),
