@@ -1,6 +1,6 @@
 # Debug 系统说明
 
-`src/debug/` 目录包含 LighthouseCapture 离线烘焙截图的实时参数调试工具。
+`src/debug/` 是通用的 3D 模型预览调试系统，支持程序化模型和 GLB/glTF 模型的实时参数调试。
 
 ## pnpm debug vs pnpm dev
 
@@ -56,19 +56,45 @@ debugOnlyPlugin.configureServer(server)
 ## 系统架构
 
 ```
-debug.html                         Vite 入口（独立于 index.html）
-  └─ src/debug.tsx                 挂载点（R3F extend 注册 + createRoot）
-       └─ LighthousePreviewPanel   双栏调试面板
+debug.html                              Vite 入口（独立于 index.html）
+  └─ src/debug.tsx                      挂载点（R3F extend 注册 + Suspense + createRoot）
+       └─ ModelPreviewShell             顶层路由（Leva 模型选择器 + 面板派发）
+            ├─ LighthousePreviewPanel   专用 Lighthouse 截图调试面板（useCapturePanel: true）
+            └─ ModelPreviewPanel         通用模型预览面板（OrbitControls + 动态灯光 + Leva）
+                 ├─ useModelPreviewControls   Leva 控件 hook（相机 / 灯光 / 变换 / 视觉 / 环境）
+                 └─ MODEL_REGISTRY 模型加载   （gltfjsx 生成的组件或程序化组件）
 
-vite.config.ts                     Vite 插件
-  ├─ GET  /__debug/config         读取 YAML → JSON（供面板初始化）
-  ├─ POST /__debug/save-config    保存当前参数 → YAML
-  ├─ DELETE /__debug/config       删除 YAML（恢复默认值）
-  ├─ define: __LIGHTHOUSE_CONFIG__ 编译时注入（供生产烘焙读取）
-  └─ watcher: full-reload          YAML 变更时自动刷新主应用
+src/models/
+  ├─ index.ts                           MODEL_REGISTRY 注册表（添加新模型只需在此加一项）
+  ├─ Voyager1.tsx                        gltfjsx 生成的 Voyager 1 组件（useGLTF）
+  └─ README.md                          模型来源与许可证文档
+
+public/models/
+  └─ Voyager1.glb                        GLB 二进制文件（Vite 静态服务，URL: /models/Voyager1.glb）
 ```
 
-## 配置流
+## 模型注册表机制
+
+`src/models/index.ts` 中的 `MODEL_REGISTRY` 是唯一的模型数据源。每个条目：
+
+```ts
+{
+  label: string           // Leva 下拉菜单显示名
+  component: ComponentType // 模型组件（GLB 模型用 lazy 导入）
+  triCount?: number       // 三角面数
+  attribution?: string    // 来源 / 许可证
+  procedural?: boolean    // 是否为程序化几何
+  useCapturePanel?: boolean // 使用专用调试面板（Lighthouse 截图）
+}
+```
+
+要添加新模型：
+1. GLB 放入 `public/models/`
+2. 运行 `npx @react-three/gltfjsx public/models/模型.glb --transform --types --output src/models/模型.tsx`
+3. 在 `MODEL_REGISTRY` 中添加 entry
+4. 重启调试页面
+
+## 配置流（Lighthouse 截图专用）
 
 ```
 调试面板 (Leva)               生产烘焙 (LighthouseCapture)
@@ -93,20 +119,27 @@ vite.config.ts                     Vite 插件
 
 | 文件 | 职责 |
 |------|------|
-| `debug.html` | 独立 HTML 入口，`<script type="module" src="/src/debug.tsx">` |
-| `../debug.tsx` | 挂载点，`createRoot` → `<LighthousePreviewPanel />` |
-| `LighthousePreviewPanel.tsx` | 双栏面板：左侧 R3F Canvas + 右侧 Leva + 烘焙预览 |
-| `LighthousePreviewPanel.css` | 双栏布局样式 |
-| `useLevaCaptureConfig.ts` | Leva `useControls` hook，6 个折叠组 17 个参数 |
-| `../actors/LighthouseCaptureTypes.ts` | `CaptureConfig` 类型 + `DEFAULT_CAPTURE_CONFIG` + `offscreenCapture()` 纯函数 |
-| `../actors/LighthouseCapture.tsx` | 生产烘焙组件，消费 YAML 配置 |
+| `debug.html` | 独立 HTML 入口 |
+| `../debug.tsx` | 挂载点，`createRoot` → `<ModelPreviewShell />` |
+| `ModelPreviewShell.tsx` | 顶层路由，Leva 模型选择器 + 面板派发 |
+| `ModelPreviewPanel.tsx` | 通用模型预览：R3F Canvas + OrbitControls + 模型信息 |
+| `ModelPreviewPanel.css` | 双栏布局样式 |
+| `ModelPreviewControls.tsx` | Leva `useControls` hook，6 个折叠组 18 个参数 |
+| `LighthousePreviewPanel.tsx` | 专用 Lighthouse 截图调试面板（不变） |
+| `LighthousePreviewPanel.css` | Lighthouse 面板样式（不变） |
+| `useLevaCaptureConfig.ts` | Lighthouse 截图 Leva 控件（不变） |
+| `../models/index.ts` | 模型注册表 + 类型 |
+| `../models/Voyager1.tsx` | Voyager 1 GLB 组件（gltfjsx 生成） |
+| `../models/README.md` | 模型来源文档 |
 
 ## 依赖
 
+- `@react-three/drei` — GLB 加载（`useGLTF`）、OrbitControls、`useProgress`
 - `leva` — 参数调试 GUI（pmndrs 出品）
 - `js-yaml` — YAML 读写（devDependency，仅 Vite 插件侧使用）
 
 ## 相关文档
 
-- [操作手册](./OPERATION.md) — 如何使用调试面板
-- [维护指南](./MAINTENANCE.md) — 如何扩展和维护
+- [模型注册表说明](../models/README.md)
+- [轨道系统完整文档](../../docs/orbital-system.md)
+- [维护指南](../../docs/MAINTENANCE.md)
