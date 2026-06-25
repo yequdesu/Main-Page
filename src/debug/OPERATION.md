@@ -61,7 +61,7 @@ pnpm dev      # 主应用 + 调试面板（手动访问 /debug.html）
 | **主光 (Key)** | 颜色, 强度, X/Y/Z | 模拟太阳方向。默认 (4,6,8) 强度 2.2 |
 | **补光 (Fill)** | 颜色, 强度, X/Y/Z | 减少暗部全黑。默认 (-4,2,4) 冷色调强度 1.0 |
 | **位移** | Y 偏移 | 灯塔在画面中的垂直位置。默认 -0.965 |
-| **轮廓辉光** | 强度、颜色、衰减 | 灯塔边缘 Fresnel 辉光。强度=0 关闭，intensity>0 叠加于灯塔之上 |
+| **剪影** | 主渲染、轮廓描边、不透明度、颜色、粗细 | `real`=真实3D / `solid`=纯色剪影；`silhouette`=2D边缘检测描边 |
 
 ## 工作流
 
@@ -109,6 +109,11 @@ fillX: -4
 fillY: 2
 fillZ: 4
 cloneY: -0.965
+silhouetteType: solid
+outlineType: silhouette
+edgeGlowIntensity: 0.7
+edgeGlowColor: '#ffffff'
+edgeGlowThickness: 3
 ```
 
 渲染参数（`captureW`, `captureH`, `antialias`）不参与持久化，始终使用默认值。

@@ -16,6 +16,6 @@ fillZ: 4
 cloneY: -0.965
 silhouetteType: solid
 outlineType: silhouette
-edgeGlowIntensity: 0.7000000000000001
+edgeGlowIntensity: 0.7
 edgeGlowColor: '#ffffff'
 edgeGlowThickness: 3

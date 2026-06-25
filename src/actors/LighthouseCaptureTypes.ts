@@ -71,7 +71,7 @@ export interface CaptureConfig {
 // ============================================================
 
 export const DEFAULT_CAPTURE_CONFIG: CaptureConfig = {
-  captureW: 512,
+  captureW: 2048,
   captureH: 1024,
   antialias: true,
   cameraFov: 25,
@@ -219,7 +219,7 @@ export function offscreenCapture(
     offRenderer.setPixelRatio(1)
     offRenderer.setClearColor(0x000000, 0)
 
-    // ---- 克隆灯塔并居中 ----
+    // ---- 克隆灯塔并居中（无畸变渲染） ----
     const clone = lighthouseGroup.clone(true)
     clone.position.set(0, config.cloneY, 0)
     clone.scale.copy(lighthouseGroup.scale)
@@ -275,17 +275,54 @@ export function offscreenCapture(
     // ---- 渲染 & 捕获 ----
     offRenderer.render(tempScene, capCam)
 
+    // ---- 合成：灯塔（居中渲染）贴左 + base-line + 统一描边 ----
+    // mask 屏幕宽度（世界 2×0.91 / halfW × captureW）
+    const _aspect = config.captureW / config.captureH
+    const _halfH = config.cameraZ * Math.tan((config.cameraFov * Math.PI) / 180 / 2)
+    const _halfW = _halfH * _aspect
+    const _maskScreenW = Math.round((2 * 1.3 * 0.7) / (2 * _halfW) * config.captureW) // mask 全宽(px)
+
+    const BASE_LINE_EXTEND = 400  // base-line 右侧延伸(px)
+    const composite = document.createElement('canvas')
+    composite.width = config.captureW + BASE_LINE_EXTEND
+    composite.height = config.captureH
+    const ctx = composite.getContext('2d')!
+
+    // 源 canvas 中 lighthouse 居中区域 → 贴到合成 canvas 左侧 x=0
+    const srcCenterX = Math.round(config.captureW / 2)
+    const srcX = srcCenterX - Math.round(_maskScreenW / 2)
+    ctx.drawImage(offRenderer.domElement, srcX, 0, _maskScreenW, config.captureH, 0, 0, _maskScreenW, config.captureH)
+
+    // base-line 从 mask 右边缘 −50px 起，至合成 canvas 右边缘
+    const strokePad = Math.max(Math.round(config.edgeGlowThickness * 2), 8)
+    const slope = (1.3 - 0.75) / 1.6  // 遮罩侧边斜率
+    const lineHeight = 75
+    const lineBottomY = config.captureH
+    const lineTopY = lineBottomY - lineHeight
+    const lineLeft = _maskScreenW - 50
+    const lineRight = composite.width - strokePad
+    const inset = lineHeight * slope
+
+    ctx.fillStyle = '#0b101d'
+    ctx.beginPath()
+    ctx.moveTo(lineLeft, lineBottomY)
+    ctx.lineTo(lineRight, lineBottomY)
+    ctx.lineTo(lineRight - inset, lineTopY)
+    ctx.lineTo(lineLeft, lineTopY)  // 左侧直角，贴合 mask 剪影
+    ctx.closePath()
+    ctx.fill()
+
     // 2D 后处理：边缘描边
     let dataUrl: string
     if (config.outlineType === 'silhouette') {
       dataUrl = applyEdgeStroke(
-        offRenderer.domElement,
+        composite,
         config.edgeGlowColor,
         config.edgeGlowIntensity,
         config.edgeGlowThickness,
       )
     } else {
-      dataUrl = offRenderer.domElement.toDataURL('image/png')
+      dataUrl = composite.toDataURL('image/png')
     }
 
     // ---- 清理 ----

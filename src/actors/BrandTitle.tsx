@@ -45,12 +45,7 @@ export interface BrandTitleProps {
 const BrandIcon = ({ src, opacity }: { src: string | null; opacity: number }) => {
   if (!src) return null
   return (
-    <img
-      src={src}
-      alt=""
-      className="brand-title-icon"
-      style={{ opacity }}
-    />
+    <img src={src} alt="" className="brand-title-icon" style={{ opacity }} />
   )
 }
 
