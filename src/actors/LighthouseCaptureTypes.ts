@@ -58,6 +58,8 @@ export interface CaptureConfig {
   silhouetteType: 'real' | 'solid'
   /** 轮廓描边：none=不渲染 | silhouette=合并几何体外轮廓 */
   outlineType: 'none' | 'silhouette'
+  /** 剪影填充色（hex）。night 默认 #0b101d，day 由调用方覆盖 */
+  silhouetteFillColor: string
   /** 描边不透明度，0–1 */
   edgeGlowIntensity: number
   /** 描边颜色（hex），默认白色 */
@@ -93,6 +95,7 @@ export const DEFAULT_CAPTURE_CONFIG: CaptureConfig = {
   fillY: 2,
   fillZ: 4,
 
+  silhouetteFillColor: '#0b101d',
   silhouetteType: 'real' as const,
   outlineType: 'none' as const,
   edgeGlowIntensity: 0.8,
@@ -223,12 +226,14 @@ export function offscreenCapture(
     const clone = lighthouseGroup.clone(true)
     clone.position.set(0, config.cloneY, 0)
     clone.scale.copy(lighthouseGroup.scale)
+    // 强制可见（源 group 可能被 useFrame 设为 visible=false）
+    clone.traverse((c) => { c.visible = true })
 
     // solid 剪影：主灯塔替换为纯色，保留窗户黄色发光
     if (config.silhouetteType === 'solid') {
       const windowGlow = new Color('#ffdf6d')
       const silhouetteMat = new MeshBasicMaterial({
-        color: new Color('#0b101d'),
+        color: new Color(config.silhouetteFillColor),
         transparent: true,
         depthWrite: true,
       })
@@ -303,7 +308,7 @@ export function offscreenCapture(
     const lineRight = composite.width - strokePad
     const inset = lineHeight * slope
 
-    ctx.fillStyle = '#0b101d'
+    ctx.fillStyle = config.silhouetteFillColor
     ctx.beginPath()
     ctx.moveTo(lineLeft, lineBottomY)
     ctx.lineTo(lineRight, lineBottomY)

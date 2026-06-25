@@ -1,5 +1,6 @@
 import { useEffect, useCallback, useMemo, useState } from 'react'
 import { _lighthouseGroupRef } from './Lighthouse'
+import { useScrollStore } from '../stores/scrollStore'
 import {
   offscreenCapture,
   DEFAULT_CAPTURE_CONFIG,
@@ -73,7 +74,11 @@ export default function LighthouseCapture({ onCaptureReady, config: configOverri
   )
 
   const capture = useCallback((): string | null => {
-    return offscreenCapture(mergedConfig, _lighthouseGroupRef)
+    const isDay = useScrollStore.getState().dayNight === 'day'
+    const cfg = isDay
+      ? { ...mergedConfig, outlineType: 'none' as const, silhouetteFillColor: '#1e293b' }
+      : { ...mergedConfig, silhouetteFillColor: '#0b101d' }
+    return offscreenCapture(cfg, _lighthouseGroupRef)
   }, [mergedConfig])
 
   useEffect(() => {

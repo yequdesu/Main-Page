@@ -21,7 +21,7 @@ const SAVABLE_KEYS = [
   'keyColor', 'keyIntensity', 'keyX', 'keyY', 'keyZ',
   'fillColor', 'fillIntensity', 'fillX', 'fillY', 'fillZ',
   'cloneY',
-  'silhouetteType', 'outlineType', 'edgeGlowIntensity', 'edgeGlowColor', 'edgeGlowThickness',
+  'silhouetteFillColor', 'silhouetteType', 'outlineType', 'edgeGlowIntensity', 'edgeGlowColor', 'edgeGlowThickness',
 ] as const
 
 interface DebugYamlConfig {
@@ -41,6 +41,7 @@ interface DebugYamlConfig {
   fillY: number
   fillZ: number
   cloneY: number
+  silhouetteFillColor: string
   silhouetteType: string
   outlineType: string
   edgeGlowIntensity: number

@@ -179,6 +179,11 @@ export default function App() {
 
   // ---- lighthouse screenshot ----
   useEffect(() => {
+    // theme 切换时清除缓存，触发重新烘焙
+    lighthouseCapturedRef.current = false
+  }, [themeKey])
+
+  useEffect(() => {
     if (scrollProgress >= 0.54 && !lighthouseCapturedRef.current) {
       lighthouseCapturedRef.current = true
       const captureFn = getLighthouseCapture()
@@ -187,7 +192,7 @@ export default function App() {
         if (img) setLighthouseImage(img)
       }
     }
-  }, [scrollProgress])
+  }, [scrollProgress, themeKey])
 
   // ---- cleanup ----
   useEffect(() => {
