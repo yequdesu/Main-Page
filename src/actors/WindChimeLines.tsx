@@ -1,52 +1,98 @@
-import { useMemo } from 'react'
-import { useFrame } from '@react-three/fiber'
-import { Line, BufferGeometry, BufferAttribute, LineBasicMaterial } from 'three'
+import { useEffect, useMemo, useRef } from 'react'
+import { useFrame, useThree } from '@react-three/fiber'
+import { CylinderGeometry, Mesh, MeshBasicMaterial, Vector3 } from 'three'
+import {
+  getWindChimeCenterPoint,
+  getWindChimeLineEndY,
+  getWindChimePlanetPoint,
+  getWindChimeProgress,
+  WC_ANCHOR_Y,
+} from '../behaviors/useWindChime'
+import { getWebglLayer } from '../composition/layerRegistry'
+import { touchActorFrame, useActorRuntime } from '../composition/actorRuntime'
+import { R3F_FRAME_PRIORITY } from '../composition/frameScheduler'
 import { useScrollStore } from '../stores/scrollStore'
-import { SCENE_CENTER_Z } from '../r3f/ScrollRig'
-import { getWindChimeProgress, WC_ANCHOR_Y } from '../behaviors/useWindChime'
-import { _planetWorldPositions } from './Planets'
 
-const TARGET_Y = -1.0  // 所有星体轨道Y相同，不依赖 Planets 共享数组
+declare global {
+  interface Window {
+    __WIND_CHIME_DEBUG__?: unknown
+  }
+}
 
-/**
- * WindChimeLines — 4 条亮线，Y 自行计算，仅从 _planetWorldPositions 取 X/Z。
- */
 export default function WindChimeLines() {
+  useActorRuntime('windChime', true)
+  const { camera, gl } = useThree()
+  const layer = getWebglLayer('webgl.windChime')
+  const projectPoint = useRef(new Vector3()).current
+
   const lines = useMemo(() => {
-    const result: Line[] = []
+    const result: Mesh[] = []
     for (let i = 0; i < 4; i++) {
-      const pts = new Float32Array([0, WC_ANCHOR_Y, 0, 0, 0, 0])
-      const g = new BufferGeometry()
-      g.setAttribute('position', new BufferAttribute(pts, 3))
-      const mat = new LineBasicMaterial({ color: '#ffffff', transparent: true, opacity: 0, depthTest: false, depthWrite: false })
-      const line = new Line(g, mat)
-      line.renderOrder = 9999
+      const geometry = new CylinderGeometry(0.012, 0.012, 1, 8, 1)
+      const material = new MeshBasicMaterial({
+        color: '#ffffff',
+        transparent: layer.transparent,
+        opacity: 0,
+        depthTest: layer.depthTest,
+        depthWrite: layer.depthWrite,
+      })
+      const line = new Mesh(geometry, material)
+      line.renderOrder = layer.renderOrder
+      line.visible = false
       result.push(line)
     }
     return result
-  }, [])
+  }, [layer.depthTest, layer.depthWrite, layer.renderOrder, layer.transparent])
+
+  useEffect(() => {
+    return () => {
+      lines.forEach((line) => {
+        line.geometry.dispose()
+        ;(line.material as MeshBasicMaterial).dispose()
+      })
+    }
+  }, [lines])
 
   useFrame(() => {
     const sp = useScrollStore.getState().scrollProgress
     const { smoothP } = getWindChimeProgress(sp)
-    const curY = WC_ANCHOR_Y + (TARGET_Y - WC_ANCHOR_Y) * smoothP
-    const zOffset = 6 * smoothP
+    const curY = getWindChimeLineEndY(smoothP)
+    const debugLines = []
+
+    touchActorFrame('windChime', Math.round(performance.now()), smoothP > 0)
 
     for (let i = 0; i < 4; i++) {
-      const pArr = lines[i].geometry.attributes.position.array as Float32Array
-      let tx = 0, tz: number = SCENE_CENTER_Z
+      const point = i < 3 ? getWindChimePlanetPoint(i, smoothP) : getWindChimeCenterPoint(smoothP)
+      const line = lines[i]
+      const length = Math.max(0.001, WC_ANCHOR_Y - curY)
 
-      if (i < 3) {
-        const pos = _planetWorldPositions[i]
-        if (pos) { tx = pos.x; tz = pos.z }
+      line.position.set(point.x, curY + length / 2, point.z)
+      line.scale.set(1, length, 1)
+      line.visible = smoothP > 0.001
+      ;(line.material as MeshBasicMaterial).opacity = Math.min(0.95, smoothP * 0.95)
+
+      if (typeof window !== 'undefined' && window.location.hostname === 'localhost') {
+        projectPoint.set(point.x, curY, point.z).project(camera)
+        debugLines.push({
+          index: i,
+          hasAnchor: true,
+          usedFallback: false,
+          world: { x: point.x, y: curY, z: point.z },
+          screen: {
+            x: (projectPoint.x * 0.5 + 0.5) * gl.domElement.clientWidth,
+            y: (-projectPoint.y * 0.5 + 0.5) * gl.domElement.clientHeight,
+          },
+          opacity: (line.material as MeshBasicMaterial).opacity,
+        })
       }
-
-      pArr[0] = tx; pArr[1] = WC_ANCHOR_Y; pArr[2] = tz + zOffset
-      pArr[3] = tx; pArr[4] = curY;        pArr[5] = tz + zOffset
-      lines[i].geometry.attributes.position.needsUpdate = true
-      ;(lines[i].material as LineBasicMaterial).opacity = smoothP
     }
-  })
+
+    if (typeof window !== 'undefined' && window.location.hostname === 'localhost') {
+      const debug = { sp, smoothP, curY, lines: debugLines }
+      window.__WIND_CHIME_DEBUG__ = debug
+      document.documentElement.dataset.windChimeDebug = JSON.stringify(debug)
+    }
+  }, R3F_FRAME_PRIORITY.windChimeConsume)
 
   return (
     <group>

@@ -3,11 +3,16 @@ import { useFrame } from '@react-three/fiber'
 import { Line, Color, BufferGeometry, BufferAttribute, LineBasicMaterial, Mesh, MeshBasicMaterial, DoubleSide } from 'three'
 import { useScrollStore } from '../stores/scrollStore'
 import { useFrameCache } from '../behaviors/useFrameCache'
-import { smoothstep, clamped, WHITE_OUT_THRESHOLD, WHITE_OUT_END, GRID_START, VERTICAL_START, GRID_SHIFT_START } from '../r3f/ScrollRig'
-import { _beamWorldOrigin, _beamWorldDirection } from './LightBeam'
+import { SCENE_CENTER_Z, smoothstep, clamped } from '../r3f/ScrollRig'
+import { TIMELINE } from '../composition/timeline'
+import { getWebglLayer } from '../composition/layerRegistry'
+import { touchActorFrame, useActorRuntime } from '../composition/actorRuntime'
+import { readBeamWorldDirection, readBeamWorldOrigin } from '../composition/coreAnchors'
 import type { WaveLineData, WaveBaseColor } from '../types'
 
 const CURTAIN_BOTTOM_Y = -10
+const DEFAULT_BEAM_ORIGIN = { x: 0, y: -0.428, z: SCENE_CENTER_Z }
+const DEFAULT_BEAM_DIRECTION = { x: 0, y: 0, z: 1 }
 
 /**
  * 海洋波浪线 — 30 条 Line + 水幕遮罩，逐顶点动画。
@@ -23,6 +28,9 @@ const CURTAIN_BOTTOM_Y = -10
  * 援引：R3F <threeLine> + bufferGeometry（逐顶点位置/颜色更新）
  */
 export default function OceanWaves() {
+  useActorRuntime('waves', true)
+  const lineLayer = getWebglLayer('webgl.oceanLines')
+  const curtainLayer = getWebglLayer('webgl.oceanCurtain')
   const { waveLines, waveData, waveBaseColors, curtainMeshes } = useMemo(() => {
     const TOTAL = 30, POWER = 2.2
     const lines: Line[] = []
@@ -60,9 +68,14 @@ export default function OceanWaves() {
       const colors = new Float32Array((segCount + 1) * 3)
       for (let j = 0; j <= segCount; j++) { colors[j * 3] = bc.r; colors[j * 3 + 1] = bc.g; colors[j * 3 + 2] = bc.b }
       geom.setAttribute('color', new BufferAttribute(colors, 3))
-      const mat = new LineBasicMaterial({ vertexColors: true, transparent: false, depthWrite: true, depthTest: true })
+      const mat = new LineBasicMaterial({
+        vertexColors: true,
+        transparent: lineLayer.transparent,
+        depthWrite: lineLayer.depthWrite,
+        depthTest: lineLayer.depthTest,
+      })
       const line = new Line(geom, mat)
-      line.renderOrder = 0
+      line.renderOrder = lineLayer.renderOrder
       lines.push(line)
 
       // ---- 水幕遮罩：三角形条带，顶边=波浪曲线，底边=CURTAIN_BOTTOM_Y ----
@@ -82,16 +95,32 @@ export default function OceanWaves() {
       const cGeom = new BufferGeometry()
       cGeom.setAttribute('position', new BufferAttribute(cPositions, 3))
       cGeom.setIndex(cIndices)
-      const cMat = new MeshBasicMaterial({ color: '#1c232b', transparent: true, opacity: 0.90, depthWrite: false, depthTest: true, side: DoubleSide })
+      const cMat = new MeshBasicMaterial({
+        color: '#1c232b',
+        transparent: curtainLayer.transparent,
+        opacity: 0.90,
+        depthWrite: curtainLayer.depthWrite,
+        depthTest: curtainLayer.depthTest,
+        side: DoubleSide,
+      })
       const cMesh = new Mesh(cGeom, cMat)
-      cMesh.renderOrder = -1
+      cMesh.renderOrder = curtainLayer.renderOrder
       curtains.push(cMesh)
       // ------------------------------------------------------------
 
       data.push({ baseY, z, amplitude, frequency, speed, phase, span, segCount, opacity })
     }
     return { waveLines: lines, waveData: data, waveBaseColors: baseColors, curtainMeshes: curtains }
-  }, [])
+  }, [
+    curtainLayer.depthTest,
+    curtainLayer.depthWrite,
+    curtainLayer.renderOrder,
+    curtainLayer.transparent,
+    lineLayer.depthTest,
+    lineLayer.depthWrite,
+    lineLayer.renderOrder,
+    lineLayer.transparent,
+  ])
 
   useEffect(() => {
     return () => {
@@ -113,9 +142,10 @@ export default function OceanWaves() {
   useFrame((state, _delta) => {
     const sp = useScrollStore.getState().scrollProgress
     const time = state.clock.elapsedTime
+    touchActorFrame('waves', Math.round(time * 60), sp < TIMELINE.wavesAct3Fade.end)
     if (shouldSkip(time, sp)) return
 
-    const act3Progress = clamped(sp, GRID_SHIFT_START, 1.0)
+    const act3Progress = clamped(sp, TIMELINE.act3Shift.start, 1.0)
     const smooth3 = smoothstep(act3Progress)
     const gridOpacityMult = 1.0 - smooth3
 
@@ -133,10 +163,13 @@ export default function OceanWaves() {
       wavesVisibleRef.current = true
     }
 
-    const hlWeight = Math.max(0, Math.min(1, (WHITE_OUT_THRESHOLD - sp) / 0.10))
-    const CASCADE_START = 0.24, CASCADE_END = 0.72
+    const hlWeight = Math.max(0, Math.min(1, (TIMELINE.whiteOut.start - sp) / 0.10))
+    const CASCADE_START = TIMELINE.wavesCascade.start
+    const CASCADE_END = TIMELINE.wavesCascade.end
     const baseGridFactor = clamped(sp, CASCADE_START, CASCADE_END)
     const shiftY = -32.0 * smooth3
+    const beamWorldOrigin = readBeamWorldOrigin() ?? DEFAULT_BEAM_ORIGIN
+    const beamWorldDirection = readBeamWorldDirection() ?? DEFAULT_BEAM_DIRECTION
 
     for (let i = 0; i < waveLines.length; i++) {
       const line = waveLines[i]
@@ -152,7 +185,7 @@ export default function OceanWaves() {
       // 层叠下落：远快近慢，非均匀间距
       // 远处 (zNorm=0) 在 0.24 开始；近处 (zNorm=1) 在 0.60 开始
       const zNorm = (rawZ + 52) / 57  // 0(远) → 1(近)
-      const dropStart = CASCADE_START + zNorm * (0.60 - CASCADE_START)  // 0.24→0.60
+      const dropStart = CASCADE_START + zNorm * (TIMELINE.gridExtend.start - CASCADE_START)  // 0.24→0.60
       const waveGF = clamped(sp, dropStart, CASCADE_END)  // 每层独立起止
       const dropY = -40.0 * waveGF  // 每层下落出画面
 
@@ -171,19 +204,19 @@ export default function OceanWaves() {
         // 椭圆光束截面 + 高斯衰减，per-vertex 推向暖蓝白高光
         let r = bc.r, g = bc.g, b = bc.b
         if (hlWeight > 0) {
-          const vx = x - _beamWorldOrigin.x
-          const vy = waveY - _beamWorldOrigin.y
-          const vz = rawZ - _beamWorldOrigin.z
-          const proj = vx * _beamWorldDirection.x + vy * _beamWorldDirection.y + vz * _beamWorldDirection.z
-          const localX = vx * _beamWorldDirection.z - vz * _beamWorldDirection.x
+          const vx = x - beamWorldOrigin.x
+          const vy = waveY - beamWorldOrigin.y
+          const vz = rawZ - beamWorldOrigin.z
+          const proj = vx * beamWorldDirection.x + vy * beamWorldDirection.y + vz * beamWorldDirection.z
+          const localX = vx * beamWorldDirection.z - vz * beamWorldDirection.x
           const beamR = 2.0 + Math.max(0, proj) * 0.25    // ↑=光束更宽、扩散更快
           const distSq = (localX * localX) / (beamR * beamR) + (vy * vy) / 3.0  // ↑=垂直衰减更小
           let di = Math.exp(-distSq * 0.35)               // ↓=外晕更柔、扩散更远
           di *= Math.max(0, Math.min(1, (proj + 2) / 10))  // 近场截止更宽松
           di *= Math.max(0, 1 - (Math.max(0, proj) / 64))  // 远场延伸到更远
           let li = di * 1.2 * hlWeight                     // 适中亮度，外晕柔和
-          if (_beamWorldDirection.z > 0 && vz > 0) {
-            li += di * Math.exp(-(x * x) / 10) * _beamWorldDirection.z * 1.5 * hlWeight
+          if (beamWorldDirection.z > 0 && vz > 0) {
+            li += di * Math.exp(-(x * x) / 10) * beamWorldDirection.z * 1.5 * hlWeight
           }
           // 高光暖白 + 低系数：外晕可见但不惨白
           const hR = 1.0, hG = 1.0, hB = 1.0

@@ -4,6 +4,9 @@ import { Line, Color, BufferGeometry, BufferAttribute, LineBasicMaterial } from 
 import { useScrollStore } from '../stores/scrollStore'
 import { useFrameCache } from '../behaviors/useFrameCache'
 import { clamped } from '../r3f/ScrollRig'
+import { TIMELINE } from '../composition/timeline'
+import { getWebglLayer } from '../composition/layerRegistry'
+import { touchActorFrame, useActorRuntime } from '../composition/actorRuntime'
 import type { GridLineData } from '../types'
 
 // ============================================================
@@ -26,6 +29,8 @@ const COLOR_CENTER = new Color('#8899b0')
 const COLOR_EDGE   = new Color('#4a5568')
 
 export default function GridLines() {
+  useActorRuntime('grid', true)
+  const layer = getWebglLayer('webgl.grid')
   const { gridLines } = useMemo(() => {
     const lines: GridLineData[] = []
 
@@ -79,16 +84,16 @@ export default function GridLines() {
       g.setAttribute('color', new BufferAttribute(colors, 3))
       const mat = new LineBasicMaterial({
         vertexColors: true, transparent: true, opacity: 0,
-        depthTest: true, depthWrite: false,
+        depthTest: layer.depthTest, depthWrite: layer.depthWrite,
       })
       const line = new Line(g, mat)
-      line.renderOrder = 2
+      line.renderOrder = layer.renderOrder
       const staggerOffset = Math.abs(x / X_SPREAD) * 0.25
       lines.push({ line, x, baseY: BOTTOM_Y, zStart: Z_FAR, zEnd: Z_NEAR, staggerOffset, arcHeight: 0, basePositions: new Float32Array(pts) })
     }
 
     return { gridLines: lines }
-  }, [])
+  }, [layer.depthTest, layer.depthWrite, layer.renderOrder])
 
   useEffect(() => {
     return () => {
@@ -103,9 +108,12 @@ export default function GridLines() {
 
   useFrame((_state, _delta) => {
     const sp = useScrollStore.getState().scrollProgress
+    touchActorFrame('grid', Math.round(performance.now()), sp >= TIMELINE.gridExtend.start && sp <= TIMELINE.gridRetract.end)
     if (shouldSkipSp(sp)) return
 
-    const EXT_START = 0.60, EXT_END = 0.85, RETRACT_END = 0.95
+    const EXT_START = TIMELINE.gridExtend.start
+    const EXT_END = TIMELINE.gridExtend.end
+    const RETRACT_END = TIMELINE.gridRetract.end
 
     // 延伸前或回收后：完全隐藏
     if (sp < EXT_START || sp >= RETRACT_END) {

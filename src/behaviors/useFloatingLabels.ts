@@ -1,6 +1,14 @@
 import { useState, useRef, useCallback, useEffect, useMemo } from 'react'
 import { stepPBD, type PBDInput, type PBDResult, type PBDParams } from './usePBDLayout'
-import { useRealtimeStore, type ScreenCoord } from '../stores/realtimeStore'
+import { useEffectScope } from '../composition/effectScope'
+import {
+  centralStarScreenAnchorId,
+  planetScreenAnchorId,
+  planetScreenRadiusAnchorId,
+  readAnchorValue,
+  type ScreenCircle,
+  type ScreenPoint,
+} from '../composition/coreAnchors'
 import type { PlanetLink } from '../types'
 
 /**
@@ -105,16 +113,35 @@ const MAX_PBD_DT = 0.1
  */
 const PBD_CACHE_THRESHOLD = 0.5
 
-/** PBD 就绪标志 — 模块级，跨 React re-render 保持。rAF 循环首次检测到有效坐标后置 true */
-let _pbdReadyLogged = false
+const EMPTY_SCREEN_POINT: ScreenPoint = { x: 0, y: 0, visible: false }
+const EMPTY_SCREEN_CIRCLE: ScreenCircle = { x: 0, y: 0, r: 0, visible: false }
+
+function readScreenLayoutAnchors(): {
+  screenCoords: [ScreenPoint, ScreenPoint, ScreenPoint]
+  screenRadii: [number, number, number]
+  centralStarScreen: ScreenCircle
+} {
+  return {
+    screenCoords: [
+      readAnchorValue<ScreenPoint>(planetScreenAnchorId(0)) ?? EMPTY_SCREEN_POINT,
+      readAnchorValue<ScreenPoint>(planetScreenAnchorId(1)) ?? EMPTY_SCREEN_POINT,
+      readAnchorValue<ScreenPoint>(planetScreenAnchorId(2)) ?? EMPTY_SCREEN_POINT,
+    ],
+    screenRadii: [
+      readAnchorValue<number>(planetScreenRadiusAnchorId(0)) ?? 0,
+      readAnchorValue<number>(planetScreenRadiusAnchorId(1)) ?? 0,
+      readAnchorValue<number>(planetScreenRadiusAnchorId(2)) ?? 0,
+    ],
+    centralStarScreen: readAnchorValue<ScreenCircle>(centralStarScreenAnchorId) ?? EMPTY_SCREEN_CIRCLE,
+  }
+}
 
 export function useFloatingLabels(
   options: FloatingLabelsOptions,
-  screenCoords: [ScreenCoord, ScreenCoord, ScreenCoord],
-  screenRadii: [number, number, number],
-  centralStarScreen: { x: number; y: number; r: number; visible: boolean },
+  screenCoords: [ScreenPoint, ScreenPoint, ScreenPoint],
   isAnyFocused: boolean,
 ) {
+  const effectScope = useEffectScope('planetLabels.layout')
   const {
     configs,
     sequenceStrategy = 'proximity',
@@ -162,7 +189,8 @@ export function useFloatingLabels(
   const [pbdCache, setPbdCache] = useState<{ x: number; y: number; aLx: number; aLy: number; aRx: number; aRy: number }[]>(
     () => [ {x:0,y:0,aLx:0,aLy:0,aRx:0,aRy:0}, {x:0,y:0,aLx:0,aLy:0,aRx:0,aRy:0}, {x:0,y:0,aLx:0,aLy:0,aRx:0,aRy:0} ]
   )
-  const [pbdReady, setPbdReady] = useState(false)
+  const [layoutReady, setLayoutReady] = useState(false)
+  const layoutReadyRef = useRef(false)
   const stableRefs = useRef({ pbdParams, collapsedWidth, expandedWidth, collapsedHeight, expandedHeight, configs, activeTrackIdx, collapsedFitWidths })
   stableRefs.current = { pbdParams, collapsedWidth, expandedWidth, collapsedHeight, expandedHeight, configs, activeTrackIdx, collapsedFitWidths }
 
@@ -174,9 +202,7 @@ export function useFloatingLabels(
       lastTimeRef.current = now
 
       const s = stableRefs.current
-      const sc = useRealtimeStore.getState().screenCoords
-      const sr = useRealtimeStore.getState().planetScreenRadii
-      const cs = useRealtimeStore.getState().centralStarScreen
+      const { screenCoords: sc, screenRadii: sr, centralStarScreen: cs } = readScreenLayoutAnchors()
       const vp = viewportRef.current
 
       const inputs = s.configs.map((_, i) => ({
@@ -203,29 +229,31 @@ export function useFloatingLabels(
         if (prev.length === 3 && prev.every((p, i) => Math.abs(p.x - cached[i].x) < PBD_CACHE_THRESHOLD && Math.abs(p.y - cached[i].y) < PBD_CACHE_THRESHOLD)) return prev
         return cached
       })
-      // 等待至少一个 body 激活（screenCoords 已有有效值）后才允许渲染 TerminalBar
-      if (!_pbdReadyLogged && cached.some(c => c.x !== 0 || c.y !== 0)) {
-        _pbdReadyLogged = true
-        setPbdReady(true)
+      // 等待至少一个 body 激活（screenCoords 已有有效值）后才允许渲染 TerminalBar。
+      // readiness 属于 hook 实例的 layout 状态，不能放在模块级全局变量里。
+      if (!layoutReadyRef.current && cached.some(c => c.x !== 0 || c.y !== 0)) {
+        layoutReadyRef.current = true
+        setLayoutReady(true)
       }
 
-      raf = requestAnimationFrame(loop)
+      raf = effectScope.requestAnimationFrame(loop)
     }
-    raf = requestAnimationFrame(loop)
+    raf = effectScope.requestAnimationFrame(loop)
     return () => {
-      cancelAnimationFrame(raf)
-      _pbdReadyLogged = false
+      effectScope.cancel('floating label pbd cleanup')
+      layoutReadyRef.current = false
     }
-  }, [])
+  }, [effectScope])
 
   // ---- 退出超时管理 ----
   const clearExitTimer = useCallback(() => {
-    if (exitTimerRef.current) { clearTimeout(exitTimerRef.current); exitTimerRef.current = null }
-  }, [])
+    effectScope.clearTimer(exitTimerRef.current)
+    exitTimerRef.current = null
+  }, [effectScope])
   const resetExitTimer = useCallback(() => {
     clearExitTimer()
-    exitTimerRef.current = setTimeout(() => setActiveTrackIdx(-1), exitTimeout)
-  }, [exitTimeout, clearExitTimer])
+    exitTimerRef.current = effectScope.setTimeout(() => setActiveTrackIdx(-1), exitTimeout)
+  }, [exitTimeout, clearExitTimer, effectScope])
   const handlePillClick = useCallback((trackIdx: number) => {
     if (activeTrackIdx === trackIdx) { setActiveTrackIdx(-1); clearExitTimer() }
     else { setActiveTrackIdx(trackIdx); resetExitTimer() }
@@ -253,5 +281,5 @@ export function useFloatingLabels(
   }, [])
   useEffect(() => { return () => clearExitTimer() }, [clearExitTimer])
 
-  return { labels, activeTrackIdx, handlePillClick, handleExternalDismiss, resetExitTimer, pbdReady }
+  return { labels, activeTrackIdx, handlePillClick, handleExternalDismiss, resetExitTimer, layoutReady }
 }

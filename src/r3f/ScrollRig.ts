@@ -1,5 +1,6 @@
 import { type Scene, Color, FogExp2 } from 'three'
 import { SCROLL_RIG } from '../types'
+import { TIMELINE } from '../composition/timeline'
 
 // smoothstep(t) = 3t² - 2t³
 export function smoothstep(t: number): number {
@@ -39,19 +40,18 @@ const _bgTargetColor = new Color()
 const _bgLerpColor = new Color()
 
 export function sceneApplyWhiteOut(scene: Scene, sp: number): void {
-  const wof = clamped(sp, WHITE_OUT_THRESHOLD, WHITE_OUT_END)
+  const wof = clamped(sp, TIMELINE.whiteOut.start, TIMELINE.whiteOut.end)
   _bgTargetColor.copy(_bgNightTarget).lerp(_bgDayTarget, _themeBlend)
   _bgLerpColor.copy(_bgBaseColor).lerp(_bgTargetColor, wof)
   scene.background = _bgLerpColor
 
-  const FOG_FADE_END = 0.65
   let fogDensity = 0.02
-  if (sp >= WHITE_OUT_THRESHOLD && sp < WHITE_OUT_END) {
+  if (sp >= TIMELINE.whiteOut.start && sp < TIMELINE.whiteOut.end) {
     fogDensity = 0.02 + wof * 0.08
-  } else if (sp >= WHITE_OUT_END && sp < FOG_FADE_END) {
-    const fogFade = clamped(sp, WHITE_OUT_END, FOG_FADE_END)
+  } else if (sp >= TIMELINE.fogFade.start && sp < TIMELINE.fogFade.end) {
+    const fogFade = clamped(sp, TIMELINE.fogFade.start, TIMELINE.fogFade.end)
     fogDensity = 0.10 * (1.0 - fogFade)
-  } else if (sp >= FOG_FADE_END) {
+  } else if (sp >= TIMELINE.fogFade.end) {
     fogDensity = 0  // 0.65 后完全除雾
   }
 

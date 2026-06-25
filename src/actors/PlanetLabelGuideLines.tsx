@@ -6,21 +6,22 @@
  * 蒙版厚度 3px，收缩动画完成后绘制。
  */
 
-import { useRealtimeStore } from '../stores/realtimeStore'
 import { useScrollStore } from '../stores/scrollStore'
 import { themeColor } from '../theme/colors'
+import { getDomLayer, resolvePointerEvents } from '../composition/layerRegistry'
+import type { ScreenPoint } from '../composition/coreAnchors'
 import type { LabelState } from '../behaviors/useFloatingLabels'
 
 interface Props {
   labels: LabelState[]
+  screenCoords: [ScreenPoint, ScreenPoint, ScreenPoint]
+  screenRadii: [number, number, number]
   collapsedWidth: number
   expandedWidth: number
   collapsedHeight: number
   expandedHeight: number
   activeTrackIdx: number
-  collapsedFitWidths?: Record<number, number>
-  /** 收缩动画完成标志：仅当为 true 时才绘制对应 label 的牵引线 */
-  guidesReady?: Record<number, boolean>
+  guideLayouts?: Record<number, { width?: number; ready: boolean }>
 }
 
 /** 锚点到 planet 圆边的距离阈值（px） */
@@ -30,30 +31,35 @@ const EPSILON = 0.001
 const MASK = 3
 
 export default function PlanetLabelGuideLines({
-  labels, collapsedWidth, expandedWidth, collapsedHeight, expandedHeight,
-  activeTrackIdx, collapsedFitWidths, guidesReady,
+  labels, screenCoords, screenRadii, collapsedWidth, expandedWidth, collapsedHeight, expandedHeight,
+  activeTrackIdx, guideLayouts,
 }: Props) {
-  const screenCoords = useRealtimeStore(s => s.screenCoords)
-  const screenRadii = useRealtimeStore(s => s.planetScreenRadii)
   const dayNight = useScrollStore(s => s.dayNight)
   const guideStroke = themeColor('guideLine', dayNight)
+  const layer = getDomLayer('svg.planetLabelGuides')
 
   return (
     <svg
-      style={{ position: 'fixed', inset: 0, zIndex: 5, pointerEvents: 'none' }}
+      style={{
+        position: layer.position,
+        inset: 0,
+        zIndex: layer.zIndex,
+        pointerEvents: resolvePointerEvents(layer.pointerEvents),
+      }}
       width="100%" height="100%"
     >
       {labels.map((label) => {
         const sc = screenCoords[label.trackIdx]
         const pr = screenRadii[label.trackIdx]
+        const guideLayout = guideLayouts?.[label.trackIdx]
         if (!sc.visible || !label.visible) return null
-        if (!guidesReady?.[label.trackIdx]) return null
+        if (!guideLayout?.ready) return null
         if (activeTrackIdx === label.trackIdx) return null
 
         const anchors = label.debugAnchors
         if (!anchors) return null
 
-        const fitW = collapsedFitWidths?.[label.trackIdx]
+        const fitW = guideLayout.width
         const w = fitW ?? collapsedWidth
 
         // 四个计算点：左右锚点 + top-left / top-right 角

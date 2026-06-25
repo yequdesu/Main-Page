@@ -14,14 +14,18 @@
  *   白色虚线圆 = 中央恒星内层光晕（不与行星关联）
  */
 
-import { useSyncExternalStore } from 'react'
-import { useRealtimeStore } from '../stores/realtimeStore'
+import { useScrollStore } from '../stores/scrollStore'
+import { getDomLayer, resolvePointerEvents } from '../composition/layerRegistry'
+import type { ScreenCircle, ScreenPoint } from '../composition/coreAnchors'
 import type { LabelState } from '../behaviors/useFloatingLabels'
 import type { PBDParams } from '../behaviors/usePBDLayout'
 import { PLANET_AVOID_MARGIN } from '../behaviors/usePBDLayout'
 
 interface Props {
   labels: LabelState[]
+  screenCoords: [ScreenPoint, ScreenPoint, ScreenPoint]
+  screenRadii: [number, number, number]
+  centralStar: ScreenCircle
   collapsedWidth: number
   expandedWidth: number
   collapsedHeight: number
@@ -30,28 +34,12 @@ interface Props {
   collapsedFitWidths?: Record<number, number>
 }
 
-/** 订阅 window.__DEBUG__ 的 React hook */
-function useDebugFlag(): boolean {
-  return useSyncExternalStore(
-    (cb: () => void) => {
-      const orig = (window as any).__DEBUG__
-      // 轮询检测（Zustand 无此 key 的订阅）
-      const id = setInterval(() => {
-        if ((window as any).__DEBUG__ !== orig) cb()
-      }, 200)
-      return () => clearInterval(id)
-    },
-    () => (window as any).__DEBUG__ === true,
-  )
-}
-
 export default function PlanetLabelDebug({
-  labels, collapsedWidth, expandedWidth, collapsedHeight, expandedHeight, pbdParams, collapsedFitWidths,
+  labels, screenCoords, screenRadii, centralStar,
+  collapsedWidth, expandedWidth, collapsedHeight, expandedHeight, pbdParams, collapsedFitWidths,
 }: Props) {
-  const screenCoords = useRealtimeStore(s => s.screenCoords)
-  const screenRadii = useRealtimeStore(s => s.planetScreenRadii)
-  const centralStar = useRealtimeStore(s => s.centralStarScreen)
-  const enabled = useDebugFlag()
+  const enabled = useScrollStore(s => s.debugMode)
+  const layer = getDomLayer('svg.planetLabelDebug')
 
   if (!enabled) return null
 
@@ -60,7 +48,12 @@ export default function PlanetLabelDebug({
 
   return (
     <svg
-      style={{ position: 'fixed', inset: 0, zIndex: 8, pointerEvents: 'none' }}
+      style={{
+        position: layer.position,
+        inset: 0,
+        zIndex: layer.zIndex,
+        pointerEvents: resolvePointerEvents(layer.pointerEvents),
+      }}
       width="100%" height="100%"
     >
       {/* 中央恒星 */}

@@ -1,9 +1,12 @@
 import { useMemo, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import { type LineBasicMaterial } from 'three'
-import { SCENE_CENTER_Z, ORBIT_RADII, ORBIT_COUNT, clamped, smoothstep, GRID_SHIFT_START } from '../r3f/ScrollRig'
+import { SCENE_CENTER_Z, ORBIT_RADII, ORBIT_COUNT, clamped, smoothstep } from '../r3f/ScrollRig'
 import { useScrollStore } from '../stores/scrollStore'
 import { themeColor } from '../theme/colors'
+import { TIMELINE } from '../composition/timeline'
+import { getWebglLayer } from '../composition/layerRegistry'
+import { touchActorFrame, useActorRuntime } from '../composition/actorRuntime'
 import OrbitalRing from './OrbitalRing'
 import type { OrbitalRingConfig } from '../types'
 
@@ -31,8 +34,10 @@ interface OrbitRingsProps {
 }
 
 export default function OrbitRings({ speedScale = 1.0 }: OrbitRingsProps) {
+  useActorRuntime('orbits', true)
   const dayNight = useScrollStore(s => s.dayNight)
   const orbitColor = themeColor('orbit', dayNight)
+  const layer = getWebglLayer('webgl.grid')
 
   // 轨道环顶点（静态 — 行星公转轨道的视觉参考线）
   const orbitPoints = useMemo(() =>
@@ -49,7 +54,8 @@ export default function OrbitRings({ speedScale = 1.0 }: OrbitRingsProps) {
 
   useFrame(() => {
     const sp = useScrollStore.getState().scrollProgress
-    const ORBIT_START = 0.94
+    touchActorFrame('orbits', Math.round(performance.now()), sp >= TIMELINE.orbitGlow.start)
+    const ORBIT_START = TIMELINE.orbitGlow.start
     const act3Progress = clamped(sp, ORBIT_START, 1.0)
     const smooth3 = smoothstep(act3Progress)
 
@@ -62,14 +68,21 @@ export default function OrbitRings({ speedScale = 1.0 }: OrbitRingsProps) {
     <>
       {/* 静态轨道参考线（行星公转轨道） */}
       {orbitPoints.map((pts, t) => (
-        <threeLine key={`orbit-${t}`} position={[0, -1.0, SCENE_CENTER_Z]} renderOrder={2}>
+        <threeLine key={`orbit-${t}`} position={[0, -1.0, SCENE_CENTER_Z]} renderOrder={layer.renderOrder}>
           <bufferGeometry>
             <bufferAttribute
               attach="attributes-position"
               args={[new Float32Array(pts.flat()), 3]}
             />
           </bufferGeometry>
-          <lineBasicMaterial ref={(mat) => { orbitMatRefs.current[t] = mat }} color={orbitColor} transparent opacity={0} depthWrite={false} depthTest />
+          <lineBasicMaterial
+            ref={(mat) => { orbitMatRefs.current[t] = mat }}
+            color={orbitColor}
+            transparent={layer.transparent}
+            opacity={0}
+            depthWrite={layer.depthWrite}
+            depthTest={layer.depthTest}
+          />
         </threeLine>
       ))}
 

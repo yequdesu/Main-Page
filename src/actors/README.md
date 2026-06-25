@@ -1,61 +1,53 @@
-# actors/ — 3D 对象组件（可渲染层）
+# actors/
 
-## 职责
+`actors/` 封装可渲染或可交互的场景主体。actor 内部可以继续使用 R3F `useFrame`、GSAP、CSS transition、PBD 或自定义 shader，但跨 actor 的身份、层级、数据读写和副作用生命周期必须通过 `src/composition/` 的 runtime contract 暴露。
 
-每个文件封装一个 Three.js 对象（Mesh、Line、Sprite、Points、InstancedMesh2）的**创建**和**逐帧动画**。组件返回 R3F JSX，内部使用 `useFrame` 驱动动画。
+## 当前 Actor
 
-## 文件
+| 文件 | 对象类型 | 主要驱动 | Runtime 接入 |
+|---|---|---|---|
+| `Lighthouse.tsx` | 静态 Mesh 组 | scroll group transform | actor + layer |
+| `LightBeam.tsx` | Cone / Line / Glow / PointLight | scroll + elapsed time | actor + layer + beam anchors |
+| `OceanWaves.tsx` | Line / curtain mesh | scroll + elapsed time + beam anchors | actor + layer + anchor consumer |
+| `DustField.tsx` | Mesh + InstancedMesh2 | scroll + elapsed time | actor + layer |
+| `GridLines.tsx` | Lines + points | scroll progress | actor + layer |
+| `Planets.tsx` | Planet meshes / halos | scroll + elapsed time | actor + layer + world/screen anchors |
+| `WindChimeLines.tsx` | SVG/WebGL-style chime lines | pure wind-chime layout function | actor + layer |
+| `CentralStar.tsx` | Mesh + sprites | scroll + elapsed time | actor + layer + screen anchor |
+| `OrbitRings.tsx` | Orbit reference lines | scroll progress | actor + layer |
+| `OrbitalRing.tsx` | Single orbit line loop | scroll progress | actor + layer |
+| `FloatingLabels.tsx` | DOM terminal pills | sequence + PBD layout | actor + layer + effect scopes |
+| `PlanetLabelGuideLines.tsx` | SVG guide lines | label layout phase + anchors | actor + layer |
+| `PlanetLabelDebug.tsx` | Debug overlay | anchors | actor + layer |
 
-| 文件 | 对象类型 | 生命周期 | renderOrder | 动画 |
-|------|----------|----------|:---:|------|
-| `Lighthouse.tsx` | 30 Mesh（`MeshStandardMaterial`） | Act1 group 内 | 0 | 无（静态） |
-| `LightBeam.tsx` | 3 Cone + 2 Line + 1 Glow + PointLight | Act1 group 内 | 0 | 3 模式 + 每帧发布光束世界变换（供 OceanWaves 体积光照） |
-| `SceneLights.tsx` | AmbientLight + 2 DirectionalLight | Canvas 根层级 | — | 无（全局静态灯光） |
-| `OceanWaves.tsx` | 30 Line（逐顶点动画） | Act1 group 内 | 0 | 波浪 Y 偏移 + 体积聚光照明（读 `_beamWorldOrigin/Direction`） |
-| `DustField.tsx` | 3 Mesh（主行星） + InstancedMesh2 ×80（碎片） | **Canvas 根层级** | 1/2 | 位置/颜色/透明度逐帧更新 |
-| `CentralStar.tsx` | 2 Mesh（核心+光晕） + Sprite（Halo） | Act3 group 内 | 1/2/1 | 光晕脉冲 + 透明度 |
-| `OrbitRings.tsx` | 3 Line（轨道参考线）+ 编排 `GYRO_RINGS` → `<OrbitalRing>` | Act3 group 内 | 2 | 透明度（参考线）+ 配置映射 |
-| `OrbitalRing.tsx` | 1 LineLoop（陀螺仪环），可独立复用 | Act3 group 内（由 `OrbitRings` 编排） | 2 | 进动（Y 旋转）+ 透明度（scroll 驱动） |
+## Dependency Rules
 
-> **轨道系统完整文档：** [`docs/orbital-system.md`](../../docs/orbital-system.md) — 力学模型、变换推导、配置参考、操作手册
+Actors must not import another actor's mutable module state. Cross-actor data should be represented as anchors or sequence signals.
 
-| `GridLines.tsx` | 28 Line + 210 Points | Act2 group 内 | 2 | 延伸 + 透明度 |
-| `FloatingLabels.tsx` | 3 DOM pill（TerminalBar） | App 根 DOM 层 | — | PBD 物理驱动，独立 rAF 60fps |
-| `LighthouseCapture.tsx` | 无渲染（离屏截图逻辑） | Act1 group 内 | — | 导出 `getLighthouseCapture()` |
+Current important data edges:
 
-> **PBD 布局系统文档：** [`../../docs/actors/pbd-layout-operation-guide.md`](../../docs/actors/pbd-layout-operation-guide.md) — 操作手册  
-> [`../../docs/actors/pbd-layout-maintenance-guide.md`](../../docs/actors/pbd-layout-maintenance-guide.md) — 维护指南  
-> [`../../docs/superpowers/specs/2026-06-21-pbd-layout-design.md`](../../docs/superpowers/specs/2026-06-21-pbd-layout-design.md) — 设计文档
+| Producer | Consumer | Data |
+|---|---|---|
+| `LightBeam` | `OceanWaves` | `anchor.beam.worldOrigin`, `anchor.beam.worldDirection` |
+| `Planets` | `PlanetClickHandler`, focus logic | `anchor.planet.*.world` |
+| screen projection | `FloatingLabels`, guide lines, focus overlays | `anchor.planet.*.screen`, `anchor.centralStar.screen` |
+| label layout | `PlanetLabelGuideLines` | per-label layout phase / measured width |
 
-## 编写规范
+## Authoring Rules
 
-- **预分配对象**：`Vector3`/`Color`/`Matrix4` 用 `useRef().current` 跨帧复用
-- **帧缓存**：使用 `useFrameCache` 守卫，同一帧不重复处理
-- **材质不复用**：每个 Actor 管理自己的材质生命周期
-- **renderOrder 显式设置**：不依赖父 Group 继承
+- Register actor identity with `useActorRuntime`.
+- Read render policy from `layerRegistry` instead of hardcoding z-index, renderOrder, depth policy or pointer rules.
+- Publish shared positions, bounds or layout facts through anchors.
+- Keep scroll-driven visuals reversible: the same `scrollProgress` must recreate the same visual state.
+- Put event-driven or completion-driven flow into `sequenceStore` signals/phases.
+- Track GSAP tweens, timers, rAF callbacks and transition fallback cleanup with `EffectScope`.
+- Keep expensive per-frame math in mutable refs or pure behavior helpers; avoid high-frequency React state updates.
 
-## 新增 Actor 步骤
+## Adding A New Actor
 
-1. 创建 `src/actors/NewObject.tsx`
-2. 参考同类型组件（静态参考 Lighthouse，动画参考 OceanWaves，粒子参考 DustField）
-3. 在对应 Act 中导入并挂载（或 Canvas 根层级）
-4. 如需纯计算逻辑，抽取至 `behaviors/`
-
-## 依赖方向
-
-```
-actors/ → behaviors/, stores/, shaders/, types/, r3f/
-actors/ 不依赖 acts/
-```
-
-**已知跨 Actor 依赖：** `OceanWaves` → `LightBeam`（通过模块级共享变量 `_beamWorldOrigin` / `_beamWorldDirection` 读取光束世界变换）。这是为避开 React props 60fps 重渲染的刻意设计，详见 `docs/MAINTENANCE.md` §8.1。
-
-## 相关文档
-
-| 文档 | 用途 |
-|------|------|
-| [`../../docs/orbital-system.md`](../../docs/orbital-system.md) | 轨道系统完整文档（OrbitalRing / OrbitRings） |
-| [`../../docs/MAINTENANCE.md`](../../docs/MAINTENANCE.md) §7 | 渲染层级和 depthWrite/depthTest 规则 |
-| [`../../docs/MAINTENANCE.md`](../../docs/MAINTENANCE.md) §8.1 | 体积聚光照明数据流（OceanWaves ↔ LightBeam） |
-| [`../behaviors/README.md`](../behaviors/README.md) | 可复用行为逻辑（useFrame 中调用的纯函数） |
-| [`../../docs/dev-blog/`](../../docs/dev-blog/) | 4 篇调试记录（涉及 DustField, InstancedMesh2） |
+1. Add the visual implementation under `src/actors/`.
+2. Add or reuse a layer entry in `src/composition/layerRegistry.ts`.
+3. Add an actor spec in `src/composition/coreActors.ts`.
+4. If it shares data, add typed anchor helpers in `src/composition/coreAnchors.ts`.
+5. If it participates in non-reversible event flow, add sequence phases/signals in `src/composition/coreSequences.ts`.
+6. Verify it appears in the composition debug panel with correct actor, layer, anchor and effect ownership.

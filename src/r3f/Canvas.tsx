@@ -10,6 +10,7 @@ import Planets from '../actors/Planets'
 import Lighthouse from '../actors/Lighthouse'
 import WindChimeLines from '../actors/WindChimeLines'
 import CentralStar from '../actors/CentralStar'
+import { getDomLayer } from '../composition/layerRegistry'
 
 /**
  * R3F Canvas 配置。
@@ -24,6 +25,8 @@ interface CanvasProps {
 }
 
 export default function SceneCanvas({ children }: CanvasProps) {
+  const canvasLayer = getDomLayer('dom.canvas')
+
   return (
     <R3FCanvas
       frameloop="demand"
@@ -40,7 +43,7 @@ export default function SceneCanvas({ children }: CanvasProps) {
         scene.background = new Color('#050811')
         scene.fog = new FogExp2('#050811', 0.02)
       }}
-      style={{ position: 'fixed', inset: 0, zIndex: 0 }}
+      style={{ position: canvasLayer.position, inset: 0, zIndex: canvasLayer.zIndex }}
     >
       <ScrollInvalidator />
       <PlanetClickHandler />

@@ -1,6 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { createPlanetCommandHandler } from '../planetCommands'
 import type { PlanetLink } from '../../types'
+import { useAnchorStore } from '../../composition/anchorStore'
+import { planetParticleIndexAnchorId, setCoreAnchor } from '../../composition/coreAnchors'
 
 // mock useScrollStore
 vi.mock('../../stores/scrollStore', () => ({
@@ -12,16 +14,15 @@ vi.mock('../../stores/scrollStore', () => ({
   },
 }))
 
-// mock _mainPlanetIndices from Planets
-vi.mock('../../actors/Planets', () => ({
-  _mainPlanetIndices: [10, 25, 50],
-}))
-
 const link: PlanetLink = { label: 'FS', accent: '#94a3b8', url: 'https://fs.yequdesu.top' }
 
 describe('createPlanetCommandHandler', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    useAnchorStore.setState({ anchors: {}, frameId: 0 })
+    setCoreAnchor(planetParticleIndexAnchorId(0), 10, 'world', 'planets')
+    setCoreAnchor(planetParticleIndexAnchorId(1), 25, 'world', 'planets')
+    setCoreAnchor(planetParticleIndexAnchorId(2), 50, 'world', 'planets')
   })
 
   it('returns info for "info" command', () => {

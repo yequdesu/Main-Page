@@ -43,8 +43,7 @@ interface TerminalSlice {
   inputValue: string
   typewriterDone: boolean
   dayNight: DayNight
-  /** InfoPanel welcome 完成 → 放行 planet-label TerminalBar 渲染 */
-  labelsGateOpen: boolean
+  debugMode: boolean
 }
 
 interface TerminalActions {
@@ -57,7 +56,8 @@ interface TerminalActions {
   setTypewriterDone: (done: boolean) => void
   setDayNight: (mode: DayNight) => void
   toggleDayNight: () => void
-  setLabelsGateOpen: (open: boolean) => void
+  setDebugMode: (enabled: boolean) => void
+  toggleDebugMode: () => void
 }
 
 export type ScrollStore = ScrollSlice & FocusSlice & TerminalSlice & ScrollActions & FocusActions & TerminalActions
@@ -84,8 +84,8 @@ export const useScrollStore = create<ScrollStore>()((set) => ({
   echoLines: [] as string[],
   inputValue: '',
   typewriterDone: false,
-  labelsGateOpen: false,
   dayNight: 'night' as DayNight,
+  debugMode: false,
 
   setFocusedPlanet: (idx) => set({ focusedPlanetIdx: idx }),
   setHoveredIdx: (idx) => set({ hoveredIdx: idx }),
@@ -120,5 +120,17 @@ export const useScrollStore = create<ScrollStore>()((set) => ({
   setTypewriterDone: (done) => set({ typewriterDone: done }),
   setDayNight: (mode) => set({ dayNight: mode }),
   toggleDayNight: () => set((s) => ({ dayNight: s.dayNight === 'night' ? 'day' : 'night' })),
-  setLabelsGateOpen: (open) => set({ labelsGateOpen: open }),
+  setDebugMode: (enabled) => {
+    if (typeof window !== 'undefined') {
+      ;(window as any).__DEBUG__ = enabled
+    }
+    set({ debugMode: enabled })
+  },
+  toggleDebugMode: () => set((s) => {
+    const enabled = !s.debugMode
+    if (typeof window !== 'undefined') {
+      ;(window as any).__DEBUG__ = enabled
+    }
+    return { debugMode: enabled }
+  }),
 }))

@@ -1,8 +1,11 @@
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
 import { useScrollStore } from '../stores/scrollStore'
-import { sceneApplyWhiteOut, WHITE_OUT_THRESHOLD, WHITE_OUT_END } from './ScrollRig'
+import { sceneApplyWhiteOut } from './ScrollRig'
 import { _ambientLight } from '../actors/SceneLights'
+import { progress } from '../composition/timeline'
+import { useAnchorStore } from '../composition/anchorStore'
+import { touchActorFrame } from '../composition/actorRuntime'
 
 /**
  * ScrollInvalidator — 桥接 Zustand scrollProgress 到 R3F 渲染循环。
@@ -16,15 +19,19 @@ import { _ambientLight } from '../actors/SceneLights'
  */
 export default function ScrollInvalidator() {
   const { invalidate, scene } = useThree()
+  const frameIdRef = useRef(0)
 
   // ---- Every-frame fog/background + ambient light update ----
   useFrame(() => {
+    const frameId = ++frameIdRef.current
+    useAnchorStore.getState().setFrameId(frameId)
     const sp = useScrollStore.getState().scrollProgress
     sceneApplyWhiteOut(scene, sp)
+    touchActorFrame('sceneBackground', frameId, true)
 
     // 白化过渡时环境光逐步增强（原 whiteOutManager.js:28）
     if (_ambientLight) {
-      const wof = Math.max(0, Math.min(1, (sp - WHITE_OUT_THRESHOLD) / (WHITE_OUT_END - WHITE_OUT_THRESHOLD)))
+      const wof = progress('whiteOut', sp)
       _ambientLight.intensity = 1.4 + wof * 3.5
     }
   })

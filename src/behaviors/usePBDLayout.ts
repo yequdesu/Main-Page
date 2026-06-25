@@ -32,7 +32,7 @@
  * ## 外部依赖
  *
  *   消费方：useFloatingLabels（React hook，rAF 循环驱动）
- *   数据源：store.screenCoords, store.planetScreenRadii, store.centralStarScreen
+ *   数据源：anchor.planet.*.screen, anchor.planet.*.screenRadius, anchor.centralStar.screen
  *
  * ## 参考
  *
@@ -40,8 +40,6 @@
  *   - Reynolds (1999) "Steering Behaviors for Autonomous Characters"
  *   - 控制理论中的 PD 控制（速度前馈 + 比例修正）
  */
-
-import type { ScreenCoord } from '../stores/realtimeStore'
 
 // ============================================================
 // 物理常量

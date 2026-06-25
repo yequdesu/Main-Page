@@ -1,11 +1,12 @@
-import { useState, useEffect, useRef } from 'react'
+import { useEffect, useId, useState } from 'react'
+import { useEffectScope } from '../composition/effectScope'
 
 export interface TypewriterConfig {
-  /** 开始打字前的延迟 (ms)，默认 800 */
+  /** Delay before typing starts, in milliseconds. */
   startDelay?: number
-  /** 字符间隔 (ms)，默认 40 */
+  /** Delay between characters, in milliseconds. */
   charInterval?: number
-  /** 要逐字打印的文本 */
+  /** Text to reveal. */
   echoText: string
 }
 
@@ -20,24 +21,30 @@ export function useTypewriter(config: TypewriterConfig): TypewriterState {
   const [displayedText, setDisplayedText] = useState('')
   const [isTyping, setIsTyping] = useState(true)
   const [isDone, setIsDone] = useState(false)
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const id = useId()
+  const scope = useEffectScope(`terminal.typewriter.${id}`)
 
   useEffect(() => {
     let idx = 0
     let cancelled = false
 
+    setDisplayedText('')
+    setIsTyping(true)
+    setIsDone(false)
+
     const schedule = (delay: number) => {
-      timerRef.current = setTimeout(() => {
+      scope.setTimeout(() => {
         if (cancelled) return
 
         if (idx < echoText.length) {
-          idx++
+          idx += 1
           setDisplayedText(echoText.slice(0, idx))
           schedule(charInterval)
-        } else {
-          setIsTyping(false)
-          setIsDone(true)
+          return
         }
+
+        setIsTyping(false)
+        setIsDone(true)
       }, delay)
     }
 
@@ -45,12 +52,9 @@ export function useTypewriter(config: TypewriterConfig): TypewriterState {
 
     return () => {
       cancelled = true
-      if (timerRef.current !== null) {
-        clearTimeout(timerRef.current)
-        timerRef.current = null
-      }
+      scope.cancel('typewriter reset')
     }
-  }, [startDelay, charInterval, echoText])
+  }, [startDelay, charInterval, echoText, scope])
 
   return { displayedText, isTyping, isDone }
 }

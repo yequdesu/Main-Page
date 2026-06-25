@@ -2,7 +2,9 @@ import { useRef } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
 import { Vector3, Quaternion, type PerspectiveCamera } from 'three'
 import { useScrollStore } from '../stores/scrollStore'
-import { SCENE_CENTER_Z, GRID_SHIFT_START, FOCUS_TIMEOUT, smoothstep, clamped } from '../r3f/ScrollRig'
+import { SCENE_CENTER_Z, FOCUS_TIMEOUT } from '../r3f/ScrollRig'
+import { TIMELINE } from '../composition/timeline'
+import { touchActorFrame } from '../composition/actorRuntime'
 import type { OverlayData } from '../types'
 
 // Pre-allocated objects (from LighthouseScene.vue camera focus system)
@@ -42,7 +44,8 @@ export function updateCameraFocus(
   time: number,
   getPlanetPosition: (idx: number) => Vector3 | null,
 ): void {
-  const isAct3 = sp >= GRID_SHIFT_START
+  const isAct3 = sp >= TIMELINE.act3Shift.start
+  touchActorFrame('cameraFocus', Math.round(time * 60), isAct3)
   const store = useScrollStore.getState()
 
   if (!isAct3) {

@@ -3,7 +3,17 @@ import { useFrame } from '@react-three/fiber'
 import { Group, Color, Quaternion, ConeGeometry, SphereGeometry, BufferGeometry, Vector3, BufferAttribute, ShaderMaterial, MeshBasicMaterial, AdditiveBlending, DoubleSide, LineBasicMaterial, AmbientLight, PointLight, MathUtils, type Mesh, type Line } from 'three'
 import { VolumetricBeamShader } from '../shaders/VolumetricBeamShader'
 import { useScrollStore } from '../stores/scrollStore'
-import { smoothstep, clamped, SCENE_CENTER_Z, WHITE_OUT_THRESHOLD, WHITE_OUT_END, IDLE_RESET_DELAY } from '../r3f/ScrollRig'
+import { smoothstep, clamped, SCENE_CENTER_Z, IDLE_RESET_DELAY } from '../r3f/ScrollRig'
+import { TIMELINE } from '../composition/timeline'
+import { getWebglLayer } from '../composition/layerRegistry'
+import { touchActorFrame, useActorRuntime } from '../composition/actorRuntime'
+import {
+  beamWorldDirectionAnchorId,
+  beamWorldOriginAnchorId,
+  makeCoreAnchor,
+  pointFromVector3,
+  setCoreAnchors,
+} from '../composition/coreAnchors'
 
 // shortestDelta — 角度最短路径差（逐字保留自原 lightBeam.js）
 function shortestDelta(from: number, to: number): number {
@@ -18,8 +28,8 @@ const _lastBeam = { time: -1, sp: -1 }
 
 // 共享光束世界空间变换 — OceanWaves 读取用于波面照亮计算
 // 初始化使用 beamPivot 已知位置 [0, -0.428, SCENE_CENTER_Z] + 朝向 (0,0,1)
-export const _beamWorldOrigin = new Vector3(0, -0.428, SCENE_CENTER_Z)
-export const _beamWorldDirection = new Vector3(0, 0, 1)
+const _beamWorldOrigin = new Vector3(0, -0.428, SCENE_CENTER_Z)
+const _beamWorldDirection = new Vector3(0, 0, 1)
 const _beamQuat = new Quaternion()
 const _beamFwd = new Vector3()
 
@@ -39,11 +49,13 @@ interface LightBeamProps {
 }
 
 export default function LightBeam({ lighthouseY = -0.428 }: LightBeamProps) {
+  useActorRuntime('beam', true)
   const beamPivotRef = useRef<Group>(null)
   const coneMatsRef = useRef<ShaderMaterial[]>([])
   const rayMatsRef = useRef<LineBasicMaterial[]>([])
   const glowMatRef = useRef<MeshBasicMaterial | null>(null)
   const ptLightRef = useRef<PointLight | null>(null)
+  const layer = getWebglLayer('webgl.lightBeam')
 
   // Idle animation state（跨帧持久）
   const idleState = useRef({
@@ -97,6 +109,7 @@ export default function LightBeam({ lighthouseY = -0.428 }: LightBeamProps) {
     if (!pivot) return
 
     const time = state.clock.elapsedTime
+    touchActorFrame('beam', Math.round(time * 60), true)
     const sp = useScrollStore.getState().scrollProgress
 
     // Frame cache guard
@@ -136,7 +149,7 @@ export default function LightBeam({ lighthouseY = -0.428 }: LightBeamProps) {
         targetY = wanderY + is.idlePhase
         targetX = wanderX
       }
-    } else if (sp >= WHITE_OUT_THRESHOLD) {
+    } else if (sp >= TIMELINE.whiteOut.start) {
       // ---- White-out — snap to home ----
       is.wasScrolling = true
       targetY = 0
@@ -148,7 +161,7 @@ export default function LightBeam({ lighthouseY = -0.428 }: LightBeamProps) {
         is.scrollStartAngleX = pivot.rotation.x
         is.wasScrolling = true
       }
-      const e = smoothstep(sp / WHITE_OUT_THRESHOLD)
+      const e = smoothstep(sp / TIMELINE.whiteOut.start)
       targetY = is.scrollStartAngle + shortestDelta(is.scrollStartAngle, 0) * e
       targetX = MathUtils.lerp(is.scrollStartAngleX, -0.02, e)
     }
@@ -158,7 +171,7 @@ export default function LightBeam({ lighthouseY = -0.428 }: LightBeamProps) {
 
     // ---- Beam intensity ----
     const beamBoost = Math.pow(sp, 1.5) * 0.4
-    const wof = clamped(sp, WHITE_OUT_THRESHOLD, WHITE_OUT_END)
+    const wof = clamped(sp, TIMELINE.whiteOut.start, TIMELINE.whiteOut.end)
     const beamFade = Math.max(0, 1.0 - wof)
 
     const baseVals = [0.85, 0.45, 0.15]
@@ -180,6 +193,10 @@ export default function LightBeam({ lighthouseY = -0.428 }: LightBeamProps) {
     pivot.getWorldQuaternion(_beamQuat)
     _beamFwd.set(0, 0, 1).applyQuaternion(_beamQuat)
     _beamWorldDirection.copy(_beamFwd)
+    setCoreAnchors([
+      makeCoreAnchor(beamWorldOriginAnchorId, pointFromVector3(_beamWorldOrigin), 'world', 'beam', beamFade > 0),
+      makeCoreAnchor(beamWorldDirectionAnchorId, pointFromVector3(_beamWorldDirection), 'world', 'beam', beamFade > 0),
+    ])
   })
 
   return (
@@ -196,7 +213,7 @@ export default function LightBeam({ lighthouseY = -0.428 }: LightBeamProps) {
       <group ref={beamPivotRef} position={[0, lighthouseY, SCENE_CENTER_Z]}>
         {/* 3 个锥体同心光束 — geo.translate 已将 tip 移至原点 */}
         {configs.map((cfg, i) => (
-          <mesh key={`cone-${i}`} rotation={[-Math.PI / 2, 0, 0]} renderOrder={0}>
+          <mesh key={`cone-${i}`} rotation={[-Math.PI / 2, 0, 0]} renderOrder={layer.renderOrder}>
             <primitive object={coneGeos[i]} attach="geometry" />
             <shaderMaterial
               ref={setConeMat(i)}
@@ -204,8 +221,9 @@ export default function LightBeam({ lighthouseY = -0.428 }: LightBeamProps) {
                 uniforms: beamUniforms[i],
                 vertexShader: VolumetricBeamShader.vertexShader,
                 fragmentShader: VolumetricBeamShader.fragmentShader,
-                transparent: true,
-                depthWrite: false,
+                transparent: layer.transparent,
+                depthWrite: layer.depthWrite,
+                depthTest: layer.depthTest,
                 blending: AdditiveBlending,
                 side: DoubleSide,
               }]}
@@ -215,7 +233,7 @@ export default function LightBeam({ lighthouseY = -0.428 }: LightBeamProps) {
 
         {/* 两根射线 */}
         {[-1, 1].map((dx, i) => (
-          <threeLine key={`ray-${i}`} renderOrder={0}>
+          <threeLine key={`ray-${i}`} renderOrder={layer.renderOrder}>
             <bufferGeometry>
               <bufferAttribute
                 attach="attributes-position"
@@ -229,21 +247,22 @@ export default function LightBeam({ lighthouseY = -0.428 }: LightBeamProps) {
             <lineBasicMaterial
               ref={setRayMat(i)}
               vertexColors
-              transparent
+              transparent={layer.transparent}
               opacity={0.45}
-              depthWrite={false}
+              depthWrite={layer.depthWrite}
+              depthTest={layer.depthTest}
               blending={AdditiveBlending}
             />
           </threeLine>
         ))}
 
         {/* 光源辉光 */}
-        <mesh renderOrder={0}>
+        <mesh renderOrder={layer.renderOrder}>
           <sphereGeometry args={[0.22, 16, 16]} />
           <meshBasicMaterial
             ref={(mat) => { if (mat) glowMatRef.current = mat }}
             color="#ffffff"
-            transparent
+            transparent={layer.transparent}
             opacity={0.95}
           />
         </mesh>

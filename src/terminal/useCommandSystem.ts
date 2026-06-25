@@ -1,12 +1,6 @@
-import { useCallback } from 'react'
+import { useCallback, useId } from 'react'
+import { useEffectScope } from '../composition/effectScope'
 import type { ScrollableHandle } from './Scrollable'
-
-// ============================================================
-// useCommandSystem — 命令交互 hook
-//
-// playEcho / clearEcho 不直接操控 echoLines。调用方通过
-// Slot 管线（虚拟 Section slot）实现输出渲染。
-// ============================================================
 
 export interface CommandSystemDeps {
   mode: string
@@ -26,6 +20,9 @@ export interface CommandSystemDeps {
 }
 
 export function useCommandSystem(deps: CommandSystemDeps) {
+  const id = useId()
+  const scope = useEffectScope(`terminal.commandSystem.${id}`)
+
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLInputElement>) => {
       if (e.key === 'Escape') {
@@ -41,7 +38,10 @@ export function useCommandSystem(deps: CommandSystemDeps) {
         deps.clearInput()
 
         if (trimmed === 'clear' || trimmed === 'cls') {
-          if (deps.onClear) { deps.onClear(); return }
+          if (deps.onClear) {
+            deps.onClear()
+            return
+          }
           deps.clearEcho()
           return
         }
@@ -64,7 +64,6 @@ export function useCommandSystem(deps: CommandSystemDeps) {
         e.preventDefault()
         const lh = deps.scrollableRef.current?.getLineHeight() ?? 18
         deps.scrollableRef.current?.scrollBy({ top: lh })
-        return
       }
     },
     [deps],
@@ -79,13 +78,13 @@ export function useCommandSystem(deps: CommandSystemDeps) {
 
   const handleBlur = useCallback(() => {
     deps.setHasFocus(false)
-    setTimeout(() => {
+    scope.setTimeout(() => {
       if (deps.hiddenInputRef.current && document.activeElement !== deps.hiddenInputRef.current) {
         deps.setMode('idle')
         deps.clearInput()
       }
     }, deps.blurTimeout)
-  }, [deps])
+  }, [deps, scope])
 
   return { handleKeyDown, handleInputChange, handleFocus, handleBlur }
 }

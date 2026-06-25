@@ -2,8 +2,8 @@ import { useEffect } from 'react'
 import { useThree } from '@react-three/fiber'
 import { Vector3, type PerspectiveCamera } from 'three'
 import { useScrollStore } from '../stores/scrollStore'
-import { GRID_SHIFT_START } from './ScrollRig'
-import { _planetWorldPositions, _mainPlanetIndices } from '../actors/Planets'
+import { TIMELINE } from '../composition/timeline'
+import { readPlanetParticleIndex, readPlanetWorldPoint, vector3FromPoint } from '../composition/coreAnchors'
 import { PLANET_LINKS } from '../types'
 
 // Pre-allocated
@@ -26,7 +26,7 @@ export default function PlanetClickHandler() {
 
     const onClickCanvas = (e: MouseEvent) => {
       const sp = useScrollStore.getState().scrollProgress
-      if (sp < GRID_SHIFT_START) return
+      if (sp < TIMELINE.act3Shift.start) return
 
       // Reset auto-unfocus timer on any click (handled in DustField useFrame)
       const store = useScrollStore.getState()
@@ -37,11 +37,11 @@ export default function PlanetClickHandler() {
 
       // Screen-space distance detection (same as hover)
       let bestDist = 1e9, bestPlanetIdx = -1
-      for (let i = 0; i < _planetWorldPositions.length; i++) {
-        const pos = _planetWorldPositions[i]
+      for (let i = 0; i < 3; i++) {
+        const pos = readPlanetWorldPoint(i)
         if (!pos) continue
 
-        _projectScratch.copy(pos).project(camera as PerspectiveCamera)
+        vector3FromPoint(pos, _projectScratch).project(camera as PerspectiveCamera)
         const dx = (_projectScratch.x - ndcX) * (window.innerWidth / window.innerHeight)
         const dy = _projectScratch.y - ndcY
         const dist = Math.hypot(dx, dy)
@@ -50,7 +50,7 @@ export default function PlanetClickHandler() {
 
       if (bestDist < 0.16 && bestPlanetIdx >= 0) {
         e.stopPropagation() // prevent window onClick fast-forward
-        const particleIdx = _mainPlanetIndices[bestPlanetIdx]
+        const particleIdx = readPlanetParticleIndex(bestPlanetIdx)
         if (particleIdx !== undefined) {
           if (store.focusedPlanetIdx === particleIdx) {
             // Second click → open URL

@@ -1,5 +1,4 @@
-import { memo, useEffect, useRef, useCallback, useState } from 'react'
-import { useRealtimeStore } from '../stores/realtimeStore'
+import { memo, useEffect, useRef, useCallback, useReducer, useMemo } from 'react'
 import { useScrollStore } from '../stores/scrollStore'
 import TerminalBar from '../terminal/TerminalBar'
 import { createPlanetCommandHandler } from '../terminal/planetCommands'
@@ -7,6 +6,18 @@ import { useFloatingLabels, type SequenceStrategy, type LabelConfig } from '../b
 import type { PBDParams } from '../behaviors/usePBDLayout'
 import PlanetLabelDebug from './PlanetLabelDebug'
 import PlanetLabelGuideLines from './PlanetLabelGuideLines'
+import { useAnchorStore } from '../composition/anchorStore'
+import {
+  centralStarScreenAnchorId,
+  planetScreenAnchorId,
+  planetScreenRadiusAnchorId,
+  type ScreenCircle,
+  type ScreenPoint,
+} from '../composition/coreAnchors'
+import { getDomLayer, resolvePointerEvents } from '../composition/layerRegistry'
+import { useActorRuntime } from '../composition/actorRuntime'
+import { useEffectScope } from '../composition/effectScope'
+import { usePhaseAtOrAfter, useSignal } from '../composition/sequenceStore'
 import './FloatingLabels.css'
 
 /**
@@ -32,7 +43,69 @@ interface FloatingLabelsProps {
   pbdParams?: PBDParams
 }
 
+type LabelLayoutPhase = 'idle' | 'visualFit' | 'pbdFit' | 'guideReady'
+
+interface LabelLayoutState {
+  phase: LabelLayoutPhase
+  visualWidth?: number
+  pbdWidth?: number
+}
+
+type LabelLayoutAction =
+  | { type: 'visualFit'; trackIdx: number; width: number }
+  | { type: 'pbdFit'; trackIdx: number; width: number }
+  | { type: 'guideReady'; trackIdx: number; width: number }
+
+const LABEL_LAYOUT_PHASE_ORDER: Record<LabelLayoutPhase, number> = {
+  idle: 0,
+  visualFit: 1,
+  pbdFit: 2,
+  guideReady: 3,
+}
+
+const EMPTY_SCREEN_POINT: ScreenPoint = { x: 0, y: 0, visible: false }
+const EMPTY_SCREEN_CIRCLE: ScreenCircle = { x: 0, y: 0, r: 0, visible: false }
+
+function labelLayoutAtOrAfter(state: LabelLayoutState | undefined, phase: LabelLayoutPhase): boolean {
+  return Boolean(state && LABEL_LAYOUT_PHASE_ORDER[state.phase] >= LABEL_LAYOUT_PHASE_ORDER[phase])
+}
+
+function labelLayoutReducer(
+  state: Record<number, LabelLayoutState>,
+  action: LabelLayoutAction,
+): Record<number, LabelLayoutState> {
+  const current = state[action.trackIdx] ?? { phase: 'idle' as LabelLayoutPhase }
+  if (action.type === 'visualFit') {
+    return {
+      ...state,
+      [action.trackIdx]: { phase: 'visualFit', visualWidth: action.width },
+    }
+  }
+  if (action.type === 'pbdFit') {
+    return {
+      ...state,
+      [action.trackIdx]: {
+        ...current,
+        phase: 'pbdFit',
+        visualWidth: current.visualWidth ?? action.width,
+        pbdWidth: action.width,
+      },
+    }
+  }
+  return {
+    ...state,
+    [action.trackIdx]: {
+      ...current,
+      phase: 'guideReady',
+      visualWidth: current.visualWidth ?? action.width,
+      pbdWidth: current.pbdWidth ?? action.width,
+    },
+  }
+}
+
 const FloatingLabels = memo(function FloatingLabels(props: FloatingLabelsProps) {
+  useActorRuntime('planetLabels', true)
+  const effectScope = useEffectScope('planetLabels.measure')
   const {
     configs, sequenceStrategy, staggerDelay, baseTypewriterDelay, exitTimeout,
     collapsedWidth = 60, expandedWidth = 200,
@@ -40,49 +113,80 @@ const FloatingLabels = memo(function FloatingLabels(props: FloatingLabelsProps) 
     pbdParams,
   } = props
 
-  const screenCoords = useRealtimeStore(s => s.screenCoords)
-  const screenRadii = useRealtimeStore(s => s.planetScreenRadii)
-  const centralStar = useRealtimeStore(s => s.centralStarScreen)
+  const screen0 = useAnchorStore(s => (s.anchors[planetScreenAnchorId(0)]?.value as ScreenPoint | undefined) ?? EMPTY_SCREEN_POINT)
+  const screen1 = useAnchorStore(s => (s.anchors[planetScreenAnchorId(1)]?.value as ScreenPoint | undefined) ?? EMPTY_SCREEN_POINT)
+  const screen2 = useAnchorStore(s => (s.anchors[planetScreenAnchorId(2)]?.value as ScreenPoint | undefined) ?? EMPTY_SCREEN_POINT)
+  const radius0 = useAnchorStore(s => (s.anchors[planetScreenRadiusAnchorId(0)]?.value as number | undefined) ?? 0)
+  const radius1 = useAnchorStore(s => (s.anchors[planetScreenRadiusAnchorId(1)]?.value as number | undefined) ?? 0)
+  const radius2 = useAnchorStore(s => (s.anchors[planetScreenRadiusAnchorId(2)]?.value as number | undefined) ?? 0)
+  const centralStar = useAnchorStore(s => (s.anchors[centralStarScreenAnchorId]?.value as ScreenCircle | undefined) ?? EMPTY_SCREEN_CIRCLE)
+  const screenCoords: [ScreenPoint, ScreenPoint, ScreenPoint] = [screen0, screen1, screen2]
+  const screenRadii: [number, number, number] = [radius0, radius1, radius2]
   const focusedPlanetIdx = useScrollStore(s => s.focusedPlanetIdx)
-  const labelsGateOpen = useScrollStore(s => s.labelsGateOpen)
   const isAnyFocused = focusedPlanetIdx >= 0
+  const labelsLayer = getDomLayer('dom.planetLabels')
+  const expandedLayer = getDomLayer('dom.planetLabelExpanded')
+  const backdropLayer = getDomLayer('dom.planetLabelBackdrop')
+  const signalAct3 = useSignal('act3.entry')
+  const signalLabelReveal = useSignal('labelReveal')
+  const labelsRevealStarted = usePhaseAtOrAfter('act3.entry', 'labelsReveal')
+  const labelVisibleByPhase = [
+    usePhaseAtOrAfter('labelReveal', 'label0'),
+    usePhaseAtOrAfter('labelReveal', 'label1'),
+    usePhaseAtOrAfter('labelReveal', 'label2'),
+  ] as const
 
   // ---- 折叠态 typewriter 完成后自收缩宽度 ----
   // DOM 实时测量：读 <span> 的 getBoundingClientRect，比 Canvas measureText
   // 更准确（不受浏览器字体引擎差异影响）。Canvas 仅作 fallback。
   const pillRefs = useRef<Record<number, HTMLDivElement | null>>({})
 
-  // per-label 折叠态自适合宽度（px），typewriter 完成后写入
-  // visualFitWidths: 立即更新 → 触发 CSS width transition（0.5s）
-  const [visualFitWidths, setVisualFitWidths] = useState<Record<number, number>>({})
-  // collapsedFitWidths: 延迟至 CSS 动画完成后更新 → 传入 PBD，避免锚点抖动
-  const [collapsedFitWidths, setCollapsedFitWidths] = useState<Record<number, number>>({})
+  const [labelLayouts, dispatchLabelLayout] = useReducer(labelLayoutReducer, {})
   const pbdDelayTimers = useRef<Record<number, ReturnType<typeof setTimeout>>>({})
-  // 牵引线就绪标志（收缩动画 0.5s 完成后才绘制）
-  const [guidesReady, setGuidesReady] = useState<Record<number, boolean>>({})
   const guideTimers = useRef<Record<number, ReturnType<typeof setTimeout>>>({})
+  const pbdFitWidths = useMemo(() => {
+    const widths: Record<number, number> = {}
+    for (const [key, layout] of Object.entries(labelLayouts)) {
+      if (layout.pbdWidth !== undefined) widths[Number(key)] = layout.pbdWidth
+    }
+    return widths
+  }, [labelLayouts])
+  const guideLayouts = useMemo(() => {
+    const layouts: Record<number, { width?: number; ready: boolean }> = {}
+    for (let i = 0; i < configs.length; i++) {
+      const layout = labelLayouts[i]
+      layouts[i] = {
+        width: layout?.visualWidth,
+        ready: labelLayoutAtOrAfter(layout, 'guideReady'),
+      }
+    }
+    return layouts
+  }, [configs.length, labelLayouts])
 
   const {
     labels, activeTrackIdx,
-    handlePillClick, handleExternalDismiss, resetExitTimer, pbdReady,
+    handlePillClick, handleExternalDismiss, resetExitTimer, layoutReady,
   } = useFloatingLabels(
     { configs, sequenceStrategy, staggerDelay, baseTypewriterDelay, exitTimeout,
       collapsedWidth, expandedWidth, collapsedHeight, expandedHeight, pbdParams,
-      collapsedFitWidths },
-    screenCoords, screenRadii, centralStar, isAnyFocused,
+      collapsedFitWidths: pbdFitWidths },
+    screenCoords, isAnyFocused,
   )
-
-  // 顺序播放：label 0 先渲染，typing+exitGap 完成后 label 1，以此类推
-  const [showCount, setShowCount] = useState(1)
-  const typingDoneRef = useRef<Set<number>>(new Set())
 
   const handleLabelModeChange = useCallback((trackIdx: number, mode: string) => {
     if (mode === 'idle') {
-      typingDoneRef.current = new Set(typingDoneRef.current).add(trackIdx)
-      setShowCount(prev => Math.max(prev, trackIdx + 2)) // 解锁下一个 label
+      if (trackIdx === 0) {
+        signalAct3('firstLabelMounted')
+        signalLabelReveal('label0Done')
+      } else if (trackIdx === 1) {
+        signalLabelReveal('label1Done')
+      } else if (trackIdx === 2) {
+        signalLabelReveal('label2Done')
+        signalAct3('allLabelsTyped')
+      }
       // 折叠态 typewriter 完成 → DOM 实测 welcome-text 渲染宽度
       if (activeTrackIdx < 0) {
-        requestAnimationFrame(() => {
+        effectScope.requestAnimationFrame(() => {
           const pill = pillRefs.current[trackIdx]
           if (!pill) return
           // 读 <span> 的实际渲染宽度（getBoundingClientRect 跨浏览器一致）
@@ -99,35 +203,33 @@ const FloatingLabels = memo(function FloatingLabels(props: FloatingLabelsProps) 
           })()
           // 文本宽度 + 左右 padding（6px × 2）+ 圆角余量
           const fitW = Math.max(24, Math.min(collapsedWidth, Math.ceil(measuredW + 18)))
-          setVisualFitWidths(prev => ({ ...prev, [trackIdx]: fitW }))
-          if (pbdDelayTimers.current[trackIdx]) clearTimeout(pbdDelayTimers.current[trackIdx])
-          pbdDelayTimers.current[trackIdx] = setTimeout(() => {
-            setCollapsedFitWidths(prev => ({ ...prev, [trackIdx]: fitW }))
+          dispatchLabelLayout({ type: 'visualFit', trackIdx, width: fitW })
+          effectScope.clearTimer(pbdDelayTimers.current[trackIdx])
+          pbdDelayTimers.current[trackIdx] = effectScope.setTimeout(() => {
+            dispatchLabelLayout({ type: 'pbdFit', trackIdx, width: fitW })
           }, 250)
-          if (guideTimers.current[trackIdx]) clearTimeout(guideTimers.current[trackIdx])
-          guideTimers.current[trackIdx] = setTimeout(() => {
-            setGuidesReady(prev => ({ ...prev, [trackIdx]: true }))
+          effectScope.clearTimer(guideTimers.current[trackIdx])
+          guideTimers.current[trackIdx] = effectScope.setTimeout(() => {
+            dispatchLabelLayout({ type: 'guideReady', trackIdx, width: fitW })
+            signalAct3('labelShrinkDone')
+            signalAct3('guidesShown')
           }, 500)
         })
       }
     }
     if (mode === 'active') handlePillClick(trackIdx)
-  }, [handlePillClick, activeTrackIdx, configs, collapsedWidth])
-
-  // 每次进入 Act 3 重置门控
-  useEffect(() => {
-    useScrollStore.getState().setLabelsGateOpen(false)
-  }, [])
+  }, [handlePillClick, activeTrackIdx, configs, collapsedWidth, effectScope, signalAct3, signalLabelReveal])
 
   // 清理 PBD 与牵引线延迟定时器
   useEffect(() => {
     const pbd = pbdDelayTimers.current
     const guide = guideTimers.current
     return () => {
-      Object.values(pbd).forEach(t => clearTimeout(t))
-      Object.values(guide).forEach(t => clearTimeout(t))
+      Object.values(pbd).forEach(t => effectScope.clearTimer(t))
+      Object.values(guide).forEach(t => effectScope.clearTimer(t))
+      effectScope.cancel('planet labels cleanup')
     }
-  }, [])
+  }, [effectScope])
 
   useEffect(() => {
     if (activeTrackIdx < 0) return
@@ -140,7 +242,7 @@ const FloatingLabels = memo(function FloatingLabels(props: FloatingLabelsProps) 
     <div className="floating-labels-container">
       {labels.map((label) => {
         const isExpanded = activeTrackIdx === label.trackIdx
-        const fitW = visualFitWidths[label.trackIdx]
+        const fitW = labelLayouts[label.trackIdx]?.visualWidth
         // 折叠 + 已收缩 → 用适配宽度；折叠 + 未收缩 → 默认宽度；展开 → 全宽
         const w = isExpanded ? expandedWidth
           : (fitW !== undefined ? fitW : collapsedWidth)
@@ -157,20 +259,20 @@ const FloatingLabels = memo(function FloatingLabels(props: FloatingLabelsProps) 
               width: `${w}px`,
               opacity: label.visible ? undefined : 0,
               pointerEvents: label.visible ? undefined : 'none',
-              zIndex: isExpanded ? 11 : 10,
+              zIndex: isExpanded ? expandedLayer.zIndex : labelsLayer.zIndex,
             } as React.CSSProperties}
             onClick={(e) => { e.stopPropagation(); handlePillClick(label.trackIdx) }}
           >
-            {pbdReady && labelsGateOpen && label.trackIdx < showCount && (
+            {layoutReady && labelsRevealStarted && labelVisibleByPhase[label.trackIdx] && (
               <TerminalBar
                 layout={{ maxEchoLines: label.config.maxEchoLines, maxWidth: '100%',
                   borderRadius: '6px', padding: '3px 6px', fontSize: '0.58rem',
                   fontFamily: "'SF Mono', 'Fira Code', 'Cascadia Code', 'Consolas', monospace",
-                  zIndex: 10, top: '0' }}
+                  zIndex: labelsLayer.zIndex, top: '0' }}
                 variant={isExpanded ? 'glass' : 'label'}
                 state={{
                   mode: isExpanded ? undefined
-                    : typingDoneRef.current.has(label.trackIdx) ? 'idle' : undefined,
+                    : labelLayoutAtOrAfter(labelLayouts[label.trackIdx], 'visualFit') ? 'idle' : undefined,
                   onModeChange: (mode) => handleLabelModeChange(label.trackIdx, mode),
                 }}
                 commands={{
@@ -205,27 +307,36 @@ const FloatingLabels = memo(function FloatingLabels(props: FloatingLabelsProps) 
 
       <PlanetLabelGuideLines
         labels={labels}
+        screenCoords={screenCoords}
+        screenRadii={screenRadii}
         collapsedWidth={collapsedWidth}
         expandedWidth={expandedWidth}
         collapsedHeight={collapsedHeight}
         expandedHeight={expandedHeight}
         activeTrackIdx={activeTrackIdx}
-        collapsedFitWidths={visualFitWidths}
-        guidesReady={guidesReady}
+        guideLayouts={guideLayouts}
       />
 
       <PlanetLabelDebug
         labels={labels}
+        screenCoords={screenCoords}
+        screenRadii={screenRadii}
+        centralStar={centralStar}
         collapsedWidth={collapsedWidth}
         expandedWidth={expandedWidth}
         collapsedHeight={collapsedHeight}
         expandedHeight={expandedHeight}
         pbdParams={pbdParams}
-        collapsedFitWidths={collapsedFitWidths}
+        collapsedFitWidths={pbdFitWidths}
       />
 
       {activeTrackIdx >= 0 && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 9, pointerEvents: 'auto' }}
+        <div style={{
+          position: backdropLayer.position,
+          inset: 0,
+          zIndex: backdropLayer.zIndex,
+          pointerEvents: resolvePointerEvents(backdropLayer.pointerEvents),
+        }}
           onClick={() => handleExternalDismiss()} />
       )}
     </div>

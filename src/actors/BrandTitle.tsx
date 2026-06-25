@@ -1,6 +1,9 @@
 import { useEffect, useRef } from 'react'
 import { gsap } from 'gsap'
-import { smoothstep, GRID_SHIFT_START, TEXT_START } from '../r3f/ScrollRig'
+import { smoothstep } from '../r3f/ScrollRig'
+import { TIMELINE } from '../composition/timeline'
+import { useActorRuntime } from '../composition/actorRuntime'
+import { useEffectScope } from '../composition/effectScope'
 import './BrandTitle.css'
 
 // ============================================================
@@ -82,13 +85,15 @@ export default function BrandTitle({
 }: BrandTitleProps) {
   const rootRef = useRef<HTMLDivElement | null>(null)
   const focusTweenRef = useRef<gsap.core.Tween | null>(null)
+  const effectScope = useEffectScope('brandTitle')
 
   // ---- 显示控制：sp ≥ TEXT_START 且未聚焦 ----
   const sp = scrollProgress
-  const visible = sp >= TEXT_START
+  const visible = sp >= TIMELINE.brandTitle.start
+  useActorRuntime('brandTitle', visible && !isFocused)
 
   // ---- line1 / icon 淡入（smoothstep, 0.70 → 0.82） ----
-  const line1T = Math.max(0, Math.min(1, (sp - TEXT_START) / (LINE_1_FADE_END - TEXT_START)))
+  const line1T = Math.max(0, Math.min(1, (sp - TIMELINE.brandTitle.start) / (LINE_1_FADE_END - TIMELINE.brandTitle.start)))
   const line1Opacity = smoothstep(line1T)
 
   // ---- line2 淡入（smoothstep, 0.82 → 0.92） ----
@@ -97,8 +102,8 @@ export default function BrandTitle({
 
   // ---- grid shift 文字位移 ----
   let textOffsetY = 0
-  if (sp >= GRID_SHIFT_START) {
-    const t = (sp - GRID_SHIFT_START) / (1.0 - GRID_SHIFT_START)
+  if (sp >= TIMELINE.act3Shift.start) {
+    const t = (sp - TIMELINE.act3Shift.start) / (1.0 - TIMELINE.act3Shift.start)
     textOffsetY = TEXT_OFFSET_MAX * smoothstep(t)
   }
 
@@ -108,22 +113,24 @@ export default function BrandTitle({
     if (!el) return
 
     if (focusTweenRef.current) focusTweenRef.current.kill()
+    effectScope.cancel('replace focus tween')
 
-    focusTweenRef.current = gsap.to(el, {
+    focusTweenRef.current = effectScope.addTween(gsap.to(el, {
       opacity: isFocused ? 0 : 1,
       marginTop: isFocused ? -24 : 0,
       duration: 0.5,
       ease: 'power2.out',
       overwrite: 'auto',
-    })
-  }, [isFocused])
+    }))
+  }, [effectScope, isFocused])
 
   // ---- cleanup ----
   useEffect(() => {
     return () => {
       focusTweenRef.current?.kill()
+      effectScope.cancel('unmount')
     }
-  }, [])
+  }, [effectScope])
 
   if (!visible) return null
 

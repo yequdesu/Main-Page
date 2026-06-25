@@ -7,7 +7,10 @@ import { useRealtimeStore } from '../stores/realtimeStore'
 import { useFrameCache } from '../behaviors/useFrameCache'
 import { calcOrbitPosition } from '../behaviors/useOrbitPosition'
 import { calcAppearance } from '../behaviors/useAppearanceFade'
-import { smoothstep, clamped, SCENE_CENTER_Z, WHITE_OUT_THRESHOLD, WHITE_OUT_END, GRID_SHIFT_START, ORBIT_COUNT } from '../r3f/ScrollRig'
+import { smoothstep, clamped, SCENE_CENTER_Z, ORBIT_COUNT } from '../r3f/ScrollRig'
+import { TIMELINE } from '../composition/timeline'
+import { getWebglLayer } from '../composition/layerRegistry'
+import { touchActorFrame, useActorRuntime } from '../composition/actorRuntime'
 import { type ParticleData } from '../types'
 
 // Pre-allocated default camera position for debris distance calc
@@ -24,8 +27,10 @@ const _defaultCamPos = new Vector3(0, 0.25, 8)
  *   R3F InstancedMesh + individual <mesh> for interactive objects
  */
 export default function DustField() {
+  useActorRuntime('debris', true)
   const { camera, gl } = useThree()
   const { shouldSkip } = useFrameCache()
+  const layer = getWebglLayer('webgl.debris')
 
   // Pre-allocated reusable objects
   const _scratch = useRef(new Vector3()).current
@@ -110,13 +115,18 @@ export default function DustField() {
   // ---- Debris InstancedMesh2 ----
   const debrisMesh = useMemo(() => {
     const geo = new SphereGeometry(0.015, 10, 8)
-    const mat = new MeshBasicMaterial({ color: '#ffffff', transparent: true, depthWrite: false, depthTest: true })
+    const mat = new MeshBasicMaterial({
+      color: '#ffffff',
+      transparent: layer.transparent,
+      depthWrite: layer.depthWrite,
+      depthTest: layer.depthTest,
+    })
     const mesh = new InstancedMesh2(geo, mat, { capacity: 80, renderer: gl })
-    mesh.renderOrder = 2
+    mesh.renderOrder = layer.renderOrder
     mesh.sortObjects = true
     mesh.addInstances(80)
     return mesh
-  }, [gl])
+  }, [gl, layer.depthTest, layer.depthWrite, layer.renderOrder, layer.transparent])
   const debrisRef = useRef<InstancedMesh2>(debrisMesh)
 
   // Initialize per-instance colors
@@ -135,10 +145,11 @@ export default function DustField() {
   useFrame((state, delta) => {
     const sp = useScrollStore.getState().scrollProgress
     const time = state.clock.elapsedTime
+    touchActorFrame('debris', Math.round(time * 60), true)
     if (shouldSkip(time, sp)) return
 
-    const wof = clamped(sp, WHITE_OUT_THRESHOLD, WHITE_OUT_END)
-    const act3Progress = clamped(sp, GRID_SHIFT_START, 1.0)
+    const wof = clamped(sp, TIMELINE.whiteOut.start, TIMELINE.whiteOut.end)
+    const act3Progress = clamped(sp, TIMELINE.act3Shift.start, 1.0)
     const smooth3 = smoothstep(act3Progress)
 
     const cx = 0, cy = -1.0, cz = SCENE_CENTER_Z

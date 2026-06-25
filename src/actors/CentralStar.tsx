@@ -4,6 +4,9 @@ import { CanvasTexture, SpriteMaterial, MeshBasicMaterial, AdditiveBlending, Lin
 import { SCENE_CENTER_Z, clamped, smoothstep } from '../r3f/ScrollRig'
 import { useScrollStore } from '../stores/scrollStore'
 import { WC_ANCHOR_Y, WC_DROP_START, WC_DROP_END, WC_RETRACT_END, getWindChimeProgress } from '../behaviors/useWindChime'
+import { TIMELINE } from '../composition/timeline'
+import { getWebglLayer } from '../composition/layerRegistry'
+import { touchActorFrame, useActorRuntime } from '../composition/actorRuntime'
 
 // ============================================================
 // CentralStar — 可调参数
@@ -94,6 +97,8 @@ function makeHaloTexture(stops: [number, string][]): CanvasTexture {
  * 援引：Drei Sparkles（Canvas Sprite for soft glow）
  */
 export default function CentralStar() {
+  useActorRuntime('centralStar', true)
+  const layer = getWebglLayer('webgl.star')
   const haloTex = useMemo(() => makeHaloTexture(HALO_COLOR_STOPS), [])
   const farHaloTex = useMemo(() => makeHaloTexture(FAR_HALO_COLOR_STOPS), [])
 
@@ -105,9 +110,10 @@ export default function CentralStar() {
   useFrame((state) => {
     const sp = useScrollStore.getState().scrollProgress
     const time = state.clock.elapsedTime
+    touchActorFrame('centralStar', Math.round(time * 60), sp >= TIMELINE.planetVisible.start)
 
     // 0.68 出现，从锚点开始下落避免闪现
-    const VISIBLE_START = 0.60
+    const VISIBLE_START = TIMELINE.planetVisible.start
     const visible = sp >= VISIBLE_START
     const wc = getWindChimeProgress(sp)
     if (groupRef.current) {
@@ -122,7 +128,7 @@ export default function CentralStar() {
       groupRef.current.position.z = SCENE_CENTER_Z + 6 * wc.smoothP
     }
 
-    const GLOW_START = 0.94
+    const GLOW_START = TIMELINE.orbitGlow.start
     const act3Progress = clamped(sp, GLOW_START, 1.0)
     const smooth3 = smoothstep(act3Progress)
     const pulse = 1 + Math.sin(time * PULSE_FREQ_1) * PULSE_AMP_1 + Math.sin(time * PULSE_FREQ_2) * PULSE_AMP_2
@@ -143,42 +149,48 @@ export default function CentralStar() {
   })
 
   return (
-    <group ref={groupRef} position={[0, GROUP_POSITION_Y, SCENE_CENTER_Z]} renderOrder={1}>
+    <group ref={groupRef} position={[0, GROUP_POSITION_Y, SCENE_CENTER_Z]} renderOrder={layer.renderOrder}>
       {/* 1. 核心：暖白实体球 */}
-      <mesh renderOrder={1}>
+      <mesh renderOrder={layer.renderOrder}>
         <sphereGeometry args={[CORE_RADIUS, CORE_SEGMENTS, CORE_SEGMENTS]} />
         <meshBasicMaterial color={CORE_COLOR} />
       </mesh>
 
       {/* 2. 内层光晕：透明金色包裹（脉冲呼吸） */}
-      <mesh ref={glowMeshRef} renderOrder={1}>
+      <mesh ref={glowMeshRef} renderOrder={layer.renderOrder}>
         <sphereGeometry args={[INNER_GLOW_RADIUS, INNER_GLOW_SEGMENTS, INNER_GLOW_SEGMENTS]} />
-        <meshBasicMaterial color={INNER_GLOW_COLOR} transparent opacity={GLOW_OPACITY_COEFF} depthWrite={false} />
+        <meshBasicMaterial
+          color={INNER_GLOW_COLOR}
+          transparent={layer.transparent}
+          opacity={GLOW_OPACITY_COEFF}
+          depthWrite={layer.depthWrite}
+          depthTest={layer.depthTest}
+        />
       </mesh>
 
       {/* 3. 近场 Sprite：金色径向渐变 */}
-      <sprite renderOrder={1} scale={[SPRITE_SCALE, SPRITE_SCALE, 1]}>
+      <sprite renderOrder={layer.renderOrder} scale={[SPRITE_SCALE, SPRITE_SCALE, 1]}>
         <spriteMaterial
           ref={(mat) => { spriteMatRef.current = mat }}
           map={haloTex}
           blending={AdditiveBlending}
-          transparent
+          transparent={layer.transparent}
           opacity={0}
-          depthWrite={false}
-          depthTest
+          depthWrite={layer.depthWrite}
+          depthTest={layer.depthTest}
         />
       </sprite>
 
       {/* 4. 远场 Sprite：灰白径向渐变，大范围扩散 */}
-      <sprite renderOrder={1} scale={[FAR_SPRITE_SCALE, FAR_SPRITE_SCALE, 1]}>
+      <sprite renderOrder={layer.renderOrder} scale={[FAR_SPRITE_SCALE, FAR_SPRITE_SCALE, 1]}>
         <spriteMaterial
           ref={(mat) => { farSpriteMatRef.current = mat }}
           map={farHaloTex}
           blending={AdditiveBlending}
-          transparent
+          transparent={layer.transparent}
           opacity={0}
-          depthWrite={false}
-          depthTest
+          depthWrite={layer.depthWrite}
+          depthTest={layer.depthTest}
         />
       </sprite>
     </group>

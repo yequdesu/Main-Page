@@ -4,9 +4,10 @@ import { type PerspectiveCamera, Vector3 } from 'three'
 import OrbitRings from '../actors/OrbitRings'
 import { useScrollStore } from '../stores/scrollStore'
 import { useFrameCache } from '../behaviors/useFrameCache'
-import { smoothstep, clamped, GRID_SHIFT_START } from '../r3f/ScrollRig'
+import { smoothstep, clamped } from '../r3f/ScrollRig'
+import { TIMELINE } from '../composition/timeline'
 import { updateCameraFocus } from '../behaviors/useCameraFocus'
-import { _planetWorldPositions, _mainPlanetIndices } from '../actors/Planets'
+import { readPlanetWorldByParticleIndex, vector3FromPoint } from '../composition/coreAnchors'
 
 /**
  * Act 3 "ContentPhase" — 轨道环、相机聚焦。
@@ -21,9 +22,8 @@ const Act3ContentPhase = memo(function Act3ContentPhase({ visible }: Act3Props) 
   const { shouldSkip } = useFrameCache()
 
   const getPlanetPosition = useCallback((particleIdx: number): Vector3 | null => {
-    const trackIdx = _mainPlanetIndices.indexOf(particleIdx)
-    if (trackIdx === -1) return null
-    return _planetWorldPositions[trackIdx] || null
+    const point = readPlanetWorldByParticleIndex(particleIdx)
+    return point ? vector3FromPoint(point, new Vector3()) : null
   }, [])
 
   useFrame((state, _delta) => {
@@ -32,7 +32,7 @@ const Act3ContentPhase = memo(function Act3ContentPhase({ visible }: Act3Props) 
     const time = state.clock.elapsedTime
     if (shouldSkip(time, sp)) return
 
-    const progress = clamped(sp, GRID_SHIFT_START, 1.0)
+    const progress = clamped(sp, TIMELINE.act3Shift.start, 1.0)
     void smoothstep(progress)
     updateCameraFocus(camera as PerspectiveCamera, sp, time, getPlanetPosition)
   })

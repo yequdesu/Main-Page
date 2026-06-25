@@ -7,13 +7,19 @@ import Act1OceanVoyage from './acts/Act1OceanVoyage'
 import Act2GridTransition from './acts/Act2GridTransition'
 import Act3ContentPhase from './acts/Act3ContentPhase'
 import { useScrollStore } from './stores/scrollStore'
-import { WHITE_OUT_THRESHOLD, GRID_START, GRID_SHIFT_START } from './r3f/ScrollRig'
+import { TIMELINE } from './composition/timeline'
 import { getLighthouseCapture } from './actors/LighthouseCapture'
 import MainTerminal from './MainTerminal'
 import { executeCommand } from './terminal/commands'
 import InfoPanelTerminal from './InfoPanelTerminal'
 import FloatingLabels from './actors/FloatingLabels'
 import BrandTitle from './actors/BrandTitle'
+import CompositionPanel from './composition/debug/CompositionPanel'
+import { useActorRuntime } from './composition/actorRuntime'
+import { registerCoreActors } from './composition/coreActors'
+import { registerCoreSequences } from './composition/coreSequences'
+import { resetSequence, useSignal } from './composition/sequenceStore'
+import { useEffectScope } from './composition/effectScope'
 import type { LabelConfig, SequenceStrategy } from './behaviors/useFloatingLabels'
 import { PLANET_LINKS } from './types'
 import { useDayNight } from './theme/useDayNight'
@@ -36,21 +42,29 @@ const MAX_VELOCITY = 0.025
  *   @gsap/react useGSAP — 自动 cleanup
  */
 export default function App() {
+  useEffect(() => {
+    registerCoreActors()
+    registerCoreSequences()
+  }, [])
+
   // ---- Zustand store ----
   const { scrollProgress, setScrollProgress } = useScrollStore()
   const terminalMode = useScrollStore(s => s.terminalMode)
+  const debugMode = useScrollStore(s => s.debugMode)
   const echoLines = useScrollStore(s => s.echoLines)
   const inputValue = useScrollStore(s => s.inputValue)
   const { handleThemeUpdate, themeKey } = useDayNight()
+  const scrollEffectScope = useEffectScope('appScroll')
+  const signalAct3 = useSignal('act3.entry')
 
   // ---- Physics state (refs — no re-render) ----
   const physRef = useRef({ target: 0, velocity: 0, lastScrollbar: 0, lastPhysics: 0, active: true })
   const clickTweenRef = useRef<gsap.core.Tween | null>(null)
   const lighthouseCapturedRef = useRef(false)
   const stRef = useRef<ScrollTrigger | null>(null)
+  const act3VisibleRef = useRef(false)
 
   // ---- UI state (React — triggers re-render) ----
-  const [hintVisible, setHintVisible] = useState(true)
   const [isClickPlaying, setIsClickPlaying] = useState(false)
   const [isAct3Focused, setIsAct3Focused] = useState(false)
   const [lighthouseImage, setLighthouseImage] = useState<string | null>(null)
@@ -60,9 +74,9 @@ export default function App() {
   // ---- Act visibility ----
   // Act 1 扩展到 GRID_SHIFT_START(0.85)：波浪展平后需与 Act2 竖线共存形成网格，
   // Act3 开始后波浪自行通过 gridOpacityMult 淡出
-  const needsAct1 = (sp: number) => sp < GRID_SHIFT_START + 0.01
-  const needsAct2 = (sp: number) => sp >= WHITE_OUT_THRESHOLD - 0.01
-  const needsAct3 = (sp: number) => sp >= GRID_SHIFT_START - 0.01
+  const needsAct1 = (sp: number) => sp < TIMELINE.act3Shift.start + 0.01
+  const needsAct2 = (sp: number) => sp >= TIMELINE.whiteOut.start - 0.01
+  const needsAct3 = (sp: number) => sp >= TIMELINE.act3Shift.start - 0.01
 
   // ---- syncScrollbar ----
   const syncScrollbar = useCallback(() => {
@@ -85,7 +99,6 @@ export default function App() {
         physRef.current.velocity = 0
         physRef.current.target = self.progress
         setScrollProgress(self.progress)
-        if (self.progress > 0.02 && hintVisible) setHintVisible(false)
       },
     })
 
@@ -127,13 +140,14 @@ export default function App() {
     if (isAct3Focused) return
     if (isClickPlaying && clickTweenRef.current) {
       clickTweenRef.current.kill()
+      scrollEffectScope.cancel('interrupt click tween')
       clickTweenRef.current = null
       setIsClickPlaying(false)
     }
     const step = e.deltaY / (window.innerHeight * SCROLL_VH) * 0.65
     physRef.current.velocity += step
     physRef.current.velocity = Math.max(-MAX_VELOCITY, Math.min(MAX_VELOCITY, physRef.current.velocity))
-  }, [isTerminalActive, isAct3Focused, isClickPlaying])
+  }, [isTerminalActive, isAct3Focused, isClickPlaying, scrollEffectScope])
 
   // ---- click fast-forward ----
   const onClick = useCallback(() => {
@@ -145,7 +159,8 @@ export default function App() {
     physRef.current.velocity = 0
 
     const tweenObj = { val: physRef.current.target }
-    clickTweenRef.current = gsap.to(tweenObj, {
+    scrollEffectScope.cancel('replace click tween')
+    clickTweenRef.current = scrollEffectScope.addTween(gsap.to(tweenObj, {
       val: 1.0,
       duration: 2,
       ease: 'power2.inOut',
@@ -158,8 +173,8 @@ export default function App() {
         setIsClickPlaying(false)
         clickTweenRef.current = null
       },
-    })
-  }, [isTerminalActive, isClickPlaying, isAct3Focused, scrollProgress, setScrollProgress, syncScrollbar])
+    }))
+  }, [isTerminalActive, isClickPlaying, isAct3Focused, scrollProgress, setScrollProgress, syncScrollbar, scrollEffectScope])
 
   // ---- event listeners ----
   useEffect(() => {
@@ -173,9 +188,21 @@ export default function App() {
 
   // ---- Act 3 focus state (block scroll wheel) ----
   useEffect(() => {
-    const focused = overlayData.focused && scrollProgress >= GRID_SHIFT_START
+    const focused = overlayData.focused && scrollProgress >= TIMELINE.act3Shift.start
     setIsAct3Focused(focused)
   }, [overlayData.focused, scrollProgress])
+
+  useEffect(() => {
+    const visible = needsAct3(scrollProgress)
+    if (visible === act3VisibleRef.current) return
+    act3VisibleRef.current = visible
+    if (visible) {
+      signalAct3('act3Mounted')
+    } else {
+      resetSequence('act3.entry')
+      resetSequence('labelReveal')
+    }
+  }, [scrollProgress, signalAct3])
 
   // ---- lighthouse screenshot ----
   useEffect(() => {
@@ -198,13 +225,15 @@ export default function App() {
   useEffect(() => {
     return () => {
       physRef.current.active = false
+      scrollEffectScope.cancel('app cleanup')
       stRef.current?.kill()
       ScrollTrigger.getAll().forEach((t: ScrollTrigger) => t.kill())
       document.body.style.height = ''
     }
-  }, [])
+  }, [scrollEffectScope])
 
   const sp = scrollProgress
+  useActorRuntime('focusOverlay', overlayData.focused)
 
   // ---- Terminal callbacks ----
   const handleModeChange = useCallback((m: typeof terminalMode) => {
@@ -226,8 +255,8 @@ export default function App() {
   ) as [LabelConfig, LabelConfig, LabelConfig]
   const handleBuildStatusLine = useCallback((sp: number) => {
     const pct = Math.round(sp * 100)
-    const actName = sp < 0.45 ? 'OceanVoyage' : sp < 0.85 ? 'GridTransition' : 'ContentPhase'
-    const actNum = sp < 0.45 ? '1' : sp < 0.85 ? '2' : '3'
+    const actName = sp < 0.45 ? 'OceanVoyage' : sp < TIMELINE.act3Shift.start ? 'GridTransition' : 'ContentPhase'
+    const actNum = sp < 0.45 ? '1' : sp < TIMELINE.act3Shift.start ? '2' : '3'
     return `# Act ${actNum} · ${actName} · scroll ${pct}%`
   }, [])
 
@@ -274,21 +303,12 @@ export default function App() {
         />
       )}
 
-      {/* 滚动提示 */}
-      {hintVisible && (
-        <div className="scroll-hint" aria-hidden="true">
-          <span>Scroll</span>
-          <span className="click-hint">or click to skip</span>
-          <div className="scroll-arrow" />
-        </div>
-      )}
-
       {/* 品牌标题（Act 2-3） */}
       <BrandTitle
         scrollProgress={sp}
         lighthouseImage={lighthouseImage}
         isClickPlaying={isClickPlaying}
-        isFocused={overlayData.focused && sp >= GRID_SHIFT_START}
+        isFocused={overlayData.focused && sp >= TIMELINE.act3Shift.start}
       />
 
       {/* 聚焦 SVG 叠加层 */}
@@ -316,6 +336,8 @@ export default function App() {
           闽ICP备2026019172号-1
         </a>
       </footer>
+
+      {debugMode && <CompositionPanel scrollProgress={sp} />}
     </>
   )
 }

@@ -1,8 +1,10 @@
 import { useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import { type Group, type LineBasicMaterial } from 'three'
-import { SCENE_CENTER_Z, clamped, smoothstep, GRID_SHIFT_START } from '../r3f/ScrollRig'
+import { SCENE_CENTER_Z, clamped, smoothstep } from '../r3f/ScrollRig'
 import { useScrollStore } from '../stores/scrollStore'
+import { getWebglLayer } from '../composition/layerRegistry'
+import { TIMELINE } from '../composition/timeline'
 import type { OrbitalRingConfig } from '../types'
 
 /**
@@ -41,6 +43,7 @@ interface OrbitalRingProps {
 }
 
 export default function OrbitalRing({ config, speedScale = 1.0, color: colorOverride }: OrbitalRingProps) {
+  const layer = getWebglLayer('webgl.grid')
   const {
     radius,
     innerRadius = radius - 0.04,
@@ -62,7 +65,7 @@ export default function OrbitalRing({ config, speedScale = 1.0, color: colorOver
 
   useFrame((_state, delta) => {
     const sp = useScrollStore.getState().scrollProgress
-    const act3Progress = clamped(sp, GRID_SHIFT_START, 1.0)
+    const act3Progress = clamped(sp, TIMELINE.act3Shift.start, 1.0)
     const smooth3 = smoothstep(act3Progress)
 
     // 透明度（scroll 驱动）
@@ -81,21 +84,21 @@ export default function OrbitalRing({ config, speedScale = 1.0, color: colorOver
       ref={outerGroupRef}
       position={[0, -1.0, SCENE_CENTER_Z]}
       rotation={[0, phase, 0]}
-      renderOrder={2}
+      renderOrder={layer.renderOrder}
     >
       <group
         rotation={[Math.PI / 2 - inclination, 0, 0]}
         scale={[stretchX, 1, 1]}
       >
-        <lineLoop renderOrder={2}>
+        <lineLoop renderOrder={layer.renderOrder}>
           <ringGeometry args={[innerRadius, radius, segments]} />
           <lineBasicMaterial
             ref={matRef}
             color={colorOverride ?? configColor}
-            transparent
+            transparent={layer.transparent}
             opacity={0}
-            depthWrite={false}
-            depthTest
+            depthWrite={layer.depthWrite}
+            depthTest={layer.depthTest}
           />
         </lineLoop>
       </group>

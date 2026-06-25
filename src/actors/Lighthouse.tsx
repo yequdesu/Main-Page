@@ -1,8 +1,9 @@
 import { useRef, useEffect } from 'react'
 import { useFrame } from '@react-three/fiber'
 import { type Group } from 'three'
-import { SCENE_CENTER_Z, WHITE_OUT_END } from '../r3f/ScrollRig'
+import { SCENE_CENTER_Z } from '../r3f/ScrollRig'
 import { useScrollStore } from '../stores/scrollStore'
+import { TIMELINE } from '../composition/timeline'
 
 // Module-level ref — shared with LighthouseCapture for offscreen rendering
 export let _lighthouseGroupRef: Group | null = null
@@ -29,7 +30,7 @@ export default function Lighthouse() {
   useFrame(() => {
     const sp = useScrollStore.getState().scrollProgress
     if (groupRef.current) {
-      groupRef.current.visible = sp < WHITE_OUT_END
+      groupRef.current.visible = sp < TIMELINE.whiteOut.end
     }
   })
 

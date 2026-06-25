@@ -23,9 +23,10 @@ export const commandRegistry: Command[] = [
     name: 'debug',
     description: 'Toggle debug mode',
     handler: () => {
-      const current = (window as any).__DEBUG__ === true
-      ;(window as any).__DEBUG__ = !current
-      return `debug mode: ${!current ? 'ON' : 'OFF'}`
+      const current = useScrollStore.getState().debugMode
+      const next = !current
+      useScrollStore.getState().setDebugMode(next)
+      return `debug mode: ${next ? 'ON' : 'OFF'}`
     },
   },
   {

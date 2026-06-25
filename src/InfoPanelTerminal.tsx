@@ -1,7 +1,9 @@
 import { useRef, useCallback } from 'react'
 import TerminalBar from './terminal/TerminalBar'
 import { useRealtimeStore } from './stores/realtimeStore'
-import { useScrollStore } from './stores/scrollStore'
+import { getDomLayer } from './composition/layerRegistry'
+import { useActorRuntime } from './composition/actorRuntime'
+import { useSignal } from './composition/sequenceStore'
 import './InfoPanelTerminal.css'
 
 /**
@@ -11,6 +13,9 @@ import './InfoPanelTerminal.css'
  * 通过 TerminalBar Slot 声明式构建，与 MainTerminal 对称。
  */
 export default function InfoPanelTerminal() {
+  useActorRuntime('infoPanel', true)
+  const signalAct3 = useSignal('act3.entry')
+  const signalLabelReveal = useSignal('labelReveal')
   const handlePlanetLines = useCallback(() => {
     const { planetCoords, planetSpeeds } = useRealtimeStore.getState()
     return [
@@ -60,14 +65,17 @@ export default function InfoPanelTerminal() {
       className="info-panel-terminal"
       state={{
         onModeChange: (mode) => {
-          if (mode === 'idle') useScrollStore.getState().setLabelsGateOpen(true)
+          if (mode === 'idle') {
+            signalAct3('infoWelcomeDone')
+            signalLabelReveal('labelsReveal')
+          }
         },
       }}
       layout={{
         maxEchoLines: 8, maxWidth: '50ch', fontSize: '0.48rem',
         padding: '4px 10px', borderRadius: '12px',
         fontFamily: "'SF Mono','Fira Code','Cascadia Code','Consolas',monospace",
-        top: '2rem', left: '2rem', right: 'auto', zIndex: 20,
+        top: '2rem', left: '2rem', right: 'auto', zIndex: getDomLayer('dom.infoPanel').zIndex,
       }}
     >
       <TerminalBar.Welcome
