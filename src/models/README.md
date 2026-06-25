@@ -21,10 +21,34 @@ public/models/
 
 ## 模型来源与许可证
 
-| 模型 | 作者 | 来源 | 许可证 | 三角面 |
-|------|------|------|--------|:---:|
-| Voyager 1 | illidroid | [Sketchfab](https://sketchfab.com/3d-models/voyager-1-39bececb8b5d48a3ad0070e720586759) | CC BY 4.0 | 20.4K |
-| Lighthouse | YeQuDeSu | 程序化生成 | 项目自有 | ~6K |
+| 模型 | 作者 | 来源 | 许可证 | 三角面 | 文件大小 |
+|------|------|------|--------|:---:|:---:|
+| Voyager 1 | illidroid | [Sketchfab](https://sketchfab.com/3d-models/voyager-1-39bececb8b5d48a3ad0070e720586759) | CC BY 4.0 | 20.4K | 1.69 MB |
+| Voyager 1 Low Poly | illidroid | `scripts/bake-low-poly.sh` 烘焙 | CC BY 4.0 | 10.5K | 401 KB |
+| Lighthouse | YeQuDeSu | 程序化生成 | 项目自有 | ~6K | — |
+
+## 低模烘焙管线
+
+```
+scripts/bake-low-poly.sh — GLB 低模烘焙脚本
+```
+
+**管线步骤：**
+
+```
+weld(合并顶点) → simplify(边折叠减面) → resize(纹理缩放) → meshopt(量化压缩)
+```
+
+**用法：**
+```bash
+bash scripts/bake-low-poly.sh <输入.glb> <输出.glb> [面数比例] [纹理尺寸]
+
+# 示例
+bash scripts/bake-low-poly.sh public/models/voyager-1.glb public/models/voyager-1-low.glb
+bash scripts/bake-low-poly.sh public/models/model.glb public/models/model-low.glb 0.5 1024
+```
+
+**依赖：** `@gltf-transform/cli`（npx 按需安装）
 
 ## gltfjsx 使用提示
 

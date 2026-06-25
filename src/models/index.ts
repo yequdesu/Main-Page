@@ -54,6 +54,13 @@ export const MODEL_REGISTRY: Record<string, ModelRegistryEntry> = {
     triCount: 20400,
     attribution: 'illidroid (Sketchfab) · CC BY 4.0',
   },
+  'voyager1-low-poly': {
+    label: 'Voyager 1 · Low Poly',
+    component: lazy(() => import('./Voyager1LowPoly')),
+    glbPath: '/models/voyager-1-low-poly.glb',
+    triCount: 10550,
+    attribution: 'illidroid (Sketchfab) · CC BY 4.0 · 低模烘焙',
+  },
 }
 
 /** 获取所有注册模型的 key 列表（供 Leva select 使用） */
