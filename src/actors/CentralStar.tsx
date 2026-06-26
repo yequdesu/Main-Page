@@ -31,13 +31,13 @@ const INNER_GLOW_COLOR = '#ffe8c0'
 /** 光晕不透明度系数  ↑=光晕更亮更明显  ↓=光晕更暗更收敛 */
 const GLOW_OPACITY_COEFF = 0.30       // × smooth3 × pulse
 /** 呼吸频率1  ↑=脉动更快  ↓=脉动更慢 */
-const PULSE_FREQ_1 = 1.8
+const PULSE_FREQ_1 = 0.36
 /** 呼吸振幅1  ↑=亮度波动更大  ↓=更接近静态 */
-const PULSE_AMP_1 = 0.06
+const PULSE_AMP_1 = 0.025
 /** 呼吸频率2  ↑=高频微抖更快  ↓=更平滑 */
-const PULSE_FREQ_2 = 3.3
+const PULSE_FREQ_2 = 0.68
 /** 呼吸振幅2  ↑=微抖更明显  ↓=更平滑 */
-const PULSE_AMP_2 = 0.04
+const PULSE_AMP_2 = 0.015
 
 // -- 外层 Sprite（金色近场） --
 /** Sprite 缩放  ↑=近场柔光扩散更远  ↓=收窄 */

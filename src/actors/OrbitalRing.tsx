@@ -1,4 +1,4 @@
-import { useRef } from 'react'
+import { useMemo, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import { type Group, type LineBasicMaterial } from 'three'
 import { SCENE_CENTER_Z, clamped, smoothstep } from '../r3f/ScrollRig'
@@ -53,10 +53,17 @@ export default function OrbitalRing({ config, speedScale = 1.0, color: colorOver
     phase,
     color: configColor = '#cbd5e1',
     maxOpacity = 0.28,
-    segments = 96,
+    segments = 192,
   } = config
 
   const stretchX = 1 / Math.sqrt(1 - eccentricity * eccentricity)
+  const ringPoints = useMemo(() => {
+    const lineRadius = (innerRadius + radius) * 0.5
+    return Array.from({ length: segments }, (_, i) => {
+      const theta = (i / segments) * Math.PI * 2
+      return [Math.cos(theta) * lineRadius, Math.sin(theta) * lineRadius, 0] as const
+    })
+  }, [innerRadius, radius, segments])
 
   // 外层 group — Y 轴进动（黄道面法线）
   const outerGroupRef = useRef<Group>(null)
@@ -91,7 +98,12 @@ export default function OrbitalRing({ config, speedScale = 1.0, color: colorOver
         scale={[stretchX, 1, 1]}
       >
         <lineLoop renderOrder={layer.renderOrder}>
-          <ringGeometry args={[innerRadius, radius, segments]} />
+          <bufferGeometry>
+            <bufferAttribute
+              attach="attributes-position"
+              args={[new Float32Array(ringPoints.flat()), 3]}
+            />
+          </bufferGeometry>
           <lineBasicMaterial
             ref={matRef}
             color={colorOverride ?? configColor}

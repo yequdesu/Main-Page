@@ -4,6 +4,7 @@ import { smoothstep } from '../r3f/ScrollRig'
 import { TIMELINE } from '../composition/timeline'
 import { useActorRuntime } from '../composition/actorRuntime'
 import { useEffectScope } from '../composition/effectScope'
+import { useScrollStore } from '../stores/scrollStore'
 import './BrandTitle.css'
 
 // ============================================================
@@ -37,8 +38,6 @@ export interface BrandTitleProps {
   lighthouseImage: string | null
   /** 点击快进期间禁用 CSS transition */
   isClickPlaying: boolean
-  /** 行星聚焦状态（由 App 从 overlayData.focused 计算） */
-  isFocused: boolean
 }
 
 // ============================================================
@@ -81,15 +80,16 @@ export default function BrandTitle({
   scrollProgress,
   lighthouseImage,
   isClickPlaying,
-  isFocused,
 }: BrandTitleProps) {
   const rootRef = useRef<HTMLDivElement | null>(null)
   const focusTweenRef = useRef<gsap.core.Tween | null>(null)
   const effectScope = useEffectScope('brandTitle')
+  const focusedPlanetIdx = useScrollStore(s => s.focusedPlanetIdx)
 
   // ---- 显示控制：sp ≥ TEXT_START 且未聚焦 ----
   const sp = scrollProgress
   const visible = sp >= TIMELINE.brandTitle.start
+  const isFocused = focusedPlanetIdx >= 0 && sp >= TIMELINE.act3Shift.start
   useActorRuntime('brandTitle', visible && !isFocused)
 
   // ---- line1 / icon 淡入（smoothstep, 0.70 → 0.82） ----

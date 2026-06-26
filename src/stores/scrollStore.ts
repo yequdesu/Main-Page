@@ -71,7 +71,9 @@ export type ScrollStore = ScrollSlice & FocusSlice & TerminalSlice & ScrollActio
 export const useScrollStore = create<ScrollStore>()((set) => ({
   // ---- Scroll slice ----
   scrollProgress: 0,
-  setScrollProgress: (sp) => set({ scrollProgress: sp }),
+  setScrollProgress: (sp) => set((state) => (
+    Object.is(state.scrollProgress, sp) ? state : { scrollProgress: sp }
+  )),
 
   // ---- Focus slice ----
   focusedPlanetIdx: -1,

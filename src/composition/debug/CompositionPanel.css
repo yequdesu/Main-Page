@@ -1,5 +1,5 @@
 .composition-panel {
-  top: 12px;
+  top: 52px;
   right: 12px;
   width: min(420px, calc(100vw - 24px));
   max-height: min(80vh, calc(100vh - 24px));
@@ -100,7 +100,7 @@
 }
 
 .composition-panel-toggle--collapsed {
-  top: 12px;
+  top: 52px;
   right: 12px;
   height: 30px;
   padding: 0 10px;

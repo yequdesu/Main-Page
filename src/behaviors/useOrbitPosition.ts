@@ -23,6 +23,7 @@ export function calcOrbitPosition(
   delta: number,
   cx: number, cy: number, cz: number,
   smooth3: number,
+  freezeOrbit = false,
 ): { x: number; y: number; z: number } {
   // Act 1 float position
   const bx = d.wx + Math.sin(time * 0.4 + d.ph) * 0.25
@@ -31,7 +32,9 @@ export function calcOrbitPosition(
 
   // Act 3 orbit
   const effectiveSpeed = d._baseSpeed * (1.0 - d.hoverFactor * 0.80)
-  d.orbitAngle += delta * effectiveSpeed
+  if (!freezeOrbit) {
+    d.orbitAngle += delta * effectiveSpeed
+  }
   const wobbleR = d.isMainPlanet
     ? d.orbitR
     : d.orbitR + Math.sin(time * (d.wobbleFreq ?? 0.3) + d.ph) * (d.wobbleAmp ?? 1)

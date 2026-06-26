@@ -200,6 +200,9 @@
 
 .terminal-cursor {
   flex-shrink: 0;
+  display: inline-block;
+  width: 1ch;
+  text-align: center;
 }
 
 .terminal-cursor.dim {
@@ -208,12 +211,51 @@
 }
 
 .terminal-cursor.bright {
-  color: var(--tw-cursor-bright, #e2e8f0);
-  animation: cursor-blink 1s step-end infinite;
+  position: relative;
+  color: var(--color-body-bg, #050811);
+  background: transparent;
+  transition: color 0.16s ease;
+  animation: cursor-text-blink 1.15s step-end infinite;
+  z-index: 0;
 }
 
-@keyframes cursor-blink {
-  50% { opacity: 0; }
+.terminal-cursor.bright::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0.12em;
+  bottom: 0.12em;
+  background: var(--tw-cursor-bright, #e2e8f0);
+  box-shadow: 0 0 8px color-mix(in srgb, var(--tw-cursor-bright, #e2e8f0) 18%, transparent);
+  transition: opacity 0.16s ease, box-shadow 0.16s ease;
+  animation: cursor-block-blink 1.15s step-end infinite;
+  z-index: -1;
+}
+
+.terminal-cursor.bright.steady {
+  animation: none;
+}
+
+.terminal-cursor.bright.steady::before {
+  animation: none;
+}
+
+.terminal-cursor.bright.at-line-end {
+  min-width: 1ch;
+}
+
+@keyframes cursor-text-blink {
+  62%, 100% {
+    color: var(--tw-input, #e2e8f0);
+  }
+}
+
+@keyframes cursor-block-blink {
+  62%, 100% {
+    opacity: 0;
+    box-shadow: none;
+  }
 }
 
 .terminal-placeholder {
@@ -226,7 +268,30 @@
   color: var(--tw-input, #e2e8f0);
 }
 
+.terminal-input-char {
+  display: inline-block;
+  width: 1ch;
+  color: var(--tw-input, #e2e8f0);
+  text-align: center;
+  transition:
+    color 0.16s ease,
+    background-color 0.16s ease,
+    box-shadow 0.16s ease,
+    transform 0.16s ease;
+}
+
+.terminal-input-char.selected {
+  color: var(--color-body-bg, #050811);
+  background: var(--tw-cursor-bright, #e2e8f0);
+  box-shadow: 0 0 10px color-mix(in srgb, var(--tw-cursor-bright, #e2e8f0) 26%, transparent);
+  transform: translateY(-0.02em);
+}
+
 .terminal-typing-cursor {
   color: var(--tw-echo, #7c8aa0);
-  animation: cursor-blink 1s step-end infinite;
+  animation: typing-cursor-blink 1s step-end infinite;
+}
+
+@keyframes typing-cursor-blink {
+  50% { opacity: 0; }
 }

@@ -1,0 +1,47 @@
+.fps-meter {
+  top: 12px;
+  right: 12px;
+  display: grid;
+  gap: 2px;
+  min-width: 86px;
+  padding: 6px 10px;
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  border-radius: 6px;
+  background: rgba(8, 13, 28, 0.9);
+  color: #dbeafe;
+  font: 700 12px/1.1 Consolas, 'SFMono-Regular', 'Liberation Mono', monospace;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.28);
+  pointer-events: none;
+  backdrop-filter: blur(12px);
+}
+
+.fps-meter span {
+  min-width: 26px;
+  text-align: right;
+}
+
+.fps-meter small {
+  color: rgba(203, 213, 225, 0.72);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0;
+}
+
+.fps-meter__row {
+  display: grid;
+  grid-template-columns: 28px 1fr;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.fps-meter[data-level='good'] span {
+  color: #86efac;
+}
+
+.fps-meter[data-level='warn'] span {
+  color: #fde68a;
+}
+
+.fps-meter[data-level='bad'] span {
+  color: #fca5a5;
+}

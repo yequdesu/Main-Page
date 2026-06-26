@@ -58,7 +58,7 @@ export default function MainTerminal(props: MainTerminalProps) {
     const handler = (e: KeyboardEvent) => {
       const tag = (e.target as HTMLElement)?.tagName
       if (tag === 'INPUT' || tag === 'TEXTAREA') return
-      if (e.key === '/' && mode === 'idle') {
+      if (e.key === '/' && mode !== 'active') {
         e.preventDefault()
         onModeChange?.('active')
       }

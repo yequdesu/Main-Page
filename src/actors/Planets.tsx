@@ -19,6 +19,7 @@ import { touchActorFrame, useActorRuntime } from '../composition/actorRuntime'
 import { R3F_FRAME_PRIORITY } from '../composition/frameScheduler'
 import {
   makeCoreAnchor,
+  planetAtmosphereWorldRadiusAnchorId,
   planetOrbitAnchorId,
   planetParticleIndexAnchorId,
   planetScreenRadiusAnchorId,
@@ -46,15 +47,15 @@ const FRESNEL_SHELL_COLOR = '#d0d5de'
 const COLOR_ACT1 = '#f0f8ff'
 const COLOR_ACT3 = '#64748b'
 
-const GLOW_PULSE_FREQ_1 = 1.1
-const GLOW_PULSE_AMP_1 = 0.01
-const GLOW_PULSE_FREQ_2 = 1.6
-const GLOW_PULSE_AMP_2 = 0.01
+const GLOW_PULSE_FREQ_1 = 0.26
+const GLOW_PULSE_AMP_1 = 0.005
+const GLOW_PULSE_FREQ_2 = 0.38
+const GLOW_PULSE_AMP_2 = 0.005
 
-const SPRITE_PULSE_FREQ_1 = 1.1
-const SPRITE_PULSE_AMP_1 = 0.02
-const SPRITE_PULSE_FREQ_2 = 1.5
-const SPRITE_PULSE_AMP_2 = 0.02
+const SPRITE_PULSE_FREQ_1 = 0.24
+const SPRITE_PULSE_AMP_1 = 0.01
+const SPRITE_PULSE_FREQ_2 = 0.36
+const SPRITE_PULSE_AMP_2 = 0.01
 
 const HALO_TEX_SIZE = 128
 const HALO_COLOR_STOPS: [number, string][] = [
@@ -311,7 +312,8 @@ export default function Planets() {
       }
 
       // Position
-      let { x: px, y: py, z: pz } = calcOrbitPosition(d, time, delta, cx, cy, cz, orbitSmooth3)
+      const freezeFocusedOrbit = i === focusedPlanetIdx && sp >= TIMELINE.act3Shift.start
+      let { x: px, y: py, z: pz } = calcOrbitPosition(d, time, delta, cx, cy, cz, orbitSmooth3, freezeFocusedOrbit)
       const usingWindChimeLayout = trackIdx >= 0 && sp < TIMELINE.orbitGlow.start
       if (usingWindChimeLayout) {
         const point = getWindChimePlanetPoint(trackIdx, wc.smoothP)
@@ -362,6 +364,9 @@ export default function Planets() {
         const _screenR = (_worldR * gl.domElement.clientHeight) / (2 * cd * Math.tan(_fovY / 2))
         _screenRadii[trackIdx] = Math.round(_screenR)
         anchorWrites.push(makeCoreAnchor(planetScreenRadiusAnchorId(trackIdx), _screenRadii[trackIdx], 'screenPx', 'planets', mesh.visible))
+
+        const atmosphereWorldRadius = PLANET_BASE_RADIUS * ATMOS_SHELL_SCALE * appearance.scale
+        anchorWrites.push(makeCoreAnchor(planetAtmosphereWorldRadiusAnchorId(trackIdx), atmosphereWorldRadius, 'world', 'planets', mesh.visible))
       }
 
       // Publish planet coords + orbit data to realtime store

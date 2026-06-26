@@ -107,11 +107,13 @@ export interface GridLineData {
 // ============================================================
 // 屏幕覆盖数据
 // ============================================================
-export interface ScreenCircle { x: number; y: number; r: number }
+export interface ScreenPoint { x: number; y: number }
+export interface ScreenCircle { x: number; y: number; r: number; rx?: number; ry?: number; contour?: ScreenPoint[] }
 export interface TangentLine { x1: number; y1: number; x2: number; y2: number }
 
 export interface OverlayData {
   focused: boolean
+  alpha?: number
   star?: ScreenCircle
   planet?: ScreenCircle
   tangents?: TangentLine[]

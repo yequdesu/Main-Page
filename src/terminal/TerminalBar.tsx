@@ -113,7 +113,9 @@ export default function TerminalBar(props: TerminalBarProps) {
   const [mode, setMode] = useState<TerminalMode>(controlledMode ?? 'typing')
   const [inputValue, setInputValue] = useState(controlledInputValue ?? '')
   const [cursorPos, setCursorPos] = useState(0)
+  const [selectionRange, setSelectionRange] = useState({ start: 0, end: 0 })
   const [hasFocus, setHasFocus] = useState(false)
+  const [cursorBlinkKey, setCursorBlinkKey] = useState(0)
 
   useEffect(() => { if (controlledMode !== undefined) setMode(controlledMode) }, [controlledMode])
   // store → local：仅首次激活时同步（不再每键回写，避免游标被重置）
@@ -131,12 +133,37 @@ export default function TerminalBar(props: TerminalBarProps) {
     prevModeRef.current = mode
   }, [mode, inputValue, onInputValueChange])
 
+  useEffect(() => {
+    if (mode === 'active') setCursorBlinkKey(k => k + 1)
+  }, [mode, inputValue])
+
   const hiddenInputRef = useRef<HTMLInputElement | null>(null)
 
-  // 同步视觉游标位置到 hidden input 的 selectionStart
-  const syncCursorPos = useCallback(() => {
+  useEffect(() => {
+    if (mode !== 'active') return
     const el = hiddenInputRef.current
-    if (el) setCursorPos(el.selectionStart ?? el.value.length)
+    if (!el) return
+    const start = el.selectionStart ?? inputValue.length
+    const end = el.selectionEnd ?? start
+    setCursorPos(end)
+    setSelectionRange({ start, end })
+  }, [mode, inputValue])
+
+  // 同步视觉游标位置到 hidden input 的 selectionStart
+  const syncSelectionState = useCallback(() => {
+    const el = hiddenInputRef.current
+    if (!el) return
+    const start = el.selectionStart ?? el.value.length
+    const end = el.selectionEnd ?? start
+    setCursorPos(end)
+    setSelectionRange({ start, end })
+  }, [])
+
+  const setVisualSelection = useCallback((start: number, end: number) => {
+    const el = hiddenInputRef.current
+    if (el) el.setSelectionRange(start, end)
+    setCursorPos(end)
+    setSelectionRange({ start, end })
   }, [])
   const barInnerRef = useRef<HTMLDivElement | null>(null)
   const scrollableRef = useRef<ScrollableHandle | null>(null)
@@ -163,6 +190,26 @@ export default function TerminalBar(props: TerminalBarProps) {
   }
   const cmd = useCommandSystem(cmdDeps)
 
+  const handleInputKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
+    const isSelectAll = (e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'a'
+    if (isSelectAll) {
+      e.preventDefault()
+      setVisualSelection(0, inputValue.length)
+      return
+    }
+
+    cmd.handleKeyDown(e)
+
+    if (
+      e.key === 'ArrowLeft' ||
+      e.key === 'ArrowRight' ||
+      e.key === 'Home' ||
+      e.key === 'End'
+    ) {
+      window.requestAnimationFrame(syncSelectionState)
+    }
+  }, [cmd, inputValue.length, setVisualSelection, syncSelectionState])
+
   useAnimateHeight(
     () => scrollableRef.current?.getScrollElement(),
     slotOrch?.echoLines ?? [],
@@ -183,15 +230,49 @@ export default function TerminalBar(props: TerminalBarProps) {
   const handleBarClick = useCallback((e: React.MouseEvent) => {
     if (B.activationMode === 'none') return
     e.stopPropagation(); e.nativeEvent.stopImmediatePropagation()
-    if (mode === 'idle') { setMode('active'); onModeChange?.('active') }
+    if (mode !== 'active') { setMode('active'); onModeChange?.('active') }
   }, [mode, B.activationMode, onModeChange])
 
   const isActive = mode === 'active'
   const isTypingPhase = slotOrch ? !slotOrch.isTypewriterDone : mode === 'typing'
-  const showInputLine = !isTypingPhase
+  const showInputLine = !isTypingPhase || isActive || inputValue.length > 0
   const inputLineVisible = showInputLine && (hasFocus || inputValue.length > 0)
   const echoLines = slotOrch?.echoLines ?? []
   const displayedText = slotOrch?.typewriterDisplayed ?? ''
+  const selectionStart = Math.min(selectionRange.start, selectionRange.end)
+  const selectionEnd = Math.max(selectionRange.start, selectionRange.end)
+  const hasSelection = selectionStart !== selectionEnd
+  const forceSteadyCursor = !hasSelection && cursorPos < inputValue.length
+  const cursorAtLineEnd = cursorPos >= inputValue.length
+  const cursorClassName = `terminal-cursor bright${forceSteadyCursor ? ' steady' : ''}${cursorAtLineEnd ? ' at-line-end' : ''}`
+
+  const renderInputCells = () => {
+    if (!inputValue) {
+      return isActive ? <span key={`cursor-empty-${cursorBlinkKey}`} className={cursorClassName}>{'\u00a0'}</span> : null
+    }
+
+    const cells = Array.from(inputValue).map((char, idx) => {
+      const selected = hasSelection && idx >= selectionStart && idx < selectionEnd
+      const cursorHere = isActive && !hasSelection && idx === cursorPos
+      if (cursorHere) {
+        return <span key={`cursor-${idx}`} className={cursorClassName}>{char}</span>
+      }
+      return (
+        <span
+          key={`${idx}-${char}`}
+          className={`terminal-input-char${selected ? ' selected' : ''}`}
+        >
+          {char}
+        </span>
+      )
+    })
+
+    if (isActive && !hasSelection && cursorPos >= inputValue.length) {
+      cells.push(<span key={`cursor-end-${cursorBlinkKey}`} className={cursorClassName}>{'\u00a0'}</span>)
+    }
+
+    return cells
+  }
 
   const renderOverlay = useCallback(({ canScrollUp, canScrollDown }: ScrollOverlayState) => (
     <>
@@ -230,22 +311,15 @@ export default function TerminalBar(props: TerminalBarProps) {
           <div className={`terminal-input-line${inputLineVisible ? ' visible' : ''}`}>
             <span className="terminal-prompt">{T.promptChar}</span>
             {!isActive && !inputValue && <span className="terminal-cursor dim">{'█'}</span>}
-            {isActive && inputValue ? (
-              <>
-                <span className="terminal-input-text">{inputValue.slice(0, cursorPos)}</span>
-                <span className="terminal-cursor bright">{'█'}</span>
-                <span className="terminal-input-text">{inputValue.slice(cursorPos)}</span>
-              </>
-            ) : (
-              isActive && <span className="terminal-cursor bright">{'█'}</span>
-            )}
+            {inputValue ? renderInputCells() : (isActive && renderInputCells())}
             {!inputValue && <span className="terminal-placeholder">{T.placeholder}</span>}
             {isActive && (
               <input ref={hiddenInputRef} type="text" value={inputValue}
-                onChange={cmd.handleInputChange} onKeyDown={cmd.handleKeyDown}
+                onChange={cmd.handleInputChange} onKeyDown={handleInputKeyDown}
                 onFocus={cmd.handleFocus} onBlur={cmd.handleBlur}
                 autoComplete="off" autoCorrect="off" spellCheck={false}
-                onSelect={syncCursorPos} onClick={syncCursorPos} onKeyUp={syncCursorPos}
+                onSelect={syncSelectionState} onClick={syncSelectionState} onMouseUp={syncSelectionState}
+                onKeyUp={syncSelectionState} onInput={syncSelectionState}
                 style={{ position: 'absolute', inset: 0, opacity: 0, border: 'none', outline: 'none', color: 'transparent', caretColor: 'transparent' }}
                 aria-label="Terminal command input" />
             )}

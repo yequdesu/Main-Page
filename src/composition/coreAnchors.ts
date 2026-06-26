@@ -37,6 +37,10 @@ export function planetScreenRadiusAnchorId(trackIdx: number): DataRef {
   return `anchor.planet.${trackIdx}.screenRadius`
 }
 
+export function planetAtmosphereWorldRadiusAnchorId(trackIdx: number): DataRef {
+  return `anchor.planet.${trackIdx}.atmosphereWorldRadius`
+}
+
 export function planetParticleIndexAnchorId(trackIdx: number): DataRef {
   return `anchor.planet.${trackIdx}.particleIndex`
 }
@@ -103,6 +107,10 @@ export function readPlanetWorldPoint(trackIdx: number): WorldPoint | undefined {
 
 export function readPlanetParticleIndex(trackIdx: number): number | undefined {
   return readAnchorValue<number>(planetParticleIndexAnchorId(trackIdx))
+}
+
+export function readPlanetAtmosphereWorldRadius(trackIdx: number): number | undefined {
+  return readAnchorValue<number>(planetAtmosphereWorldRadiusAnchorId(trackIdx))
 }
 
 export function readPlanetWorldByParticleIndex(particleIdx: number): WorldPoint | undefined {

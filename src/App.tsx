@@ -15,7 +15,8 @@ import InfoPanelTerminal from './InfoPanelTerminal'
 import FloatingLabels from './actors/FloatingLabels'
 import BrandTitle from './actors/BrandTitle'
 import CompositionPanel from './composition/debug/CompositionPanel'
-import { useActorRuntime } from './composition/actorRuntime'
+import FpsMeter from './composition/debug/FpsMeter'
+import FocusHudOverlay from './actors/FocusHudOverlay'
 import { registerCoreActors } from './composition/coreActors'
 import { registerCoreSequences } from './composition/coreSequences'
 import { resetSequence, useSignal } from './composition/sequenceStore'
@@ -31,6 +32,8 @@ gsap.registerPlugin(ScrollTrigger)
 const SCROLL_VH = 25
 const FRICTION = 0.955
 const MAX_VELOCITY = 0.025
+const SCROLL_PROGRESS_EPSILON = 0.000001
+const SCROLL_Y_EPSILON = 0.5
 
 /**
  * App 根组件 — GSAP ScrollTrigger + 滚动物理 + DOM 叠加层。
@@ -48,7 +51,8 @@ export default function App() {
   }, [])
 
   // ---- Zustand store ----
-  const { scrollProgress, setScrollProgress } = useScrollStore()
+  const scrollProgress = useScrollStore(s => s.scrollProgress)
+  const setScrollProgress = useScrollStore(s => s.setScrollProgress)
   const terminalMode = useScrollStore(s => s.terminalMode)
   const debugMode = useScrollStore(s => s.debugMode)
   const echoLines = useScrollStore(s => s.echoLines)
@@ -63,13 +67,15 @@ export default function App() {
   const lighthouseCapturedRef = useRef(false)
   const stRef = useRef<ScrollTrigger | null>(null)
   const act3VisibleRef = useRef(false)
+  const isAct3FocusedRef = useRef(false)
+  const scrollProgressRef = useRef(0)
 
   // ---- UI state (React — triggers re-render) ----
   const [isClickPlaying, setIsClickPlaying] = useState(false)
-  const [isAct3Focused, setIsAct3Focused] = useState(false)
   const [lighthouseImage, setLighthouseImage] = useState<string | null>(null)
-  const overlayData = useScrollStore(s => s.overlayData)
   const isTerminalActive = terminalMode === 'active'
+
+  scrollProgressRef.current = scrollProgress
 
   // ---- Act visibility ----
   // Act 1 扩展到 GRID_SHIFT_START(0.85)：波浪展平后需与 Act2 竖线共存形成网格，
@@ -79,9 +85,13 @@ export default function App() {
   const needsAct3 = (sp: number) => sp >= TIMELINE.act3Shift.start - 0.01
 
   // ---- syncScrollbar ----
-  const syncScrollbar = useCallback(() => {
+  const syncScrollbar = useCallback((target = physRef.current.target) => {
     const h = document.body.scrollHeight - window.innerHeight
-    if (h > 0) window.scrollTo(0, physRef.current.target * h)
+    if (h <= 0) return false
+    const y = target * h
+    if (Math.abs(window.scrollY - y) < SCROLL_Y_EPSILON) return false
+    window.scrollTo(0, y)
+    return true
   }, [])
 
   // ---- ScrollTrigger (native scrollbar) ----
@@ -118,7 +128,9 @@ export default function App() {
 
       if (now - p.lastScrollbar < 80) return
       if (isClickPlaying) return
+      if (p.velocity === 0) return
 
+      const previousTarget = p.target
       p.target += p.velocity * dtFrames
       if (p.target <= 0) { p.target = 0; p.velocity = 0 }
       if (p.target >= 1) { p.target = 1; p.velocity = 0 }
@@ -126,35 +138,54 @@ export default function App() {
       p.velocity *= Math.pow(FRICTION, dtFrames)
       if (Math.abs(p.velocity) < 0.00001) p.velocity = 0
 
+      const targetChanged = Math.abs(p.target - previousTarget) > SCROLL_PROGRESS_EPSILON
+      if (!targetChanged && p.velocity === 0) return
+
       setScrollProgress(p.target)
-      syncScrollbar()
+      syncScrollbar(p.target)
     }
     gsap.ticker.add(ticker)
     return () => { gsap.ticker.remove(ticker) }
   }, [isClickPlaying, syncScrollbar])
 
+  useEffect(() => {
+    const syncFocusGate = (state: ReturnType<typeof useScrollStore.getState>) => {
+      isAct3FocusedRef.current =
+        state.focusedPlanetIdx >= 0 && state.scrollProgress >= TIMELINE.act3Shift.start
+    }
+
+    syncFocusGate(useScrollStore.getState())
+    return useScrollStore.subscribe(syncFocusGate)
+  }, [])
+
   // ---- wheel handler ----
   const onWheel = useCallback((e: WheelEvent) => {
     e.preventDefault()
     if (isTerminalActive) return
-    if (isAct3Focused) return
+    if (isAct3FocusedRef.current) return
     if (isClickPlaying && clickTweenRef.current) {
       clickTweenRef.current.kill()
       scrollEffectScope.cancel('interrupt click tween')
       clickTweenRef.current = null
       setIsClickPlaying(false)
     }
+    const p = physRef.current
+    if ((p.target <= SCROLL_PROGRESS_EPSILON && e.deltaY < 0) ||
+        (p.target >= 1 - SCROLL_PROGRESS_EPSILON && e.deltaY > 0)) {
+      p.velocity = 0
+      return
+    }
     const step = e.deltaY / (window.innerHeight * SCROLL_VH) * 0.65
-    physRef.current.velocity += step
-    physRef.current.velocity = Math.max(-MAX_VELOCITY, Math.min(MAX_VELOCITY, physRef.current.velocity))
-  }, [isTerminalActive, isAct3Focused, isClickPlaying, scrollEffectScope])
+    p.velocity += step
+    p.velocity = Math.max(-MAX_VELOCITY, Math.min(MAX_VELOCITY, p.velocity))
+  }, [isTerminalActive, isClickPlaying, scrollEffectScope])
 
   // ---- click fast-forward ----
   const onClick = useCallback(() => {
     if (isTerminalActive) return
     if (isClickPlaying) return
-    if (isAct3Focused) return  // block fast-forward during planet focus
-    if (scrollProgress >= 0.995) return
+    if (isAct3FocusedRef.current) return  // block fast-forward during planet focus
+    if (scrollProgressRef.current >= 0.995) return
     setIsClickPlaying(true)
     physRef.current.velocity = 0
 
@@ -167,14 +198,14 @@ export default function App() {
       onUpdate: () => {
         physRef.current.target = tweenObj.val
         setScrollProgress(tweenObj.val)
-        syncScrollbar()
+        syncScrollbar(tweenObj.val)
       },
       onComplete: () => {
         setIsClickPlaying(false)
         clickTweenRef.current = null
       },
     }))
-  }, [isTerminalActive, isClickPlaying, isAct3Focused, scrollProgress, setScrollProgress, syncScrollbar, scrollEffectScope])
+  }, [isTerminalActive, isClickPlaying, setScrollProgress, syncScrollbar, scrollEffectScope])
 
   // ---- event listeners ----
   useEffect(() => {
@@ -185,12 +216,6 @@ export default function App() {
       window.removeEventListener('click', onClick)
     }
   }, [onWheel, onClick])
-
-  // ---- Act 3 focus state (block scroll wheel) ----
-  useEffect(() => {
-    const focused = overlayData.focused && scrollProgress >= TIMELINE.act3Shift.start
-    setIsAct3Focused(focused)
-  }, [overlayData.focused, scrollProgress])
 
   useEffect(() => {
     const visible = needsAct3(scrollProgress)
@@ -233,7 +258,6 @@ export default function App() {
   }, [scrollEffectScope])
 
   const sp = scrollProgress
-  useActorRuntime('focusOverlay', overlayData.focused)
 
   // ---- Terminal callbacks ----
   const handleModeChange = useCallback((m: typeof terminalMode) => {
@@ -308,26 +332,10 @@ export default function App() {
         scrollProgress={sp}
         lighthouseImage={lighthouseImage}
         isClickPlaying={isClickPlaying}
-        isFocused={overlayData.focused && sp >= TIMELINE.act3Shift.start}
       />
 
-      {/* 聚焦 SVG 叠加层 */}
-      {overlayData.focused && (
-        <svg className="focus-overlay" width="100%" height="100%">
-          {overlayData.star && (
-            <circle cx={overlayData.star.x} cy={overlayData.star.y} r={overlayData.star.r + 10}
-              fill="none" stroke="#64748b" strokeWidth={1} strokeDasharray="4 6" className="overlay-ring" />
-          )}
-          {overlayData.planet && (
-            <circle cx={overlayData.planet.x} cy={overlayData.planet.y} r={overlayData.planet.r + 8}
-              fill="none" stroke="#64748b" strokeWidth={1} strokeDasharray="4 6" className="overlay-ring" />
-          )}
-          {overlayData.tangents?.map((t: any, i: number) => (
-            <line key={i} x1={t.x1} y1={t.y1} x2={t.x2} y2={t.y2}
-              stroke="#94a3b8" strokeWidth={0.5} className="overlay-line" />
-          ))}
-        </svg>
-      )}
+      {/* 聚焦 HUD 叠加层 */}
+      <FocusHudOverlay />
 
       {/* 页脚 */}
       <footer className="app-footer">
@@ -337,7 +345,12 @@ export default function App() {
         </a>
       </footer>
 
-      {debugMode && <CompositionPanel scrollProgress={sp} />}
+      {debugMode && (
+        <>
+          <FpsMeter />
+          <CompositionPanel scrollProgress={sp} />
+        </>
+      )}
     </>
   )
 }
