@@ -30,7 +30,7 @@ import './App.css'
 
 gsap.registerPlugin(ScrollTrigger)
 
-const SCROLL_VH = 36
+const SCROLL_VH = 80
 const FRICTION = 0.955
 const MAX_VELOCITY = 0.025
 const SCROLL_PROGRESS_EPSILON = 0.000001

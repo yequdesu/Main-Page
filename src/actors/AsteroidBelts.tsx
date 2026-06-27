@@ -47,6 +47,10 @@ function smoothRange(edge0: number, edge1: number, value: number): number {
   return t * t * (3 - 2 * t)
 }
 
+const OUTER_BELT_FADE_IN_SECONDS = 0.08
+const OUTER_BELT_FADE_OUT_HOLD_SECONDS = 0.12
+const OUTER_BELT_FADE_OUT_SECONDS = 0.42
+
 interface AsteroidParticle {
   radius: number
   angle: number
@@ -216,9 +220,11 @@ export default function AsteroidBelts() {
   const pointsRef = useRef(points)
   const outerRevealStartRef = useRef<number | null>(null)
   const outerRevealElapsedRef = useRef<number | null>(null)
+  const outerFadeOutStartRef = useRef<number | null>(null)
   const outerFadeRef = useRef(0)
+  const prevOuterSignalRef = useRef(false)
 
-  useFrame(({ camera, gl, clock }) => {
+  useFrame(({ camera, gl, clock }, delta) => {
     const sp = useScrollStore.getState().scrollProgress
     const innerAlpha = smoothstep(clamped(sp, TIMELINE.act3Shift.start, 1.0))
     const material = pointsRef.current.material as ShaderMaterial
@@ -235,19 +241,32 @@ export default function AsteroidBelts() {
     const centerZ = SCENE_CENTER_Z + 6 * getWindChimeProgress(sp).smoothP
     const time = clock.elapsedTime
     const outerSignal = sp >= 0.998
-    if (outerSignal && outerRevealStartRef.current === null) {
+    const wasOuterSignal = prevOuterSignalRef.current
+    if (outerSignal && !wasOuterSignal) {
       outerRevealStartRef.current = time
       outerRevealElapsedRef.current = 0
     }
     if (outerSignal && outerRevealStartRef.current !== null) {
       outerRevealElapsedRef.current = time - outerRevealStartRef.current
     }
-    outerFadeRef.current += ((outerSignal ? 1 : 0) - outerFadeRef.current) * (outerSignal ? 0.055 : 0.14)
+    if (outerSignal) {
+      outerFadeOutStartRef.current = null
+    } else if (outerFadeOutStartRef.current === null) {
+      outerFadeOutStartRef.current = time
+    }
+
+    const fadeOutElapsed = outerFadeOutStartRef.current === null ? 0 : time - outerFadeOutStartRef.current
+    const fadeTarget = outerSignal || fadeOutElapsed < OUTER_BELT_FADE_OUT_HOLD_SECONDS ? 1 : 0
+    const fadeSeconds = fadeTarget > outerFadeRef.current ? OUTER_BELT_FADE_IN_SECONDS : OUTER_BELT_FADE_OUT_SECONDS
+    const fadeStep = 1 - Math.exp(-delta / fadeSeconds)
+    outerFadeRef.current += (fadeTarget - outerFadeRef.current) * fadeStep
     if (!outerSignal && outerFadeRef.current < 0.002) {
       outerFadeRef.current = 0
       outerRevealStartRef.current = null
       outerRevealElapsedRef.current = null
+      outerFadeOutStartRef.current = null
     }
+    prevOuterSignalRef.current = outerSignal
     const outerRevealTime = outerRevealElapsedRef.current
 
     material.uniforms.uPixelRatio.value = Math.min(2, gl.getPixelRatio())
