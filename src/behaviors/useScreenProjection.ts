@@ -1,6 +1,8 @@
 import { useThree } from '@react-three/fiber'
 import { Vector3, type PerspectiveCamera } from 'three'
 import { SCENE_CENTER_Z } from '../r3f/ScrollRig'
+import { useScrollStore } from '../stores/scrollStore'
+import { getWindChimeProgress } from './useWindChime'
 import { touchActorFrame } from '../composition/actorRuntime'
 import {
   centralStarScreenAnchorId,
@@ -15,12 +17,12 @@ import {
 import type { AnchorInput } from '../composition/anchorStore'
 
 /**
- * useScreenProjection — 将行星世界坐标 + 中央恒星投影到屏幕坐标。
+ * useScreenProjection �?将行星世界坐�?+ 中央恒星投影到屏幕坐标�?
  *
- * 在 Planets.tsx 的 useFrame 中调用 project()。
- * 模块级预分配 Vector3，无额外堆分配。
+ * �?Planets.tsx �?useFrame 中调�?project()�?
+ * 模块级预分配 Vector3，无额外堆分配�?
  *
- * 援引：Three.js Vector3.project() — 官方 API
+ * 援引：Three.js Vector3.project() �?官方 API
  */
 
 const _ndc = new Vector3()
@@ -40,6 +42,7 @@ export function useScreenProjection() {
     const pcam = camera as PerspectiveCamera
     const fovY = (pcam.fov * Math.PI) / 180
     const halfTan = Math.tan(fovY / 2)
+    const wc = getWindChimeProgress(useScrollStore.getState().scrollProgress)
 
     // ---- 行星投影 ----
     const coords: [ScreenPoint, ScreenPoint, ScreenPoint] = [
@@ -74,6 +77,7 @@ export function useScreenProjection() {
     setCoreAnchors(anchorWrites)
 
     // ---- 中央恒星投影 ----
+    CENTRAL_STAR_WORLD.z = SCENE_CENTER_Z + 6 * wc.smoothP
     _ndc.copy(CENTRAL_STAR_WORLD).project(camera)
     const csVisible = _ndc.z < 1
     if (csVisible) {

@@ -10,10 +10,10 @@ import { PLANET_LINKS } from '../types'
 const _projectScratch = new Vector3()
 
 /**
- * PlanetClickHandler — NDC 投影行星点击检测（逐字保留自原 onClickCanvas）。
+ * PlanetClickHandler �?NDC 投影行星点击检测（逐字保留自原 onClickCanvas）�?
  *
- * R3F 默认 raycasting 对 0.015 半径球体不可靠，使用屏幕空间 NDC 投影
- * 匹配原版 Hover 检测逻辑。
+ * R3F 默认 raycasting �?0.015 半径球体不可靠，使用屏幕空间 NDC 投影
+ * 匹配原版 Hover 检测逻辑�?
  *
  * 援引：原 LighthouseScene.vue onClickCanvas():1419-1458
  */
@@ -53,16 +53,16 @@ export default function PlanetClickHandler() {
         const particleIdx = readPlanetParticleIndex(bestPlanetIdx)
         if (particleIdx !== undefined) {
           if (store.focusedPlanetIdx === particleIdx) {
-            // Second click → open URL
+            // Second click �?open URL
             window.open(PLANET_LINKS[bestPlanetIdx].url, '_blank', 'noopener')
           } else {
-            // First click → focus
+            // First click �?focus
             store.setFocusedPlanet(particleIdx)
             store.setFocusStartTime(0) // will be set by DustField useFrame
           }
         }
       } else {
-        // Click missed planets → clear focus
+        // Click missed planets �?clear focus
         if (store.focusedPlanetIdx >= 0) {
           store.clearFocus()
         }

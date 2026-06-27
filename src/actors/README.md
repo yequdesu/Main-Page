@@ -1,12 +1,12 @@
 # actors/
 
-`actors/` 封装可渲染或可交互的场景主体。actor 内部可以继续使用 R3F `useFrame`、GSAP、CSS transition、PBD 或自定义 shader，但跨 actor 的身份、层级、数据读写和副作用生命周期必须通过 `src/composition/` 的 runtime contract 暴露。
+`actors/` 封装可渲染或可交互的场景主体。actor 内部可以继续使用 R3F `useFrame`、GSAP、CSS transition、PBD 或自定义 shader，但�?actor 的身份、层级、数据读写和副作用生命周期必须通过 `src/composition/` �?runtime contract 暴露�?
 
 ## 当前 Actor
 
 | 文件 | 对象类型 | 主要驱动 | Runtime 接入 |
 |---|---|---|---|
-| `Lighthouse.tsx` | 静态 Mesh 组 | scroll group transform | actor + layer |
+| `Lighthouse.tsx` | 静�?Mesh �?| scroll group transform | actor + layer |
 | `LightBeam.tsx` | Cone / Line / Glow / PointLight | scroll + elapsed time | actor + layer + beam anchors |
 | `OceanWaves.tsx` | Line / curtain mesh | scroll + elapsed time + beam anchors | actor + layer + anchor consumer |
 | `DustField.tsx` | Mesh + InstancedMesh2 | scroll + elapsed time | actor + layer |

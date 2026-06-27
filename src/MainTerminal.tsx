@@ -5,14 +5,14 @@ import { getDomLayer } from './composition/layerRegistry'
 import { useActorRuntime } from './composition/actorRuntime'
 
 // ============================================================
-// MainTerminal — MainPage 专属终端封装
+// MainTerminal �?MainPage 专属终端封装
 //
-// 提供：
-//   - 居中底部布局 + 字体 + 尺寸默认值
-//   - welcome / status / command 的 Slot 声明
-//   - / 键激活（MainPage 专属交互）
+// 提供�?
+//   - 居中底部布局 + 字体 + 尺寸默认�?
+//   - welcome / status / command �?Slot 声明
+//   - / 键激活（MainPage 专属交互�?
 //
-// 与 InfoPanelTerminal 对称——均为 TerminalBar 的 thin wrapper。
+// �?InfoPanelTerminal 对称——均�?TerminalBar �?thin wrapper�?
 // ============================================================
 
 const MAIN_LAYOUT = {
@@ -53,7 +53,7 @@ export default function MainTerminal(props: MainTerminalProps) {
     onCommand, onClear, scrollProgress, buildStatusLine, onThemeUpdate, themeKey,
   } = props
 
-  // ---- / 键激活（MainPage 专属） ----
+  // ---- / 键激活（MainPage 专属�?----
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       const tag = (e.target as HTMLElement)?.tagName
@@ -67,7 +67,7 @@ export default function MainTerminal(props: MainTerminalProps) {
     return () => window.removeEventListener('keydown', handler)
   }, [mode, onModeChange])
 
-  // ---- status line getter（跟随 scrollProgress 刷新） ----
+  // ---- status line getter（跟�?scrollProgress 刷新�?----
   const statusLinesRef = useRef<() => string[]>(() => [])
   statusLinesRef.current = () => {
     if (!buildStatusLine || scrollProgress === undefined) return []
@@ -93,7 +93,7 @@ export default function MainTerminal(props: MainTerminalProps) {
     setCommandVer(v => v + 1)
   }, [])
 
-  // ---- echoLines 长度变化 + 命令活跃时 → 触发 autoScrollKey ----
+  // ---- echoLines 长度变化 + 命令活跃�?�?触发 autoScrollKey ----
   const cmdActiveRef = useRef(commandLines.length > 0)
   cmdActiveRef.current = commandLines.length > 0
   useEffect(() => {
@@ -104,7 +104,7 @@ export default function MainTerminal(props: MainTerminalProps) {
 
   const getCommandLines = useCallback(() => cmdLinesRef.current, [])
 
-  // ---- echo 窗口滚动控制（MainPage 专属行为） ----
+  // ---- echo 窗口滚动控制（MainPage 专属行为�?----
   const [echoScrollKey, setEchoScrollKey] = useState(0)
 
   return (

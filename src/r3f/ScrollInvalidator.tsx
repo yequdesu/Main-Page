@@ -19,14 +19,14 @@ function hasTimeDrivenWebgl(sp: number, focusedPlanetIdx: number): boolean {
 }
 
 /**
- * ScrollInvalidator — 桥接 Zustand scrollProgress 到 R3F 渲染循环。
+ * ScrollInvalidator �?桥接 Zustand scrollProgress �?R3F 渲染循环�?
  *
- * 双重职责：
- *   1. frameloop 桥接：subscribe scrollProgress → invalidate()
- *   2. 全局雾/背景更新：sceneApplyWhiteOut 必须每帧调用（不受 Act 可见性限制）
- *   3. 白化过渡环境光增强：原 whiteOutManager.js:28 逐字保留
+ * 双重职责�?
+ *   1. frameloop 桥接：subscribe scrollProgress �?invalidate()
+ *   2. 全局�?背景更新：sceneApplyWhiteOut 必须每帧调用（不�?Act 可见性限制）
+ *   3. 白化过渡环境光增强：�?whiteOutManager.js:28 逐字保留
  *
- * 援引：R3F 官方文档 "Frameloop — demand mode with external state"
+ * 援引：R3F 官方文档 "Frameloop �?demand mode with external state"
  */
 export default function ScrollInvalidator() {
   const { invalidate, scene } = useThree()
@@ -42,7 +42,7 @@ export default function ScrollInvalidator() {
     sceneApplyWhiteOut(scene, sp)
     touchActorFrame('sceneBackground', frameId, true)
 
-    // 白化过渡时环境光逐步增强（原 whiteOutManager.js:28）
+    // 白化过渡时环境光逐步增强（原 whiteOutManager.js:28�?
     if (_ambientLight) {
       const wof = progress('whiteOut', sp)
       _ambientLight.intensity = 1.4 + wof * 3.5

@@ -76,7 +76,7 @@ export const LAYERS = {
   },
   'webgl.windChime': {
     id: 'webgl.windChime',
-    contract: { kind: 'webgl', renderOrder: 9999, depthTest: false, depthWrite: false, transparent: true },
+    contract: { kind: 'webgl', renderOrder: 2, depthTest: true, depthWrite: false, transparent: true },
   },
   'dom.canvas': {
     id: 'dom.canvas',
@@ -113,6 +113,11 @@ export const LAYERS = {
   'svg.planetLabelDebug': {
     id: 'svg.planetLabelDebug',
     contract: { kind: 'svg', zIndex: 8, position: 'fixed', pointerEvents: 'none' },
+  },
+  'dom.lusionAtmosphere': {
+    id: 'dom.lusionAtmosphere',
+    contract: { kind: 'dom', zIndex: 4, position: 'fixed', pointerEvents: 'none' },
+    description: 'Independent Act 3 atmosphere overlay for Lusion particles and Tyndall light shafts.',
   },
   'dom.mainTerminal': {
     id: 'dom.mainTerminal',

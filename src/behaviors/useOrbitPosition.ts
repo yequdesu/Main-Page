@@ -5,14 +5,14 @@ import type { ParticleData } from '../types'
 const _orbitOut = new Vector3()
 
 /**
- * 计算单个粒子在当前帧的轨道位置。
+ * 计算单个粒子在当前帧的轨道位置�?
  *
- * 原 animateDust():633-771 中 per-particle 位置计算逻辑，逐字保留。
- * 纯函数 — 无 Three.js 场景依赖，可直接单测。
+ * �?animateDust():633-771 �?per-particle 位置计算逻辑，逐字保留�?
+ * 纯函�?�?�?Three.js 场景依赖，可直接单测�?
  *
  * @param d        粒子数据
  * @param time     当前时钟时间
- * @param delta    帧间隔
+ * @param delta    帧间�?
  * @param cx,cy,cz 轨道中心（中央恒星位置）
  * @param smooth3  Act 3 过渡进度 [0,1]
  * @returns 世界坐标位置

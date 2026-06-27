@@ -7,10 +7,10 @@ import {
 } from 'three'
 
 /**
- * LighthouseCaptureTypes — 离屏截图可调参数的类型定义 + 默认值 + 纯函数。
+ * LighthouseCaptureTypes �?离屏截图可调参数的类型定�?+ 默认�?+ 纯函数�?
  *
- * 从 LighthouseCapture.tsx 提取。共 17 个可控参数。
- * 用于主应用（默认值行为不变）和 debug 预览面板（Leva 控件覆盖）。
+ * �?LighthouseCapture.tsx 提取。共 17 个可控参数�?
+ * 用于主应用（默认值行为不变）�?debug 预览面板（Leva 控件覆盖）�?
  *
  * 援引：Three.js WebGLRenderer / PerspectiveCamera / Light 配置
  */
@@ -35,18 +35,18 @@ export interface CaptureConfig {
   // ---- 复制位移 ----
   cloneY: number
 
-  // ---- Ambient 光 ----
+  // ---- Ambient �?----
   ambientColor: string
   ambientIntensity: number
 
-  // ---- Key 方向光 ----
+  // ---- Key 方向�?----
   keyColor: string
   keyIntensity: number
   keyX: number
   keyY: number
   keyZ: number
 
-  // ---- Fill 方向光 ----
+  // ---- Fill 方向�?----
   fillColor: string
   fillIntensity: number
   fillX: number
@@ -54,22 +54,22 @@ export interface CaptureConfig {
   fillZ: number
 
   // ---- 剪影 / 轮廓 ----
-  /** 主灯塔渲染：real=真实3D（原始材质+光照）| solid=纯色剪影（无细节） */
+  /** 主灯塔渲染：real=真实3D（原始材�?光照）| solid=纯色剪影（无细节�?*/
   silhouetteType: 'real' | 'solid'
-  /** 轮廓描边：none=不渲染 | silhouette=合并几何体外轮廓 */
+  /** 轮廓描边：none=不渲�?| silhouette=合并几何体外轮廓 */
   outlineType: 'none' | 'silhouette'
   /** 剪影填充色（hex）。night 默认 #0b101d，day 由调用方覆盖 */
   silhouetteFillColor: string
-  /** 描边不透明度，0–1 */
+  /** 描边不透明度，0�? */
   edgeGlowIntensity: number
   /** 描边颜色（hex），默认白色 */
   edgeGlowColor: string
-  /** 描边粗细，1–10，对应外扩百分比。默认 4 */
+  /** 描边粗细�?�?0，对应外扩百分比。默�?4 */
   edgeGlowThickness: number
 }
 
 // ============================================================
-// 默认值（与当前 LighthouseCapture.tsx 硬编码值严格一致）
+// 默认值（与当�?LighthouseCapture.tsx 硬编码值严格一致）
 // ============================================================
 
 export const DEFAULT_CAPTURE_CONFIG: CaptureConfig = {
@@ -104,16 +104,16 @@ export const DEFAULT_CAPTURE_CONFIG: CaptureConfig = {
 }
 
 // ============================================================
-// 2D 边缘描边（纯 Canvas 后处理，不依赖 3D 光照）
+// 2D 边缘描边（纯 Canvas 后处理，不依�?3D 光照�?
 // ============================================================
 
 /**
- * 对透明背景 PNG 的 alpha 通道做边缘检测，在最外层轮廓上绘制描边。
+ * 对透明背景 PNG �?alpha 通道做边缘检测，在最外层轮廓上绘制描边�?
  *
- * 算法：
- *   1. 找到 alpha>0 且邻接 alpha=0 的像素 → 外轮廓边缘
- *   2. 按 thickness 做形态学膨胀
- *   3. 以 edgeGlowColor + edgeGlowIntensity 绘制描边像素
+ * 算法�?
+ *   1. 找到 alpha>0 且邻�?alpha=0 的像�?�?外轮廓边�?
+ *   2. �?thickness 做形态学膨胀
+ *   3. �?edgeGlowColor + edgeGlowIntensity 绘制描边像素
  *
  * @returns 描边后的 dataURL
  */
@@ -134,13 +134,13 @@ function applyEdgeStroke(
   const imageData = ctx.getImageData(0, 0, w, h)
   const data = imageData.data
 
-  // ---- 边缘检测：alpha>0 且任意邻居 alpha=0 ----
+  // ---- 边缘检测：alpha>0 且任意邻�?alpha=0 ----
   const edge = new Uint8Array(w * h)
   for (let y = 1; y < h - 1; y++) {
     for (let x = 1; x < w - 1; x++) {
       const i = (y * w + x) * 4
       if (data[i + 3] === 0) continue
-      // 检查 4-邻域
+      // 检�?4-邻域
       if (
         data[((y - 1) * w + x) * 4 + 3] === 0 ||
         data[((y + 1) * w + x) * 4 + 3] === 0 ||
@@ -152,7 +152,7 @@ function applyEdgeStroke(
     }
   }
 
-  // ---- 形态学膨胀（thickness 次迭代，每次外扩 1px） ----
+  // ---- 形态学膨胀（thickness 次迭代，每次外扩 1px�?----
   const dilated = new Uint8Array(w * h)
   dilated.set(edge)
   for (let t = 1; t < Math.round(thickness); t++) {
@@ -190,15 +190,15 @@ function applyEdgeStroke(
 }
 
 // ============================================================
-// 离屏截图纯函数
+// 离屏截图纯函�?
 // ============================================================
 
 /**
- * 根据 CaptureConfig 在离屏画布上执行一次渲染并返回 dataURL。
+ * 根据 CaptureConfig 在离屏画布上执行一次渲染并返回 dataURL�?
  *
- * 原 LighthouseCapture.tsx 中 useCallback 内联逻辑的参数化版本。
- * 调用者负责传入 lighthouseGroup 引用（主应用用 _lighthouseGroupRef，
- * 预览面板用独立 ref）。
+ * �?LighthouseCapture.tsx �?useCallback 内联逻辑的参数化版本�?
+ * 调用者负责传�?lighthouseGroup 引用（主应用�?_lighthouseGroupRef�?
+ * 预览面板用独�?ref）�?
  *
  * @returns PNG dataURL，失败时返回 null
  */
@@ -212,7 +212,7 @@ export function offscreenCapture(
   }
 
   try {
-    // ---- 独立渲染器 ----
+    // ---- 独立渲染�?----
     const offRenderer = new WebGLRenderer({
       alpha: true,
       antialias: config.antialias,
@@ -226,7 +226,7 @@ export function offscreenCapture(
     const clone = lighthouseGroup.clone(true)
     clone.position.set(0, config.cloneY, 0)
     clone.scale.copy(lighthouseGroup.scale)
-    // 强制可见（源 group 可能被 useFrame 设为 visible=false）
+    // 强制可见（源 group 可能�?useFrame 设为 visible=false�?
     clone.traverse((c) => { c.visible = true })
 
     // solid 剪影：主灯塔替换为纯色，保留窗户黄色发光
@@ -239,7 +239,7 @@ export function offscreenCapture(
       })
       clone.traverse((child) => {
         if (!(child instanceof Mesh)) return
-        // 保留窗户发光（BoxGeometry + MeshBasicMaterial #ffdf6d + 非透明）
+        // 保留窗户发光（BoxGeometry + MeshBasicMaterial #ffdf6d + 非透明�?
         const mat = child.material
         if (
           mat instanceof MeshBasicMaterial &&
@@ -280,8 +280,8 @@ export function offscreenCapture(
     // ---- 渲染 & 捕获 ----
     offRenderer.render(tempScene, capCam)
 
-    // ---- 合成：灯塔（居中渲染）贴左 + base-line + 统一描边 ----
-    // mask 屏幕宽度（世界 2×0.91 / halfW × captureW）
+    // ---- 合成：灯塔（居中渲染）贴�?+ base-line + 统一描边 ----
+    // mask 屏幕宽度（世�?2×0.91 / halfW × captureW�?
     const _aspect = config.captureW / config.captureH
     const _halfH = config.cameraZ * Math.tan((config.cameraFov * Math.PI) / 180 / 2)
     const _halfW = _halfH * _aspect
@@ -293,12 +293,12 @@ export function offscreenCapture(
     composite.height = config.captureH
     const ctx = composite.getContext('2d')!
 
-    // 源 canvas 中 lighthouse 居中区域 → 贴到合成 canvas 左侧 x=0
+    // �?canvas �?lighthouse 居中区域 �?贴到合成 canvas 左侧 x=0
     const srcCenterX = Math.round(config.captureW / 2)
     const srcX = srcCenterX - Math.round(_maskScreenW / 2)
     ctx.drawImage(offRenderer.domElement, srcX, 0, _maskScreenW, config.captureH, 0, 0, _maskScreenW, config.captureH)
 
-    // base-line 从 mask 右边缘 −50px 起，至合成 canvas 右边缘
+    // base-line �?mask 右边�?�?0px 起，至合�?canvas 右边�?
     const strokePad = Math.max(Math.round(config.edgeGlowThickness * 2), 8)
     const slope = (1.3 - 0.75) / 1.6  // 遮罩侧边斜率
     const lineHeight = 75
@@ -313,7 +313,7 @@ export function offscreenCapture(
     ctx.moveTo(lineLeft, lineBottomY)
     ctx.lineTo(lineRight, lineBottomY)
     ctx.lineTo(lineRight - inset, lineTopY)
-    ctx.lineTo(lineLeft, lineTopY)  // 左侧直角，贴合 mask 剪影
+    ctx.lineTo(lineLeft, lineTopY)  // 左侧直角，贴�?mask 剪影
     ctx.closePath()
     ctx.fill()
 

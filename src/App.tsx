@@ -17,6 +17,7 @@ import BrandTitle from './actors/BrandTitle'
 import CompositionPanel from './composition/debug/CompositionPanel'
 import FpsMeter from './composition/debug/FpsMeter'
 import FocusHudOverlay from './actors/FocusHudOverlay'
+import LusionAtmosphereOverlay from './actors/LusionAtmosphereOverlay'
 import { registerCoreActors } from './composition/coreActors'
 import { registerCoreSequences } from './composition/coreSequences'
 import { resetSequence, useSignal } from './composition/sequenceStore'
@@ -29,20 +30,50 @@ import './App.css'
 
 gsap.registerPlugin(ScrollTrigger)
 
-const SCROLL_VH = 25
+const SCROLL_VH = 36
 const FRICTION = 0.955
 const MAX_VELOCITY = 0.025
 const SCROLL_PROGRESS_EPSILON = 0.000001
 const SCROLL_Y_EPSILON = 0.5
 
+const RAW_ACT1_END = 0.30
+const RAW_ACT2_END = 0.70
+const SCENE_ACT1_END = TIMELINE.act1OceanVoyage.end
+const SCENE_ACT2_END = TIMELINE.act2GridTransition.end
+
+function lerpRange(value: number, inStart: number, inEnd: number, outStart: number, outEnd: number): number {
+  const t = Math.max(0, Math.min(1, (value - inStart) / (inEnd - inStart)))
+  return outStart + (outEnd - outStart) * t
+}
+
+function rawToSceneProgress(raw: number): number {
+  if (raw <= RAW_ACT1_END) {
+    return lerpRange(raw, 0, RAW_ACT1_END, 0, SCENE_ACT1_END)
+  }
+  if (raw <= RAW_ACT2_END) {
+    return lerpRange(raw, RAW_ACT1_END, RAW_ACT2_END, SCENE_ACT1_END, SCENE_ACT2_END)
+  }
+  return lerpRange(raw, RAW_ACT2_END, 1, SCENE_ACT2_END, 1)
+}
+
+function sceneToRawProgress(scene: number): number {
+  if (scene <= SCENE_ACT1_END) {
+    return lerpRange(scene, 0, SCENE_ACT1_END, 0, RAW_ACT1_END)
+  }
+  if (scene <= SCENE_ACT2_END) {
+    return lerpRange(scene, SCENE_ACT1_END, SCENE_ACT2_END, RAW_ACT1_END, RAW_ACT2_END)
+  }
+  return lerpRange(scene, SCENE_ACT2_END, 1, RAW_ACT2_END, 1)
+}
+
 /**
- * App 根组件 — GSAP ScrollTrigger + 滚动物理 + DOM 叠加层。
+ * App 根组�?�?GSAP ScrollTrigger + 滚动物理 + DOM 叠加层�?
  *
- * 原 App.vue 逻辑迁移：onWheel, onClick, ScrollTrigger, GSAP ticker。
+ * �?App.vue 逻辑迁移：onWheel, onClick, ScrollTrigger, GSAP ticker�?
  *
- * 援引：
- *   Codrops 2025 — GSAP ScrollTrigger + R3F 混合
- *   @gsap/react useGSAP — 自动 cleanup
+ * 援引�?
+ *   Codrops 2025 �?GSAP ScrollTrigger + R3F 混合
+ *   @gsap/react useGSAP �?自动 cleanup
  */
 export default function App() {
   useEffect(() => {
@@ -61,7 +92,7 @@ export default function App() {
   const scrollEffectScope = useEffectScope('appScroll')
   const signalAct3 = useSignal('act3.entry')
 
-  // ---- Physics state (refs — no re-render) ----
+  // ---- Physics state (refs �?no re-render) ----
   const physRef = useRef({ target: 0, velocity: 0, lastScrollbar: 0, lastPhysics: 0, active: true })
   const clickTweenRef = useRef<gsap.core.Tween | null>(null)
   const lighthouseCapturedRef = useRef(false)
@@ -70,7 +101,7 @@ export default function App() {
   const isAct3FocusedRef = useRef(false)
   const scrollProgressRef = useRef(0)
 
-  // ---- UI state (React — triggers re-render) ----
+  // ---- UI state (React �?triggers re-render) ----
   const [isClickPlaying, setIsClickPlaying] = useState(false)
   const [lighthouseImage, setLighthouseImage] = useState<string | null>(null)
   const isTerminalActive = terminalMode === 'active'
@@ -78,17 +109,17 @@ export default function App() {
   scrollProgressRef.current = scrollProgress
 
   // ---- Act visibility ----
-  // Act 1 扩展到 GRID_SHIFT_START(0.85)：波浪展平后需与 Act2 竖线共存形成网格，
+  // Act 1 扩展�?GRID_SHIFT_START(0.85)：波浪展平后需�?Act2 竖线共存形成网格�?
   // Act3 开始后波浪自行通过 gridOpacityMult 淡出
   const needsAct1 = (sp: number) => sp < TIMELINE.act3Shift.start + 0.01
   const needsAct2 = (sp: number) => sp >= TIMELINE.whiteOut.start - 0.01
   const needsAct3 = (sp: number) => sp >= TIMELINE.act3Shift.start - 0.01
 
   // ---- syncScrollbar ----
-  const syncScrollbar = useCallback((target = physRef.current.target) => {
+  const syncScrollbar = useCallback((targetScene = rawToSceneProgress(physRef.current.target)) => {
     const h = document.body.scrollHeight - window.innerHeight
     if (h <= 0) return false
-    const y = target * h
+    const y = sceneToRawProgress(targetScene) * h
     if (Math.abs(window.scrollY - y) < SCROLL_Y_EPSILON) return false
     window.scrollTo(0, y)
     return true
@@ -108,7 +139,7 @@ export default function App() {
         physRef.current.lastScrollbar = performance.now()
         physRef.current.velocity = 0
         physRef.current.target = self.progress
-        setScrollProgress(self.progress)
+        setScrollProgress(rawToSceneProgress(self.progress))
       },
     })
 
@@ -141,8 +172,9 @@ export default function App() {
       const targetChanged = Math.abs(p.target - previousTarget) > SCROLL_PROGRESS_EPSILON
       if (!targetChanged && p.velocity === 0) return
 
-      setScrollProgress(p.target)
-      syncScrollbar(p.target)
+      const sceneTarget = rawToSceneProgress(p.target)
+      setScrollProgress(sceneTarget)
+      syncScrollbar(sceneTarget)
     }
     gsap.ticker.add(ticker)
     return () => { gsap.ticker.remove(ticker) }
@@ -197,8 +229,9 @@ export default function App() {
       ease: 'power2.inOut',
       onUpdate: () => {
         physRef.current.target = tweenObj.val
-        setScrollProgress(tweenObj.val)
-        syncScrollbar(tweenObj.val)
+        const sceneTarget = rawToSceneProgress(tweenObj.val)
+        setScrollProgress(sceneTarget)
+        syncScrollbar(sceneTarget)
       },
       onComplete: () => {
         setIsClickPlaying(false)
@@ -292,6 +325,8 @@ export default function App() {
         <Act3ContentPhase visible={needsAct3(sp)} />
       </SceneCanvas>
 
+      <LusionAtmosphereOverlay />
+
       <MainTerminal
         mode={terminalMode}
         echoLines={echoLines}
@@ -306,10 +341,10 @@ export default function App() {
         onCommand={handleCommand}
       />
 
-      {/* Info Panel Terminal — 仅 Act 3 (ContentPhase) 渲染 */}
+      {/* Info Panel Terminal �?�?Act 3 (ContentPhase) 渲染 */}
       {needsAct3(sp) && <InfoPanelTerminal />}
 
-      {/* Planet Labels — 仅 Act 3 可见，组件不卸载 */}
+      {/* Planet Labels �?�?Act 3 可见，组件不卸载 */}
       {needsAct3(sp) && (
         <FloatingLabels
           configs={labelConfigs}
@@ -327,21 +362,21 @@ export default function App() {
         />
       )}
 
-      {/* 品牌标题（Act 2-3） */}
+      {/* 品牌标题（Act 2-3�?*/}
       <BrandTitle
         scrollProgress={sp}
         lighthouseImage={lighthouseImage}
         isClickPlaying={isClickPlaying}
       />
 
-      {/* 聚焦 HUD 叠加层 */}
+      {/* 聚焦 HUD 叠加�?*/}
       <FocusHudOverlay />
 
       {/* 页脚 */}
       <footer className="app-footer">
         <span>&copy; 2025 YeQuDesu · </span>
         <a href="https://beian.miit.gov.cn/" target="_blank" rel="noopener">
-          闽ICP备2026019172号-1
+          闽ICP�?026019172�?1
         </a>
       </footer>
 

@@ -201,6 +201,26 @@ export const CORE_ACTORS: ActorSpec[] = [
     consumes: ['anchor.focusOverlay.geometry'],
     interaction: { pointer: 'none' },
   },
+  {
+    id: 'lusionAtmosphereOverlay',
+    domain: 'dom',
+    layer: 'dom.lusionAtmosphere',
+    lifecycle: { mount: 'always', activeWhen: 'timeline.act3Shift.active', dispose: 'auto' },
+    timing: { clocks: ['scroll', 'elapsedTime', 'delta'], ranges: ['act3Shift'] },
+    frame: { phase: 'dom.apply', after: ['projection'] },
+    consumes: [
+      'scroll.sp',
+      'clock.elapsedTime',
+      'clock.delta',
+      'theme.dayNight',
+      'anchor.centralStar.screen',
+      'anchor.planet.*.screen',
+      'anchor.planet.*.screenRadius',
+    ],
+    produces: ['realtime.tyndallLightShafts'],
+    interaction: { pointer: 'none' },
+    effects: { ownsRaf: true, cancelOnUnmount: true },
+  },
 ]
 
 export function registerCoreActors(): void {

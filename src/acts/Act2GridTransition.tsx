@@ -5,7 +5,7 @@ import { useScrollStore } from '../stores/scrollStore'
 import { useFrameCache } from '../behaviors/useFrameCache'
 
 /**
- * Act 2 "GridTransition" — 网格过渡。
+ * Act 2 "GridTransition" �?网格过渡�?
  *
  * 组装：GridLines
  * 援引：R3F visible prop 模式
@@ -21,7 +21,7 @@ const Act2GridTransition = memo(function Act2GridTransition({ visible }: Act2Pro
     if (!visible) return
     const sp = useScrollStore.getState().scrollProgress
     if (shouldSkipSp(sp)) return
-    // GridLines has its own useFrame — this is for coordination
+    // GridLines has its own useFrame �?this is for coordination
   })
 
   return (

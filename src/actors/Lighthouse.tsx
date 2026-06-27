@@ -1,36 +1,71 @@
 import { useRef, useEffect } from 'react'
 import { useFrame } from '@react-three/fiber'
-import { type Group } from 'three'
-import { SCENE_CENTER_Z } from '../r3f/ScrollRig'
+import { AdditiveBlending, Mesh, Material, type Group } from 'three'
+import { clamped, SCENE_CENTER_Z, smoothstep } from '../r3f/ScrollRig'
 import { useScrollStore } from '../stores/scrollStore'
 import { TIMELINE } from '../composition/timeline'
 
-// Module-level ref — shared with LighthouseCapture for offscreen rendering
+// Module-level ref �?shared with LighthouseCapture for offscreen rendering
 export let _lighthouseGroupRef: Group | null = null
 
 /**
- * 灯塔 — 从 buildLighthouse() 声明式迁移。
+ * 灯塔 �?�?buildLighthouse() 声明式迁移�?
  *
- * 原 LighthouseScene.vue:267-366 的 30 个 Mesh 逐行转为 R3F JSX。
- * 所有 position / rotation / scale 值逐字保留。
+ * �?LighthouseScene.vue:267-366 �?30 �?Mesh 逐行转为 R3F JSX�?
+ * 所�?position / rotation / scale 值逐字保留�?
  *
- * 白化完成 (sp≥WHITE_OUT_END) 后隐藏，与背景白化同步。
+ * 白化完成 (sp≥WHITE_OUT_END) 后隐藏，与背景白化同步�?
  *
- * 援引：R3F 声明式场景图 — pmndrs 官方 Getting Started
+ * 援引：R3F 声明式场景图 �?pmndrs 官方 Getting Started
  */
 export default function Lighthouse() {
   const groupRef = useRef<Group>(null)
+  const materialsRef = useRef<Material[]>([])
+  const meshesRef = useRef<Mesh[]>([])
 
   useEffect(() => {
     _lighthouseGroupRef = groupRef.current
+    const materials: Material[] = []
+    const meshes: Mesh[] = []
+    groupRef.current?.traverse((child) => {
+      if (!(child instanceof Mesh)) return
+      child.userData.lighthouseBaseRenderOrder = child.renderOrder
+      meshes.push(child)
+      const childMaterials = Array.isArray(child.material) ? child.material : [child.material]
+      for (const material of childMaterials) {
+        if (!materials.includes(material)) {
+          material.userData.lighthouseBaseOpacity = material.opacity
+          material.userData.lighthouseBaseTransparent = material.transparent
+          material.userData.lighthouseBaseDepthWrite = material.depthWrite
+          materials.push(material)
+        }
+      }
+    })
+    materialsRef.current = materials
+    meshesRef.current = meshes
     return () => { _lighthouseGroupRef = null }
   }, [])
 
-  // 白化过渡后隐藏灯塔 — sp ≥ 0.55 时 visible=false
+  // 白化过渡后隐藏灯�?�?sp �?0.55 �?visible=false
   useFrame(() => {
     const sp = useScrollStore.getState().scrollProgress
     if (groupRef.current) {
-      groupRef.current.visible = sp < TIMELINE.whiteOut.end
+      const fadeOut = smoothstep(clamped(sp, TIMELINE.whiteOut.start, TIMELINE.whiteOut.end))
+      const visibleOpacity = 1 - fadeOut
+      groupRef.current.visible = visibleOpacity > 0.015
+      for (const mesh of meshesRef.current) {
+        const baseRenderOrder = mesh.userData.lighthouseBaseRenderOrder ?? 0
+        mesh.renderOrder = visibleOpacity < 0.999 ? -20 : baseRenderOrder
+      }
+      for (const material of materialsRef.current) {
+        const baseOpacity = material.userData.lighthouseBaseOpacity ?? 1
+        const baseTransparent = material.userData.lighthouseBaseTransparent ?? material.transparent
+        const baseDepthWrite = material.userData.lighthouseBaseDepthWrite ?? material.depthWrite
+        material.opacity = baseOpacity * visibleOpacity
+        material.transparent = baseTransparent || visibleOpacity < 0.999
+        material.depthWrite = fadeOut > 0.68 ? false : baseDepthWrite
+        material.needsUpdate = true
+      }
     }
   })
 
@@ -40,13 +75,13 @@ export default function Lighthouse() {
       position={[0, -2.5, SCENE_CENTER_Z]}
       scale={0.7}
     >
-      {/* 地基 — 材质与塔身一致 */}
+      {/* 地基 �?材质与塔身一�?*/}
       <mesh position={[0, -0.9, 0]}>
         <cylinderGeometry args={[0.7, 0.7, 1.4, 16]} />
         <meshStandardMaterial color="#4d535c" roughness={0.5} metalness={0.1} />
       </mesh>
 
-      {/* 遮罩 — 不透明 */}
+      {/* 遮罩 �?不透明 */}
       <mesh position={[0, -0.95, 0]}>
         <cylinderGeometry args={[0.75, 1.3, 1.6, 16]} />
         <meshBasicMaterial color="#050811" />
@@ -58,7 +93,7 @@ export default function Lighthouse() {
         <meshStandardMaterial color="#40454f" roughness={0.9} />
       </mesh>
 
-      {/* 过渡环 */}
+      {/* 过渡�?*/}
       <mesh position={[0, 0.12, 0]} rotation={[0, 0, 0]}>
         <cylinderGeometry args={[0.42, 0.55, 0.12, 16]} />
         <meshStandardMaterial color="#252930" roughness={0.8} />
@@ -70,7 +105,7 @@ export default function Lighthouse() {
         <meshStandardMaterial color="#4d535c" roughness={0.5} metalness={0.1} />
       </mesh>
 
-      {/* 装饰带 */}
+      {/* 装饰�?*/}
       <mesh position={[0, 0.6, 0]} rotation={[Math.PI / 2, 0, 0]}>
         <torusGeometry args={[0.27, 0.022, 8, 20]} />
         <meshStandardMaterial color="#7a828f" roughness={0.6} />
@@ -110,13 +145,13 @@ export default function Lighthouse() {
         <meshStandardMaterial color="#252930" roughness={0.8} />
       </mesh>
 
-      {/* 平台板 */}
+      {/* 平台�?*/}
       <mesh position={[0, 2.67, 0]}>
         <cylinderGeometry args={[0.35, 0.35, 0.03, 16]} />
         <meshStandardMaterial color="#1b1f26" roughness={0.4} metalness={0.8} />
       </mesh>
 
-      {/* 栏杆组 */}
+      {/* 栏杆�?*/}
       <group position={[0, 2.68, 0]}>
         <mesh rotation={[Math.PI / 2, 0, 0]} position={[0, 0.15, 0]}>
           <torusGeometry args={[0.33, 0.008, 6, 24]} />
@@ -133,13 +168,13 @@ export default function Lighthouse() {
         })}
       </group>
 
-      {/* 灯座框 */}
+      {/* 灯座�?*/}
       <mesh position={[0, 2.74, 0]}>
         <cylinderGeometry args={[0.24, 0.24, 0.06, 16]} />
         <meshStandardMaterial color="#1b1f26" roughness={0.4} metalness={0.8} />
       </mesh>
 
-      {/* 玻璃罩 */}
+      {/* 玻璃�?*/}
       <mesh position={[0, 2.96, 0]}>
         <cylinderGeometry args={[0.21, 0.21, 0.44, 16, 1, true]} />
         <meshStandardMaterial
@@ -155,12 +190,21 @@ export default function Lighthouse() {
       </mesh>
 
       {/* 灯泡 */}
-      <mesh position={[0, 2.96, 0]}>
-        <sphereGeometry args={[0.07, 12, 12]} />
-        <meshBasicMaterial color="#ffdf6d" transparent opacity={0.55} depthWrite={false} fog />
-      </mesh>
+      <group position={[0, 2.96, 0]}>
+        <mesh>
+          <sphereGeometry args={[0.095, 20, 14]} />
+          <meshBasicMaterial
+            color="#ffffff"
+            transparent
+            opacity={0.95}
+            depthWrite={false}
+            blending={AdditiveBlending}
+            fog
+          />
+        </mesh>
+      </group>
 
-      {/* 玻璃框架柱 ×6 */}
+      {/* 玻璃框架�?×6 */}
       {Array.from({ length: 6 }, (_, i) => {
         const a = (i / 6) * Math.PI * 2
         return (
@@ -171,7 +215,7 @@ export default function Lighthouse() {
         )
       })}
 
-      {/* 屋顶板 */}
+      {/* 屋顶�?*/}
       <mesh position={[0, 3.18, 0]}>
         <cylinderGeometry args={[0.24, 0.24, 0.04, 16]} />
         <meshStandardMaterial color="#1b1f26" roughness={0.4} metalness={0.8} />
@@ -189,7 +233,7 @@ export default function Lighthouse() {
         <meshStandardMaterial color="#1b1f26" roughness={0.4} metalness={0.8} />
       </mesh>
 
-      {/* 黄铜球 */}
+      {/* 黄铜�?*/}
       <mesh position={[0, 3.47, 0]}>
         <sphereGeometry args={[0.035, 12, 12]} />
         <meshStandardMaterial color="#e5c158" roughness={0.2} metalness={0.9} />

@@ -10,13 +10,13 @@ import type { ReactNode } from 'react'
 import './TerminalBar.css'
 
 // ============================================================
-// TerminalBar — 纯抽象容器引擎
+// TerminalBar �?纯抽象容器引�?
 //
-// 不提供 welcome text、status line、placement、size 的默认值。
-// 内容仅通过 Slot children（Welcome/Section/ContentLine）进入。
-// 内置唯一激活方式：click to toggle。
+// 不提�?welcome text、status line、placement、size 的默认值�?
+// 内容仅通过 Slot children（Welcome/Section/ContentLine）进入�?
+// 内置唯一激活方式：click to toggle�?
 // onPlayEcho / onClearEcho 由消费方（MainTerminal）提供，命令
-// 输出通过声明式 Section slot 走统一 Slot 管线。
+// 输出通过声明�?Section slot 走统一 Slot 管线�?
 // ============================================================
 
 interface TerminalBarText {
@@ -56,9 +56,9 @@ export interface TerminalBarControlledState {
 export interface TerminalBarCommandConfig {
   onCommand?: (input: string) => string
   onClear?: () => void
-  /** 命令输出回调 — 消费方提供，将 lines 写入自己的 Section slot */
+  /** 命令输出回调 �?消费方提供，�?lines 写入自己�?Section slot */
   onPlayEcho?: (lines: string[]) => void
-  /** 清屏回调 — 消费方清除自己的命令 Section slot */
+  /** 清屏回调 �?消费方清除自己的命令 Section slot */
   onClearEcho?: () => void
 }
 
@@ -68,19 +68,19 @@ export interface TerminalBarProps {
   animation?: TerminalBarAnimation
   behavior?: TerminalBarBehavior
   className?: string
-  /** 视觉变体 — glass（默认，毛玻璃）/ transparent（半透明无 blur）/ minimal（无背景） */
+  /** 视觉变体 �?glass（默认，毛玻璃）/ transparent（半透明�?blur�? minimal（无背景�?*/
   variant?: 'glass' | 'transparent' | 'minimal' | 'label'
 
-  /** 受控状态 — mode / echoLines / inputValue */
+  /** 受控状�?�?mode / echoLines / inputValue */
   state?: TerminalBarControlledState
-  /** 命令配置 — onCommand / onClear / onPlayEcho / onClearEcho */
+  /** 命令配置 �?onCommand / onClear / onPlayEcho / onClearEcho */
   commands?: TerminalBarCommandConfig
 
-  /** 变化时 Scrollable 自动滚到底部 — 消费方（MainTerminal）主动触发 */
+  /** 变化�?Scrollable 自动滚到底部 �?消费方（MainTerminal）主动触�?*/
   autoScrollKey?: number
   scrollProgress?: number
   onThemeUpdate?: (sp: number) => Record<string, string>
-  /** 主题切换时递增 → TerminalBar 立即重绘 --tw-* inline style */
+  /** 主题切换时递增 �?TerminalBar 立即重绘 --tw-* inline style */
   themeKey?: number
   children?: ReactNode
 }
@@ -118,13 +118,13 @@ export default function TerminalBar(props: TerminalBarProps) {
   const [cursorBlinkKey, setCursorBlinkKey] = useState(0)
 
   useEffect(() => { if (controlledMode !== undefined) setMode(controlledMode) }, [controlledMode])
-  // store → local：仅首次激活时同步（不再每键回写，避免游标被重置）
+  // store �?local：仅首次激活时同步（不再每键回写，避免游标被重置）
   useEffect(() => {
     if (mode === 'active' && controlledInputValue !== undefined && controlledInputValue !== '') {
       setInputValue(controlledInputValue)
     }
   }, [mode])
-  // local → store：退出 active 时持久化
+  // local �?store：退�?active 时持久化
   const prevModeRef = useRef(mode)
   useEffect(() => {
     if (prevModeRef.current === 'active' && mode !== 'active') {
@@ -149,7 +149,7 @@ export default function TerminalBar(props: TerminalBarProps) {
     setSelectionRange({ start, end })
   }, [mode, inputValue])
 
-  // 同步视觉游标位置到 hidden input 的 selectionStart
+  // 同步视觉游标位置�?hidden input �?selectionStart
   const syncSelectionState = useCallback(() => {
     const el = hiddenInputRef.current
     if (!el) return
@@ -219,7 +219,7 @@ export default function TerminalBar(props: TerminalBarProps) {
   useEffect(() => { if (mode === 'active' && hiddenInputRef.current) hiddenInputRef.current.focus() }, [mode])
   useEffect(() => { if (mode !== 'active') setHasFocus(false) }, [mode])
 
-  // Typewriter+exitGap 完成后，mode typing → idle
+  // Typewriter+exitGap 完成后，mode typing �?idle
   useEffect(() => {
     if (slotOrch?.isTypewriterDone && mode === 'typing') {
       setMode('idle')
@@ -276,8 +276,8 @@ export default function TerminalBar(props: TerminalBarProps) {
 
   const renderOverlay = useCallback(({ canScrollUp, canScrollDown }: ScrollOverlayState) => (
     <>
-      <span className={`echo-scroll-up${canScrollUp ? ' visible' : ''}`} aria-hidden="true">{'▲'}</span>
-      <span className={`echo-scroll-down${canScrollDown ? ' visible' : ''}`} aria-hidden="true">{'▼'}</span>
+      <span className={`echo-scroll-up${canScrollUp ? ' visible' : ''}`} aria-hidden="true">{'█'}</span>
+      <span className={`echo-scroll-down${canScrollDown ? ' visible' : ''}`} aria-hidden="true">{'█'}</span>
     </>
   ), [])
 

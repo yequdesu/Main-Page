@@ -21,10 +21,10 @@ import { usePhaseAtOrAfter, useSignal } from '../composition/sequenceStore'
 import './FloatingLabels.css'
 
 /**
- * FloatingLabels — 行星标签 DOM 编排容器（PBD 物理驱动）。
+ * FloatingLabels �?行星标签 DOM 编排容器（PBD 物理驱动）�?
  *
- * 通过 useFloatingLabels 管理 3 个 Pill 的 PBD 物理位置。
- * 折叠态 label 在 typewriter 动画结束后自动收缩宽度至适配 welcome-text。
+ * 通过 useFloatingLabels 管理 3 �?Pill �?PBD 物理位置�?
+ * 折叠�?label �?typewriter 动画结束后自动收缩宽度至适配 welcome-text�?
  *
  * 援引：Müller et al. (2007) "Position Based Dynamics"
  */
@@ -136,9 +136,9 @@ const FloatingLabels = memo(function FloatingLabels(props: FloatingLabelsProps) 
     usePhaseAtOrAfter('labelReveal', 'label2'),
   ] as const
 
-  // ---- 折叠态 typewriter 完成后自收缩宽度 ----
-  // DOM 实时测量：读 <span> 的 getBoundingClientRect，比 Canvas measureText
-  // 更准确（不受浏览器字体引擎差异影响）。Canvas 仅作 fallback。
+  // ---- 折叠�?typewriter 完成后自收缩宽度 ----
+  // DOM 实时测量：读 <span> �?getBoundingClientRect，比 Canvas measureText
+  // 更准确（不受浏览器字体引擎差异影响）。Canvas 仅作 fallback�?
   const pillRefs = useRef<Record<number, HTMLDivElement | null>>({})
 
   const [labelLayouts, dispatchLabelLayout] = useReducer(labelLayoutReducer, {})
@@ -184,16 +184,16 @@ const FloatingLabels = memo(function FloatingLabels(props: FloatingLabelsProps) 
         signalLabelReveal('label2Done')
         signalAct3('allLabelsTyped')
       }
-      // 折叠态 typewriter 完成 → DOM 实测 welcome-text 渲染宽度
+      // 折叠�?typewriter 完成 �?DOM 实测 welcome-text 渲染宽度
       if (activeTrackIdx < 0) {
         effectScope.requestAnimationFrame(() => {
           const pill = pillRefs.current[trackIdx]
           if (!pill) return
-          // 读 <span> 的实际渲染宽度（getBoundingClientRect 跨浏览器一致）
+          // �?<span> 的实际渲染宽度（getBoundingClientRect 跨浏览器一致）
           const echoEl = pill.querySelector('.terminal-echo') as HTMLElement | null
           const firstSpan = echoEl?.firstElementChild as HTMLElement | null
           const domW = firstSpan ? firstSpan.getBoundingClientRect().width : 0
-          // Canvas fallback：使用元素实际 computed font，消除浏览器字体引擎差异
+          // Canvas fallback：使用元素实�?computed font，消除浏览器字体引擎差异
           const measuredW = domW > 0 ? domW : (() => {
             const canvas = document.createElement('canvas')
             const ctx = canvas.getContext('2d')!
@@ -201,7 +201,7 @@ const FloatingLabels = memo(function FloatingLabels(props: FloatingLabelsProps) 
               : "0.58rem 'SF Mono', 'Fira Code', 'Cascadia Code', 'Consolas', monospace"
             return ctx.measureText(configs[trackIdx].planetLink.label).width
           })()
-          // 文本宽度 + 左右 padding（6px × 2）+ 圆角余量
+          // 文本宽度 + 左右 padding�?px × 2�? 圆角余量
           const fitW = Math.max(24, Math.min(collapsedWidth, Math.ceil(measuredW + 18)))
           dispatchLabelLayout({ type: 'visualFit', trackIdx, width: fitW })
           effectScope.clearTimer(pbdDelayTimers.current[trackIdx])
@@ -220,7 +220,7 @@ const FloatingLabels = memo(function FloatingLabels(props: FloatingLabelsProps) 
     if (mode === 'active') handlePillClick(trackIdx)
   }, [handlePillClick, activeTrackIdx, configs, collapsedWidth, effectScope, signalAct3, signalLabelReveal])
 
-  // 清理 PBD 与牵引线延迟定时器
+  // 清理 PBD 与牵引线延迟定时�?
   useEffect(() => {
     const pbd = pbdDelayTimers.current
     const guide = guideTimers.current
@@ -243,7 +243,7 @@ const FloatingLabels = memo(function FloatingLabels(props: FloatingLabelsProps) 
       {labels.map((label) => {
         const isExpanded = activeTrackIdx === label.trackIdx
         const fitW = labelLayouts[label.trackIdx]?.visualWidth
-        // 折叠 + 已收缩 → 用适配宽度；折叠 + 未收缩 → 默认宽度；展开 → 全宽
+        // 折叠 + 已收�?�?用适配宽度；折�?+ 未收�?�?默认宽度；展开 �?全宽
         const w = isExpanded ? expandedWidth
           : (fitW !== undefined ? fitW : collapsedWidth)
         const h = isExpanded ? expandedHeight : collapsedHeight

@@ -7,7 +7,7 @@ export function smoothstep(t: number): number {
   return t * t * (3 - 2 * t)
 }
 
-// clamp + normalize: 将 sp 映射到 [start, end] → [0, 1]
+// clamp + normalize: �?sp 映射�?[start, end] �?[0, 1]
 export function clamped(sp: number, start: number, end: number): number {
   return Math.max(0, Math.min(1, (sp - start) / (end - start)))
 }
@@ -23,19 +23,19 @@ export const {
 } = SCROLL_RIG
 
 // ============================================================
-// Scene Manager — white-out transition
-// 原 sceneApplyWhiteOut():168-196，逐字保留
-// themeBlend: 0=night (暗色不白化), 1=day (白雾过渡至亮色)
-//   由 App.tsx GSAP tween 驱动，实现 day↔night 平滑过渡
+// Scene Manager �?white-out transition
+// �?sceneApplyWhiteOut():168-196，逐字保留
+// themeBlend: 0=night (暗色不白�?, 1=day (白雾过渡至亮�?
+//   �?App.tsx GSAP tween 驱动，实�?day↔night 平滑过渡
 // ============================================================
 let _themeBlend = 0 // 0=night, 1=day
 
-/** App.tsx GSAP tween 每帧更新，驱动 scene 背景平滑过渡 */
+/** App.tsx GSAP tween 每帧更新，驱�?scene 背景平滑过渡 */
 export function setThemeBlend(v: number) { _themeBlend = v }
 
 const _bgBaseColor = new Color('#050811')
-const _bgNightTarget = new Color('#050811')   // night: Act 3 与 Act 1 一致
-const _bgDayTarget = new Color('#f1f5f9')     // day: 白雾过渡至亮色
+const _bgNightTarget = new Color('#050811')   // night: Act 3 �?Act 1 一�?
+const _bgDayTarget = new Color('#f1f5f9')     // day: 白雾过渡至亮�?
 const _bgTargetColor = new Color()
 const _bgLerpColor = new Color()
 
@@ -52,7 +52,7 @@ export function sceneApplyWhiteOut(scene: Scene, sp: number): void {
     const fogFade = clamped(sp, TIMELINE.fogFade.start, TIMELINE.fogFade.end)
     fogDensity = 0.10 * (1.0 - fogFade)
   } else if (sp >= TIMELINE.fogFade.end) {
-    fogDensity = 0  // 0.65 后完全除雾
+    fogDensity = 0  // 0.65 后完全除�?
   }
 
   if (fogDensity > 0.001) {

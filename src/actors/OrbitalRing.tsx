@@ -8,37 +8,37 @@ import { TIMELINE } from '../composition/timeline'
 import type { OrbitalRingConfig } from '../types'
 
 /**
- * 单条轨道环 — 行星轨道面力学模拟。
+ * 单条轨道�?�?行星轨道面力学模拟�?
  *
- * ## 变换链
+ * ## 变换�?
  *
  * ```text
- * R_y(Ω) · S_x(1/√(1−e²)) · R_x(π/2 − i)
+ * R_y(Ω) · S_x(1/�?1−e²)) · R_x(π/2 �?i)
  * ```
  *
  * - **倾角 i**：轨道面与黄道面 (X-Z) 的固定夹角，不随时间变化
- * - **偏心率 e**：X 轴非均匀拉伸（正圆 → 椭圆），内层 group 的 scale
- * - **进动 Ω**：外层 group 绕 Y 轴（黄道面法线）旋转，倾角恒常
+ * - **偏心�?e**：X 轴非均匀拉伸（正�?�?椭圆），内层 group �?scale
+ * - **进动 Ω**：外�?group �?Y 轴（黄道面法线）旋转，倾角恒常
  *
- * 环面法线 n = (sin(i)·sin(Ω), −cos(i), sin(i)·cos(Ω))，与 Y 夹角恒为 i。
+ * 环面法线 n = (sin(i)·sin(Ω), −cos(i), sin(i)·cos(Ω))，与 Y 夹角恒为 i�?
  *
  * ## Props
  *
- * - `config` — 轨道参数（半径、倾角、偏心率、速度、相位等）
- * - `speedScale` — 全局进动速度缩放，默认 1.0
+ * - `config` �?轨道参数（半径、倾角、偏心率、速度、相位等�?
+ * - `speedScale` �?全局进动速度缩放，默�?1.0
  *
  * ## 复用
  *
- * 要新增轨道环，只需在父级的配置数组中添加一个 `OrbitalRingConfig` 对象。
+ * 要新增轨道环，只需在父级的配置数组中添加一�?`OrbitalRingConfig` 对象�?
  *
  * 援引：Murray & Dermott, _Solar System Dynamics_, §2.8 (orbital elements)
  */
 
 interface OrbitalRingProps {
   config: OrbitalRingConfig
-  /** 全局进动速度缩放，默认 1.0；设为 0 冻结 */
+  /** 全局进动速度缩放，默�?1.0；设�?0 冻结 */
   speedScale?: number
-  /** 覆盖 config.color，用于 day/night 主题切换 */
+  /** 覆盖 config.color，用�?day/night 主题切换 */
   color?: string
 }
 
@@ -65,9 +65,9 @@ export default function OrbitalRing({ config, speedScale = 1.0, color: colorOver
     })
   }, [innerRadius, radius, segments])
 
-  // 外层 group — Y 轴进动（黄道面法线）
+  // 外层 group �?Y 轴进动（黄道面法线）
   const outerGroupRef = useRef<Group>(null)
-  // 环材质 — 透明度由 scroll 驱动
+  // 环材�?�?透明度由 scroll 驱动
   const matRef = useRef<LineBasicMaterial>(null)
 
   useFrame((_state, delta) => {
@@ -75,7 +75,7 @@ export default function OrbitalRing({ config, speedScale = 1.0, color: colorOver
     const act3Progress = clamped(sp, TIMELINE.act3Shift.start, 1.0)
     const smooth3 = smoothstep(act3Progress)
 
-    // 透明度（scroll 驱动）
+    // 透明度（scroll 驱动�?
     if (matRef.current) {
       matRef.current.opacity = smooth3 * maxOpacity
     }

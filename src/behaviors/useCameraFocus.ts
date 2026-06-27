@@ -1,6 +1,6 @@
 import { Vector3, Quaternion, type PerspectiveCamera } from 'three'
 import { useScrollStore } from '../stores/scrollStore'
-import { SCENE_CENTER_Z, FOCUS_TIMEOUT, ORBIT_RADII } from '../r3f/ScrollRig'
+import { SCENE_CENTER_Z, FOCUS_TIMEOUT, ORBIT_RADII, clamped, smoothstep } from '../r3f/ScrollRig'
 import { TIMELINE } from '../composition/timeline'
 import { touchActorFrame } from '../composition/actorRuntime'
 import { readPlanetAtmosphereWorldRadius, readPlanetParticleIndex } from '../composition/coreAnchors'
@@ -22,6 +22,9 @@ const _focusAxisPoint = new Vector3()
 const _focusBaseOffset = new Vector3()
 const _focusOrbitQuat = new Quaternion()
 const _focusDepartPos = new Vector3()
+const _focusDepartLookAt = new Vector3()
+const _focusCandidateA = new Vector3()
+const _focusCandidateB = new Vector3()
 const _ssStarEdge = new Vector3()
 const _ssScratch = new Vector3()
 const _viewDir = new Vector3()
@@ -38,6 +41,7 @@ let _lastFocusTime = 0
 let _lastHudStar: ScreenCircle | undefined
 let _lastHudPlanet: ScreenCircle | undefined
 let _lastHudFocusedIdx = -1
+let _focusSideSign = 1
 
 const HUD_STAR_ATMOSPHERE_WORLD_RADIUS = 0.70
 const HUD_STAR_ATMOSPHERE_CLEARANCE = 24
@@ -47,15 +51,24 @@ const HUD_CAMERA_SETTLE_DELAY = 1.15
 const HUD_CAMERA_DEPART_DISTANCE = 0.55
 const HUD_FADE_IN_SPEED = 0.08
 const HUD_FADE_OUT_SPEED = 0.12
+const FOCUS_BEHIND_DISTANCE = 2.5
+const FOCUS_SIDE_DISTANCE = 2.2
+const FOCUS_APPROACH_DURATION = 1.7
+const FOCUS_ORBIT_DELAY = 1.65
+const FOCUS_ORBIT_RAMP = 1.9
+const FOCUS_ORBIT_SPEED = 0.014
+const FOCUS_TARGET_FOLLOW = 0.06
+const FOCUS_CAMERA_FOLLOW = 0.055
+const FOCUS_LOOK_FOLLOW = 0.06
 
 /**
- * 相机聚焦系统 — 双层平滑 + 轨道绕行 + 30s 自动取消。
+ * 相机聚焦系统 �?双层平滑 + 轨道绕行 + 30s 自动取消�?
  *
- * 原 updateCameraFocus():776-913，逐字保留算法。
+ * �?updateCameraFocus():776-913，逐字保留算法�?
  *
- * 用于 Act3ContentPhase 或 DustField 的 useFrame 中调用。
+ * 用于 Act3ContentPhase �?DustField �?useFrame 中调用�?
  *
- * 援引：Target-Lerp 模式（Three.js 社区通用）
+ * 援引：Target-Lerp 模式（Three.js 社区通用�?
  */
 export function updateCameraFocus(
   camera: PerspectiveCamera,
@@ -96,6 +109,18 @@ export function updateCameraFocus(
     _focusOrbitAngle = 0
     _lastFocusTime = time
     _focusDepartPos.copy(camera.position)
+    _focusDepartLookAt.copy(_currentLookAt)
+    _camToStar.subVectors(_starPos, planet).normalize()
+    _camLeftDir.crossVectors(_camUp, _camToStar).normalize()
+    _focusCandidateA.copy(planet)
+      .addScaledVector(_camToStar, -FOCUS_BEHIND_DISTANCE)
+      .addScaledVector(_camLeftDir, FOCUS_SIDE_DISTANCE)
+    _focusCandidateB.copy(planet)
+      .addScaledVector(_camToStar, -FOCUS_BEHIND_DISTANCE)
+      .addScaledVector(_camLeftDir, -FOCUS_SIDE_DISTANCE)
+    _focusSideSign = _focusCandidateA.distanceToSquared(_focusDepartPos) <= _focusCandidateB.distanceToSquared(_focusDepartPos)
+      ? 1
+      : -1
     hideOverlayIfNeeded(store, camera)
   }
 
@@ -108,11 +133,13 @@ export function updateCameraFocus(
   const isFocused = store.focusedPlanetIdx >= 0 && !!getPlanetPosition(store.focusedPlanetIdx)
 
   if (isFocused && planet) {
+    const focusAge = Math.max(0, time - focusStartTime)
+    const approachEase = smoothstep(clamped(focusAge, 0, FOCUS_APPROACH_DURATION))
+    const orbitRamp = smoothstep(clamped(focusAge, FOCUS_ORBIT_DELAY, FOCUS_ORBIT_DELAY + FOCUS_ORBIT_RAMP))
+
     _camToStar.subVectors(_starPos, planet).normalize()
     _camLeftDir.crossVectors(_camUp, _camToStar).normalize()
 
-    const behindDist = 2.5
-    const sideDist = 2.2
     const focusedTrackIdx = getFocusedTrackIndex(focusedIdx)
     const focusedOrbitRadius = ORBIT_RADII[focusedTrackIdx] ?? ORBIT_RADII[0]
 
@@ -120,18 +147,23 @@ export function updateCameraFocus(
 
     const focusDt = Math.min(0.05, Math.max(0, time - _lastFocusTime))
     _lastFocusTime = time
-    _focusOrbitAngle += 0.024 * focusDt
+    _focusOrbitAngle += FOCUS_ORBIT_SPEED * focusDt * orbitRamp
     _focusOrbitQuat.setFromAxisAngle(_camToStar, _focusOrbitAngle)
 
     _camOffsetDir.copy(planet)
-      .addScaledVector(_camToStar, -behindDist)
-      .addScaledVector(_camLeftDir, sideDist)
+      .addScaledVector(_camToStar, -FOCUS_BEHIND_DISTANCE)
+      .addScaledVector(_camLeftDir, FOCUS_SIDE_DISTANCE * _focusSideSign)
     _focusBaseOffset.subVectors(_camOffsetDir, _focusAxisPoint)
     _focusBaseOffset.applyQuaternion(_focusOrbitQuat)
     _camOffsetDir.copy(_focusAxisPoint).add(_focusBaseOffset)
 
-    _targetCamPos.lerp(_camOffsetDir, 0.04)
-    _targetLookAt.lerp(_focusAxisPoint, 0.04)
+    if (approachEase < 1) {
+      _targetCamPos.copy(_focusDepartPos).lerp(_camOffsetDir, approachEase)
+      _targetLookAt.copy(_focusDepartLookAt).lerp(_focusAxisPoint, approachEase)
+    } else {
+      _targetCamPos.lerp(_camOffsetDir, FOCUS_TARGET_FOLLOW)
+      _targetLookAt.lerp(_focusAxisPoint, FOCUS_TARGET_FOLLOW)
+    }
   } else {
     _targetCamPos.lerp(_defaultCamPos, 0.04)
     _targetLookAt.lerp(_defaultLookAt, 0.04)
@@ -140,8 +172,8 @@ export function updateCameraFocus(
   }
 
   // Camera follows smoothed target
-  _currentLookAt.lerp(_targetLookAt, 0.06)
-  camera.position.lerp(_targetCamPos, 0.06)
+  _currentLookAt.lerp(_targetLookAt, isFocused ? FOCUS_LOOK_FOLLOW : 0.06)
+  camera.position.lerp(_targetCamPos, isFocused ? FOCUS_CAMERA_FOLLOW : 0.06)
   camera.lookAt(_currentLookAt)
 
   if (isFocused && planet) {

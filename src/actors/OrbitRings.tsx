@@ -11,16 +11,16 @@ import OrbitalRing from './OrbitalRing'
 import type { OrbitalRingConfig } from '../types'
 
 /**
- * 行星轨道系统 — 3 条静态轨道参考线 + N 条陀螺仪装饰环。
+ * 行星轨道系统 �?3 条静态轨道参考线 + N 条陀螺仪装饰环�?
  *
- * 陀螺仪环配置全部声明在这里，新增轨道只需在 GYRO_RINGS 数组中加一项。
+ * 陀螺仪环配置全部声明在这里，新增轨道只需�?GYRO_RINGS 数组中加一项�?
  *
- * 原 act3.build():1144-1188
+ * �?act3.build():1144-1188
  */
 
 // ============================================================
 // 陀螺仪环配置（方案 A：类 Kuiper 带）
-// 遵循 Ngo & Lissauer (2016) ē ≈ (1–2)·ī 统计关系
+// 遵循 Ngo & Lissauer (2016) ē �?(1�?)·ī 统计关系
 // ============================================================
 const GYRO_RINGS: OrbitalRingConfig[] = [
   { radius: 7.8,  inclination: 0.12, eccentricity: 0.15, speed: 0.02, phase: 0 },
@@ -29,7 +29,7 @@ const GYRO_RINGS: OrbitalRingConfig[] = [
 ]
 
 interface OrbitRingsProps {
-  /** 全局进动速度缩放，默认 1.0；设为 0 可冻结全部环 */
+  /** 全局进动速度缩放，默�?1.0；设�?0 可冻结全部环 */
   speedScale?: number
 }
 
@@ -39,7 +39,7 @@ export default function OrbitRings({ speedScale = 1.0 }: OrbitRingsProps) {
   const orbitColor = themeColor('orbit', dayNight)
   const layer = getWebglLayer('webgl.grid')
 
-  // 轨道环顶点（静态 — 行星公转轨道的视觉参考线）
+  // 轨道环顶点（静�?�?行星公转轨道的视觉参考线�?
   const orbitPoints = useMemo(() =>
     Array.from({ length: ORBIT_COUNT }, (_, t) => {
       const r = ORBIT_RADII[t]
@@ -86,7 +86,7 @@ export default function OrbitRings({ speedScale = 1.0 }: OrbitRingsProps) {
         </threeLine>
       ))}
 
-      {/* 陀螺仪装饰环（每条独立力学模拟） */}
+      {/* 陀螺仪装饰环（每条独立力学模拟�?*/}
       {GYRO_RINGS.map((cfg, i) => (
         <OrbitalRing key={`gyro-${i}`} config={cfg} speedScale={speedScale} color={orbitColor} />
       ))}

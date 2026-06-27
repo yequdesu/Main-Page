@@ -4,17 +4,17 @@ export interface Command {
   name: string
   aliases?: string[]
   description: string
-  handler: () => string
+  handler: (args: string[]) => string
 }
 
-// 命令注册表 — 纯数据，添加新命令只需 push
+// 命令注册�?�?纯数据，添加新命令只需 push
 export const commandRegistry: Command[] = [
   {
     name: 'help',
     description: 'Show available commands',
     handler: () => {
       const lines = commandRegistry.map(
-        (c) => `  ${c.name.padEnd(8)} ${c.description}`
+        (c) => `  ${c.name.padEnd(12)} ${c.description}`
       )
       return ['Available commands:', ...lines].join('\n')
     },
@@ -27,6 +27,29 @@ export const commandRegistry: Command[] = [
       const next = !current
       useScrollStore.getState().setDebugMode(next)
       return `debug mode: ${next ? 'ON' : 'OFF'}`
+    },
+  },
+  {
+    name: 'volumelight',
+    aliases: ['vl'],
+    description: 'Toggle volumetric light: volumelight on|off|toggle',
+    handler: (args) => {
+      const mode = args[0] ?? 'toggle'
+      const store = useScrollStore.getState()
+      if (mode === 'on') {
+        store.setVolumeLightEnabled(true)
+        return 'volumetric light: ON'
+      }
+      if (mode === 'off') {
+        store.setVolumeLightEnabled(false)
+        return 'volumetric light: OFF'
+      }
+      if (mode === 'toggle') {
+        const next = !store.volumeLightEnabled
+        store.setVolumeLightEnabled(next)
+        return `volumetric light: ${next ? 'ON' : 'OFF'}`
+      }
+      return 'usage: volumelight on|off|toggle'
     },
   },
   {
@@ -52,7 +75,7 @@ export const commandRegistry: Command[] = [
     aliases: ['cls'],
     description: 'Clear the echo area',
     handler: () => {
-      // 由 TerminalBar handleKeyDown 直接处理
+      // �?TerminalBar handleKeyDown 直接处理
       return ''
     },
   },
@@ -61,13 +84,14 @@ export const commandRegistry: Command[] = [
 export function executeCommand(input: string): string {
   const trimmed = input.trim()
   if (!trimmed) return ''
+  const [name, ...args] = trimmed.split(/\s+/)
 
   const cmd = commandRegistry.find(
     (c) =>
-      c.name === trimmed || (c.aliases && c.aliases.includes(trimmed))
+      c.name === name || (c.aliases && c.aliases.includes(name))
   )
 
   if (!cmd) return `command not found: ${trimmed}\nType 'help' for available commands`
 
-  return cmd.handler()
+  return cmd.handler(args)
 }

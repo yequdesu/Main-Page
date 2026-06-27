@@ -9,6 +9,7 @@ describe('executeCommand', () => {
     expect(result).toContain('Available commands:')
     expect(result).toContain('help')
     expect(result).toContain('debug')
+    expect(result).toContain('volumelight')
     expect(result).toContain('day')
     expect(result).toContain('night')
   })
@@ -26,12 +27,38 @@ describe('executeCommand', () => {
     expect((window as any).__DEBUG__).toBe(false)
   })
 
-  it('matches aliases (day → light, night → dark)', () => {
+  it('matches aliases (day �?light, night �?dark)', () => {
     const r1 = executeCommand('light')
     expect(r1).toContain('day mode')
 
     const r2 = executeCommand('dark')
     expect(r2).toContain('night mode')
+  })
+
+  it('controls volumetric light with arguments and alias', () => {
+    useScrollStore.getState().setVolumeLightEnabled(true)
+
+    const off = executeCommand('volumelight off')
+    expect(off).toContain('OFF')
+    expect(useScrollStore.getState().volumeLightEnabled).toBe(false)
+
+    const on = executeCommand('vl on')
+    expect(on).toContain('ON')
+    expect(useScrollStore.getState().volumeLightEnabled).toBe(true)
+
+    const toggle = executeCommand('volumelight')
+    expect(toggle).toContain('OFF')
+    expect(useScrollStore.getState().volumeLightEnabled).toBe(false)
+
+    const invalid = executeCommand('vl maybe')
+    expect(invalid).toContain('usage:')
+  })
+
+  it('does not treat command arguments as part of the command name', () => {
+    useScrollStore.getState().setDebugMode(false)
+    const result = executeCommand('debug ignored')
+    expect(result).toContain('ON')
+    expect(useScrollStore.getState().debugMode).toBe(true)
   })
 
   it('returns error for unknown command', () => {
@@ -53,6 +80,7 @@ describe('executeCommand', () => {
     const names = commandRegistry.map((c) => c.name)
     expect(names).toContain('help')
     expect(names).toContain('debug')
+    expect(names).toContain('volumelight')
     expect(names).toContain('day')
     expect(names).toContain('night')
   })

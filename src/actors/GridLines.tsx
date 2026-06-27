@@ -10,7 +10,7 @@ import { touchActorFrame, useActorRuntime } from '../composition/actorRuntime'
 import type { GridLineData } from '../types'
 
 // ============================================================
-// 几何参数 — 方向：近处 → 远处 → 向上
+// 几何参数 �?方向：近�?�?远处 �?向上
 // ============================================================
 const LINE_COUNT = 32
 const X_SPREAD = 22.6
@@ -42,7 +42,7 @@ export default function GridLines() {
 
       let vi = 0
 
-      // ---- 水平段：近处 → 远处 ----
+      // ---- 水平段：近处 �?远处 ----
       for (let j = 0; j <= HORZ_SEGS; j++, vi++) {
         const t = j / HORZ_SEGS
         const z = Z_NEAR + (Z_FAR - Z_NEAR) * t
@@ -51,7 +51,7 @@ export default function GridLines() {
         pts[vi * 3 + 2] = z
       }
 
-      // ---- 圆弧段 ----
+      // ---- 圆弧�?----
       for (let j = 1; j <= ARC_SEGS; j++, vi++) {
         const theta = (j / ARC_SEGS) * (Math.PI / 2)
         const y = BOTTOM_Y + ARC_RADIUS * (1 - Math.cos(theta))
@@ -61,7 +61,7 @@ export default function GridLines() {
         pts[vi * 3 + 2] = z
       }
 
-      // ---- 竖直段 ----
+      // ---- 竖直�?----
       const vertBaseZ = Z_FAR - ARC_RADIUS
       const vertBaseY = BOTTOM_Y + ARC_RADIUS
       for (let j = 1; j <= VERT_SEGS; j++, vi++) {
@@ -126,8 +126,8 @@ export default function GridLines() {
     // 0.60-0.85: 延伸(A→B)  /  0.85-0.95: 回收(A→B，近先消失如擦除)
     const retracting = sp >= EXT_END
     const rawLp = retracting
-      ? 1.0 - clamped(sp, EXT_END, RETRACT_END)  // 1→0
-      : clamped(sp, EXT_START, EXT_END)            // 0→1
+      ? 1.0 - clamped(sp, EXT_END, RETRACT_END)  // 1�?
+      : clamped(sp, EXT_START, EXT_END)            // 0�?
 
     for (const vd of gridLines) {
       const pArr = vd.line.geometry.attributes.position.array as Float32Array
@@ -138,7 +138,7 @@ export default function GridLines() {
       const lp = Math.max(0, Math.min(1, (rawLp - vd.staggerOffset) / 0.35))
 
       if (retracting) {
-        // 回收 A→B：近端先消失，hidden 区间从 near→far 增长
+        // 回收 A→B：近端先消失，hidden 区间�?near→far 增长
         const retractStart = (1.0 - lp) * TOTAL_SEGS
         const startJ = Math.floor(retractStart)
         const startFrac = retractStart - startJ
@@ -147,9 +147,9 @@ export default function GridLines() {
 
         for (let j = 0; j < vCount; j++) {
           if (j >= nextIdx) {
-            // 可见：保持原位
+            // 可见：保持原�?
           } else if (j === startIdx && startFrac > 0) {
-            // 过渡顶点：插值到下一个可见顶点
+            // 过渡顶点：插值到下一个可见顶�?
             const t = 1.0 - startFrac
             pArr[j * 3]     = pArr[nextIdx * 3]     + (pArr[j * 3]     - pArr[nextIdx * 3])     * t
             pArr[j * 3 + 1] = pArr[nextIdx * 3 + 1] + (pArr[j * 3 + 1] - pArr[nextIdx * 3 + 1]) * t

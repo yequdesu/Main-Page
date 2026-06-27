@@ -1,6 +1,6 @@
 import { useMemo, useRef, useEffect } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
-import { Mesh, SphereGeometry, MeshBasicMaterial, ShaderMaterial, BackSide, Sprite, SpriteMaterial, CanvasTexture, AdditiveBlending, LinearFilter, Color, Vector3, type PerspectiveCamera } from 'three'
+import { Mesh, SphereGeometry, MeshBasicMaterial, MeshStandardMaterial, ShaderMaterial, BackSide, Sprite, SpriteMaterial, CanvasTexture, AdditiveBlending, LinearFilter, Color, Vector3, type PerspectiveCamera, type PointLight } from 'three'
 import { useScrollStore } from '../stores/scrollStore'
 import { useRealtimeStore, type PlanetCoords } from '../stores/realtimeStore'
 import { useFrameCache } from '../behaviors/useFrameCache'
@@ -11,7 +11,7 @@ import { calcScreenSpaceHover } from '../behaviors/useScreenSpaceHover'
 import { smoothstep, clamped, SCENE_CENTER_Z, ORBIT_RADII, ORBIT_COUNT } from '../r3f/ScrollRig'
 import { atmosphereVertex, atmosphereFragment } from '../shaders/AtmosphereShader'
 import { type ParticleData } from '../types'
-import { WC_ANCHOR_Y, WC_DROP_START, WC_DROP_END, WC_RETRACT_END, getWindChimeProgress, getWindChimePlanetPoint } from '../behaviors/useWindChime'
+import { WC_ANCHOR_Y, WC_DROP_START, WC_DROP_END, WC_RETRACT_END, getWindChimeProgress, getWindChimePlanetPhysicalPoint } from '../behaviors/useWindChime'
 import { useScreenProjection } from '../behaviors/useScreenProjection'
 import { TIMELINE } from '../composition/timeline'
 import { getWebglLayer } from '../composition/layerRegistry'
@@ -46,6 +46,7 @@ const INNER_GLOW_COLOR = '#f6f7f9'
 const FRESNEL_SHELL_COLOR = '#d0d5de'
 const COLOR_ACT1 = '#f0f8ff'
 const COLOR_ACT3 = '#64748b'
+const CENTRAL_STAR_Y = -1.0
 
 const GLOW_PULSE_FREQ_1 = 0.26
 const GLOW_PULSE_AMP_1 = 0.005
@@ -100,14 +101,17 @@ export default function Planets() {
 
   // Pre-allocated reusable objects
   const _scratch = useRef(new Vector3()).current
+  const _starWorld = useRef(new Vector3()).current
   const _scratch2 = useRef(new Color()).current
+  const _emissiveColor = useRef(new Color()).current
   const _color2 = useRef(new Color()).current
   const _colorAct1 = useRef(new Color(COLOR_ACT1)).current
   const _colorAct3 = useRef(new Color(COLOR_ACT3)).current
+  const starLightRef = useRef<PointLight | null>(null)
   const planetWorldPositionsRef = useRef<(Vector3 | null)[]>([null, null, null])
 
   // ---- Create 3 planet meshes + atmosphere (one-time) ----
-  const { mainPlanets, innerGlows, atmosShells, haloSpriteMats, haloSprites, mainPlanetIndices, particleData } = useMemo(() => {
+  const { mainPlanets, planetBasicMats, planetLitMats, innerGlows, atmosShells, haloSpriteMats, haloSprites, mainPlanetIndices, particleData } = useMemo(() => {
     const haloTexture = getHaloTexture()
     const count = 83
     const dustConfigs: { scale: number; sizeBoost: number; totalSize: number }[] = []
@@ -125,6 +129,8 @@ export default function Planets() {
 
     const highPolyGeo = new SphereGeometry(PLANET_BASE_RADIUS, GEO_SEGMENTS, GEO_SEGMENTS)
     const planets: Mesh[] = []
+    const basicMats: MeshBasicMaterial[] = []
+    const litMats: MeshStandardMaterial[] = []
     const innerGlows: Mesh[] = []
     const shells: Mesh[] = []
     const spriteMats: SpriteMaterial[] = []
@@ -190,11 +196,24 @@ export default function Planets() {
           depthWrite: planetLayer.depthWrite,
           depthTest: planetLayer.depthTest,
         })
+        const litMat = new MeshStandardMaterial({
+          color: PLANET_CORE_COLOR,
+          roughness: 0.96,
+          metalness: 0,
+          emissive: '#141b27',
+          emissiveIntensity: 0.16,
+          transparent: planetLayer.transparent,
+          opacity: 0,
+          depthWrite: planetLayer.depthWrite,
+          depthTest: planetLayer.depthTest,
+        })
         const mesh = new Mesh(geo, mat)
         mesh.renderOrder = planetLayer.renderOrder
         mesh.position.set(wx, wy, wz)
         mesh.name = `planet_${trackIdx}`
         planets.push(mesh)
+        basicMats.push(mat)
+        litMats.push(litMat)
 
         // Inner glow sphere (pulsing, depthWrite=false)
         const glowGeo = new SphereGeometry(PLANET_BASE_RADIUS * INNER_GLOW_SCALE, GEO_SEGMENTS, GEO_SEGMENTS)
@@ -243,7 +262,7 @@ export default function Planets() {
     }
 
     return {
-      mainPlanets: planets, innerGlows, atmosShells: shells,
+      mainPlanets: planets, planetBasicMats: basicMats, planetLitMats: litMats, innerGlows, atmosShells: shells,
       haloSpriteMats: spriteMats, haloSprites: sprites,
       mainPlanetIndices: planetIndices, particleData: data,
     }
@@ -288,8 +307,14 @@ export default function Planets() {
     const inWindChime = wc.active
     const orbitSmooth3 = 1.0
 
-    const cx = 0, cy = -1.0, cz = SCENE_CENTER_Z
-    const { hoveredIdx, focusedPlanetIdx } = useScrollStore.getState()
+    const cx = 0, cy = CENTRAL_STAR_Y, cz = SCENE_CENTER_Z
+    const { hoveredIdx, focusedPlanetIdx, volumeLightEnabled } = useScrollStore.getState()
+    _starWorld.set(cx, cy, SCENE_CENTER_Z + 6 * wc.smoothP)
+    if (starLightRef.current) {
+      const lightFactor = clamped(sp, TIMELINE.orbitGlow.start, TIMELINE.orbitGlow.end)
+      starLightRef.current.position.copy(_starWorld)
+      starLightRef.current.intensity = volumeLightEnabled ? 6.2 * lightFactor : 0
+    }
 
     // Focused planet world position for occlusion
     let focusedPlanetPos: Vector3 | null = null
@@ -316,7 +341,7 @@ export default function Planets() {
       let { x: px, y: py, z: pz } = calcOrbitPosition(d, time, delta, cx, cy, cz, orbitSmooth3, freezeFocusedOrbit)
       const usingWindChimeLayout = trackIdx >= 0 && sp < TIMELINE.orbitGlow.start
       if (usingWindChimeLayout) {
-        const point = getWindChimePlanetPoint(trackIdx, wc.smoothP)
+        const point = getWindChimePlanetPhysicalPoint(trackIdx, wc.smoothP, time)
         px = point.x
         py = point.y
         pz = point.z
@@ -361,7 +386,8 @@ export default function Planets() {
         const _worldR = PLANET_BASE_RADIUS * appearance.scale * INNER_GLOW_SCALE
         const _pcam = camera as PerspectiveCamera
         const _fovY = (_pcam.fov * Math.PI) / 180
-        const _screenR = (_worldR * gl.domElement.clientHeight) / (2 * cd * Math.tan(_fovY / 2))
+        const _finalCd = mesh.position.distanceTo(camera.position)
+        const _screenR = (_worldR * gl.domElement.clientHeight) / (2 * _finalCd * Math.tan(_fovY / 2))
         _screenRadii[trackIdx] = Math.round(_screenR)
         anchorWrites.push(makeCoreAnchor(planetScreenRadiusAnchorId(trackIdx), _screenRadii[trackIdx], 'screenPx', 'planets', mesh.visible))
 
@@ -386,16 +412,23 @@ export default function Planets() {
       store.setPlanetData(coords, angles, speeds, store.orbitSpeeds, orbAngles as [number, number, number])
 
       // Opacity with occlusion
-      const mat = mesh.material as MeshBasicMaterial
+      const basicMat = planetBasicMats[trackIdx]
+      const litMat = planetLitMats[trackIdx]
+      const mat = volumeLightEnabled ? litMat : basicMat
+      if (mesh.material !== mat) mesh.material = mat
       let planetOpacity = appearance.opacity
       if (focusedPlanetPos && focusedPlanetIdx >= 0 && i !== focusedPlanetIdx) {
         _scratch.set(px, py, pz)
         planetOpacity = calcOcclusionFade(_scratch, camera as PerspectiveCamera, focusedPlanetPos, appearance.scale, appearance.opacity)
       }
-      mat.opacity = planetOpacity
-      mat.color.copy(_scratch2)
 
       const glowFactor = clamped(sp, TIMELINE.orbitGlow.start, TIMELINE.orbitGlow.end)
+      mat.opacity = planetOpacity
+      mat.color.copy(_scratch2)
+      if (volumeLightEnabled) {
+        litMat.emissive.copy(_emissiveColor.copy(_scratch2).multiplyScalar(0.2))
+        litMat.emissiveIntensity = 0.14 + glowFactor * 0.06
+      }
 
       // ---- Inner glow (pulse, follows core appearance scale) ----
       const glow = innerGlows[trackIdx]
@@ -464,6 +497,7 @@ export default function Planets() {
 
   return (
     <group>
+      <pointLight ref={starLightRef} color="#ffe4b8" intensity={0} distance={90} decay={1.35} />
       {mainPlanets.map((mesh, idx) => (
         <group key={`planet-group-${idx}`}>
           <primitive object={mesh} />

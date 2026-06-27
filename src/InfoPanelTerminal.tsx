@@ -7,10 +7,10 @@ import { useSignal } from './composition/sequenceStore'
 import './InfoPanelTerminal.css'
 
 /**
- * InfoPanelTerminal — 信息面板终端（Act 3 左上角）。
+ * InfoPanelTerminal �?信息面板终端（Act 3 左上角）�?
  *
- * 实时显示行星坐标、轨道参数、摄像机状态和 debris 计数。
- * 通过 TerminalBar Slot 声明式构建，与 MainTerminal 对称。
+ * 实时显示行星坐标、轨道参数、摄像机状态和 debris 计数�?
+ * 通过 TerminalBar Slot 声明式构建，�?MainTerminal 对称�?
  */
 export default function InfoPanelTerminal() {
   useActorRuntime('infoPanel', true)
@@ -35,17 +35,17 @@ export default function InfoPanelTerminal() {
       case 0: {
         const labels = ['ring-0', 'ring-1', 'ring-2']
         const i = idx % 3
-        return `${labels[i]}  speed:${orbitSpeeds[i].toFixed(2)}  ∠:${orbitAngles[i].toFixed(1)}`
+        return `${labels[i]}  speed:${orbitSpeeds[i].toFixed(2)}  �?${orbitAngles[i].toFixed(1)}`
       }
       case 1: {
         const labels = ['ring-0', 'ring-1', 'ring-2']
         const i = (idx + 1) % 3
-        return `${labels[i]}  speed:${orbitSpeeds[i].toFixed(2)}  ∠:${orbitAngles[i].toFixed(1)}`
+        return `${labels[i]}  speed:${orbitSpeeds[i].toFixed(2)}  �?${orbitAngles[i].toFixed(1)}`
       }
       case 2: {
         const labels = ['ring-0', 'ring-1', 'ring-2']
         const i = (idx + 2) % 3
-        return `${labels[i]}  speed:${orbitSpeeds[i].toFixed(2)}  ∠:${orbitAngles[i].toFixed(1)}`
+        return `${labels[i]}  speed:${orbitSpeeds[i].toFixed(2)}  �?${orbitAngles[i].toFixed(1)}`
       }
       case 3:
         return `cam pos  x:${camera.pos.x.toFixed(2)} y:${camera.pos.y.toFixed(2)} z:${camera.pos.z.toFixed(2)}`

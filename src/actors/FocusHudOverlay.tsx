@@ -420,8 +420,8 @@ function buildDotMatrixCanvas(
   palette: HudPalette,
 ): HTMLCanvasElement {
   const step = 13
-  const minRadius = 0.25
-  const maxRadius = 3.4
+  const minRadius = 0.18
+  const maxRadius = 7.1
   const centerX = width * 0.5
   const centerY = height * 0.5
   const maxCenterDistance = Math.hypot(centerX, centerY) || 1
@@ -438,7 +438,8 @@ function buildDotMatrixCanvas(
   for (let y = 6; y < height; y += step) {
     for (let x = 6; x < width; x += step) {
       const edgeT = Math.min(1, Math.hypot(x - centerX, y - centerY) / maxCenterDistance)
-      const radius = minRadius + Math.pow(edgeT, 1.6) * (maxRadius - minRadius)
+      const edgeRamp = smoothstepNumber(0.24, 0.92, edgeT)
+      const radius = minRadius + Math.pow(edgeRamp, 2.35) * (maxRadius - minRadius)
       ctx.beginPath()
       ctx.arc(x, y, radius, 0, Math.PI * 2)
       ctx.fill()
@@ -446,6 +447,11 @@ function buildDotMatrixCanvas(
   }
   ctx.restore()
   return canvas
+}
+
+function smoothstepNumber(edge0: number, edge1: number, value: number): number {
+  const t = Math.max(0, Math.min(1, (value - edge0) / (edge1 - edge0)))
+  return t * t * (3 - 2 * t)
 }
 
 function drawTargetGeometry(

@@ -3,52 +3,52 @@ import { useFrame } from '@react-three/fiber'
 import { CanvasTexture, SpriteMaterial, MeshBasicMaterial, AdditiveBlending, LinearFilter, type Mesh, type Group } from 'three'
 import { SCENE_CENTER_Z, clamped, smoothstep } from '../r3f/ScrollRig'
 import { useScrollStore } from '../stores/scrollStore'
-import { WC_ANCHOR_Y, WC_DROP_START, WC_DROP_END, WC_RETRACT_END, getWindChimeProgress } from '../behaviors/useWindChime'
+import { WC_ANCHOR_Y, WC_DROP_START, WC_DROP_END, WC_RETRACT_END, getWindChimeCenterPhysicalPoint, getWindChimeProgress } from '../behaviors/useWindChime'
 import { TIMELINE } from '../composition/timeline'
 import { getWebglLayer } from '../composition/layerRegistry'
 import { touchActorFrame, useActorRuntime } from '../composition/actorRuntime'
 
 // ============================================================
-// CentralStar — 可调参数
+// CentralStar �?可调参数
 // ============================================================
 
 // -- 几何 --
-/** 核心半径  ↑=恒星更大更亮  ↓=恒星更小更收敛 */
+/** 核心半径  �?恒星更大更亮  �?恒星更小更收�?*/
 const CORE_RADIUS = 0.42
 const CORE_SEGMENTS = 32
-/** 内层光晕半径  ↑=近场散射更扩散  ↓=光晕紧贴核心 */
+/** 内层光晕半径  �?近场散射更扩�? �?光晕紧贴核心 */
 const INNER_GLOW_RADIUS = 0.70
 const INNER_GLOW_SEGMENTS = 32
 const GROUP_POSITION_Y = -1.0
 
 // -- 颜色 --
-/** 核心色（暖白）  改色相→恒星色调变化 */
+/** 核心色（暖白�? 改色相→恒星色调变化 */
 const CORE_COLOR = '#fff8e7'
-/** 内层光晕色（暖金）  改色相→光晕冷暖偏移 */
+/** 内层光晕色（暖金�? 改色相→光晕冷暖偏移 */
 const INNER_GLOW_COLOR = '#ffe8c0'
 
 // -- 内层光晕动画 --
-/** 光晕不透明度系数  ↑=光晕更亮更明显  ↓=光晕更暗更收敛 */
+/** 光晕不透明度系�? �?光晕更亮更明�? �?光晕更暗更收�?*/
 const GLOW_OPACITY_COEFF = 0.30       // × smooth3 × pulse
-/** 呼吸频率1  ↑=脉动更快  ↓=脉动更慢 */
+/** 呼吸频率1  �?脉动更快  �?脉动更慢 */
 const PULSE_FREQ_1 = 0.36
-/** 呼吸振幅1  ↑=亮度波动更大  ↓=更接近静态 */
+/** 呼吸振幅1  �?亮度波动更大  �?更接近静�?*/
 const PULSE_AMP_1 = 0.025
-/** 呼吸频率2  ↑=高频微抖更快  ↓=更平滑 */
+/** 呼吸频率2  �?高频微抖更快  �?更平�?*/
 const PULSE_FREQ_2 = 0.68
-/** 呼吸振幅2  ↑=微抖更明显  ↓=更平滑 */
+/** 呼吸振幅2  �?微抖更明�? �?更平�?*/
 const PULSE_AMP_2 = 0.015
 
 // -- 外层 Sprite（金色近场） --
-/** Sprite 缩放  ↑=近场柔光扩散更远  ↓=收窄 */
+/** Sprite 缩放  �?近场柔光扩散更远  �?收窄 */
 const SPRITE_SCALE = 5.5
-/** Sprite 不透明度系数  ↑=近场柔光更亮  ↓=更暗 */
+/** Sprite 不透明度系�? �?近场柔光更亮  �?更暗 */
 const SPRITE_OPACITY_COEFF = 0.55      // × smooth3 × pulse
 
 // -- 远场 Sprite（灰白，大扩散） --
-/** 远场缩放  ↑=扩散范围更大  ↓=收窄 */
+/** 远场缩放  �?扩散范围更大  �?收窄 */
 const FAR_SPRITE_SCALE = 20.0
-/** 远场不透明度系数  ↑=远场更亮  ↓=更暗 */
+/** 远场不透明度系�? �?远场更亮  �?更暗 */
 const FAR_SPRITE_OPACITY_COEFF = 0.32   // × smooth3 × pulse
 
 // -- halo 纹理 --
@@ -70,7 +70,7 @@ const FAR_HALO_COLOR_STOPS: [number, string][] = [
   [1,    'rgba(0,0,0,0)'],
 ]
 
-/** 共享纹理工厂 — 根据色阶表创建 CanvasTexture */
+/** 共享纹理工厂 �?根据色阶表创�?CanvasTexture */
 function makeHaloTexture(stops: [number, string][]): CanvasTexture {
   const c = document.createElement('canvas')
   c.width = c.height = HALO_TEX_SIZE
@@ -90,11 +90,11 @@ function makeHaloTexture(stops: [number, string][]): CanvasTexture {
 }
 
 /**
- * 中央恒星 — 4 层结构：核心 + 内层光晕 + 近场金色 Sprite + 远场灰白 Sprite。
+ * 中央恒星 �?4 层结构：核心 + 内层光晕 + 近场金色 Sprite + 远场灰白 Sprite�?
  *
- * 原 act3.build() StarNode:1190-1243。
+ * �?act3.build() StarNode:1190-1243�?
  *
- * 援引：Drei Sparkles（Canvas Sprite for soft glow）
+ * 援引：Drei Sparkles（Canvas Sprite for soft glow�?
  */
 export default function CentralStar() {
   useActorRuntime('centralStar', true)
@@ -112,20 +112,22 @@ export default function CentralStar() {
     const time = state.clock.elapsedTime
     touchActorFrame('centralStar', Math.round(time * 60), sp >= TIMELINE.planetVisible.start)
 
-    // 0.68 出现，从锚点开始下落避免闪现
+    // 0.68 出现，从锚点开始下落避免闪�?
     const VISIBLE_START = TIMELINE.planetVisible.start
     const visible = sp >= VISIBLE_START
     const wc = getWindChimeProgress(sp)
     if (groupRef.current) {
       groupRef.current.visible = visible
-      // Y：从 0.68 开始下落(早于风铃)，到 WC_DROP_END 到位
+      const windChimePoint = getWindChimeCenterPhysicalPoint(wc.smoothP, time)
+      // Y：从 0.68 开始下�?早于风铃)，到 WC_DROP_END 到位
       if (sp >= VISIBLE_START && sp < WC_DROP_END) {
         const dropOnly = clamped(sp, VISIBLE_START, WC_DROP_END)
-        groupRef.current.position.y = WC_ANCHOR_Y + (GROUP_POSITION_Y - WC_ANCHOR_Y) * smoothstep(dropOnly)
+        groupRef.current.position.y = WC_ANCHOR_Y + (windChimePoint.y - WC_ANCHOR_Y) * smoothstep(dropOnly)
       } else if (sp >= WC_DROP_END) {
-        groupRef.current.position.y = GROUP_POSITION_Y
+        groupRef.current.position.y = windChimePoint.y
       }
-      groupRef.current.position.z = SCENE_CENTER_Z + 6 * wc.smoothP
+      groupRef.current.position.x = windChimePoint.x
+      groupRef.current.position.z = windChimePoint.z
     }
 
     const GLOW_START = TIMELINE.orbitGlow.start
@@ -168,7 +170,7 @@ export default function CentralStar() {
         />
       </mesh>
 
-      {/* 3. 近场 Sprite：金色径向渐变 */}
+      {/* 3. 近场 Sprite：金色径向渐�?*/}
       <sprite renderOrder={layer.renderOrder} scale={[SPRITE_SCALE, SPRITE_SCALE, 1]}>
         <spriteMaterial
           ref={(mat) => { spriteMatRef.current = mat }}
@@ -181,7 +183,7 @@ export default function CentralStar() {
         />
       </sprite>
 
-      {/* 4. 远场 Sprite：灰白径向渐变，大范围扩散 */}
+      {/* 4. 远场 Sprite：灰白径向渐变，大范围扩�?*/}
       <sprite renderOrder={layer.renderOrder} scale={[FAR_SPRITE_SCALE, FAR_SPRITE_SCALE, 1]}>
         <spriteMaterial
           ref={(mat) => { farSpriteMatRef.current = mat }}

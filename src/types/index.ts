@@ -1,8 +1,8 @@
 import type { Mesh, InstancedMesh, Sprite, Group, Line } from 'three'
 
 // ============================================================
-// Scroll 阈值（从 LighthouseScene.vue 逐字保留）
-// 援引：R3F Rig 模式 — Builder.io, Codrops 2025
+// Scroll 阈值（�?LighthouseScene.vue 逐字保留�?
+// 援引：R3F Rig 模式 �?Builder.io, Codrops 2025
 // ============================================================
 export const SCROLL_RIG = {
   SCENE_CENTER_Z: -16.0,
@@ -23,23 +23,23 @@ export const SCROLL_RIG = {
 // 援引：Murray & Dermott, Solar System Dynamics, §2.8
 // ============================================================
 export interface OrbitalRingConfig {
-  /** 轨道外半径 */
+  /** 轨道外半�?*/
   radius: number
   /** 轨道内半径，默认 radius - 0.04 */
   innerRadius?: number
   /** 黄道面倾角 (rad) */
   inclination: number
-  /** 偏心率 0–1（0=正圆） */
+  /** 偏心�?0�?�?=正圆�?*/
   eccentricity: number
-  /** 进动角速度 (rad/s)，speedScale=1 时的值 */
+  /** 进动角速度 (rad/s)，speedScale=1 时的�?*/
   speed: number
-  /** 初始升交点经度 (rad) */
+  /** 初始升交点经�?(rad) */
   phase: number
   /** 环颜色，默认 '#cbd5e1' */
   color?: string
-  /** 最大透明度 0–1，默认 0.28 */
+  /** 最大透明�?0�?，默�?0.28 */
   maxOpacity?: number
-  /** 环分段数，默认 96 */
+  /** 环分段数，默�?96 */
   segments?: number
 }
 
@@ -93,7 +93,7 @@ export interface WaveLineData {
 export interface WaveBaseColor { r: number; g: number; b: number }
 
 // ============================================================
-// 网格线数据
+// 网格线数�?
 // ============================================================
 export interface GridLineData {
   line: Line
@@ -120,7 +120,7 @@ export interface OverlayData {
 }
 
 // ============================================================
-// Act 引用（从 act.exit 保存到 ctx 的数据）
+// Act 引用（从 act.exit 保存�?ctx 的数据）
 // ============================================================
 export interface Act1State {
   oceanLines: Line[]

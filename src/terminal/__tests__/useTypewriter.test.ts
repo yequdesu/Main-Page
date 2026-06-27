@@ -57,9 +57,9 @@ describe('useTypewriter', () => {
 
     unmount()
 
-    // Advance past completion — should not throw
+    // Advance past completion �?should not throw
     act(() => { vi.advanceTimersByTime(500) })
-    // No assertion needed — the test passes if no error is thrown
+    // No assertion needed �?the test passes if no error is thrown
   })
 
   it('uses default startDelay=800 and charInterval=40', () => {

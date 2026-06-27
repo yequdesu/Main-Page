@@ -1,10 +1,10 @@
 import { create } from 'zustand'
 
 // ============================================================
-// RealtimeStore — 3D 场景运行时数据的 pub/sub 枢纽
+// RealtimeStore �?3D 场景运行时数据的 pub/sub 枢纽
 //
-// 行星坐标、轨道参数、摄像机状态、debris 计数等实时数据。
-// TerminalBar contentLines / buildStatusLines 通过 selector 读取。
+// 行星坐标、轨道参数、摄像机状态、debris 计数等实时数据�?
+// TerminalBar contentLines / buildStatusLines 通过 selector 读取�?
 // ============================================================
 
 export interface PlanetCoords {
@@ -15,7 +15,7 @@ export interface PlanetCoords {
 
 export interface CameraData {
   pos: { x: number; y: number; z: number }
-  /** 朝向（forward 向量） */
+  /** 朝向（forward 向量�?*/
   look: { x: number; y: number; z: number }
   fov: number
 }
@@ -25,13 +25,13 @@ interface RealtimeSlice {
   planetAngles: [number, number, number]
   planetSpeeds: [number, number, number]
 
-  /** 外层轨道（gyro rings）的进动角速度（rad/s）和当前旋转角 */
+  /** 外层轨道（gyro rings）的进动角速度（rad/s）和当前旋转�?*/
   orbitSpeeds: [number, number, number]
   orbitAngles: [number, number, number]
 
   /** 摄像机运行时数据 */
   camera: CameraData
-  /** dust field 中的 mesh 实例总数量 */
+  /** dust field 中的 mesh 实例总数�?*/
   debrisCount: number
 
 }

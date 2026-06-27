@@ -1,25 +1,25 @@
 import type { ParticleData } from '../types'
 
 /**
- * 粒子外观计算结果。
- * scale / opacity 供 mesh 直接使用，颜色计算留在调用方（涉及 Three.js Color）。
+ * 粒子外观计算结果�?
+ * scale / opacity �?mesh 直接使用，颜色计算留在调用方（涉�?Three.js Color）�?
  */
 export interface AppearanceResult {
   scale: number
   opacity: number
-  /** 白化过渡因子 [0,1] — 用于 lerp(baseColor, grayColor, wofFactor) */
+  /** 白化过渡因子 [0,1] �?用于 lerp(baseColor, grayColor, wofFactor) */
   wofFactor: number
-  /** Act 3 过渡因子 [0,1] — 用于 lerp(grayColor, act3Color, act3Factor) */
+  /** Act 3 过渡因子 [0,1] �?用于 lerp(grayColor, act3Color, act3Factor) */
   act3Factor: number
 }
 
 /**
- * 计算单个粒子的缩放、透明度、颜色过渡因子。
+ * 计算单个粒子的缩放、透明度、颜色过渡因子�?
  *
- * 原 animateDust() 中 per-particle 外观计算逻辑，逐字保留。
- * 纯函数 — 无 Three.js 依赖，可直接单测。
+ * �?animateDust() �?per-particle 外观计算逻辑，逐字保留�?
+ * 纯函�?�?�?Three.js 依赖，可直接单测�?
  *
- * 援引：L1 测试覆盖 — 纯函数计算，不涉及 Three.js 渲染
+ * 援引：L1 测试覆盖 �?纯函数计算，不涉�?Three.js 渲染
  */
 export function calcAppearance(
   d: ParticleData,

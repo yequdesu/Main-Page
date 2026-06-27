@@ -44,6 +44,7 @@ interface TerminalSlice {
   typewriterDone: boolean
   dayNight: DayNight
   debugMode: boolean
+  volumeLightEnabled: boolean
 }
 
 interface TerminalActions {
@@ -58,15 +59,17 @@ interface TerminalActions {
   toggleDayNight: () => void
   setDebugMode: (enabled: boolean) => void
   toggleDebugMode: () => void
+  setVolumeLightEnabled: (enabled: boolean) => void
+  toggleVolumeLight: () => void
 }
 
 export type ScrollStore = ScrollSlice & FocusSlice & TerminalSlice & ScrollActions & FocusActions & TerminalActions
 
 // ============================================================
 // Store
-// 援引：
-//   Zustand transient API — R3F Best Practices: getState() in useFrame
-//   Slice 模式 — Galaxy Voyager (220+ systems), HekTek City v4
+// 援引�?
+//   Zustand transient API �?R3F Best Practices: getState() in useFrame
+//   Slice 模式 �?Galaxy Voyager (220+ systems), HekTek City v4
 // ============================================================
 export const useScrollStore = create<ScrollStore>()((set) => ({
   // ---- Scroll slice ----
@@ -88,6 +91,7 @@ export const useScrollStore = create<ScrollStore>()((set) => ({
   typewriterDone: false,
   dayNight: 'night' as DayNight,
   debugMode: false,
+  volumeLightEnabled: true,
 
   setFocusedPlanet: (idx) => set({ focusedPlanetIdx: idx }),
   setHoveredIdx: (idx) => set({ hoveredIdx: idx }),
@@ -135,4 +139,6 @@ export const useScrollStore = create<ScrollStore>()((set) => ({
     }
     return { debugMode: enabled }
   }),
+  setVolumeLightEnabled: (enabled) => set({ volumeLightEnabled: enabled }),
+  toggleVolumeLight: () => set((s) => ({ volumeLightEnabled: !s.volumeLightEnabled })),
 }))

@@ -1,15 +1,15 @@
 import { lerpHex, lerpRgba } from '../utils/color'
 
 // ============================================================
-// Day/Night 双色板 — Plan B（偏移）
+// Day/Night 双色�?�?Plan B（偏移）
 //
-// 每个模式定义 Act1 (sp=0) → Act3 (sp=1) 的终端色端点。
-// 运行时由 useDayNight.handleThemeUpdate 按 scrollProgress
-// + day/night blend 因子动态计算 --tw-* CSS 变量。
+// 每个模式定义 Act1 (sp=0) �?Act3 (sp=1) 的终端色端点�?
+// 运行时由 useDayNight.handleThemeUpdate �?scrollProgress
+// + day/night blend 因子动态计�?--tw-* CSS 变量�?
 //
-// ⚠️ 色值与 theme.css 中 :root / [data-theme="day"] 的
-//    --tw-* 初始值必须保持同步。修改任一处需同步更新另一处。
-//    theme.css 覆盖首帧 JS 未接管期，本文件覆盖运行期。
+// ⚠️ 色值与 theme.css �?:root / [data-theme="day"] �?
+//    --tw-* 初始值必须保持同步。修改任一处需同步更新另一处�?
+//    theme.css 覆盖首帧 JS 未接管期，本文件覆盖运行期�?
 // ============================================================
 
 export interface ThemeVars {
@@ -53,7 +53,7 @@ export const DAY_ACT3: ThemeVars = {
 }
 
 // ============================================================
-// 色板插值函数
+// 色板插值函�?
 // ============================================================
 
 export function lerpThemeVars(a: ThemeVars, b: ThemeVars, t: number): Record<string, string> {
@@ -72,12 +72,12 @@ export function lerpThemeVars(a: ThemeVars, b: ThemeVars, t: number): Record<str
   }
 }
 
-/** 在色板内按 scroll 位置插值，返回 CSS 变量 map */
+/** 在色板内�?scroll 位置插值，返回 CSS 变量 map */
 export function scrollThemeVars(act1: ThemeVars, act3: ThemeVars, scrollT: number) {
   return lerpThemeVars(act1, act3, scrollT)
 }
 
-/** 交叉 fade 两个色板结果：blend=0 → a (night), blend=1 → b (day) */
+/** 交叉 fade 两个色板结果：blend=0 �?a (night), blend=1 �?b (day) */
 const _blendCache: Record<string, string> = {}
 
 export function blendThemeVars(a: Record<string, string>, b: Record<string, string>, blend: number) {

@@ -1,52 +1,52 @@
 /**
- * usePBDLayout — 连续时间约束动力学标签布局系统。
+ * usePBDLayout �?连续时间约束动力学标签布局系统�?
  *
- * ## 解决的问题
+ * ## 解决的问�?
  *
- *   行星标签布局是一个带约束的几何装箱问题（NP-Hard 的 CMLP 变体）。
+ *   行星标签布局是一个带约束的几何装箱问题（NP-Hard �?CMLP 变体）�?
  *   我们将其转化为连续时间动力学：每帧从上一帧的实际位置出发，通过
- *   速度预测、力驱动约束、速度积分三个步骤平滑演化，天然帧间连续。
+ *   速度预测、力驱动约束、速度积分三个步骤平滑演化，天然帧间连续�?
  *
  * ## 架构
  *
- *   阶段 1 — 预测（速度前馈 + 位置修正）
+ *   阶段 1 �?预测（速度前馈 + 位置修正�?
  *     计算 label 在当前帧的目标位置（shadow 方向 + 相位偏移），通过
- *     target 速度前馈主动匹配行星运动，再叠加上位置修正弹簧力。
- *     输出：预测位置 predPos。
+ *     target 速度前馈主动匹配行星运动，再叠加上位置修正弹簧力�?
+ *     输出：预测位�?predPos�?
  *
- *   阶段 2 — 约束投影（迭代 SOLVER_ITERS 次）
- *     对 predPos 施加 5 类约束，全部使用力驱动（加速度应用于速度，
- *     而非直接修正位置），确保约束间渐变融合、无硬阈值跳变。
- *        A. 锚点向心   — anchors 超出 anchorRangeRadius 时施加向行星的拉力
- *        A2.近距离排斥 — label 中心侵入行星 5px 排斥区时推开
- *        B. 行星遮挡   — label 中心不得进入任意行星视觉圆（位置投影）
- *        C. 恒星遮挡   — label 中心不得进入中央恒星光晕圆（位置投影）
- *        D. 视口约束   — 硬截断到视口内
- *        E. 标签互斥   — 加速度排斥（线性于穿透深度）+ 动量传递（弹性碰撞）
+ *   阶段 2 �?约束投影（迭�?SOLVER_ITERS 次）
+ *     �?predPos 施加 5 类约束，全部使用力驱动（加速度应用于速度�?
+ *     而非直接修正位置），确保约束间渐变融合、无硬阈值跳变�?
+ *        A. 锚点向心   �?anchors 超出 anchorRangeRadius 时施加向行星的拉�?
+ *        A2.近距离排�?�?label 中心侵入行星 5px 排斥区时推开
+ *        B. 行星遮挡   �?label 中心不得进入任意行星视觉圆（位置投影�?
+ *        C. 恒星遮挡   �?label 中心不得进入中央恒星光晕圆（位置投影�?
+ *        D. 视口约束   �?硬截断到视口�?
+ *        E. 标签互斥   �?加速度排斥（线性于穿透深度）+ 动量传递（弹性碰撞）
  *
- *   阶段 3 — 积分
- *     将累积速度和加速度写入实际位置。
+ *   阶段 3 �?积分
+ *     将累积速度和加速度写入实际位置�?
  *
- *   B/C/D 保留位置投影（低频触发），A/A2/E 已升级为力驱动。
+ *   B/C/D 保留位置投影（低频触发），A/A2/E 已升级为力驱动�?
  *
  * ## 外部依赖
  *
- *   消费方：useFloatingLabels（React hook，rAF 循环驱动）
+ *   消费方：useFloatingLabels（React hook，rAF 循环驱动�?
  *   数据源：anchor.planet.*.screen, anchor.planet.*.screenRadius, anchor.centralStar.screen
  *
- * ## 参考
+ * ## 参�?
  *
  *   - Müller et al. (2007) "Position Based Dynamics"
  *   - Reynolds (1999) "Steering Behaviors for Autonomous Characters"
- *   - 控制理论中的 PD 控制（速度前馈 + 比例修正）
+ *   - 控制理论中的 PD 控制（速度前馈 + 比例修正�?
  */
 
 // ============================================================
 // 物理常量
 //
-// 所有可调参数集中在此。数值选择原则：
-//   - 时间单位：秒（dt ≈ 0.016s @ 60fps）
-//   - 长度单位：像素
+// 所有可调参数集中在此。数值选择原则�?
+//   - 时间单位：秒（dt �?0.016s @ 60fps�?
+//   - 长度单位：像�?
 //   - 加速度单位：px/s²
 // ============================================================
 
@@ -56,137 +56,137 @@ const EPSILON = 0.001
 // -- 运动控制 -------------------------------------------------
 
 /**
- * 位置修正刚度（比例增益）。
+ * 位置修正刚度（比例增益）�?
  *
- * 作用：缩小 label 当前位置与 shadow target 之间的静态偏差。
- * 原理：desiredVelocity = targetVelocity + K_CORRECT × (target − current)
- *       K_CORRECT 越大，标签贴 target 越紧，但过大可能引起过冲。
+ * 作用：缩�?label 当前位置�?shadow target 之间的静态偏差�?
+ * 原理：desiredVelocity = targetVelocity + K_CORRECT × (target �?current)
+ *       K_CORRECT 越大，标签贴 target 越紧，但过大可能引起过冲�?
  *
- * 值 3.0 意味着距离 target 每 1px，产生 3 px/s 的修正速度。
- * 在 60fps (dt≈0.016s) 下，100px 偏差约 0.8s 内收敛。
+ * �?3.0 意味着距离 target �?1px，产�?3 px/s 的修正速度�?
+ * �?60fps (dt�?.016s) 下，100px 偏差�?0.8s 内收敛�?
  */
 const K_CORRECT = 2.5
 
 /**
- * 速度匹配强度。
+ * 速度匹配强度�?
  *
- * 作用：控制 label 速度多快收敛到 desiredVelocity。
- * 原理：v += (desiredV − v) × VEL_MATCH  （指数平滑）
- *       VEL_MATCH=1 立即跳变，=0 不响应。越接近 1 跟随越积极。
+ * 作用：控�?label 速度多快收敛�?desiredVelocity�?
+ * 原理：v += (desiredV �?v) × VEL_MATCH  （指数平滑）
+ *       VEL_MATCH=1 立即跳变�?0 不响应。越接近 1 跟随越积极�?
  *
- * 值 0.65 意味着每帧 (≈16ms) 缩小 65% 的速度差，
- * 约 2-3 帧 (30-50ms) 内匹配 target 速度。
+ * �?0.65 意味着每帧 (�?6ms) 缩小 65% 的速度差，
+ * �?2-3 �?(30-50ms) 内匹�?target 速度�?
  */
 const VEL_MATCH = 0.65
 
 /**
- * 速度阻尼（每帧保留的速度比例）。
+ * 速度阻尼（每帧保留的速度比例）�?
  *
- * 作用：耗散动能，防止无界振荡。
+ * 作用：耗散动能，防止无界振荡�?
  * 原理：v *= DAMPING
- *       在没有任何外力时，速度每帧衰减 8%。配合 K_CORRECT 和 VEL_MATCH，
- *       系统呈「过阻尼」特性——快速收敛，无振荡。
+ *       在没有任何外力时，速度每帧衰减 8%。配�?K_CORRECT �?VEL_MATCH�?
+ *       系统呈「过阻尼」特性——快速收敛，无振荡�?
  */
 const DAMPING = 0.92
 
 /**
- * 约束求解器迭代次数。
+ * 约束求解器迭代次数�?
  *
- * 每次迭代顺序执行所有约束。迭代次数越多，约束满足精度越高，
- * 但计算量线性增长。5 次迭代在精度和性能间平衡。
+ * 每次迭代顺序执行所有约束。迭代次数越多，约束满足精度越高�?
+ * 但计算量线性增长�? 次迭代在精度和性能间平衡�?
  */
 const SOLVER_ITERS = 5
 
-/** 单帧最大位移（px），防止异常帧导致瞬移。800px ≈ 全屏高度 */
+/** 单帧最大位移（px），防止异常帧导致瞬移�?00px �?全屏高度 */
 const MAX_SPEED = 800
 
-/** 速度修正中的最大加速度上限（px/s²），防止碰撞时无限加速 */
+/** 速度修正中的最大加速度上限（px/s²），防止碰撞时无限加�?*/
 const MAX_ACCEL = 200
 
 // -- 锚点约束 -------------------------------------------------
 
 /**
- * 锚点向心力刚度。
+ * 锚点向心力刚度�?
  *
  * 作用：label 的左右侧边中点离开 anchorRangeRadius 时，
- *       施加指向行星中心的加速度，线性于越出深度。
+ *       施加指向行星中心的加速度，线性于越出深度�?
  * 计算：acceleration = exceedance(px) × ANCHOR_STIFFNESS × dt
- *       exceedance = max(0, dist(anchor, planetCenter) − anchorRangeRadius)
+ *       exceedance = max(0, dist(anchor, planetCenter) �?anchorRangeRadius)
  *
- * 值 20 意味着越出 10px 时，加速度约 20×10×0.016 = 3.2 px/s²。
+ * �?20 意味着越出 10px 时，加速度�?20×10×0.016 = 3.2 px/s²�?
  * 需 < SEPARATION_STIFFNESS (180)，否则碰撞后向心力会淹没动量传递，
- * 导致标签"弹不开"。
+ * 导致标签"弹不开"�?
  */
 const ANCHOR_STIFFNESS = 20
 
-// -- 近距离排斥 -----------------------------------------------
+// -- 近距离排�?-----------------------------------------------
 
 /**
- * 近距离排斥区宽度（超出 planet 视觉边缘的额外 px）。
+ * 近距离排斥区宽度（超�?planet 视觉边缘的额�?px）�?
  *
- * 作用：label 中心距行星表面 ≤ CLOSE_REPEL_MARGIN 时触发排斥力。
- *       label 会被轻柔推出此区域，形成行星与标签之间的最小呼吸间距。
+ * 作用：label 中心距行星表�?�?CLOSE_REPEL_MARGIN 时触发排斥力�?
+ *       label 会被轻柔推出此区域，形成行星与标签之间的最小呼吸间距�?
  *
- * 调试可见：灰白色虚线圆（半径 = planetScreenRadius + 5px）。
+ * 调试可见：灰白色虚线圆（半径 = planetScreenRadius + 5px）�?
  */
 const CLOSE_REPEL_MARGIN = 10
 
 /**
- * 近距离排斥力刚度。
+ * 近距离排斥力刚度�?
  *
  * 计算：acceleration = penetration(px) × CLOSE_REPEL_STIFFNESS × dt
- *       penetration = (planetScreenRadius + CLOSE_REPEL_MARGIN) − dist(labelCenter, planetCenter)
+ *       penetration = (planetScreenRadius + CLOSE_REPEL_MARGIN) �?dist(labelCenter, planetCenter)
  *
- * 值 400 高于 ANCHOR_STIFFNESS (20)，确保排斥力 > 向心力。
- * 日常不触发（shadow target 天然在排斥区外），仅在碰撞挤压时激活。
+ * �?400 高于 ANCHOR_STIFFNESS (20)，确保排斥力 > 向心力�?
+ * 日常不触发（shadow target 天然在排斥区外），仅在碰撞挤压时激活�?
  */
 const CLOSE_REPEL_STIFFNESS = 400
 
-// -- 标签间分离 -----------------------------------------------
+// -- 标签间分�?-----------------------------------------------
 
 /**
- * 分离力刚度。
+ * 分离力刚度�?
  *
- * 作用：两标签重叠时，沿最小渗透轴施加排斥加速度，线性于穿透深度。
+ * 作用：两标签重叠时，沿最小渗透轴施加排斥加速度，线性于穿透深度�?
  * 计算：acceleration = penetration × SEPARATION_STIFFNESS × dt
  *
- * 值 120 意味着重叠 10px 时加速度约 120×10×0.016 = 19 px/s²。
- * 与 ANCHOR_STIFFNESS 的比值 (180:20 = 9:1) 决定了碰撞时
- * 推开力 vs 回正力的竞争关系。
+ * �?120 意味着重叠 10px 时加速度�?120×10×0.016 = 19 px/s²�?
+ * �?ANCHOR_STIFFNESS 的比�?(180:20 = 9:1) 决定了碰撞时
+ * 推开�?vs 回正力的竞争关系�?
  */
 const SEPARATION_STIFFNESS = 180
 
 /**
- * 分离弹性（动量传递比例）。
+ * 分离弹性（动量传递比例）�?
  *
- * 作用：两标签相互接近时（相对速度 < 0），沿碰撞法向交换速度。
+ * 作用：两标签相互接近时（相对速度 < 0），沿碰撞法向交换速度�?
  * 原理：impulse = relativeVelocity × SEPARATION_RESTITUTION × 0.5
- *       各承担一半冲量，模拟非完全弹性碰撞。
+ *       各承担一半冲量，模拟非完全弹性碰撞�?
  *
- * 值 0.4 产生温和的"弹开"效果，标签碰撞后不会立即回弹而是减速分离。
+ * �?0.4 产生温和�?弹开"效果，标签碰撞后不会立即回弹而是减速分离�?
  */
 const SEPARATION_RESTITUTION = 0.4
 
 /**
- * 分离最小重叠阈值（迟滞）。
+ * 分离最小重叠阈值（迟滞）�?
  *
- * 作用：重叠 ≤ 此值不触发分离，防止接近边界时高频抖动。
- * 2px 的迟滞为标签间日常微距波动提供了"缓冲区"。
+ * 作用：重�?�?此值不触发分离，防止接近边界时高频抖动�?
+ * 2px 的迟滞为标签间日常微距波动提供了"缓冲�?�?
  */
 const SEPARATION_THRESHOLD = 2
 
 // -- 其他约束 -------------------------------------------------
 
-/** 视口边距（px），标签矩形必须完全在距视口边缘此值之内 */
+/** 视口边距（px），标签矩形必须完全在距视口边缘此值之�?*/
 const VP_MARGIN = 12
 
 /** 约束 B（行星遮挡）的最小安全边距（px）。标签矩形需与行星视觉边缘保持此距离 */
 export const PLANET_AVOID_MARGIN = 4
 
-/** 约束 C（恒星遮挡）的固定安全边距（px），不叠加 label 半宽 */
+/** 约束 C（恒星遮挡）的固定安全边距（px），不叠�?label 半宽 */
 const STAR_AVOID_MARGIN = 8
 
-/** 速度平分系数（两 label 同权） */
+/** 速度平分系数（两 label 同权�?*/
 const HALF = 0.5
 
 // ============================================================
@@ -194,7 +194,7 @@ const HALF = 0.5
 // ============================================================
 
 /**
- * 单行星布局输入。
+ * 单行星布局输入�?
  * sx, sy: 行星屏幕投影中心
  * pr: 行星屏幕视觉半径
  * visible: 行星当前是否在视口内
@@ -206,7 +206,7 @@ export interface PBDInput {
   lw: number; lh: number
 }
 
-/** 单标签布局输出，含定位和调试用的锚点坐标 */
+/** 单标签布局输出，含定位和调试用的锚点坐�?*/
 export interface PBDResult {
   x: number; y: number
   anchorL: { x: number; y: number }
@@ -214,20 +214,20 @@ export interface PBDResult {
 }
 
 /**
- * PBD 可调参数（均通过 App.tsx 的 pbdParams prop 传入）。
- * 不传则使用默认值。
+ * PBD 可调参数（均通过 App.tsx �?pbdParams prop 传入）�?
+ * 不传则使用默认值�?
  */
 export interface PBDParams {
   /** 锚点范围半径（px），默认 90 */
   anchorRangeRadius?: number
-  /** label 内边到 planet 视觉边缘的最小间隙（px），默认 6 */
+  /** label 内边�?planet 视觉边缘的最小间隙（px），默认 6 */
   gap?: number
-  /** 各 label 的 shadow 方向偏移角（°），[label0, label1, label2]，默认 8 */
+  /** �?label �?shadow 方向偏移角（°），[label0, label1, label2]，默�?8 */
   shadowAngleSpread?: number
 }
 
 // ============================================================
-// 状态（模块级，跨帧保持）
+// 状态（模块级，跨帧保持�?
 // ============================================================
 
 interface Body {
@@ -242,7 +242,7 @@ const _bodies: Body[] = [
   { x: 0, y: 0, vx: 0, vy: 0, active: false },
 ]
 
-/** 上一帧各 label 的 shadow target 位置，用于计算 target 运动速度 */
+/** 上一帧各 label �?shadow target 位置，用于计�?target 运动速度 */
 const _prevTarget: { x: number; y: number; valid: boolean }[] = [
   { x: 0, y: 0, valid: false },
   { x: 0, y: 0, valid: false },
@@ -278,29 +278,29 @@ function pushOutOfCircle(
 }
 
 // ============================================================
-// 主函数
+// 主函�?
 // ============================================================
 
 /**
- * PBD 物理步进（每帧由 rAF 循环调用）。
+ * PBD 物理步进（每帧由 rAF 循环调用）�?
  *
  * ## 计算流程
  *
- *   Stage 1 — 预测
- *     对每个可见 label：
- *       1. 计算 shadow target = 行星位置 + 背向恒星的方向 × (pr + gap)
+ *   Stage 1 �?预测
+ *     对每个可�?label�?
+ *       1. 计算 shadow target = 行星位置 + 背向恒星的方�?× (pr + gap)
  *          + per-label 相位偏移 ([-spread°, 0°, +spread°])
- *       2. 计算 target 速度 = (target_now − target_prev) / dt（前馈）
- *       3. 合成 desiredVelocity = targetVelocity + K_CORRECT × (target − current)
- *       4. 指数平滑 v → desiredVelocity，施加阻尼，积分位置
+ *       2. 计算 target 速度 = (target_now �?target_prev) / dt（前馈）
+ *       3. 合成 desiredVelocity = targetVelocity + K_CORRECT × (target �?current)
+ *       4. 指数平滑 v �?desiredVelocity，施加阻尼，积分位置
  *
- *   Stage 2 — 约束（迭代 SOLVER_ITERS 次）
- *     顺序执行 A → A2 → B → C → D → E（后执行的约束可部分修正前约束）
+ *   Stage 2 �?约束（迭�?SOLVER_ITERS 次）
+ *     顺序执行 A �?A2 �?B �?C �?D �?E（后执行的约束可部分修正前约束）
  *
- *   Stage 3 — 输出
- *     从 body 状态生成 PBDResult[]
+ *   Stage 3 �?输出
+ *     �?body 状态生�?PBDResult[]
  *
- * @returns 3 个 label 的屏幕坐标和锚点
+ * @returns 3 �?label 的屏幕坐标和锚点
  */
 export function stepPBD(
   inputs: [PBDInput, PBDInput, PBDInput],
@@ -318,11 +318,11 @@ export function stepPBD(
   const gap = p.gap ?? 6
   const spreadRad = (p.shadowAngleSpread ?? 8) * (Math.PI / 180)
   const dtClamped = Math.min(dt, 0.1)
-  // 每个 label 的有效折叠宽度（优先使用传入的 per-label 值）
+  // 每个 label 的有效折叠宽度（优先使用传入�?per-label 值）
   const _cw = collapsedWidths ?? [collapsedW, collapsedW, collapsedW]
 
   // ==========================================================
-  // Stage 1: 预测 — 速度前馈 + 位置修正
+  // Stage 1: 预测 �?速度前馈 + 位置修正
   // ==========================================================
 
   for (let i = 0; i < 3; i++) {
@@ -331,7 +331,7 @@ export function stepPBD(
     const w = activeTrackIdx === i ? expandedW : _cw[i]
     const h = activeTrackIdx === i ? expandedH : collapsedH
 
-    // 不可见 → 失活
+    // 不可�?�?失活
     if (!inp.visible) {
       b.active = false; b.vx = 0; b.vy = 0
       continue
@@ -342,7 +342,7 @@ export function stepPBD(
     const sdx = inp.sx - centralStar.x
     const sdy = inp.sy - centralStar.y
     const starDist = Math.hypot(sdx, sdy)
-    // 恒星与行星重合时 fallback 向上（sny = -1 指向屏幕上方）
+    // 恒星与行星重合时 fallback 向上（sny = -1 指向屏幕上方�?
     const snx = starDist > EPSILON ? sdx / starDist : 0
     const sny = starDist > EPSILON ? sdy / starDist : -1
 
@@ -356,7 +356,7 @@ export function stepPBD(
     const tx = inp.sx + rnx * offset - w * HALF
     const ty = inp.sy + rny * offset - h * HALF
 
-    // 首次激活 → 直接跳到 target，避免从 (0,0) 过渡
+    // 首次激�?�?直接跳到 target，避免从 (0,0) 过渡
     if (!b.active) {
       b.x = tx; b.y = ty; b.vx = 0; b.vy = 0
       b.active = true
@@ -364,7 +364,7 @@ export function stepPBD(
       continue
     }
 
-    // ---- 速度前馈：跟踪 target 运动 ----
+    // ---- 速度前馈：跟�?target 运动 ----
 
     const pt = _prevTarget[i]
     let tvx = 0, tvy = 0
@@ -374,7 +374,7 @@ export function stepPBD(
     }
     pt.x = tx; pt.y = ty; pt.valid = true
 
-    // 合成期望速度：前馈（匹配 target 运动）+ 反馈（修正位置偏差）
+    // 合成期望速度：前馈（匹配 target 运动�? 反馈（修正位置偏差）
     const desiredVx = tvx + K_CORRECT * (tx - b.x)
     const desiredVy = tvy + K_CORRECT * (ty - b.y)
     // 指数平滑收敛到期望速度
@@ -399,7 +399,7 @@ export function stepPBD(
   // ==========================================================
 
   for (let iter = 0; iter < SOLVER_ITERS; iter++) {
-    // ---- 单标签约束（A, A2, B, C, D） ----
+    // ---- 单标签约束（A, A2, B, C, D�?----
     for (let i = 0; i < 3; i++) {
       const b = _bodies[i]
       const inp = inputs[i]
@@ -410,7 +410,7 @@ export function stepPBD(
       const cx = b.x + w2, cy = b.y + h2
 
       // ---- A: 锚点向心加速度 ----
-      // 左右侧边中点分别计算越出量，取最大者驱动
+      // 左右侧边中点分别计算越出量，取最大者驱�?
       const aLx = b.x, aLy = cy
       const aRx = b.x + w, aRy = cy
       const overL = dist(aLx, aLy, inp.sx, inp.sy) - R
@@ -429,8 +429,8 @@ export function stepPBD(
         }
       }
 
-      // ---- A2: 近距离排斥 ----
-      // label 中心不得侵入行星的 5px 安全区
+      // ---- A2: 近距离排�?----
+      // label 中心不得侵入行星�?5px 安全�?
       {
         const dToPlanet = dist(cx, cy, inp.sx, inp.sy)
         const repelDist = inp.pr + CLOSE_REPEL_MARGIN
@@ -444,7 +444,7 @@ export function stepPBD(
         }
       }
 
-      // ---- B: 标签不遮挡任意行星 ----
+      // ---- B: 标签不遮挡任意行�?----
       for (let pj = 0; pj < 3; pj++) {
         const pjinp = inputs[pj]
         if (!pjinp.visible) continue
@@ -459,7 +459,7 @@ export function stepPBD(
         }
       }
 
-      // ---- C: 标签不遮挡中央恒星（固定安全边距，不依赖 label 尺寸） ----
+      // ---- C: 标签不遮挡中央恒星（固定安全边距，不依赖 label 尺寸�?----
       if (centralStar.visible) {
         const safeR = centralStar.r + STAR_AVOID_MARGIN
         const pushed = pushOutOfCircle(cx, cy, centralStar.x, centralStar.y, safeR)
@@ -467,7 +467,7 @@ export function stepPBD(
         b.y += pushed.y - cy
       }
 
-      // ---- D: 视口约束（硬截断） ----
+      // ---- D: 视口约束（硬截断�?----
       const clamped = clampToViewport(b.x, b.y, w, h, vpW, vpH)
       b.x = clamped.x; b.y = clamped.y
     }
@@ -482,12 +482,12 @@ export function stepPBD(
         const wj = activeTrackIdx === j ? expandedW : _cw[j]
         const hj = activeTrackIdx === j ? expandedH : collapsedH
 
-        // 计算重叠量
+        // 计算重叠�?
         const ox = Math.min(bi.x + wi, bj.x + wj) - Math.max(bi.x, bj.x)
         const oy = Math.min(bi.y + hi, bj.y + hj) - Math.max(bi.y, bj.y)
         if (ox <= SEPARATION_THRESHOLD || oy <= SEPARATION_THRESHOLD) continue
 
-        // 沿最小渗透轴的碰撞法向
+        // 沿最小渗透轴的碰撞法�?
         let nx = 0, ny = 0
         if (ox < oy) { nx = bi.x < bj.x ? -1 : 1 }
         else         { ny = bi.y < bj.y ? -1 : 1 }
@@ -502,8 +502,8 @@ export function stepPBD(
         bj.vx -= nx * accel * HALF
         bj.vy -= ny * accel * HALF
 
-        // 步骤 2: 动量传递（仅当两标签相互接近时）
-        //        交换部分相对速度，产生弹性"弹开"效果
+        // 步骤 2: 动量传递（仅当两标签相互接近时�?
+        //        交换部分相对速度，产生弹�?弹开"效果
         if (relV < 0) {
           const impulse = relV * SEPARATION_RESTITUTION * HALF
           bi.vx -= nx * impulse

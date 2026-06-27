@@ -1,8 +1,8 @@
 /* ============================================================
-   Scrollable — 通用滚动容器 + overlay 层
-   援引：
-     Radix UI ScrollArea — viewport + scrollbar 分层模式
-     CSS scrollbar-width: none — 隐藏原生滚动条
+   Scrollable �?通用滚动容器 + overlay �?
+   援引�?
+     Radix UI ScrollArea �?viewport + scrollbar 分层模式
+     CSS scrollbar-width: none �?隐藏原生滚动�?
    ============================================================ */
 
 .scrollable-wrapper {

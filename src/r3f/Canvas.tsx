@@ -13,9 +13,9 @@ import CentralStar from '../actors/CentralStar'
 import { getDomLayer } from '../composition/layerRegistry'
 
 /**
- * R3F Canvas 配置。
+ * R3F Canvas 配置�?
  *
- * frameloop: 'demand' — 仅在 scrollProgress 变化时渲染（GSAP ticker 驱动 invalidate）
+ * frameloop: 'demand' �?仅在 scrollProgress 变化时渲染（GSAP ticker 驱动 invalidate�?
  * 相机参数从原 LighthouseScene.vue 保留：FOV=40, near=0.1, far=150
  *
  * 援引：R3F frameloop 模式（官方文档）
@@ -39,7 +39,7 @@ export default function SceneCanvas({ children }: CanvasProps) {
       }}
       onCreated={({ camera, scene }) => {
         camera.lookAt(0, -0.65, SCENE_CENTER_Z - 8)
-        // buildSky(): 初始背景 + 雾
+        // buildSky(): 初始背景 + �?
         scene.background = new Color('#050811')
         scene.fog = new FogExp2('#050811', 0.02)
       }}

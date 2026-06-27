@@ -1,9 +1,9 @@
 /**
- * PlanetLabelGuideLines — label → planet 引导虚线。
+ * PlanetLabelGuideLines �?label �?planet 引导虚线�?
  *
- * 独立组件，不嵌入布局系统主代码。
- * 距离取 label 左右锚点中距 planet 质心最近者，连线即该最短线段。
- * 蒙版厚度 3px，收缩动画完成后绘制。
+ * 独立组件，不嵌入布局系统主代码�?
+ * 距离�?label 左右锚点中距 planet 质心最近者，连线即该最短线段�?
+ * 蒙版厚度 3px，收缩动画完成后绘制�?
  */
 
 import { useScrollStore } from '../stores/scrollStore'
@@ -24,10 +24,10 @@ interface Props {
   guideLayouts?: Record<number, { width?: number; ready: boolean }>
 }
 
-/** 锚点到 planet 圆边的距离阈值（px） */
+/** 锚点�?planet 圆边的距离阈值（px�?*/
 const DISTANCE_THRESHOLD = 11
 const EPSILON = 0.001
-/** 蒙版厚度（px） */
+/** 蒙版厚度（px�?*/
 const MASK = 3
 
 export default function PlanetLabelGuideLines({
@@ -62,7 +62,7 @@ export default function PlanetLabelGuideLines({
         const fitW = guideLayout.width
         const w = fitW ?? collapsedWidth
 
-        // 四个计算点：左右锚点 + top-left / top-right 角
+        // 四个计算点：左右锚点 + top-left / top-right �?
         const tl = { x: label.x, y: label.y }
         const tr = { x: label.x + w, y: label.y }
         const points = [
@@ -72,7 +72,7 @@ export default function PlanetLabelGuideLines({
           tr,
         ]
 
-        // 取距离 planet 质心最近者
+        // 取距�?planet 质心最近�?
         let best = points[0]
         let bestDist = Math.hypot(best.x - sc.x, best.y - sc.y)
         for (let i = 1; i < points.length; i++) {
@@ -82,19 +82,19 @@ export default function PlanetLabelGuideLines({
 
         if (bestDist < EPSILON) return null
 
-        // 间隙 = 最近点到质心距离 - planet 半径
+        // 间隙 = 最近点到质心距�?- planet 半径
         const gap = bestDist - pr
         if (gap <= DISTANCE_THRESHOLD) return null
 
-        // 方向单位向量（从最近点指向 planet 质心）
+        // 方向单位向量（从最近点指向 planet 质心�?
         const nx = (sc.x - best.x) / bestDist
         const ny = (sc.y - best.y) / bestDist
 
-        // MASK 蒙版裁剪（3px）：
-        // 起点：最近点向 planet 方向偏移 MASK px（离开 label 边界）
+        // MASK 蒙版裁剪�?px）：
+        // 起点：最近点�?planet 方向偏移 MASK px（离开 label 边界�?
         const x1 = best.x + nx * MASK
         const y1 = best.y + ny * MASK
-        // 终点：planet 质心向最近点方向偏移 (radius + MASK) px（离开 planet 表面）
+        // 终点：planet 质心向最近点方向偏移 (radius + MASK) px（离开 planet 表面�?
         const x2 = sc.x - nx * (pr + MASK)
         const y2 = sc.y - ny * (pr + MASK)
 

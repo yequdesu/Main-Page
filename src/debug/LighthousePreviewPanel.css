@@ -1,7 +1,7 @@
 /* ============================================================
-   LighthousePreviewPanel — 双栏调试布局
+   LighthousePreviewPanel �?双栏调试布局
 
-   左侧：R3F Canvas（实时 3D 场景 + OrbitControls）
+   左侧：R3F Canvas（实�?3D 场景 + OrbitControls�?
    右侧：Leva 面板 + 烘焙截图预览
    ============================================================ */
 
@@ -40,7 +40,7 @@
   z-index: 10;
 }
 
-/* ---- 烘焙预览区 ---- */
+/* ---- 烘焙预览�?---- */
 .bake-section {
   padding: 16px;
   border-top: 1px solid #1e293b;

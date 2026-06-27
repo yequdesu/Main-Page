@@ -1,12 +1,15 @@
 import { useEffect, useMemo, useRef } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
-import { CylinderGeometry, Mesh, MeshBasicMaterial, Vector3 } from 'three'
+import { BufferAttribute, BufferGeometry, Line, LineBasicMaterial, Vector3 } from 'three'
 import {
   getWindChimeCenterPoint,
+  getWindChimeCenterPhysicalPoint,
   getWindChimeLineEndY,
+  getWindChimeLinePoint,
+  getWindChimePlanetPhysicalPoint,
   getWindChimePlanetPoint,
   getWindChimeProgress,
-  WC_ANCHOR_Y,
+  WC_LINE_SEGMENTS,
 } from '../behaviors/useWindChime'
 import { getWebglLayer } from '../composition/layerRegistry'
 import { touchActorFrame, useActorRuntime } from '../composition/actorRuntime'
@@ -26,17 +29,19 @@ export default function WindChimeLines() {
   const projectPoint = useRef(new Vector3()).current
 
   const lines = useMemo(() => {
-    const result: Mesh[] = []
+    const result: Line[] = []
     for (let i = 0; i < 4; i++) {
-      const geometry = new CylinderGeometry(0.012, 0.012, 1, 8, 1)
-      const material = new MeshBasicMaterial({
+      const positions = new Float32Array((WC_LINE_SEGMENTS + 1) * 3)
+      const geometry = new BufferGeometry()
+      geometry.setAttribute('position', new BufferAttribute(positions, 3))
+      const material = new LineBasicMaterial({
         color: '#ffffff',
         transparent: layer.transparent,
         opacity: 0,
         depthTest: layer.depthTest,
         depthWrite: layer.depthWrite,
       })
-      const line = new Mesh(geometry, material)
+      const line = new Line(geometry, material)
       line.renderOrder = layer.renderOrder
       line.visible = false
       result.push(line)
@@ -48,28 +53,42 @@ export default function WindChimeLines() {
     return () => {
       lines.forEach((line) => {
         line.geometry.dispose()
-        ;(line.material as MeshBasicMaterial).dispose()
+        ;(line.material as LineBasicMaterial).dispose()
       })
     }
   }, [lines])
 
-  useFrame(() => {
+  useFrame((state) => {
     const sp = useScrollStore.getState().scrollProgress
     const { smoothP } = getWindChimeProgress(sp)
     const curY = getWindChimeLineEndY(smoothP)
+    const time = state.clock.elapsedTime
     const debugLines = []
 
     touchActorFrame('windChime', Math.round(performance.now()), smoothP > 0)
 
     for (let i = 0; i < 4; i++) {
-      const point = i < 3 ? getWindChimePlanetPoint(i, smoothP) : getWindChimeCenterPoint(smoothP)
+      const point = i < 3
+        ? getWindChimePlanetPhysicalPoint(i, smoothP, time)
+        : getWindChimeCenterPhysicalPoint(smoothP, time)
+      const basePoint = i < 3 ? getWindChimePlanetPoint(i, smoothP) : getWindChimeCenterPoint(smoothP)
       const line = lines[i]
-      const length = Math.max(0.001, WC_ANCHOR_Y - curY)
+      const position = line.geometry.getAttribute('position') as BufferAttribute
+      const positions = position.array as Float32Array
 
-      line.position.set(point.x, curY + length / 2, point.z)
-      line.scale.set(1, length, 1)
+      for (let segment = 0; segment <= WC_LINE_SEGMENTS; segment++) {
+        const t = segment / WC_LINE_SEGMENTS
+        const linePoint = getWindChimeLinePoint(i, smoothP, time, t, basePoint, { ...point, y: curY })
+        const offset = segment * 3
+        positions[offset] = linePoint.x
+        positions[offset + 1] = linePoint.y
+        positions[offset + 2] = linePoint.z
+      }
+
+      position.needsUpdate = true
+      line.geometry.computeBoundingSphere()
       line.visible = smoothP > 0.001
-      ;(line.material as MeshBasicMaterial).opacity = Math.min(0.95, smoothP * 0.95)
+      ;(line.material as LineBasicMaterial).opacity = Math.min(0.95, smoothP * 0.95)
 
       if (typeof window !== 'undefined' && window.location.hostname === 'localhost') {
         projectPoint.set(point.x, curY, point.z).project(camera)
@@ -77,12 +96,13 @@ export default function WindChimeLines() {
           index: i,
           hasAnchor: true,
           usedFallback: false,
+          baseWorld: { x: basePoint.x, y: curY, z: basePoint.z },
           world: { x: point.x, y: curY, z: point.z },
           screen: {
             x: (projectPoint.x * 0.5 + 0.5) * gl.domElement.clientWidth,
             y: (-projectPoint.y * 0.5 + 0.5) * gl.domElement.clientHeight,
           },
-          opacity: (line.material as MeshBasicMaterial).opacity,
+          opacity: (line.material as LineBasicMaterial).opacity,
         })
       }
     }

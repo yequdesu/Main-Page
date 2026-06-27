@@ -2,15 +2,15 @@ import { useState, useCallback, useEffect, useRef } from 'react'
 import type { TerminalMode } from '../stores/scrollStore'
 
 // ============================================================
-// useTerminalState — 受控/非受控终端状态管理
+// useTerminalState �?受控/非受控终端状态管�?
 //
-// 受控模式：调用方提供 mode / echoLines / inputValue，
-//          组件通过 on* 回调通知变更。用于 Zustand / Redux 集成。
-// 非受控模式：props 缺省时，hook 内部 useState 自管理。
+// 受控模式：调用方提供 mode / echoLines / inputValue�?
+//          组件通过 on* 回调通知变更。用�?Zustand / Redux 集成�?
+// 非受控模式：props 缺省时，hook 内部 useState 自管理�?
 //
 // 同步批处理保证：
 //   appendEcho / setEchoLine 内部始终使用 functional update（setState(prev => ...)），
-//   确保同一事件处理中多次调用正确累积。on* 回调接收累积后的完整数组。
+//   确保同一事件处理中多次调用正确累积。on* 回调接收累积后的完整数组�?
 // ============================================================
 
 interface UseTerminalStateOptions {
@@ -36,11 +36,11 @@ interface TerminalState {
   setInputValue: (val: string) => void
   clearInput: () => void
   setTypewriterDone: (done: boolean) => void
-  /** 重置为欢迎状态：mode='idle' + echoLines=[welcomeText]（用于 typewriter 完成） */
+  /** 重置为欢迎状态：mode='idle' + echoLines=[welcomeText]（用�?typewriter 完成�?*/
   resetToWelcome: () => void
-  /** 仅清空回显区为欢迎文本，保持 mode 不变（用于 clear/cls 命令） */
+  /** 仅清空回显区为欢迎文本，保持 mode 不变（用�?clear/cls 命令�?*/
   clearEcho: () => void
-  /** 直接替换 echoLines（同步更新 internal + Zustand，一次 render） */
+  /** 直接替换 echoLines（同步更�?internal + Zustand，一�?render�?*/
   replaceEchoLines: (lines: string[]) => void
 }
 
@@ -53,7 +53,7 @@ export function useTerminalState(opts: UseTerminalStateOptions): TerminalState {
   const [internalInputValue, setInternalInputValue] = useState(opts.inputValue ?? '')
   const [internalTypewriterDone, setInternalTypewriterDone] = useState(opts.typewriterDone ?? false)
 
-  // 当前值：受控取 props，非受控取内部 state
+  // 当前值：受控�?props，非受控取内�?state
   const mode = opts.mode ?? internalMode
   const echoLines = opts.echoLines ?? internalEchoLines
   const inputValue = opts.inputValue ?? internalInputValue
@@ -64,10 +64,10 @@ export function useTerminalState(opts: UseTerminalStateOptions): TerminalState {
     onModeChange?.(m)
   }, [onModeChange])
 
-  // functional update 保证同事件处理中多次调用的累积正确性
-  // onEchoLinesChange 不在 updater 内调用——updater 在 React render 阶段执行，
-  // 内部同步调用外部 setState 会触发 "Cannot update while rendering" 错误。
-  // 改为用 useEffect 在 commit 阶段同步。
+  // functional update 保证同事件处理中多次调用的累积正确�?
+  // onEchoLinesChange 不在 updater 内调用——updater �?React render 阶段执行�?
+  // 内部同步调用外部 setState 会触�?"Cannot update while rendering" 错误�?
+  // 改为�?useEffect �?commit 阶段同步�?
   const pendingEchoRef = useRef(false)
   const appendEcho = useCallback((line: string) => {
     setInternalEchoLines(prev => [...prev, line])

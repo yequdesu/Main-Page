@@ -1,0 +1,24 @@
+.lusion-atmosphere-overlay {
+  overflow: hidden;
+}
+
+.lusion-atmosphere-overlay__tyndall,
+.lusion-atmosphere-overlay__debug {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  pointer-events: none;
+  transition: opacity 180ms ease;
+}
+
+.lusion-atmosphere-overlay__tyndall {
+  opacity: 1;
+  mix-blend-mode: screen;
+}
+
+.lusion-atmosphere-overlay__debug {
+  opacity: 1;
+  mix-blend-mode: normal;
+}

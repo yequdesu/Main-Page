@@ -6,23 +6,23 @@ const _occToParticle = new Vector3()
 const _occProj = new Vector3()
 
 /**
- * 遮挡淡化 — 处于相机与聚焦行星之间的粒子透明度降低。
+ * 遮挡淡化 �?处于相机与聚焦行星之间的粒子透明度降低�?
  *
- * 原 animateDust() 中完整遮挡检测逻辑，逐字保留。
- * 纯函数 — Three.js 依赖仅限于 Vector3 运算。
+ * �?animateDust() 中完整遮挡检测逻辑，逐字保留�?
+ * 纯函�?�?Three.js 依赖仅限�?Vector3 运算�?
  *
- * 援引：原版投影-垂直距离检测（LighthouseScene.vue:750-763）
+ * 援引：原版投�?垂直距离检测（LighthouseScene.vue:750-763�?
  */
 
 /**
- * 计算遮挡淡化因子。
+ * 计算遮挡淡化因子�?
  *
  * @param particlePos       粒子世界坐标
  * @param camera            透视相机
  * @param focusedPlanetPos  聚焦行星世界坐标（null = 无聚焦，不执行遮挡）
  * @param particleScale     粒子当前缩放（用于遮挡判定半径）
- * @param baseOpacity       粒子基础透明度
- * @returns 调整后的透明度（遮挡粒子降至 baseOpacity * 0.12）
+ * @param baseOpacity       粒子基础透明�?
+ * @returns 调整后的透明度（遮挡粒子降至 baseOpacity * 0.12�?
  */
 export function calcOcclusionFade(
   particlePos: Vector3,

@@ -15,7 +15,7 @@ export interface SlotAnimationConfig {
 
   /** 行间动画策略（多行容器） */
   rows?: 'lineByLine' | 'directly'
-  /** 逐行动画的步进间隔 ms（rows: lineByLine 时） */
+  /** 逐行动画的步进间�?ms（rows: lineByLine 时） */
   rowInterval?: number
 
   /** 溢出策略 */
@@ -23,7 +23,7 @@ export interface SlotAnimationConfig {
   /** 滚动间隔 ms（overflow: rolling 时） */
   rollingInterval?: number
 
-  /** 内容轮询间隔 ms（定时调用 getLines/getLine 刷新）。默认 250ms */
+  /** 内容轮询间隔 ms（定时调�?getLines/getLine 刷新）。默�?250ms */
   pollInterval?: number
 }
 
@@ -40,7 +40,7 @@ export interface SlotBase {
   name: string
   /** 统一格式 "type:name"，如 "welcome:greeting" */
   appearAfter?: string
-  /** 该 slot 在 echo area 中占用的行数，默认 1 */
+  /** �?slot �?echo area 中占用的行数，默�?1 */
   lineCount?: number
   /** 动画配置 */
   animation?: SlotAnimationConfig
@@ -49,7 +49,7 @@ export interface SlotBase {
 export interface WelcomeSlot extends SlotBase {
   type: 'welcome'
   text: string
-  /** 完成后等待 ms */
+  /** 完成后等�?ms */
   exitGap?: number
   children?: never
 }
@@ -69,7 +69,7 @@ export interface ContentLineSlot extends SlotBase {
 export type TerminalSlot = WelcomeSlot | SectionSlot | ContentLineSlot
 
 // ============================================================
-// SlotContext — 校验 Slot 组件在 TerminalBar 内部使用
+// SlotContext �?校验 Slot 组件�?TerminalBar 内部使用
 // ============================================================
 
 const SlotContext = createContext(false)
@@ -79,7 +79,7 @@ export function useSlotContext() {
 }
 
 // ============================================================
-// Slot 组件（仅捕获 props，零 DOM）
+// Slot 组件（仅捕获 props，零 DOM�?
 // ============================================================
 
 function createSlotComponent(displayType: string) {
@@ -98,15 +98,15 @@ export const Slot = {
   Section: createSlotComponent('Section'),
   ContentLine: createSlotComponent('ContentLine'),
   collectSlots,
-  /** SlotContext Provider — TerminalBar 内部使用 */
+  /** SlotContext Provider �?TerminalBar 内部使用 */
   Provider: SlotContext.Provider,
 }
 
 // ============================================================
-// 从 children 中同步提取 Slot 配置
+// �?children 中同步提�?Slot 配置
 //
 // 使用 element.type 引用比较替代 displayName 字符串匹配，
-// 生产构建（minify）安全。
+// 生产构建（minify）安全�?
 // ============================================================
 
 export function collectSlots(children: ReactNode): TerminalSlot[] {

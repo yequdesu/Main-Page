@@ -1,11 +1,11 @@
 // ============================================================
-// 颜色插值工具 — 纯函数，零依赖
+// 颜色插值工�?�?纯函数，零依�?
 //
-// 用于终端动态颜色过渡（随 scrollProgress 暗→亮平滑切换）
-// 援引：线性色彩空间逐通道插值 — CSS transition / GSAP 标准实现
+// 用于终端动态颜色过渡（�?scrollProgress 暗→亮平滑切换）
+// 援引：线性色彩空间逐通道插�?�?CSS transition / GSAP 标准实现
 // ============================================================
 
-/** 在两个十六进制颜色字符串之间线性插值 */
+/** 在两个十六进制颜色字符串之间线性插�?*/
 export function lerpHex(a: string, b: string, t: number): string {
   const p = (h: string) => [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)]
   const [ar, ag, ab] = p(a)
@@ -16,7 +16,7 @@ export function lerpHex(a: string, b: string, t: number): string {
   return `#${rv.toString(16).padStart(2, '0')}${gv.toString(16).padStart(2, '0')}${bv.toString(16).padStart(2, '0')}`
 }
 
-/** 在两个 rgba() 字符串之间线性插值（含 alpha 通道） */
+/** 在两�?rgba() 字符串之间线性插值（�?alpha 通道�?*/
 export function lerpRgba(a: string, b: string, t: number): string {
   const re = /rgba?\((\d+),\s*(\d+),\s*(\d+),?\s*([\d.]+)?\)/
   const m = a.match(re)

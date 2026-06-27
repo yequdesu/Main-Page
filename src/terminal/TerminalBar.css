@@ -1,8 +1,8 @@
 /* ============================================================
-   TerminalBar v2 — Liquid Glass + Scrollable overlay
-   援引：
+   TerminalBar v2 �?Liquid Glass + Scrollable overlay
+   援引�?
      Apple Vision Pro glass design language
-     Radix UI ScrollArea — viewport + scrollbar 分层模式
+     Radix UI ScrollArea �?viewport + scrollbar 分层模式
    ============================================================ */
 
 .terminal-bar {
@@ -48,7 +48,7 @@
     0 2px 12px rgba(0, 0, 0, 0.15);
 }
 
-/* ---- Variant: transparent — 半透明无 blur ---- */
+/* ---- Variant: transparent �?半透明�?blur ---- */
 .terminal-bar[data-variant="transparent"] .terminal-bar-inner {
   --tw-variant-bg: rgba(15, 23, 42, 0.55);
   --tw-variant-blur: none;
@@ -59,7 +59,7 @@
   border: 1px solid rgba(148, 163, 184, 0.10);
 }
 
-/* ---- Variant: label — 行星标签专用（灰白基调 + 无边框 + 文字更亮） ---- */
+/* ---- Variant: label �?行星标签专用（灰白基�?+ 无边�?+ 文字更亮�?---- */
 .terminal-bar[data-variant="label"] .terminal-bar-inner {
   --tw-variant-bg: rgba(200, 210, 225, 0.22);
   --tw-variant-blur: none;
@@ -80,7 +80,7 @@
   box-shadow: 0 0 0 1px color-mix(in srgb, var(--pill-accent) 80%, transparent), 0 4px 12px rgba(0, 0, 0, 0.3);
 }
 
-/* ---- Variant: minimal — 无背景无描边 ---- */
+/* ---- Variant: minimal �?无背景无描边 ---- */
 .terminal-bar[data-variant="minimal"] .terminal-bar-inner {
   --tw-variant-bg: transparent;
   --tw-variant-blur: none;
@@ -97,7 +97,7 @@
   box-shadow: none;
 }
 
-/* ---- Planet-label expanded: accent 色背景 + day/night 适配 ---- */
+/* ---- Planet-label expanded: accent 色背�?+ day/night 适配 ---- */
 .floating-label-pill.expanded .terminal-bar-inner {
   background: color-mix(in srgb, var(--pill-accent) 12%, rgba(8, 12, 24, 0.88));
   backdrop-filter: none;
@@ -146,9 +146,9 @@
 }
 
 /* ---- Scroll indicators (overlay arrows) ----
-   由 Scrollable overlay flexbox 定位：
-     justify-content: space-between → ▲ 在顶、▼ 在底
-     align-self: flex-end → 右对齐
+   �?Scrollable overlay flexbox 定位�?
+     justify-content: space-between �?�?在顶、▼ 在底
+     align-self: flex-end �?右对�?
    ============================================ */
 
 .echo-scroll-up,

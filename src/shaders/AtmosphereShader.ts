@@ -1,13 +1,13 @@
 // ============================================================
-// Planet Atmosphere — Fresnel 薄壳着色器
+// Planet Atmosphere �?Fresnel 薄壳着色器
 //
-// BackSide 渲染 → 摄像机看到球壳内侧 → dot(normal, viewDir)
-// 在边缘处最小 → Fresnel 边缘亮、中心透明。
+// BackSide 渲染 �?摄像机看到球壳内�?�?dot(normal, viewDir)
+// 在边缘处最�?�?Fresnel 边缘亮、中心透明�?
 //
-// 援引：
-//   Three.js Forum — "How to create an atmospheric glow effect"
+// 援引�?
+//   Three.js Forum �?"How to create an atmospheric glow effect"
 //     discourse.threejs.org/t/32852 (backSide approach)
-//   Dev.to — "Build an award-winning 3D Website"
+//   Dev.to �?"Build an award-winning 3D Website"
 //     dev.to/robinzon100 (atmosphere shader with fresnel)
 // ============================================================
 
@@ -37,7 +37,7 @@ export const atmosphereFragment = /* glsl */ `
     // Fresnel: edge = 0 (bright), center = 1 (transparent)
     float NdotV = abs(dot(normal, viewDir));
     float fresnel = 1.0 - NdotV;
-    fresnel = pow(fresnel, 2.0);  // ≤3.0 = tighter, ≥2.0 = wider glow
+    fresnel = pow(fresnel, 2.0);  // �?.0 = tighter, �?.0 = wider glow
 
     gl_FragColor = vec4(uColor, fresnel * uOpacity);
   }

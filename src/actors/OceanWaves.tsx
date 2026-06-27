@@ -15,17 +15,17 @@ const DEFAULT_BEAM_ORIGIN = { x: 0, y: -0.428, z: SCENE_CENTER_Z }
 const DEFAULT_BEAM_DIRECTION = { x: 0, y: 0, z: 1 }
 
 /**
- * 海洋波浪线 — 30 条 Line + 水幕遮罩，逐顶点动画。
+ * 海洋波浪�?�?30 �?Line + 水幕遮罩，逐顶点动画�?
  *
  * 每条波浪线下方延伸一个不透明水幕（三角形条带），
  * 顶边跟随波浪曲线，底边固定。水幕先写深度缓冲，
- * 遮挡其 Z 轴后方所有画面。
+ * 遮挡�?Z 轴后方所有画面�?
  *
- * 原 buildOcean():227-265 + animateWavesAndLighting():511-589
- * 30 条线 × 151 顶点 = 4530 个顶点/帧。
- * 深蓝海军底色 + 深度相关透明度，逐字保留自原版。
+ * �?buildOcean():227-265 + animateWavesAndLighting():511-589
+ * 30 条线 × 151 顶点 = 4530 个顶�?帧�?
+ * 深蓝海军底色 + 深度相关透明度，逐字保留自原版�?
  *
- * 援引：R3F <threeLine> + bufferGeometry（逐顶点位置/颜色更新）
+ * 援引：R3F <threeLine> + bufferGeometry（逐顶点位�?颜色更新�?
  */
 export default function OceanWaves() {
   useActorRuntime('waves', true)
@@ -47,12 +47,12 @@ export default function OceanWaves() {
       const frequency = 0.12 + curveT * 0.22
       const speed = 0.35 * curveT + 0.05
       const phase = Math.random() * Math.PI * 2
-      const opacity = 0.15 + curveT * 0.55   // 0.15→0.70 深度分层
+      const opacity = 0.15 + curveT * 0.55   // 0.15�?.70 深度分层
       const span = 45 + curveT * 35
 
-      const r = Math.floor(6 + curveT * 12)       // 6→18  深蓝 navy
-      const g = Math.floor(12 + curveT * 18)      // 12→30
-      const b = Math.floor(26 + curveT * 24)      // 26→50
+      const r = Math.floor(6 + curveT * 12)       // 6�?8  深蓝 navy
+      const g = Math.floor(12 + curveT * 18)      // 12�?0
+      const b = Math.floor(26 + curveT * 24)      // 26�?0
       const hex = `#${r.toString(16).padStart(2,'0')}${g.toString(16).padStart(2,'0')}${b.toString(16).padStart(2,'0')}`
       const bc = new Color(hex)
       baseColors.push({ r: bc.r, g: bc.g, b: bc.b })
@@ -78,7 +78,7 @@ export default function OceanWaves() {
       line.renderOrder = lineLayer.renderOrder
       lines.push(line)
 
-      // ---- 水幕遮罩：三角形条带，顶边=波浪曲线，底边=CURTAIN_BOTTOM_Y ----
+      // ---- 水幕遮罩：三角形条带，顶�?波浪曲线，底�?CURTAIN_BOTTOM_Y ----
       const vCount = segCount + 1
       const cPositions = new Float32Array(vCount * 2 * 3) // top + bottom rows
       for (let j = 0; j < vCount; j++) {
@@ -183,11 +183,11 @@ export default function OceanWaves() {
       const rawZ = d.z
       const baseDepthFade = Math.max(0, Math.min(1, (rawZ - (-52)) / 20.0))
       // 层叠下落：远快近慢，非均匀间距
-      // 远处 (zNorm=0) 在 0.24 开始；近处 (zNorm=1) 在 0.60 开始
-      const zNorm = (rawZ + 52) / 57  // 0(远) → 1(近)
-      const dropStart = CASCADE_START + zNorm * (TIMELINE.gridExtend.start - CASCADE_START)  // 0.24→0.60
+      // 远处 (zNorm=0) �?0.24 开始；近处 (zNorm=1) �?0.60 开�?
+      const zNorm = (rawZ + 52) / 57  // 0(�? �?1(�?
+      const dropStart = CASCADE_START + zNorm * (TIMELINE.gridExtend.start - CASCADE_START)  // 0.24�?.60
       const waveGF = clamped(sp, dropStart, CASCADE_END)  // 每层独立起止
-      const dropY = -40.0 * waveGF  // 每层下落出画面
+      const dropY = -40.0 * waveGF  // 每层下落出画�?
 
       for (let j = 0; j <= d.segCount; j++) {
         const idx = j * 3
@@ -200,8 +200,8 @@ export default function OceanWaves() {
         pArr[idx + 1] = waveY + (d.baseY - waveY) * waveGF + shiftY + dropY
 
         // ---- Volumetric spotlight: per-vertex color highlight ----
-        // 原 animateWavesAndLighting():106-122
-        // 椭圆光束截面 + 高斯衰减，per-vertex 推向暖蓝白高光
+        // �?animateWavesAndLighting():106-122
+        // 椭圆光束截面 + 高斯衰减，per-vertex 推向暖蓝白高�?
         let r = bc.r, g = bc.g, b = bc.b
         if (hlWeight > 0) {
           const vx = x - beamWorldOrigin.x
@@ -209,12 +209,12 @@ export default function OceanWaves() {
           const vz = rawZ - beamWorldOrigin.z
           const proj = vx * beamWorldDirection.x + vy * beamWorldDirection.y + vz * beamWorldDirection.z
           const localX = vx * beamWorldDirection.z - vz * beamWorldDirection.x
-          const beamR = 2.0 + Math.max(0, proj) * 0.25    // ↑=光束更宽、扩散更快
-          const distSq = (localX * localX) / (beamR * beamR) + (vy * vy) / 3.0  // ↑=垂直衰减更小
-          let di = Math.exp(-distSq * 0.35)               // ↓=外晕更柔、扩散更远
-          di *= Math.max(0, Math.min(1, (proj + 2) / 10))  // 近场截止更宽松
-          di *= Math.max(0, 1 - (Math.max(0, proj) / 64))  // 远场延伸到更远
-          let li = di * 1.2 * hlWeight                     // 适中亮度，外晕柔和
+          const beamR = 2.0 + Math.max(0, proj) * 0.25    // �?光束更宽、扩散更�?
+          const distSq = (localX * localX) / (beamR * beamR) + (vy * vy) / 3.0  // �?垂直衰减更小
+          let di = Math.exp(-distSq * 0.35)               // �?外晕更柔、扩散更�?
+          di *= Math.max(0, Math.min(1, (proj + 2) / 10))  // 近场截止更宽�?
+          di *= Math.max(0, 1 - (Math.max(0, proj) / 64))  // 远场延伸到更�?
+          let li = di * 1.2 * hlWeight                     // 适中亮度，外晕柔�?
           if (beamWorldDirection.z > 0 && vz > 0) {
             li += di * Math.exp(-(x * x) / 10) * beamWorldDirection.z * 1.5 * hlWeight
           }
@@ -233,13 +233,13 @@ export default function OceanWaves() {
       ca.needsUpdate = true
       ;(line.material as LineBasicMaterial).opacity = (d.opacity + (0.45 - d.opacity) * waveGF) * baseDepthFade * gridOpacityMult
 
-      // 同步水幕顶边 + 底边 Y 到波浪曲线
+      // 同步水幕顶边 + 底边 Y 到波浪曲�?
       const cMesh = curtainMeshes[i]
       if (cMesh && cMesh.visible) {
         const cPosArr = (cMesh.geometry.attributes.position.array as Float32Array)
         const vCount = d.segCount + 1
         for (let j = 0; j < vCount; j++) {
-          cPosArr[j * 3 + 1] = pArr[j * 3 + 1]           // 顶边 = 波浪线 Y
+          cPosArr[j * 3 + 1] = pArr[j * 3 + 1]           // 顶边 = 波浪�?Y
           cPosArr[(vCount + j) * 3 + 1] = CURTAIN_BOTTOM_Y + dropY  // 底边同步下落
         }
         cMesh.geometry.attributes.position.needsUpdate = true

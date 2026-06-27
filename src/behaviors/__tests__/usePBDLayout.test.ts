@@ -30,19 +30,19 @@ describe('stepPBD', () => {
     ]
     let results = stepPBD(inputs, starBelow, {}, 0.016, 1920, 1080, 85, 200, 44, 44, -1)
     for (let i = 0; i < 200; i++) results = stepPBD(inputs, starBelow, {}, 0.016, 1920, 1080, 85, 200, 44, 44, -1)
-    // 含 8° spread，label 0 略偏左上但仍在上方
-    expect(results[0].y + 44).toBeLessThan(520)  // 放宽：shadow spread 使 y 略有偏移
+    // �?8° spread，label 0 略偏左上但仍在上�?
+    expect(results[0].y + 44).toBeLessThan(520)  // 放宽：shadow spread �?y 略有偏移
   })
 
   it('places labels to the right when star is left', () => {
-    // 恒星离远些，避免 protect zone 与 shadow target 冲突
+    // 恒星离远些，避免 protect zone �?shadow target 冲突
     const starLeft = { x: 200, y: 500, r: 30, visible: true }
     const inputs: [PBDInput, PBDInput, PBDInput] = [
       inp(500, 500), inp(900, 500, 20, false), inp(1300, 500, 20, false),
     ]
     let results = stepPBD(inputs, starLeft, {}, 0.016, 1920, 1080, 85, 200, 44, 44, -1)
     for (let i = 0; i < 200; i++) results = stepPBD(inputs, starLeft, {}, 0.016, 1920, 1080, 85, 200, 44, 44, -1)
-    // 含 8° spread + EMA 平滑，target x ≈ 460
+    // �?8° spread + EMA 平滑，target x �?460
     expect(results[0].x).toBeGreaterThan(450)
   })
 
@@ -61,7 +61,7 @@ describe('stepPBD', () => {
     const inputs: [PBDInput, PBDInput, PBDInput] = [
       inp(500, 500), inp(620, 500), inp(1300, 500, 20, false),
     ]
-    // 120px 间距，K=2 弱弹簧 + EMA 平滑后应分离
+    // 120px 间距，K=2 弱弹�?+ EMA 平滑后应分离
     let final: any = null
     for (let i = 0; i < 200; i++) {
       final = stepPBD(inputs, starBelow, {}, 0.016, 1920, 1080, 85, 200, 44, 44, -1)

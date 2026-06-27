@@ -12,29 +12,29 @@ import {
 import type { PlanetLink } from '../types'
 
 /**
- * useFloatingLabels — 行星标签编排逻辑（PBD 物理驱动）。
+ * useFloatingLabels �?行星标签编排逻辑（PBD 物理驱动）�?
  *
- * 管理 3 个标签的：入场排序 + PBD 物理位置 + 展开/收起状态 + 退出超时。
- * PBD 状态（速度）跨帧保持 → 天然平滑连续。
+ * 管理 3 个标签的：入场排�?+ PBD 物理位置 + 展开/收起状�?+ 退出超时�?
+ * PBD 状态（速度）跨帧保�?�?天然平滑连续�?
  *
- * ## 时间参数（可调，影响入场动画节奏）
+ * ## 时间参数（可调，影响入场动画节奏�?
  *
- * | 参数 | 默认值 | 增大效果 | 减小效果 |
+ * | 参数 | 默认�?| 增大效果 | 减小效果 |
  * |------|--------|----------|----------|
- * | `baseTypewriterDelay` | 600ms | 所有 label 延迟更久才出现，页面"静默期"更长 | label 更快出现，节奏紧凑 |
- * | `staggerDelay` | 600ms | label 间错开更明显，逐个登场的"呼吸感"更强 | label 近乎同时出现，减少等待 |
+ * | `baseTypewriterDelay` | 600ms | 所�?label 延迟更久才出现，页面"静默�?更长 | label 更快出现，节奏紧�?|
+ * | `staggerDelay` | 600ms | label 间错开更明显，逐个登场�?呼吸�?更强 | label 近乎同时出现，减少等�?|
  *
  * 两参数组合示例：
- *   base=600, stagger=1200 → 首个快出，后续大间隔跟进（强调首位）
- *   base=1200, stagger=400 → 整体慢入，但一旦开始就紧凑展示（叙事感）
- *   base=400, stagger=400  → 快速全部展示（简洁模式）
+ *   base=600, stagger=1200 �?首个快出，后续大间隔跟进（强调首位）
+ *   base=1200, stagger=400 �?整体慢入，但一旦开始就紧凑展示（叙事感�?
+ *   base=400, stagger=400  �?快速全部展示（简洁模式）
  *
  * ## 物理参数（模块常量，一般不调）
  *
- * | 常量 | 默认值 | 作用 |
+ * | 常量 | 默认�?| 作用 |
  * |------|--------|------|
  * | `MAX_PBD_DT` | 0.1s | PBD 单帧最大时间步长，防止标签暂停后恢复时瞬移 |
- * | `PBD_CACHE_THRESHOLD` | 0.5px | 位置变化低于此值时不触发 React re-render，减少无效渲染 |
+ * | `PBD_CACHE_THRESHOLD` | 0.5px | 位置变化低于此值时不触�?React re-render，减少无效渲�?|
  *
  * 援引：Müller et al. (2007) "Position Based Dynamics"
  */
@@ -61,24 +61,24 @@ interface FloatingLabelsOptions {
   configs: [LabelConfig, LabelConfig, LabelConfig]
   sequenceStrategy?: SequenceStrategy
   /**
-   * 标签间错开延迟（ms）。
+   * 标签间错开延迟（ms）�?
    *
-   * 作用：第二个及后续 label 的 typewriter 开始延迟在前一个的基础上叠加此值。
+   * 作用：第二个及后�?label �?typewriter 开始延迟在前一个的基础上叠加此值�?
    *       index 策略：delay[i] = baseTypewriterDelay + i × staggerDelay
    *       proximity 策略：delay[i] = baseTypewriterDelay + rank × staggerDelay
    *
-   * 增大 → 标签逐个出现的间隔更长，节奏更舒缓
-   * 减小 → 标签近乎同时出现，信息密度更大
+   * 增大 �?标签逐个出现的间隔更长，节奏更舒�?
+   * 减小 �?标签近乎同时出现，信息密度更�?
    */
   staggerDelay?: number
   /**
-   * typewriter 基础延迟（ms），所有 label 的起步等待时间。
+   * typewriter 基础延迟（ms），所�?label 的起步等待时间�?
    *
-   * 作用：在 PBD 位置稳定后、打字机动画开始前的统一静默期。
-   *       所有策略下每个 label 的 typewriterDelay 最小值均为此值。
+   * 作用：在 PBD 位置稳定后、打字机动画开始前的统一静默期�?
+   *       所有策略下每个 label �?typewriterDelay 最小值均为此值�?
    *
-   * 增大 → 页面加载后更长的"留白"时间，强调场景本身
-   * 减小 → 标签更快出现，减少用户等待
+   * 增大 �?页面加载后更长的"留白"时间，强调场景本�?
+   * 减小 �?标签更快出现，减少用户等�?
    */
   baseTypewriterDelay?: number
   exitTimeout?: number
@@ -92,24 +92,24 @@ interface FloatingLabelsOptions {
 }
 
 /**
- * PBD 单帧最大时间步长（秒）。
+ * PBD 单帧最大时间步长（秒）�?
  *
- * 当页面切到后台或标签页暂停后恢复时，rAF 的 dt 可能非常大。
- * 限制此值可防止 PBD 物理在一帧内产生过大的位移（瞬移）。
+ * 当页面切到后台或标签页暂停后恢复时，rAF �?dt 可能非常大�?
+ * 限制此值可防止 PBD 物理在一帧内产生过大的位移（瞬移）�?
  *
- * 0.1s ≈ 6 帧 @ 60fps — 在此之上位置预测已经不可靠。
+ * 0.1s �?6 �?@ 60fps �?在此之上位置预测已经不可靠�?
  */
 const MAX_PBD_DT = 0.1
 
 /**
- * PBD 缓存位置变化阈值（px）。
+ * PBD 缓存位置变化阈值（px）�?
  *
- * rAF 循环每帧检查 PBD 输出与当前 React state 的差异。
- * 当所有 label 的 x/y 变化均 < 此值时跳过 setState，
- * 避免 PBD 微小振荡触发不必要的 React re-render。
+ * rAF 循环每帧检�?PBD 输出与当�?React state 的差异�?
+ * 当所�?label �?x/y 变化�?< 此值时跳过 setState�?
+ * 避免 PBD 微小振荡触发不必要的 React re-render�?
  *
- * 减小 → 位置更新更精确，但渲染次数增加
- * 增大 → 减少渲染，但可能出现亚像素"粘滞"感
+ * 减小 �?位置更新更精确，但渲染次数增�?
+ * 增大 �?减少渲染，但可能出现亚像�?粘滞"�?
  */
 const PBD_CACHE_THRESHOLD = 0.5
 
@@ -185,7 +185,7 @@ export function useFloatingLabels(
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sequenceStrategy, staggerDelay, baseTypewriterDelay])
 
-  // ---- PBD 物理（rAF 驱动，独立于 R3F frameloop） ----
+  // ---- PBD 物理（rAF 驱动，独立于 R3F frameloop�?----
   const [pbdCache, setPbdCache] = useState<{ x: number; y: number; aLx: number; aLy: number; aRx: number; aRy: number }[]>(
     () => [ {x:0,y:0,aLx:0,aLy:0,aRx:0,aRy:0}, {x:0,y:0,aLx:0,aLy:0,aRx:0,aRy:0}, {x:0,y:0,aLx:0,aLy:0,aRx:0,aRy:0} ]
   )
@@ -229,8 +229,8 @@ export function useFloatingLabels(
         if (prev.length === 3 && prev.every((p, i) => Math.abs(p.x - cached[i].x) < PBD_CACHE_THRESHOLD && Math.abs(p.y - cached[i].y) < PBD_CACHE_THRESHOLD)) return prev
         return cached
       })
-      // 等待至少一个 body 激活（screenCoords 已有有效值）后才允许渲染 TerminalBar。
-      // readiness 属于 hook 实例的 layout 状态，不能放在模块级全局变量里。
+      // 等待至少一�?body 激活（screenCoords 已有有效值）后才允许渲染 TerminalBar�?
+      // readiness 属于 hook 实例�?layout 状态，不能放在模块级全局变量里�?
       if (!layoutReadyRef.current && cached.some(c => c.x !== 0 || c.y !== 0)) {
         layoutReadyRef.current = true
         setLayoutReady(true)
@@ -245,7 +245,7 @@ export function useFloatingLabels(
     }
   }, [effectScope])
 
-  // ---- 退出超时管理 ----
+  // ---- 退出超时管�?----
   const clearExitTimer = useCallback(() => {
     effectScope.clearTimer(exitTimerRef.current)
     exitTimerRef.current = null
@@ -260,7 +260,7 @@ export function useFloatingLabels(
   }, [activeTrackIdx, resetExitTimer, clearExitTimer])
   const handleExternalDismiss = useCallback(() => { setActiveTrackIdx(-1); clearExitTimer() }, [clearExitTimer])
 
-  // ---- 构建 labels（pbdCache 由 rAF 异步更新） ----
+  // ---- 构建 labels（pbdCache �?rAF 异步更新�?----
   const labels = configs.map((cfg, i): LabelState => ({
     trackIdx: i, config: cfg,
     x: pbdCache[i]?.x ?? 0, y: pbdCache[i]?.y ?? 0,
