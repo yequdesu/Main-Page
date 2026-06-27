@@ -223,6 +223,7 @@ export default function AsteroidBelts() {
   const outerFadeOutStartRef = useRef<number | null>(null)
   const outerFadeRef = useRef(0)
   const prevOuterSignalRef = useRef(false)
+  const outerHasTriggeredRef = useRef(false)
 
   useFrame(({ camera, gl, clock }, delta) => {
     const sp = useScrollStore.getState().scrollProgress
@@ -243,6 +244,7 @@ export default function AsteroidBelts() {
     const outerSignal = sp >= 0.998
     const wasOuterSignal = prevOuterSignalRef.current
     if (outerSignal && !wasOuterSignal) {
+      outerHasTriggeredRef.current = true
       outerRevealStartRef.current = time
       outerRevealElapsedRef.current = 0
     }
@@ -256,7 +258,8 @@ export default function AsteroidBelts() {
     }
 
     const fadeOutElapsed = outerFadeOutStartRef.current === null ? 0 : time - outerFadeOutStartRef.current
-    const fadeTarget = outerSignal || fadeOutElapsed < OUTER_BELT_FADE_OUT_HOLD_SECONDS ? 1 : 0
+    const fadeTarget =
+      outerSignal || (outerHasTriggeredRef.current && fadeOutElapsed < OUTER_BELT_FADE_OUT_HOLD_SECONDS) ? 1 : 0
     const fadeSeconds = fadeTarget > outerFadeRef.current ? OUTER_BELT_FADE_IN_SECONDS : OUTER_BELT_FADE_OUT_SECONDS
     const fadeStep = 1 - Math.exp(-delta / fadeSeconds)
     outerFadeRef.current += (fadeTarget - outerFadeRef.current) * fadeStep
@@ -265,6 +268,7 @@ export default function AsteroidBelts() {
       outerRevealStartRef.current = null
       outerRevealElapsedRef.current = null
       outerFadeOutStartRef.current = null
+      outerHasTriggeredRef.current = false
     }
     prevOuterSignalRef.current = outerSignal
     const outerRevealTime = outerRevealElapsedRef.current
