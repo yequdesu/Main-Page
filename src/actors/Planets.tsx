@@ -11,7 +11,15 @@ import { calcScreenSpaceHover } from '../behaviors/useScreenSpaceHover'
 import { smoothstep, clamped, SCENE_CENTER_Z, ORBIT_RADII, ORBIT_COUNT } from '../r3f/ScrollRig'
 import { atmosphereVertex, atmosphereFragment } from '../shaders/AtmosphereShader'
 import { type ParticleData } from '../types'
-import { WC_ANCHOR_Y, WC_DROP_START, WC_DROP_END, WC_RETRACT_END, getWindChimeProgress, getWindChimePlanetPhysicalPoint } from '../behaviors/useWindChime'
+import {
+  WC_ANCHOR_Y,
+  WC_DROP_START,
+  WC_DROP_END,
+  WC_RETRACT_END,
+  getWindChimeProgress,
+  getWindChimePlanetOrbitAngle,
+  getWindChimePlanetPhysicalPoint,
+} from '../behaviors/useWindChime'
 import { useScreenProjection } from '../behaviors/useScreenProjection'
 import { TIMELINE } from '../composition/timeline'
 import { getWebglLayer } from '../composition/layerRegistry'
@@ -32,8 +40,6 @@ import type { AnchorInput } from '../composition/anchorStore'
 
 const PLANET_BASE_RADIUS = 0.015
 const GEO_SEGMENTS = 32
-const MAIN_PLANET_ORBIT_ANGLES = [4.0, 5.15, 5.35]
-
 const ATMOS_SHELL_SCALE = 1.03
 const ATMOS_SHELL_OPACITY = 0.35
 const ATMOS_HALO_SCALE = 1.0
@@ -171,7 +177,7 @@ export default function Planets() {
         scale: cfg.scale,
         sizeBoost: cfg.sizeBoost,
         grayHex,
-        orbitAngle: isMain ? MAIN_PLANET_ORBIT_ANGLES[mainTrackIdx] : Math.random() * Math.PI * 2,
+        orbitAngle: isMain ? getWindChimePlanetOrbitAngle(mainTrackIdx) : Math.random() * Math.PI * 2,
         orbitR,
         orbitSpeed,
         _baseSpeed: orbitSpeed,
@@ -332,19 +338,26 @@ export default function Planets() {
       const targetHover = (i === hoveredIdx && act3Progress >= 0.95) ? 1.0 : 0.0
       d.hoverFactor += (targetHover - d.hoverFactor) * 0.10
 
-      if (trackIdx >= 0 && sp < TIMELINE.orbitGlow.start) {
-        d.orbitAngle = MAIN_PLANET_ORBIT_ANGLES[trackIdx]
+      if (trackIdx >= 0 && sp < WC_RETRACT_END) {
+        d.orbitAngle = getWindChimePlanetOrbitAngle(trackIdx)
       }
 
       // Position
       const freezeFocusedOrbit = i === focusedPlanetIdx && sp >= TIMELINE.act3Shift.start
-      let { x: px, y: py, z: pz } = calcOrbitPosition(d, time, delta, cx, cy, cz, orbitSmooth3, freezeFocusedOrbit)
-      const usingWindChimeLayout = trackIdx >= 0 && sp < TIMELINE.orbitGlow.start
-      if (usingWindChimeLayout) {
+      const orbitPoint = calcOrbitPosition(d, time, delta, cx, cy, cz, orbitSmooth3, freezeFocusedOrbit)
+      let { x: px, y: py, z: pz } = orbitPoint
+      const inWindChimeToOrbitBlend = trackIdx >= 0 && sp < TIMELINE.orbitGlow.start
+      if (inWindChimeToOrbitBlend) {
         const point = getWindChimePlanetPhysicalPoint(trackIdx, wc.smoothP, time)
-        px = point.x
-        py = point.y
-        pz = point.z
+        let windChimeY = point.y
+        if (sp >= VISIBLE_START && sp < WC_DROP_END) {
+          const dropOnly = clamped(sp, VISIBLE_START, WC_DROP_END)
+          windChimeY = WC_ANCHOR_Y + (point.y - WC_ANCHOR_Y) * smoothstep(dropOnly)
+        }
+        const orbitBlend = smoothstep(clamped(sp, WC_RETRACT_END, TIMELINE.orbitGlow.start))
+        px = point.x + (orbitPoint.x - point.x) * orbitBlend
+        py = windChimeY + (orbitPoint.y - windChimeY) * orbitBlend
+        pz = point.z + (orbitPoint.z - point.z) * orbitBlend
       }
 
       // Distance for appearance
@@ -367,11 +380,7 @@ export default function Planets() {
       }
 
       mesh.position.set(px, py, pz)
-      if (sp >= VISIBLE_START && sp < WC_DROP_END) {
-        const dropOnly = clamped(sp, VISIBLE_START, WC_DROP_END)
-        mesh.position.y = WC_ANCHOR_Y + (py - WC_ANCHOR_Y) * smoothstep(dropOnly)
-      }
-      if (inWindChime && !usingWindChimeLayout) {
+      if (inWindChime && !inWindChimeToOrbitBlend) {
         mesh.position.z += 6 * wc.smoothP
       }
       mesh.visible = sp >= VISIBLE_START

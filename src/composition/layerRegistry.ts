@@ -39,6 +39,10 @@ export const LAYERS = {
     id: 'webgl.oceanLines',
     contract: { kind: 'webgl', renderOrder: 0, depthTest: true, depthWrite: true, transparent: false },
   },
+  'webgl.oceanMist': {
+    id: 'webgl.oceanMist',
+    contract: { kind: 'webgl', renderOrder: 0, depthTest: false, depthWrite: false, transparent: true, blending: 'normal' },
+  },
   'webgl.lightBeam': {
     id: 'webgl.lightBeam',
     contract: {

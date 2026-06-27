@@ -10,11 +10,58 @@ export const WC_TARGET_Y = -1.0
 export const WC_CAMERA_PULL_Z = 6
 export const WC_LINE_SEGMENTS = 14
 
-const WIND_CHIME_PLANET_BASE_POINTS: readonly WorldPoint[] = [
-  { x: -2.35, y: WC_TARGET_Y, z: SCENE_CENTER_Z - 2.8 },
-  { x: 2.1, y: WC_TARGET_Y, z: SCENE_CENTER_Z - 4.6 },
-  { x: 3.8, y: WC_TARGET_Y, z: SCENE_CENTER_Z - 5.25 },
-]
+const WIND_CHIME_PLANET_COUNT = 3
+const WIND_CHIME_PLANET_MIN_DISTANCE = 2.25
+const WIND_CHIME_PLANET_MIN_CENTER_DISTANCE = 2.65
+const WIND_CHIME_PLANET_MIN_X_GAP = 1.15
+const WIND_CHIME_LAYOUT_RETRY = 120
+const WIND_CHIME_X_RANGE = [-4.35, 4.35] as const
+const WIND_CHIME_Z_OFFSET_RANGE = [-4.85, 2.85] as const
+
+function randomBetween(min: number, max: number): number {
+  return min + Math.random() * (max - min)
+}
+
+function distanceXZ(a: WorldPoint, b: WorldPoint): number {
+  return Math.hypot(a.x - b.x, a.z - b.z)
+}
+
+function isValidWindChimePoint(candidate: WorldPoint, points: WorldPoint[]): boolean {
+  const centerDistance = Math.hypot(candidate.x, candidate.z - SCENE_CENTER_Z)
+  if (centerDistance < WIND_CHIME_PLANET_MIN_CENTER_DISTANCE) return false
+
+  return points.every((point) => (
+    distanceXZ(candidate, point) >= WIND_CHIME_PLANET_MIN_DISTANCE &&
+    Math.abs(candidate.x - point.x) >= WIND_CHIME_PLANET_MIN_X_GAP
+  ))
+}
+
+function createWindChimePlanetBasePoints(): readonly WorldPoint[] {
+  const points: WorldPoint[] = []
+  for (let i = 0; i < WIND_CHIME_LAYOUT_RETRY && points.length < WIND_CHIME_PLANET_COUNT; i++) {
+    const candidate = {
+      x: randomBetween(WIND_CHIME_X_RANGE[0], WIND_CHIME_X_RANGE[1]),
+      y: WC_TARGET_Y,
+      z: SCENE_CENTER_Z + randomBetween(WIND_CHIME_Z_OFFSET_RANGE[0], WIND_CHIME_Z_OFFSET_RANGE[1]),
+    }
+    if (isValidWindChimePoint(candidate, points)) points.push(candidate)
+  }
+
+  if (
+    points.length === WIND_CHIME_PLANET_COUNT &&
+    points.some((point) => point.z >= SCENE_CENTER_Z + 0.35)
+  ) {
+    return points
+  }
+
+  return [
+    { x: -3.05, y: WC_TARGET_Y, z: SCENE_CENTER_Z + 1.15 },
+    { x: 1.95, y: WC_TARGET_Y, z: SCENE_CENTER_Z - 3.55 },
+    { x: 4.0, y: WC_TARGET_Y, z: SCENE_CENTER_Z + 2.55 },
+  ]
+}
+
+const WIND_CHIME_PLANET_BASE_POINTS = createWindChimePlanetBasePoints()
 
 export function getWindChimeProgress(sp: number): { smoothP: number; active: boolean } {
   const dropFactor = clamped(sp, WC_DROP_START, WC_DROP_END)
@@ -52,6 +99,11 @@ export function getWindChimePlanetPoint(trackIdx: number, smoothP: number): Worl
     y: base.y,
     z: base.z + WC_CAMERA_PULL_Z * smoothP,
   }
+}
+
+export function getWindChimePlanetOrbitAngle(trackIdx: number): number {
+  const base = WIND_CHIME_PLANET_BASE_POINTS[trackIdx] ?? WIND_CHIME_PLANET_BASE_POINTS[0]
+  return Math.atan2(base.z - SCENE_CENTER_Z, base.x)
 }
 
 function getWindChimeMotionEnvelope(smoothP: number): number {

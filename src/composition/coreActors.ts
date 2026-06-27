@@ -47,6 +47,15 @@ export const CORE_ACTORS: ActorSpec[] = [
     ],
   },
   {
+    id: 'seaMist',
+    domain: 'webgl',
+    layer: 'webgl.oceanMist',
+    lifecycle: { mount: 'always', activeWhen: 'timeline.act1OceanVoyage.active', dispose: 'auto' },
+    timing: { clocks: ['scroll', 'elapsedTime'], ranges: ['act1OceanVoyage'] },
+    frame: { phase: 'webgl.mutate', after: ['waves'], before: ['grid'], skipWhenUnchanged: ['scroll', 'elapsedTime'] },
+    consumes: ['scroll.sp', 'clock.elapsedTime'],
+  },
+  {
     id: 'grid',
     domain: 'webgl',
     layer: 'webgl.grid',
@@ -124,6 +133,16 @@ export const CORE_ACTORS: ActorSpec[] = [
     frame: { phase: 'projection', after: ['planets', 'centralStar'], before: ['planetLabels'] },
     consumes: ['anchor.planet.*.world', 'anchor.centralStar.world', 'camera.projection'],
     produces: ['anchor.planet.*.screen', 'anchor.centralStar.screen'],
+  },
+  {
+    id: 'seaCameraBob',
+    domain: 'logic',
+    lifecycle: { mount: 'always', activeWhen: 'timeline.act1OceanVoyage.active', dispose: 'none' },
+    timing: { clocks: ['scroll', 'elapsedTime'], ranges: ['act1OceanVoyage'] },
+    frame: { phase: 'camera', before: ['projection'] },
+    consumes: ['scroll.sp', 'clock.elapsedTime'],
+    produces: ['camera.position'],
+    interaction: { pointer: 'none' },
   },
   {
     id: 'cameraFocus',

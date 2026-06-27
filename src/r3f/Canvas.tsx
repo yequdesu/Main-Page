@@ -10,6 +10,8 @@ import Planets from '../actors/Planets'
 import Lighthouse from '../actors/Lighthouse'
 import WindChimeLines from '../actors/WindChimeLines'
 import CentralStar from '../actors/CentralStar'
+import SeaCameraBob from '../actors/SeaCameraBob'
+import SeaMist from '../actors/SeaMist'
 import { getDomLayer } from '../composition/layerRegistry'
 
 /**
@@ -46,8 +48,10 @@ export default function SceneCanvas({ children }: CanvasProps) {
       style={{ position: canvasLayer.position, inset: 0, zIndex: canvasLayer.zIndex }}
     >
       <ScrollInvalidator />
+      <SeaCameraBob />
       <PlanetClickHandler />
       <SceneLights />
+      <SeaMist />
       <Planets />
       <DustField />
       <Lighthouse />
