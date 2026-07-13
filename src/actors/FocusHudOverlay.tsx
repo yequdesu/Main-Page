@@ -2,7 +2,7 @@ import { useEffect, useRef, type MutableRefObject } from 'react'
 import { useScrollStore } from '../stores/scrollStore'
 import type { DayNight } from '../stores/scrollStore'
 import { PLANET_LINKS, type OverlayData, type ScreenCircle } from '../types'
-import { contourArc, computeFocusInversionCircleGeometry, computeFocusRingGeometry, computeHudTangentGeometry, focusLayerProgress, reverseFocusLayerProgress, screenRx, screenRy, type FocusInversionCircleGeometry, type HudTangentGeometry } from '../composition/focusCorridorGeometry'
+import { contourArc, computeFocusInversionCircleGeometry, computeFocusRingGeometry, computeHudTangentGeometry, focusExitDuration, focusLayerProgress, reverseFocusLayerProgress, screenRx, screenRy, type FocusInversionCircleGeometry, type HudTangentGeometry } from '../composition/focusCorridorGeometry'
 import { readPlanetParticleIndex } from '../composition/coreAnchors'
 import { getDomLayer, resolvePointerEvents } from '../composition/layerRegistry'
 import { useActorRuntime } from '../composition/actorRuntime'
@@ -464,6 +464,7 @@ function drawStarRadiantGeometry(
         focusLayerProgress(exitStartFocusAge, layerOrder),
         exitProgress,
         layerOrder,
+        focusExitDuration(exitStartFocusAge),
       )
     }
     return focusLayerProgress(focusAge, layerOrder)
@@ -494,7 +495,17 @@ function drawStarRadiantGeometry(
   clipOutsideRayCorridor(ctx, width, height, geometry)
   const shortRadius = Math.min(screenRx(star), screenRy(star))
   const longRadius = (outerRingRadius + fourthRingRadius) * 0.5
-  drawFocusEllipseSequence(ctx, star, shortRadius, longRadius, focusAge, alpha)
+  drawFocusEllipseSequence(
+    ctx,
+    star,
+    shortRadius,
+    longRadius,
+    focusAge,
+    alpha,
+    phase,
+    exitProgress,
+    exitStartFocusAge,
+  )
   drawNoisyRadiantRing(
     ctx,
     width,
@@ -778,19 +789,37 @@ function drawFocusEllipseSequence(
   longRadius: number,
   age: number,
   alpha: number,
+  phase: DrawState['phase'],
+  exitProgress: number,
+  exitStartFocusAge: number,
 ): void {
+  const timelineAge = phase === 'exit' ? exitStartFocusAge : age
+  const exitScale = phase === 'exit'
+    ? 1 - smoothstepNumber(0, 1, exitProgress)
+    : 1
   let groupStart = FOCUS_ELLIPSE_GROUP_START_DELAY
   let groupIndex = 0
 
-  while (groupStart <= age && groupIndex < 128) {
+  while (groupStart <= timelineAge && groupIndex < 128) {
     const group = makeFocusEllipseGroup(groupIndex, groupStart)
     for (let ellipseIndex = 0; ellipseIndex < group.count; ellipseIndex += 1) {
       const ellipseStart = group.start + ellipseIndex * group.itemInterval
-      if (ellipseStart > age) break
+      if (ellipseStart > timelineAge) break
 
       const seed = groupIndex * 1009.1 + ellipseIndex * 37.17
-      const elapsed = age - ellipseStart
+      const elapsed = timelineAge - ellipseStart
       if (elapsed < 0 || elapsed >= group.ellipseLifetime) continue
+
+      const revealWindow = Math.min(0.24, group.ellipseLifetime * 0.22)
+      const revealProgress = smoothstepNumber(0, revealWindow, elapsed)
+      const concealProgress = smoothstepNumber(
+        group.ellipseLifetime - revealWindow,
+        group.ellipseLifetime,
+        elapsed,
+      )
+      const lifecycleScale = revealProgress * (1 - concealProgress)
+      const scale = lifecycleScale * exitScale
+      if (scale <= 0.001) continue
 
       const flickerRoll = hudHashNoise(seed + 13.6)
       const flickerStart = group.ellipseLifetime * (0.25 + hudHashNoise(seed + 15.8) * 0.5)
@@ -812,8 +841,8 @@ function drawFocusEllipseSequence(
       ctx.ellipse(
         star.x,
         star.y,
-        longRadius,
-        shortRadius,
+        longRadius * scale,
+        shortRadius * scale,
         group.startAngle + ellipseIndex * group.rotationStep,
         0,
         Math.PI * 2,

@@ -4,6 +4,7 @@ import {
   computeFocusInversionCircleGeometry,
   computeHudTangentGeometry,
   FOCUS_EFFECT_EXIT_DURATION,
+  focusExitDuration,
   focusLayerProgress,
   reverseFocusLayerProgress,
 } from '../composition/focusCorridorGeometry'
@@ -284,6 +285,7 @@ function getSequenceLayerProgress(sequence: BlockSequence, layerOrder: number): 
     focusLayerProgress(sequence.exitStartFocusAge ?? sequence.focusAge, layerOrder),
     sequence.exitProgress,
     layerOrder,
+    focusExitDuration(sequence.exitStartFocusAge ?? sequence.focusAge),
   )
 }
 

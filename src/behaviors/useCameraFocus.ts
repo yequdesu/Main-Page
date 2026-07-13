@@ -4,7 +4,7 @@ import { SCENE_CENTER_Z, FOCUS_TIMEOUT, ORBIT_RADII, clamped, smoothstep } from 
 import { TIMELINE } from '../composition/timeline'
 import { touchActorFrame } from '../composition/actorRuntime'
 import { readPlanetAtmosphereWorldRadius, readPlanetParticleIndex } from '../composition/coreAnchors'
-import { FOCUS_EFFECT_EXIT_DURATION, inverseProportionalEase } from '../composition/focusCorridorGeometry'
+import { FOCUS_EFFECT_EXIT_DURATION, focusExitDuration, inverseProportionalEase } from '../composition/focusCorridorGeometry'
 import { renderFocusHudFrame } from '../actors/focusHudBridge'
 import type { ScreenCircle, ScreenPoint } from '../types'
 
@@ -47,6 +47,7 @@ let _lastHudDrawProgress = 0
 let _hudExitStartTime = 0
 let _hudExitStartProgress = 0
 let _hudExitStartAlpha = 0
+let _hudExitDuration = FOCUS_EFFECT_EXIT_DURATION
 let _focusSideSign = 1
 let _focusDepartFov = 40
 let _focusDepartDistance = 1
@@ -128,6 +129,7 @@ export function updateCameraFocus(
     _hudExitStartTime = 0
     _hudExitStartProgress = 0
     _hudExitStartAlpha = 0
+    _hudExitDuration = FOCUS_EFFECT_EXIT_DURATION
     _focusDepartPos.copy(camera.position)
     _focusDepartLookAt.copy(_currentLookAt)
     _camToStar.subVectors(_starPos, planet).normalize()
@@ -250,7 +252,7 @@ function fadeOverlayOut(store: ReturnType<typeof useScrollStore.getState>, camer
   _focusUIProgress += (0 - _focusUIProgress) * HUD_FADE_OUT_SPEED
   const activeAlpha = overlayAlphaValue(_focusUIProgress)
 
-  const exitFinished = _hudExitStartTime > 0 && time - _hudExitStartTime >= HUD_EFFECT_EXIT_DURATION
+  const exitFinished = _hudExitStartTime > 0 && time - _hudExitStartTime >= _hudExitDuration
   if (!_lastHudStar || !_lastHudPlanet || (activeAlpha <= 0.01 && exitFinished)) {
     _focusUIProgress = 0
     hideOverlayIfNeeded(store, camera)
@@ -265,8 +267,9 @@ function fadeOverlayOut(store: ReturnType<typeof useScrollStore.getState>, camer
     // 1.15s camera settle window, so carrying it into exit would erase a
     // valid partial reverse before it can be seen.
     _hudExitStartAlpha = 1
+    _hudExitDuration = focusExitDuration(_lastHudFocusAge)
   }
-  const exitProgress = clamped(time, _hudExitStartTime, _hudExitStartTime + HUD_EFFECT_EXIT_DURATION)
+  const exitProgress = clamped(time, _hudExitStartTime, _hudExitStartTime + _hudExitDuration)
   const drawProgress = _hudExitStartProgress * inverseProportionalEase(1 - exitProgress)
 
   renderFocusHudFrame({
@@ -295,6 +298,7 @@ function hideOverlayIfNeeded(store: ReturnType<typeof useScrollStore.getState>, 
   _hudExitStartTime = 0
   _hudExitStartProgress = 0
   _hudExitStartAlpha = 0
+  _hudExitDuration = FOCUS_EFFECT_EXIT_DURATION
   renderFocusHudFrame({
     focused: false,
     alpha: 0,

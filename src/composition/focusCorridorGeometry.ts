@@ -50,6 +50,7 @@ export const FOCUS_LAYER_COUNT = 6
 export const FOCUS_EFFECT_DURATION = 1.9
 export const FOCUS_EFFECT_EXIT_DURATION = 1.7
 export const FOCUS_LAYER_EXIT_DURATION = 0.7
+export const FOCUS_MIN_EXIT_DURATION = 0.24
 
 /** Reciprocal response: fast initial expansion, then a long eased tail. */
 export function inverseProportionalEase(value: number): number {
@@ -70,15 +71,25 @@ export function focusLayerProgress(focusAge: number, layerOrder: number): number
   return inverseProportionalEase(focusLayerRawProgress(focusAge, layerOrder))
 }
 
+export function focusExitDuration(focusAge: number): number {
+  return Math.max(
+    FOCUS_MIN_EXIT_DURATION,
+    Math.min(FOCUS_EFFECT_EXIT_DURATION, Math.max(0, focusAge)),
+  )
+}
+
 export function reverseFocusLayerProgress(
   startProgress: number,
   exitProgress: number,
   layerOrder: number,
+  exitDuration = FOCUS_EFFECT_EXIT_DURATION,
 ): number {
   const order = Math.max(0, Math.min(FOCUS_LAYER_COUNT - 1, layerOrder))
-  const outerFirstDelay = (FOCUS_LAYER_COUNT - 1 - order) * FOCUS_LAYER_STAGGER_SECONDS
-  const elapsed = Math.max(0, exitProgress) * FOCUS_EFFECT_EXIT_DURATION
-  const localProgress = Math.max(0, Math.min(1, (elapsed - outerFirstDelay) / FOCUS_LAYER_EXIT_DURATION))
+  const durationScale = Math.max(0.14, Math.min(1, exitDuration / FOCUS_EFFECT_EXIT_DURATION))
+  const outerFirstDelay = (FOCUS_LAYER_COUNT - 1 - order) * FOCUS_LAYER_STAGGER_SECONDS * durationScale
+  const layerExitDuration = FOCUS_LAYER_EXIT_DURATION * durationScale
+  const elapsed = Math.max(0, exitProgress) * exitDuration
+  const localProgress = Math.max(0, Math.min(1, (elapsed - outerFirstDelay) / layerExitDuration))
   return Math.max(0, Math.min(1, startProgress)) * inverseProportionalEase(1 - localProgress)
 }
 
