@@ -46,6 +46,7 @@ uniform float u_time;
 uniform float u_alpha;
 uniform float u_theme;
 uniform float u_focusTrack;
+uniform float u_focusBlend;
 uniform vec4 u_star;
 uniform vec4 u_planets[3];
 uniform vec3 u_occluderWeights;
@@ -83,9 +84,14 @@ float cross2(vec2 a, vec2 b) {
   return a.x * b.y - a.y * b.x;
 }
 
+float focusMask(int i) {
+  if (u_focusTrack < -0.5) return 1.0;
+  if (abs(float(i) - u_focusTrack) < 0.5) return 1.0;
+  return 1.0 - u_focusBlend;
+}
+
 bool usePlanet(int i) {
-  if (u_focusTrack < -0.5) return true;
-  return abs(float(i) - u_focusTrack) < 0.5;
+  return focusMask(i) > 0.001;
 }
 
 float occluderWeight(int i) {
@@ -103,7 +109,7 @@ float planetBodyMask(vec2 p) {
     vec2 c = planet.xy;
     float r = max(planet.z, 1.0);
     float d = length(p - c);
-    mask *= smoothstep(r * 0.9, r * 0.99, d);
+    mask *= mix(1.0, smoothstep(r * 0.9, r * 0.99, d), focusMask(i));
   }
   return mask;
 }
@@ -114,7 +120,7 @@ float occlusionAt(vec2 p) {
     vec4 planet = u_planets[i];
     if (planet.w < 0.5) continue;
     if (!usePlanet(i)) continue;
-    float occ = occluderWeight(i);
+    float occ = occluderWeight(i) * focusMask(i);
     if (occ <= 0.001) continue;
 
     vec2 c = planet.xy;
@@ -136,7 +142,7 @@ float shadowCone(vec2 p) {
     vec4 planet = u_planets[i];
     if (planet.w < 0.5) continue;
     if (!usePlanet(i)) continue;
-    float occ = occluderWeight(i);
+    float occ = occluderWeight(i) * focusMask(i);
     if (occ <= 0.001) continue;
 
     vec2 c = planet.xy;
@@ -221,6 +227,7 @@ interface LightShaftRenderer {
     alpha: WebGLUniformLocation | null
     theme: WebGLUniformLocation | null
     focusTrack: WebGLUniformLocation | null
+    focusBlend: WebGLUniformLocation | null
     star: WebGLUniformLocation | null
     planets: WebGLUniformLocation | null
     occluderWeights: WebGLUniformLocation | null
@@ -233,6 +240,25 @@ function readPlanetScreen(index: number): ScreenPoint {
 
 function readPlanetRadius(index: number): number {
   return readAnchorValue<number>(planetScreenRadiusAnchorId(index)) ?? 0
+}
+
+let focusBlendState = 0
+let focusBlendLastTime = -1
+let focusTrackState = -1
+
+function updateFocusBlend(target: number, time: number): number {
+  if (focusBlendLastTime < 0 || time < focusBlendLastTime) {
+    focusBlendLastTime = time
+    focusBlendState = target
+    return focusBlendState
+  }
+
+  const dt = Math.min(0.1, Math.max(0, time - focusBlendLastTime))
+  focusBlendLastTime = time
+  const response = target > focusBlendState ? 7 : 5
+  const ease = 1 - Math.exp(-dt * response)
+  focusBlendState += (target - focusBlendState) * ease
+  return focusBlendState
 }
 
 function createShader(gl: WebGLRenderingContext, type: number, source: string) {
@@ -297,6 +323,7 @@ function createLightShaftRenderer(canvas: HTMLCanvasElement): LightShaftRenderer
       alpha: gl.getUniformLocation(program, 'u_alpha'),
       theme: gl.getUniformLocation(program, 'u_theme'),
       focusTrack: gl.getUniformLocation(program, 'u_focusTrack'),
+      focusBlend: gl.getUniformLocation(program, 'u_focusBlend'),
       star: gl.getUniformLocation(program, 'u_star'),
       planets: gl.getUniformLocation(program, 'u_planets[0]'),
       occluderWeights: gl.getUniformLocation(program, 'u_occluderWeights'),
@@ -328,6 +355,12 @@ function renderLightShafts(
     planets[i * 4 + 2] = radius
     planets[i * 4 + 3] = planet.visible ? 1 : 0
   }
+  if (focusTrack >= 0 && focusTrack !== focusTrackState) {
+    focusTrackState = focusTrack
+    focusBlendState = 0
+  }
+  const focusBlend = updateFocusBlend(focusTrack >= 0 ? 1 : 0, time)
+  const shaderFocusTrack = focusBlend > 0.001 ? focusTrackState : -1
 
   gl.useProgram(program)
   gl.viewport(0, 0, gl.canvas.width, gl.canvas.height)
@@ -337,7 +370,8 @@ function renderLightShafts(
   gl.uniform1f(uniforms.time, time)
   gl.uniform1f(uniforms.alpha, alpha)
   gl.uniform1f(uniforms.theme, document.documentElement.dataset.theme === 'day' ? 1 : 0)
-  gl.uniform1f(uniforms.focusTrack, focusTrack)
+  gl.uniform1f(uniforms.focusTrack, shaderFocusTrack)
+  gl.uniform1f(uniforms.focusBlend, focusBlend)
   gl.uniform4f(uniforms.star, star.x, star.y, star.r, star.visible ? 1 : 0)
   gl.uniform4fv(uniforms.planets, planets)
   gl.uniform3f(uniforms.occluderWeights, occluderWeights[0], occluderWeights[1], occluderWeights[2])

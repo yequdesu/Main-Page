@@ -6,7 +6,7 @@ import { useRealtimeStore, type PlanetCoords } from '../stores/realtimeStore'
 import { useFrameCache } from '../behaviors/useFrameCache'
 import { calcOrbitPosition } from '../behaviors/useOrbitPosition'
 import { calcAppearance } from '../behaviors/useAppearanceFade'
-import { calcOcclusionFade } from '../behaviors/useOcclusionFade'
+import { calcOcclusionFactor } from '../behaviors/useOcclusionFade'
 import { calcScreenSpaceHover } from '../behaviors/useScreenSpaceHover'
 import { smoothstep, clamped, SCENE_CENTER_Z, ORBIT_RADII, ORBIT_COUNT } from '../r3f/ScrollRig'
 import { atmosphereVertex, atmosphereFragment } from '../shaders/AtmosphereShader'
@@ -46,6 +46,9 @@ const ATMOS_HALO_SCALE = 1.0
 const ATMOS_HALO_OPACITY = 0.32
 const INNER_GLOW_SCALE = 1.1
 const INNER_GLOW_OPACITY = 0.20
+const OCCLUSION_FADE_IN_RESPONSE = 9
+const OCCLUSION_FADE_OUT_RESPONSE = 6
+const DEPTH_WRITE_RELEASE_FACTOR = 0.12
 
 const PLANET_CORE_COLOR = '#f0f8ff'
 const INNER_GLOW_COLOR = '#f6f7f9'
@@ -115,6 +118,7 @@ export default function Planets() {
   const _colorAct3 = useRef(new Color(COLOR_ACT3)).current
   const starLightRef = useRef<PointLight | null>(null)
   const planetWorldPositionsRef = useRef<(Vector3 | null)[]>([null, null, null])
+  const occlusionFactorsRef = useRef<[number, number, number]>([1, 1, 1])
 
   // ---- Create 3 planet meshes + atmosphere (one-time) ----
   const { mainPlanets, planetBasicMats, planetLitMats, innerGlows, atmosShells, haloSpriteMats, haloSprites, mainPlanetIndices, particleData } = useMemo(() => {
@@ -324,10 +328,15 @@ export default function Planets() {
 
     // Focused planet world position for occlusion
     let focusedPlanetPos: Vector3 | null = null
+    let focusedPlanetScale = 1
     if (focusedPlanetIdx >= 0) {
       const fti = mainPlanetIndices.indexOf(focusedPlanetIdx)
-      if (fti >= 0) focusedPlanetPos = planetWorldPositionsRef.current[fti]
+      if (fti >= 0) {
+        focusedPlanetPos = planetWorldPositionsRef.current[fti]
+        focusedPlanetScale = mainPlanets[fti]?.scale.x ?? 1
+      }
     }
+    const hasFocus = focusedPlanetIdx >= 0 && focusedPlanetPos !== null
 
     for (let i = 0; i < particleData.length; i++) {
       const d = particleData[i]
@@ -374,6 +383,7 @@ export default function Planets() {
 
       const mesh = mainPlanets[trackIdx]
       if (!mesh) continue
+      const isFocusedPlanet = i === focusedPlanetIdx
 
       if (trackIdx >= 0 && trackIdx < 3) {
         anchorWrites.push(makeCoreAnchor(planetOrbitAnchorId(trackIdx), { x: px, y: py, z: pz }, 'world', 'planets'))
@@ -425,11 +435,38 @@ export default function Planets() {
       const litMat = planetLitMats[trackIdx]
       const mat = volumeLightEnabled ? litMat : basicMat
       if (mesh.material !== mat) mesh.material = mat
-      let planetOpacity = appearance.opacity
+      let targetOcclusionFactor = 1
       if (focusedPlanetPos && focusedPlanetIdx >= 0 && i !== focusedPlanetIdx) {
         _scratch.set(px, py, pz)
-        planetOpacity = calcOcclusionFade(_scratch, camera as PerspectiveCamera, focusedPlanetPos, appearance.scale, appearance.opacity)
+        targetOcclusionFactor = calcOcclusionFactor(
+          _scratch,
+          camera as PerspectiveCamera,
+          focusedPlanetPos,
+          appearance.scale,
+          focusedPlanetScale,
+          _starWorld,
+        )
       }
+      const currentOcclusionFactor = occlusionFactorsRef.current[trackIdx]
+      const response = targetOcclusionFactor < currentOcclusionFactor
+        ? OCCLUSION_FADE_IN_RESPONSE
+        : OCCLUSION_FADE_OUT_RESPONSE
+      const occlusionEase = 1 - Math.exp(-Math.min(delta, 0.05) * response)
+      const occlusionFactor = currentOcclusionFactor + (
+        targetOcclusionFactor - currentOcclusionFactor
+      ) * occlusionEase
+      occlusionFactorsRef.current[trackIdx] = occlusionFactor
+      const planetOpacity = appearance.opacity * occlusionFactor
+      // Keep a neighbour's depth until it is almost invisible. Releasing it
+      // at focus start makes the higher grid layer jump through the planet.
+      mat.depthWrite = planetLayer.depthWrite && (
+        !hasFocus ||
+        isFocusedPlanet ||
+        occlusionFactor > DEPTH_WRITE_RELEASE_FACTOR
+      )
+      mesh.renderOrder = hasFocus && isFocusedPlanet
+        ? planetLayer.renderOrder + 2
+        : planetLayer.renderOrder
 
       const glowFactor = clamped(sp, TIMELINE.orbitGlow.start, TIMELINE.orbitGlow.end)
       mat.opacity = planetOpacity
@@ -445,6 +482,9 @@ export default function Planets() {
         const gPulse = 1 + Math.sin(time * GLOW_PULSE_FREQ_1 + trackIdx * 2.1) * GLOW_PULSE_AMP_1 + Math.sin(time * GLOW_PULSE_FREQ_2 + trackIdx) * GLOW_PULSE_AMP_2
         glow.position.copy(mesh.position)
         glow.scale.setScalar(appearance.scale * gPulse)
+        glow.renderOrder = hasFocus && isFocusedPlanet
+          ? planetEffectsLayer.renderOrder + 2
+          : planetEffectsLayer.renderOrder
         const gMat = glow.material as MeshBasicMaterial
         gMat.opacity = planetOpacity * INNER_GLOW_OPACITY * gPulse * glowFactor
       }
@@ -454,6 +494,9 @@ export default function Planets() {
       if (shell) {
         shell.position.copy(mesh.position)
         shell.scale.setScalar(appearance.scale)
+        shell.renderOrder = hasFocus && isFocusedPlanet
+          ? planetEffectsLayer.renderOrder + 2
+          : planetEffectsLayer.renderOrder
         const sMat = shell.material as ShaderMaterial
         sMat.uniforms.uOpacity.value = planetOpacity * ATMOS_SHELL_OPACITY * glowFactor
       }
@@ -466,6 +509,11 @@ export default function Planets() {
         sprite.position.copy(mesh.position)
         const baseScale = d.scale * d.scaleMult * ATMOS_HALO_SCALE
         sprite.scale.set(baseScale * pulse, baseScale * pulse, 1)
+        sprite.renderOrder = hasFocus && isFocusedPlanet
+          ? planetHaloLayer.renderOrder
+          : hasFocus
+            ? planetEffectsLayer.renderOrder
+            : planetHaloLayer.renderOrder
         sMat2.opacity = planetOpacity * ATMOS_HALO_OPACITY * pulse * glowFactor
       }
     }

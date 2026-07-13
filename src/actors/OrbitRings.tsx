@@ -1,6 +1,6 @@
 import { useMemo, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
-import { type LineBasicMaterial } from 'three'
+import { type BufferGeometry, type LineBasicMaterial } from 'three'
 import { SCENE_CENTER_Z, ORBIT_RADII, ORBIT_COUNT, clamped, smoothstep } from '../r3f/ScrollRig'
 import { useScrollStore } from '../stores/scrollStore'
 import { themeColor } from '../theme/colors'
@@ -51,16 +51,19 @@ export default function OrbitRings({ speedScale = 1.0 }: OrbitRingsProps) {
   )
 
   const orbitMatRefs = useRef<(LineBasicMaterial | null)[]>([null, null, null])
+  const orbitGeometryRefs = useRef<(BufferGeometry | null)[]>([null, null, null])
 
   useFrame(() => {
     const sp = useScrollStore.getState().scrollProgress
-    touchActorFrame('orbits', Math.round(performance.now()), sp >= TIMELINE.orbitGlow.start)
-    const ORBIT_START = TIMELINE.orbitGlow.start
-    const act3Progress = clamped(sp, ORBIT_START, 1.0)
-    const smooth3 = smoothstep(act3Progress)
+    touchActorFrame('orbits', Math.round(performance.now()), sp >= TIMELINE.orbitLineReveal.start)
 
-    orbitMatRefs.current.forEach((mat) => {
-      if (mat) mat.opacity = smooth3 * 0.35
+    orbitMatRefs.current.forEach((mat, index) => {
+      const revealStart = TIMELINE.orbitLineReveal.start + index * 0.012
+      const reveal = smoothstep(clamped(sp, revealStart, TIMELINE.orbitLineReveal.end))
+      const geometry = orbitGeometryRefs.current[index]
+      const pointCount = geometry?.getAttribute('position').count ?? 0
+      geometry?.setDrawRange(0, Math.ceil(pointCount * reveal))
+      if (mat) mat.opacity = reveal * 0.35
     })
   })
 
@@ -69,7 +72,7 @@ export default function OrbitRings({ speedScale = 1.0 }: OrbitRingsProps) {
       {/* 静态轨道参考线（行星公转轨道） */}
       {orbitPoints.map((pts, t) => (
         <threeLine key={`orbit-${t}`} position={[0, -1.0, SCENE_CENTER_Z]} renderOrder={layer.renderOrder}>
-          <bufferGeometry>
+          <bufferGeometry ref={(geometry) => { orbitGeometryRefs.current[t] = geometry as BufferGeometry }}>
             <bufferAttribute
               attach="attributes-position"
               args={[new Float32Array(pts.flat()), 3]}
@@ -88,7 +91,13 @@ export default function OrbitRings({ speedScale = 1.0 }: OrbitRingsProps) {
 
       {/* 陀螺仪装饰环（每条独立力学模拟�?*/}
       {GYRO_RINGS.map((cfg, i) => (
-        <OrbitalRing key={`gyro-${i}`} config={cfg} speedScale={speedScale} color={orbitColor} />
+        <OrbitalRing
+          key={`gyro-${i}`}
+          config={cfg}
+          speedScale={speedScale}
+          color={orbitColor}
+          revealDelay={i * 0.012}
+        />
       ))}
     </>
   )

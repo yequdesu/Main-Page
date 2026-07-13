@@ -38,6 +38,7 @@ export const TIMELINE = {
   wavesAct3Fade: defineRange('wavesAct3Fade', SCROLL_RIG.GRID_SHIFT_START, 1.0, 'Ocean fades as Act 3 shifts in'),
   gridExtend: defineRange('gridExtend', 0.60, SCROLL_RIG.GRID_SHIFT_START, 'Grid lines extend from near to far'),
   gridRetract: defineRange('gridRetract', SCROLL_RIG.GRID_SHIFT_START, 0.95, 'Grid lines retract as planets take over'),
+  orbitLineReveal: defineRange('orbitLineReveal', SCROLL_RIG.GRID_SHIFT_START, 1.0, 'Orbit and gyroscope line draw/retract'),
   windChimeDrop: defineRange('windChimeDrop', 0.60, 0.75, 'Star and planets drop from the upper anchor'),
   windChimeRetract: defineRange('windChimeRetract', 0.75, 0.88, 'Wind chime guide lines retract'),
   planetVisible: defineRange('planetVisible', 0.60, 1.0, 'Main planets and central star can be visible'),

@@ -41,7 +41,11 @@ let _lastFocusTime = 0
 let _lastHudStar: ScreenCircle | undefined
 let _lastHudPlanet: ScreenCircle | undefined
 let _lastHudFocusedIdx = -1
+let _lastHudFocusAge = 0
+let _lastHudDrawProgress = 0
 let _focusSideSign = 1
+let _focusDepartFov = 40
+let _focusDepartDistance = 1
 
 const HUD_STAR_ATMOSPHERE_WORLD_RADIUS = 0.70
 const HUD_STAR_ATMOSPHERE_CLEARANCE = 24
@@ -51,15 +55,22 @@ const HUD_CAMERA_SETTLE_DELAY = 1.15
 const HUD_CAMERA_DEPART_DISTANCE = 0.55
 const HUD_FADE_IN_SPEED = 0.08
 const HUD_FADE_OUT_SPEED = 0.12
+const HUD_FULL_ALPHA = 0.99
+const HUD_FULL_DISPLAY_DURATION = Math.log(1 - HUD_FULL_ALPHA) / Math.log(1 - HUD_FADE_IN_SPEED) / 60
 const FOCUS_BEHIND_DISTANCE = 2.5
 const FOCUS_SIDE_DISTANCE = 2.2
 const FOCUS_APPROACH_DURATION = 1.7
+const FOCUS_DOLLY_DURATION = HUD_CAMERA_SETTLE_DELAY + HUD_FULL_DISPLAY_DURATION
 const FOCUS_ORBIT_DELAY = 1.65
 const FOCUS_ORBIT_RAMP = 1.9
 const FOCUS_ORBIT_SPEED = 0.014
 const FOCUS_TARGET_FOLLOW = 0.06
 const FOCUS_CAMERA_FOLLOW = 0.055
 const FOCUS_LOOK_FOLLOW = 0.06
+const DEFAULT_CAMERA_FOV = 40
+const FOCUS_DOLLY_MAX_FOV = 72
+const FOCUS_FOV_FOLLOW = 0.12
+const FOCUS_FOV_RETURN = 0.08
 
 /**
  * 相机聚焦系统 �?双层平滑 + 轨道绕行 + 30s 自动取消�?
@@ -93,6 +104,7 @@ export function updateCameraFocus(
     _targetLookAt.lerp(_defaultLookAt, 0.04)
     _currentLookAt.lerp(_targetLookAt, 0.06)
     camera.position.lerp(_targetCamPos, 0.06)
+    updateCameraFov(camera, DEFAULT_CAMERA_FOV, FOCUS_FOV_RETURN)
     camera.lookAt(_currentLookAt)
     return
   }
@@ -112,6 +124,11 @@ export function updateCameraFocus(
     _focusDepartLookAt.copy(_currentLookAt)
     _camToStar.subVectors(_starPos, planet).normalize()
     _camLeftDir.crossVectors(_camUp, _camToStar).normalize()
+    const focusedTrackIdx = getFocusedTrackIndex(focusedIdx)
+    const focusedOrbitRadius = ORBIT_RADII[focusedTrackIdx] ?? ORBIT_RADII[0]
+    _focusAxisPoint.copy(planet).addScaledVector(_camToStar, focusedOrbitRadius * 0.25)
+    _focusDepartFov = camera.fov
+    _focusDepartDistance = Math.max(0.001, _focusDepartPos.distanceTo(_focusAxisPoint))
     _focusCandidateA.copy(planet)
       .addScaledVector(_camToStar, -FOCUS_BEHIND_DISTANCE)
       .addScaledVector(_camLeftDir, FOCUS_SIDE_DISTANCE)
@@ -174,10 +191,29 @@ export function updateCameraFocus(
   // Camera follows smoothed target
   _currentLookAt.lerp(_targetLookAt, isFocused ? FOCUS_LOOK_FOLLOW : 0.06)
   camera.position.lerp(_targetCamPos, isFocused ? FOCUS_CAMERA_FOLLOW : 0.06)
+  if (isFocused && planet) {
+    const focusAge = Math.max(0, time - focusStartTime)
+    const hudRevealProgress = smoothstep(clamped(focusAge, 0, FOCUS_DOLLY_DURATION))
+    const focusDistance = Math.max(0.001, camera.position.distanceTo(_focusAxisPoint))
+    const distanceRatio = _focusDepartDistance / focusDistance
+    const baseTan = Math.tan((_focusDepartFov * Math.PI) / 360)
+    const distanceDollyFov = (2 * Math.atan(baseTan * distanceRatio) * 180) / Math.PI
+    const dollyFov = _focusDepartFov + (
+      Math.min(FOCUS_DOLLY_MAX_FOV, Math.max(_focusDepartFov, distanceDollyFov)) - _focusDepartFov
+    ) * hudRevealProgress
+    updateCameraFov(
+      camera,
+      dollyFov,
+      FOCUS_FOV_FOLLOW,
+    )
+  } else {
+    updateCameraFov(camera, DEFAULT_CAMERA_FOV, FOCUS_FOV_RETURN)
+  }
   camera.lookAt(_currentLookAt)
 
   if (isFocused && planet) {
     const focusAge = Math.max(0, time - focusStartTime)
+    const hudRevealProgress = smoothstep(clamped(focusAge, 0, FOCUS_DOLLY_DURATION))
     const movedFromDepart = camera.position.distanceTo(_focusDepartPos)
     const cameraStable = focusAge > HUD_CAMERA_SETTLE_DELAY && movedFromDepart > HUD_CAMERA_DEPART_DISTANCE
     _viewDir.set(0, 0, -1).applyQuaternion(camera.quaternion).normalize()
@@ -186,16 +222,20 @@ export function updateCameraFocus(
     _focusUIProgress += ((cameraStable && inFront ? 1 : 0) - _focusUIProgress) * HUD_FADE_IN_SPEED
     const activeAlpha = overlayAlphaValue(_focusUIProgress)
 
-    if (activeAlpha <= 0.01) {
-      hideOverlayIfNeeded(store, camera)
-      return
-    }
-
-    // Draw HUD in the same R3F frame as the camera update.
-    emitOverlayData(camera, planet, store, activeAlpha)
+    // Keep the HUD canvas mounted from the focus trigger onward. Its reveal
+    // progress is driven by focus age, while camera stability only controls
+    // the steady-state lifecycle alpha and exit behavior.
+    emitOverlayData(camera, planet, store, activeAlpha, hudRevealProgress, focusAge)
   } else {
     fadeOverlayOut(store, camera)
   }
+}
+
+function updateCameraFov(camera: PerspectiveCamera, targetFov: number, follow: number): void {
+  const nextFov = camera.fov + (targetFov - camera.fov) * follow
+  if (Math.abs(nextFov - camera.fov) < 0.0001) return
+  camera.fov = nextFov
+  camera.updateProjectionMatrix()
 }
 
 function fadeOverlayOut(store: ReturnType<typeof useScrollStore.getState>, camera: PerspectiveCamera): void {
@@ -211,6 +251,9 @@ function fadeOverlayOut(store: ReturnType<typeof useScrollStore.getState>, camer
   renderFocusHudFrame({
     focused: true,
     alpha: activeAlpha,
+    drawProgress: _lastHudDrawProgress,
+    phase: 'exit',
+    focusAge: _lastHudFocusAge,
     focusedPlanetIdx: _lastHudFocusedIdx,
     dayNight: store.dayNight,
     camera: cameraToHudData(camera),
@@ -223,9 +266,14 @@ function hideOverlayIfNeeded(store: ReturnType<typeof useScrollStore.getState>, 
   _lastHudStar = undefined
   _lastHudPlanet = undefined
   _lastHudFocusedIdx = -1
+  _lastHudFocusAge = 0
+  _lastHudDrawProgress = 0
   renderFocusHudFrame({
     focused: false,
     alpha: 0,
+    drawProgress: 0,
+    phase: 'hidden',
+    focusAge: 0,
     focusedPlanetIdx: store.focusedPlanetIdx,
     dayNight: store.dayNight,
     camera: cameraToHudData(camera),
@@ -247,6 +295,8 @@ function emitOverlayData(
   planetPos: Vector3,
   store: ReturnType<typeof useScrollStore.getState>,
   activeAlpha: number,
+  drawProgress: number,
+  focusAge: number,
 ): void {
   const canvas = (camera as any).canvas || (typeof document !== 'undefined' && document.querySelector('canvas'))
   if (!canvas) return
@@ -297,10 +347,15 @@ function emitOverlayData(
   _lastHudStar = star
   _lastHudPlanet = planet
   _lastHudFocusedIdx = store.focusedPlanetIdx
+  _lastHudFocusAge = focusAge
+  _lastHudDrawProgress = drawProgress
 
   renderFocusHudFrame({
     focused: true,
     alpha: activeAlpha,
+    drawProgress,
+    phase: drawProgress < 0.999 ? 'reveal' : 'steady',
+    focusAge,
     focusedPlanetIdx: store.focusedPlanetIdx,
     dayNight: store.dayNight,
     camera: cameraToHudData(camera),

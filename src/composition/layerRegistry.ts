@@ -94,6 +94,11 @@ export const LAYERS = {
     id: 'svg.focusOverlay',
     contract: { kind: 'svg', zIndex: 5, position: 'fixed', pointerEvents: 'none' },
   },
+  'dom.focusInversionBlocks': {
+    id: 'dom.focusInversionBlocks',
+    contract: { kind: 'dom', zIndex: 25, position: 'fixed', pointerEvents: 'none' },
+    description: 'Topmost focus-only difference-blend blocks for the vertical center axis.',
+  },
   'dom.brandTitle': {
     id: 'dom.brandTitle',
     contract: { kind: 'dom', zIndex: 10, position: 'fixed', pointerEvents: 'none' },
