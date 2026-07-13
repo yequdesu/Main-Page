@@ -260,7 +260,11 @@ function fadeOverlayOut(store: ReturnType<typeof useScrollStore.getState>, camer
   if (_hudExitStartTime <= 0) {
     _hudExitStartTime = time
     _hudExitStartProgress = _lastHudDrawProgress
-    _hudExitStartAlpha = activeAlpha
+    // The focus composition itself is already gated by its per-layer
+    // progress. The lifecycle alpha is still near zero during the first
+    // 1.15s camera settle window, so carrying it into exit would erase a
+    // valid partial reverse before it can be seen.
+    _hudExitStartAlpha = 1
   }
   const exitProgress = clamped(time, _hudExitStartTime, _hudExitStartTime + HUD_EFFECT_EXIT_DURATION)
   const drawProgress = _hudExitStartProgress * inverseProportionalEase(1 - exitProgress)
