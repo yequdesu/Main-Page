@@ -85,7 +85,6 @@ describe('calcOcclusionFactor', () => {
       new Vector3(2, 0, 0),
       1,
       1,
-      1,
       new Vector3(0, 0, 6),
     )
 

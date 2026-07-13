@@ -8,9 +8,12 @@ const _occCamForward = new Vector3()
 const _occCameraTarget = new Vector3()
 
 const PLANET_BASE_RADIUS = 0.015
-const STAR_OCCLUSION_RADIUS = 0.70
+// The visible star includes the core, inner glow, and a soft halo. Keep the
+// occlusion target larger than the physical core so the fade completes before
+// a neighbouring planet can cross the luminous edge.
+const STAR_OCCLUSION_RADIUS = 1.10
 const FOCUS_RAY_CLEARANCE_NDC = 0.35
-const STAR_RAY_CLEARANCE_NDC = 0.12
+const STAR_RAY_CLEARANCE_NDC = 0.18
 const CAMERA_CLEAR_DEPTH = 3.4
 const CAMERA_RAY_CLEARANCE_NDC = 1.65
 
