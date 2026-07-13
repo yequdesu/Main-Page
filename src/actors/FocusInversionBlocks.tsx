@@ -370,7 +370,10 @@ function drawInversionConnectors(
   const age = sequence.exitStartedAt === null ? Math.max(0, sequence.focusAge) : exitAge
 
   ctx.save()
-  ctx.globalCompositeOperation = 'source-over'
+  // Connectors participate in the same binary inversion mask as the blocks.
+  // A connector crossing a filled/frame block therefore cancels in the
+  // intersection instead of being painted over it.
+  ctx.globalCompositeOperation = 'xor'
   ctx.strokeStyle = '#fff'
   ctx.lineWidth = 0.9
   ctx.lineCap = 'butt'
