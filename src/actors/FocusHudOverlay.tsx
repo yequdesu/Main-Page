@@ -2,7 +2,7 @@ import { useEffect, useRef, type MutableRefObject } from 'react'
 import { useScrollStore } from '../stores/scrollStore'
 import type { DayNight } from '../stores/scrollStore'
 import { PLANET_LINKS, type OverlayData, type ScreenCircle } from '../types'
-import { contourArc, computeFocusInversionCircleGeometry, computeFocusRingGeometry, computeHudTangentGeometry, inverseProportionalEase, screenRx, screenRy, type FocusInversionCircleGeometry, type HudTangentGeometry } from '../composition/focusCorridorGeometry'
+import { contourArc, computeFocusInversionCircleGeometry, computeFocusRingGeometry, computeHudTangentGeometry, focusLayerProgress, reverseFocusLayerProgress, screenRx, screenRy, type FocusInversionCircleGeometry, type HudTangentGeometry } from '../composition/focusCorridorGeometry'
 import { readPlanetParticleIndex } from '../composition/coreAnchors'
 import { getDomLayer, resolvePointerEvents } from '../composition/layerRegistry'
 import { useActorRuntime } from '../composition/actorRuntime'
@@ -14,6 +14,8 @@ interface DrawState {
   dayNight: DayNight
   camera: FocusHudCameraData
   drawProgress: number
+  exitProgress: number
+  exitStartFocusAge: number
   focusAge: number
   phase: FocusHudFrame['phase']
 }
@@ -451,10 +453,22 @@ function drawStarRadiantGeometry(
   alpha: number,
   drawProgress: number,
   focusAge: number,
+  phase: DrawState['phase'],
+  exitProgress: number,
+  exitStartFocusAge: number,
   palette: HudPalette,
 ): void {
-  const expansionProgress = inverseProportionalEase(drawProgress)
-  const rayProgress = expansionProgress
+  const resolveLayerProgress = (layerOrder: number): number => {
+    if (phase === 'exit') {
+      return reverseFocusLayerProgress(
+        focusLayerProgress(exitStartFocusAge, layerOrder),
+        exitProgress,
+        layerOrder,
+      )
+    }
+    return focusLayerProgress(focusAge, layerOrder)
+  }
+  const ringProgresses = Array.from({ length: 6 }, (_, index) => resolveLayerProgress(index))
   const ringGeometry = computeFocusRingGeometry(star, width, height)
   const {
     radius,
@@ -470,12 +484,11 @@ function drawStarRadiantGeometry(
   } = ringGeometry
   const rotation = Math.max(0, focusAge) * STAR_RADIANT_ROTATION_SPEED
   const ringStartAngle = -Math.PI / 2 + rotation
-  const circleReveal = expansionProgress
-  const inversionCircles = circleReveal > 0.55
-    ? computeFocusInversionCircleGeometry(star, width, height, focusAge, drawProgress)
-    : []
+  const circleProgresses = [ringProgresses[1], ringProgresses[3], ringProgresses[5]]
+  const circleGeometry = computeFocusInversionCircleGeometry(star, width, height, focusAge, circleProgresses)
+  const inversionCircles = circleGeometry.filter((_, index) => circleProgresses[index] > 0.55)
   const starEdge = Math.max(screenRx(star), screenRy(star))
-  const expandRadius = (target: number) => starEdge + (target - starEdge) * expansionProgress
+  const expandRadius = (target: number, progress: number) => starEdge + (target - starEdge) * progress
 
   ctx.save()
   clipOutsideRayCorridor(ctx, width, height, geometry)
@@ -488,11 +501,11 @@ function drawStarRadiantGeometry(
     height,
     star.x,
     star.y,
-    expandRadius(radius + ringWidth * 0.5),
-    Math.max(0.5, expandRadius(radius - ringWidth * 0.5)),
+    expandRadius(radius + ringWidth * 0.5, ringProgresses[0]),
+    Math.max(0.5, expandRadius(radius - ringWidth * 0.5, ringProgresses[0])),
     ringStartAngle,
     ringStartAngle + Math.PI * 2,
-    alpha * 0.82,
+    alpha * ringProgresses[0] * 0.82,
     palette.tangentStroke,
     inversionCircles,
   )
@@ -502,11 +515,11 @@ function drawStarRadiantGeometry(
     height,
     star.x,
     star.y,
-    expandRadius(outerRingRadius + outerRingWidth * 0.5),
-    Math.max(0.5, expandRadius(outerRingRadius - outerRingWidth * 0.5)),
+    expandRadius(outerRingRadius + outerRingWidth * 0.5, ringProgresses[1]),
+    Math.max(0.5, expandRadius(outerRingRadius - outerRingWidth * 0.5, ringProgresses[1])),
     ringStartAngle,
     ringStartAngle + Math.PI * 2,
-    alpha * 0.82,
+    alpha * ringProgresses[1] * 0.82,
     inversionCircles,
   )
   drawNoisyRadiantRing(
@@ -515,11 +528,11 @@ function drawStarRadiantGeometry(
     height,
     star.x,
     star.y,
-    expandRadius(thirdRingRadius + thirdRingWidth * 0.5),
-    Math.max(0.5, expandRadius(thirdRingRadius - thirdRingWidth * 0.5)),
+    expandRadius(thirdRingRadius + thirdRingWidth * 0.5, ringProgresses[2]),
+    Math.max(0.5, expandRadius(thirdRingRadius - thirdRingWidth * 0.5, ringProgresses[2])),
     ringStartAngle,
     ringStartAngle + Math.PI * 2,
-    alpha * 0.52,
+    alpha * ringProgresses[2] * 0.52,
     palette.tangentStroke,
     inversionCircles,
   )
@@ -529,11 +542,11 @@ function drawStarRadiantGeometry(
     height,
     star.x,
     star.y,
-    expandRadius(fourthRingRadius + outerRingWidth * 0.5),
-    Math.max(0.5, expandRadius(fourthRingRadius - outerRingWidth * 0.5)),
+    expandRadius(fourthRingRadius + outerRingWidth * 0.5, ringProgresses[3]),
+    Math.max(0.5, expandRadius(fourthRingRadius - outerRingWidth * 0.5, ringProgresses[3])),
     ringStartAngle,
     ringStartAngle + Math.PI * 2,
-    alpha * 0.82,
+    alpha * ringProgresses[3] * 0.82,
     inversionCircles,
   )
   drawNoisyRadiantRing(
@@ -542,11 +555,11 @@ function drawStarRadiantGeometry(
     height,
     star.x,
     star.y,
-    expandRadius(fifthRingRadius + ringWidth * 0.5),
-    Math.max(0.5, expandRadius(fifthRingRadius - ringWidth * 0.5)),
+    expandRadius(fifthRingRadius + ringWidth * 0.5, ringProgresses[4]),
+    Math.max(0.5, expandRadius(fifthRingRadius - ringWidth * 0.5, ringProgresses[4])),
     ringStartAngle,
     ringStartAngle + Math.PI * 2,
-    alpha * 0.36,
+    alpha * ringProgresses[4] * 0.36,
     palette.tangentStroke,
     inversionCircles,
   )
@@ -556,11 +569,11 @@ function drawStarRadiantGeometry(
     height,
     star.x,
     star.y,
-    expandRadius(sixthRingRadius + outerRingWidth * 0.5),
-    Math.max(0.5, expandRadius(sixthRingRadius - outerRingWidth * 0.5)),
+    expandRadius(sixthRingRadius + outerRingWidth * 0.5, ringProgresses[5]),
+    Math.max(0.5, expandRadius(sixthRingRadius - outerRingWidth * 0.5, ringProgresses[5])),
     ringStartAngle,
     ringStartAngle + Math.PI * 2,
-    alpha * 0.82,
+    alpha * ringProgresses[5] * 0.82,
     inversionCircles,
   )
 
@@ -574,6 +587,7 @@ function drawStarRadiantGeometry(
       scale: 1,
       outwardTipScale: 1,
       useNoise: true,
+      progress: ringProgresses[0],
     },
     {
       startRadius: radius + 70,
@@ -584,13 +598,14 @@ function drawStarRadiantGeometry(
       scale: 2,
       outwardTipScale: 1.4,
       useNoise: false,
+      progress: ringProgresses[4],
     },
   ]
 
   for (const ring of ringDefinitions) {
     for (let rayIndex = 0; rayIndex < STAR_RADIANT_RAY_COUNT; rayIndex += ring.step) {
       const rayT = rayIndex / STAR_RADIANT_RAY_COUNT
-      const rayReveal = rayProgress
+      const rayReveal = ring.progress
       if (rayReveal <= 0.01) continue
 
       const angle = -Math.PI / 2 + ring.phase + rayT * Math.PI * 2
@@ -598,8 +613,8 @@ function drawStarRadiantGeometry(
       const lengthJitter = (hudHashNoise(ring.seed + rayIndex * 9.17 + 4.6) - 0.5) * 10
       const targetStartRadius = ring.startRadius + radialJitter
       const targetLength = Math.max(18, ring.length + lengthJitter)
-      const startRadius = starEdge + (targetStartRadius - starEdge) * rayProgress
-      const length = Math.max(2, targetLength * rayProgress)
+      const startRadius = starEdge + (targetStartRadius - starEdge) * ring.progress
+      const length = Math.max(2, targetLength * ring.progress)
       const centerRadius = startRadius + length * 0.5
       const centerX = star.x + Math.cos(angle) * centerRadius
       const centerY = star.y + Math.sin(angle) * centerRadius
@@ -994,7 +1009,20 @@ function drawHud(
   const geometry = computeHudTangentGeometry(overlay.star, overlay.planet, width, height)
 
   drawColorGradient(ctx, width, height, overlay.star, overlay.planet, geometry, alpha, drawProgress, palette, colorGradientRef)
-  drawStarRadiantGeometry(ctx, width, height, overlay.star, geometry, alpha, drawProgress, state.focusAge, palette)
+  drawStarRadiantGeometry(
+    ctx,
+    width,
+    height,
+    overlay.star,
+    geometry,
+    alpha,
+    drawProgress,
+    state.focusAge,
+    state.phase,
+    state.exitProgress,
+    state.exitStartFocusAge,
+    palette,
+  )
   drawTargetGeometry(ctx, width, height, geometry, alpha, drawProgress, palette)
   drawCorners(ctx, width, height, alpha, drawProgress, palette)
   drawLaunchPanel(ctx, width, height, overlay.planet, trackIdx, state.camera, alpha, drawProgress, palette)
@@ -1010,6 +1038,8 @@ export default function FocusHudOverlay() {
     camera: { pos: { x: 0, y: 0, z: 0 } },
     drawProgress: 0,
     focusAge: 0,
+    exitProgress: 0,
+    exitStartFocusAge: 0,
     phase: 'hidden',
   })
   const focusedPlanetIdx = useScrollStore((state) => state.focusedPlanetIdx)
@@ -1036,6 +1066,11 @@ export default function FocusHudOverlay() {
         : { focused: false }
 
       canvas.style.opacity = String(frame.focused ? 1 : 0)
+      const previous = stateRef.current
+      const enteredExit = frame.phase === 'exit' && previous.phase !== 'exit'
+      const exitStartFocusAge = frame.phase === 'exit'
+        ? (enteredExit ? frame.focusAge : previous.exitStartFocusAge)
+        : frame.focusAge
       stateRef.current = {
         overlay,
         focusedPlanetIdx: frame.focusedPlanetIdx,
@@ -1043,6 +1078,8 @@ export default function FocusHudOverlay() {
         camera: frame.camera,
         drawProgress: frame.drawProgress,
         focusAge: frame.focusAge,
+        exitProgress: frame.exitProgress,
+        exitStartFocusAge,
         phase: frame.phase,
       }
       const { width, height } = resizeCanvas(canvas, ctx)

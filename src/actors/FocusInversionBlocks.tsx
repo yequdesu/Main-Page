@@ -1,6 +1,12 @@
 import { useEffect, useRef } from 'react'
 import { getDomLayer } from '../composition/layerRegistry'
-import { computeFocusInversionCircleGeometry, computeHudTangentGeometry, inverseProportionalEase } from '../composition/focusCorridorGeometry'
+import {
+  computeFocusInversionCircleGeometry,
+  computeHudTangentGeometry,
+  FOCUS_EFFECT_EXIT_DURATION,
+  focusLayerProgress,
+  reverseFocusLayerProgress,
+} from '../composition/focusCorridorGeometry'
 import { registerFocusHudRenderer, type FocusHudFrame } from './focusHudBridge'
 import { getFocusInversionConfig } from './focusInversionConfig'
 import type { ScreenCircle } from '../types'
@@ -40,7 +46,8 @@ interface BlockSequence {
   restAt: number
   lastEventAge: number
   exitStartedAt: number | null
-  exitStartProgress: number | null
+  exitProgress: number
+  exitStartFocusAge: number | null
 }
 
 interface BodySnapshot {
@@ -62,7 +69,7 @@ interface FocusAxis {
   planetCircle: ScreenCircle
 }
 
-const EXIT_DURATION = 0.82
+const EXIT_DURATION = FOCUS_EFFECT_EXIT_DURATION
 
 function smoothstep(edge0: number, edge1: number, value: number): number {
   const t = Math.max(0, Math.min(1, (value - edge0) / (edge1 - edge0)))
@@ -260,7 +267,7 @@ function getInversionCircleCenters(
   sequence: BlockSequence,
   width: number,
   height: number,
-  progress: number,
+  progress: number[],
 ): ReturnType<typeof computeFocusInversionCircleGeometry> {
   return computeFocusInversionCircleGeometry(
     sequence.axis.starCircle,
@@ -271,11 +278,13 @@ function getInversionCircleCenters(
   )
 }
 
-function getSequenceAnimationProgress(sequence: BlockSequence, now: number): number {
-  if (sequence.exitStartedAt === null) return sequence.drawProgress
-  const exitProgress = clamp((now - sequence.exitStartedAt) / EXIT_DURATION, 0, 1)
-  const startProgress = sequence.exitStartProgress ?? sequence.drawProgress
-  return startProgress * inverseProportionalEase(1 - exitProgress)
+function getSequenceLayerProgress(sequence: BlockSequence, layerOrder: number): number {
+  if (sequence.exitStartedAt === null) return focusLayerProgress(sequence.focusAge, layerOrder)
+  return reverseFocusLayerProgress(
+    focusLayerProgress(sequence.exitStartFocusAge ?? sequence.focusAge, layerOrder),
+    sequence.exitProgress,
+    layerOrder,
+  )
 }
 
 function drawCircularInversionRegions(
@@ -285,11 +294,12 @@ function drawCircularInversionRegions(
   sequence: BlockSequence,
   now: number,
 ): void {
-  const animationProgress = getSequenceAnimationProgress(sequence, now)
-  const reveal = inverseProportionalEase(animationProgress)
-  if (reveal <= 0.001) return
-
-  const circleCenters = getInversionCircleCenters(sequence, width, height, animationProgress)
+  const circleProgresses = [
+    getSequenceLayerProgress(sequence, 1),
+    getSequenceLayerProgress(sequence, 3),
+    getSequenceLayerProgress(sequence, 5),
+  ]
+  const circleCenters = getInversionCircleCenters(sequence, width, height, circleProgresses)
 
   ctx.save()
   // XOR creates a binary mask: where a circle crosses an existing square
@@ -297,8 +307,11 @@ function drawCircularInversionRegions(
   // second inversion.
   ctx.globalCompositeOperation = 'xor'
   ctx.fillStyle = '#ffffff'
-  ctx.globalAlpha = reveal > 0.55 ? 1 : reveal
-  for (const circle of circleCenters) {
+  for (let index = 0; index < circleCenters.length; index += 1) {
+    const progress = circleProgresses[index]
+    if (progress <= 0.001) continue
+    ctx.globalAlpha = progress > 0.55 ? 1 : progress
+    const circle = circleCenters[index]
     ctx.beginPath()
     ctx.arc(circle.x, circle.y, circle.radius, 0, Math.PI * 2)
     ctx.fill()
@@ -471,7 +484,8 @@ export default function FocusInversionBlocks() {
       for (const sequence of sequencesRef.current) {
         if (sequence.exitStartedAt !== null) continue
         sequence.exitStartedAt = now
-        sequence.exitStartProgress = sequence.drawProgress
+        sequence.exitProgress = 0
+        sequence.exitStartFocusAge = sequence.focusAge
         for (const block of sequence.blocks) {
           const wasVisible = activeBlockOpacity(block, sequence.drawProgress) >= 0.5
           const eventVisible = eventVisual(block, now).opacity >= 0.5
@@ -488,6 +502,9 @@ export default function FocusInversionBlocks() {
 
       if (!frame.focused || frame.phase === 'exit') {
         markActiveSequencesExiting()
+        for (const sequence of sequencesRef.current) {
+          if (sequence.exitStartedAt !== null) sequence.exitProgress = frame.exitProgress
+        }
         activeSequenceIdRef.current = null
       } else if (!current || restarted || changedTarget) {
         markActiveSequencesExiting()
@@ -502,7 +519,8 @@ export default function FocusInversionBlocks() {
           restAt: 2.35,
           lastEventAge: frame.focusAge,
           exitStartedAt: null,
-          exitStartProgress: null,
+          exitProgress: 0,
+          exitStartFocusAge: null,
         }
         sequencesRef.current.push(sequence)
         activeSequenceIdRef.current = sequence.id

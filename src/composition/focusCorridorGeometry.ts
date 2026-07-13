@@ -45,12 +45,41 @@ export interface FocusInversionCircleGeometry {
   radius: number
 }
 
+export const FOCUS_LAYER_STAGGER_SECONDS = 0.2
+export const FOCUS_LAYER_COUNT = 6
+export const FOCUS_EFFECT_DURATION = 1.9
+export const FOCUS_EFFECT_EXIT_DURATION = 1.7
+export const FOCUS_LAYER_EXIT_DURATION = 0.7
+
 /** Reciprocal response: fast initial expansion, then a long eased tail. */
 export function inverseProportionalEase(value: number): number {
   const t = Math.max(0, Math.min(1, value))
   const strength = 8
   const end = 1 - 1 / (1 + strength)
   return (1 - 1 / (1 + strength * t)) / end
+}
+
+export function focusLayerRawProgress(focusAge: number, layerOrder: number): number {
+  const order = Math.max(0, Math.min(FOCUS_LAYER_COUNT - 1, layerOrder))
+  const delay = order * FOCUS_LAYER_STAGGER_SECONDS
+  const duration = Math.max(0.2, FOCUS_EFFECT_DURATION - delay)
+  return Math.max(0, Math.min(1, (focusAge - delay) / duration))
+}
+
+export function focusLayerProgress(focusAge: number, layerOrder: number): number {
+  return inverseProportionalEase(focusLayerRawProgress(focusAge, layerOrder))
+}
+
+export function reverseFocusLayerProgress(
+  startProgress: number,
+  exitProgress: number,
+  layerOrder: number,
+): number {
+  const order = Math.max(0, Math.min(FOCUS_LAYER_COUNT - 1, layerOrder))
+  const outerFirstDelay = (FOCUS_LAYER_COUNT - 1 - order) * FOCUS_LAYER_STAGGER_SECONDS
+  const elapsed = Math.max(0, exitProgress) * FOCUS_EFFECT_EXIT_DURATION
+  const localProgress = Math.max(0, Math.min(1, (elapsed - outerFirstDelay) / FOCUS_LAYER_EXIT_DURATION))
+  return Math.max(0, Math.min(1, startProgress)) * inverseProportionalEase(1 - localProgress)
 }
 
 export const FOCUS_INVERSION_CIRCLE_SPECS = [
@@ -102,7 +131,7 @@ export function computeFocusInversionCircleGeometry(
   width: number,
   height: number,
   focusAge: number,
-  progress = 1,
+  progress: number | number[] = 1,
 ): FocusInversionCircleGeometry[] {
   const ringGeometry = computeFocusRingGeometry(star, width, height)
   const ringRadii = [
@@ -111,11 +140,16 @@ export function computeFocusInversionCircleGeometry(
     ringGeometry.sixthRingRadius,
   ]
   const age = Math.max(0, focusAge)
-  const radialProgress = inverseProportionalEase(progress)
 
   return FOCUS_INVERSION_CIRCLE_SPECS.map((spec, index) => {
-    const angle = spec.baseAngle - age * spec.speed
+    const targetAngle = spec.baseAngle - age * spec.speed
     const ringRadius = ringRadii[index]
+    const radialProgress = Array.isArray(progress) ? progress[index] ?? 0 : inverseProportionalEase(progress)
+    // The circle does not travel on a straight radial line. It leads into its
+    // final position on a short counter-clockwise arc, then settles on the
+    // ring. Reversing radialProgress retraces the same path.
+    const orbitLead = (1 - radialProgress) * 0.38
+    const angle = targetAngle - orbitLead
     return {
       x: star.x + Math.cos(angle) * ringRadius * radialProgress,
       y: star.y + Math.sin(angle) * ringRadius * radialProgress,

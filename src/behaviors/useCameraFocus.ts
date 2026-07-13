@@ -4,7 +4,7 @@ import { SCENE_CENTER_Z, FOCUS_TIMEOUT, ORBIT_RADII, clamped, smoothstep } from 
 import { TIMELINE } from '../composition/timeline'
 import { touchActorFrame } from '../composition/actorRuntime'
 import { readPlanetAtmosphereWorldRadius, readPlanetParticleIndex } from '../composition/coreAnchors'
-import { inverseProportionalEase } from '../composition/focusCorridorGeometry'
+import { FOCUS_EFFECT_EXIT_DURATION, inverseProportionalEase } from '../composition/focusCorridorGeometry'
 import { renderFocusHudFrame } from '../actors/focusHudBridge'
 import type { ScreenCircle, ScreenPoint } from '../types'
 
@@ -46,6 +46,7 @@ let _lastHudFocusAge = 0
 let _lastHudDrawProgress = 0
 let _hudExitStartTime = 0
 let _hudExitStartProgress = 0
+let _hudExitStartAlpha = 0
 let _focusSideSign = 1
 let _focusDepartFov = 40
 let _focusDepartDistance = 1
@@ -72,7 +73,7 @@ const FOCUS_CAMERA_FOLLOW = 0.055
 const FOCUS_LOOK_FOLLOW = 0.06
 const DEFAULT_CAMERA_FOV = 40
 const FOCUS_DOLLY_MAX_FOV = 72
-const HUD_EFFECT_EXIT_DURATION = 0.82
+const HUD_EFFECT_EXIT_DURATION = FOCUS_EFFECT_EXIT_DURATION
 const FOCUS_FOV_FOLLOW = 0.12
 const FOCUS_FOV_RETURN = 0.08
 
@@ -126,6 +127,7 @@ export function updateCameraFocus(
     _lastFocusTime = time
     _hudExitStartTime = 0
     _hudExitStartProgress = 0
+    _hudExitStartAlpha = 0
     _focusDepartPos.copy(camera.position)
     _focusDepartLookAt.copy(_currentLookAt)
     _camToStar.subVectors(_starPos, planet).normalize()
@@ -258,14 +260,18 @@ function fadeOverlayOut(store: ReturnType<typeof useScrollStore.getState>, camer
   if (_hudExitStartTime <= 0) {
     _hudExitStartTime = time
     _hudExitStartProgress = _lastHudDrawProgress
+    _hudExitStartAlpha = activeAlpha
   }
   const exitProgress = clamped(time, _hudExitStartTime, _hudExitStartTime + HUD_EFFECT_EXIT_DURATION)
   const drawProgress = _hudExitStartProgress * inverseProportionalEase(1 - exitProgress)
 
   renderFocusHudFrame({
     focused: true,
-    alpha: activeAlpha,
+    // Do not let the independent UI fade hide the layer-specific reverse
+    // animation. Each effect layer owns its own exit progress below.
+    alpha: _hudExitStartAlpha,
     drawProgress,
+    exitProgress,
     phase: 'exit',
     focusAge: _lastHudFocusAge,
     focusedPlanetIdx: _lastHudFocusedIdx,
@@ -284,10 +290,12 @@ function hideOverlayIfNeeded(store: ReturnType<typeof useScrollStore.getState>, 
   _lastHudDrawProgress = 0
   _hudExitStartTime = 0
   _hudExitStartProgress = 0
+  _hudExitStartAlpha = 0
   renderFocusHudFrame({
     focused: false,
     alpha: 0,
     drawProgress: 0,
+    exitProgress: 1,
     phase: 'hidden',
     focusAge: 0,
     focusedPlanetIdx: store.focusedPlanetIdx,
@@ -370,6 +378,7 @@ function emitOverlayData(
     focused: true,
     alpha: activeAlpha,
     drawProgress,
+    exitProgress: 0,
     phase: drawProgress < 0.999 ? 'reveal' : 'steady',
     focusAge,
     focusedPlanetIdx: store.focusedPlanetIdx,

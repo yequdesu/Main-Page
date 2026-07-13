@@ -9,6 +9,7 @@ export interface FocusHudFrame {
   focused: boolean
   alpha: number
   drawProgress: number
+  exitProgress: number
   phase: 'reveal' | 'steady' | 'exit' | 'hidden'
   focusAge: number
   focusedPlanetIdx: number
