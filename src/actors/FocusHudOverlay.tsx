@@ -2,7 +2,7 @@ import { useEffect, useRef, type MutableRefObject } from 'react'
 import { useScrollStore } from '../stores/scrollStore'
 import type { DayNight } from '../stores/scrollStore'
 import { PLANET_LINKS, type OverlayData, type ScreenCircle } from '../types'
-import { contourArc, computeHudTangentGeometry, screenRx, screenRy, type HudTangentGeometry } from '../composition/focusCorridorGeometry'
+import { contourArc, computeFocusRingGeometry, computeHudTangentGeometry, screenRx, screenRy, type HudTangentGeometry } from '../composition/focusCorridorGeometry'
 import { readPlanetParticleIndex } from '../composition/coreAnchors'
 import { getDomLayer, resolvePointerEvents } from '../composition/layerRegistry'
 import { useActorRuntime } from '../composition/actorRuntime'
@@ -455,18 +455,19 @@ function drawStarRadiantGeometry(
 ): void {
   const ringProgress = smoothstepNumber(0.04, 0.94, drawProgress)
   const rayProgress = smoothstepNumber(0.16, 0.92, drawProgress)
-  const radius = Math.max(screenRx(star), screenRy(star)) + 24
-  const ringWidth = Math.max(4.4, Math.min(8.8, radius * 0.056))
-  const outerRingWidth = Math.max(0.7, Math.min(1.3, radius * 0.008))
-  const nominalOuterRingRadius = radius + 24
-  const nominalRingGap = nominalOuterRingRadius - radius - (ringWidth + outerRingWidth) * 0.5
-  const ringGap = nominalRingGap * 0.5
-  const outerRingRadius = nominalOuterRingRadius - (nominalRingGap - ringGap)
-  const secondRadiantLength = Math.max(48, Math.min(width, height) * 0.14)
-  const outermostRadiantRadius = radius + 70 + secondRadiantLength + 5
-  const thirdRingRadius = outermostRadiantRadius + 12
-  const thirdRingWidth = ringWidth * 2
-  const fourthRingRadius = thirdRingRadius + (thirdRingWidth + outerRingWidth) * 0.5 + ringGap
+  const ringGeometry = computeFocusRingGeometry(star, width, height)
+  const {
+    radius,
+    ringWidth,
+    outerRingWidth,
+    outerRingRadius,
+    secondRadiantLength,
+    thirdRingRadius,
+    thirdRingWidth,
+    fourthRingRadius,
+    fifthRingRadius,
+    sixthRingRadius,
+  } = ringGeometry
   const rotation = Math.max(0, focusAge) * STAR_RADIANT_ROTATION_SPEED
   const ringStartAngle = -Math.PI / 2 + rotation
 
@@ -526,6 +527,33 @@ function drawStarRadiantGeometry(
     ringStartAngle,
     ringStartAngle + Math.PI * 2 * ringProgress,
     alpha * 0.42,
+    '#fff',
+    false,
+  )
+  drawNoisyRadiantRing(
+    ctx,
+    width,
+    height,
+    star.x,
+    star.y,
+    fifthRingRadius + ringWidth * 0.5,
+    Math.max(0.5, fifthRingRadius - ringWidth * 0.5),
+    ringStartAngle,
+    ringStartAngle + Math.PI * 2 * ringProgress,
+    alpha * 0.36,
+    palette.tangentStroke,
+  )
+  drawNoisyRadiantRing(
+    ctx,
+    width,
+    height,
+    star.x,
+    star.y,
+    sixthRingRadius + outerRingWidth * 0.5,
+    Math.max(0.5, sixthRingRadius - outerRingWidth * 0.5),
+    ringStartAngle,
+    ringStartAngle + Math.PI * 2 * ringProgress,
+    alpha * 0.30,
     '#fff',
     false,
   )

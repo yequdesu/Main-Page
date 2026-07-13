@@ -25,6 +25,56 @@ export function screenRy(circle: ScreenCircle): number {
   return circle.ry ?? circle.r
 }
 
+export interface FocusRingGeometry {
+  radius: number
+  ringWidth: number
+  outerRingWidth: number
+  outerRingRadius: number
+  secondRadiantLength: number
+  outermostRadiantRadius: number
+  thirdRingRadius: number
+  thirdRingWidth: number
+  fourthRingRadius: number
+  fifthRingRadius: number
+  sixthRingRadius: number
+}
+
+/** Shared screen-space radii for the paired focus rings and radiant geometry. */
+export function computeFocusRingGeometry(
+  star: ScreenCircle,
+  width: number,
+  height: number,
+): FocusRingGeometry {
+  const radius = Math.max(screenRx(star), screenRy(star)) + 24
+  const ringWidth = Math.max(4.4, Math.min(8.8, radius * 0.056))
+  const outerRingWidth = Math.max(0.7, Math.min(1.3, radius * 0.008))
+  const nominalOuterRingRadius = radius + 24
+  const nominalRingGap = nominalOuterRingRadius - radius - (ringWidth + outerRingWidth) * 0.5
+  const ringGap = nominalRingGap * 0.5
+  const outerRingRadius = nominalOuterRingRadius - (nominalRingGap - ringGap)
+  const secondRadiantLength = Math.max(48, Math.min(width, height) * 0.14)
+  const outermostRadiantRadius = radius + 70 + secondRadiantLength + 5
+  const thirdRingRadius = outermostRadiantRadius + 12
+  const thirdRingWidth = ringWidth * 2
+  const fourthRingRadius = thirdRingRadius + (thirdRingWidth + outerRingWidth) * 0.5 + ringGap
+  const fifthRingRadius = fourthRingRadius + (ringWidth + outerRingWidth) * 0.5 + ringGap
+  const sixthRingRadius = fifthRingRadius + (ringWidth + outerRingWidth) * 0.5 + ringGap
+
+  return {
+    radius,
+    ringWidth,
+    outerRingWidth,
+    outerRingRadius,
+    secondRadiantLength,
+    outermostRadiantRadius,
+    thirdRingRadius,
+    thirdRingWidth,
+    fourthRingRadius,
+    fifthRingRadius,
+    sixthRingRadius,
+  }
+}
+
 export function computeHudTangentGeometry(
   star: ScreenCircle,
   planet: ScreenCircle,

@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react'
 import { getDomLayer } from '../composition/layerRegistry'
-import { computeHudTangentGeometry } from '../composition/focusCorridorGeometry'
+import { computeFocusRingGeometry, computeHudTangentGeometry } from '../composition/focusCorridorGeometry'
 import { registerFocusHudRenderer, type FocusHudFrame } from './focusHudBridge'
 import { getFocusInversionConfig } from './focusInversionConfig'
 import type { ScreenCircle } from '../types'
@@ -62,6 +62,11 @@ interface FocusAxis {
 }
 
 const EXIT_DURATION = 0.82
+const INVERSION_CIRCLE_SPECS = [
+  { ring: 'ring2' as const, baseAngle: -Math.PI * 0.22, speed: 0.030, sizeFactor: 0.18 },
+  { ring: 'ring4' as const, baseAngle: Math.PI * 0.28, speed: 0.020, sizeFactor: 0.28 },
+  { ring: 'ring6' as const, baseAngle: Math.PI * 1.12, speed: 0.012, sizeFactor: 0.40 },
+]
 
 function smoothstep(edge0: number, edge1: number, value: number): number {
   const t = Math.max(0, Math.min(1, (value - edge0) / (edge1 - edge0)))
@@ -255,6 +260,48 @@ function createRayRegion(width: number, height: number, axis: FocusAxis): Path2D
   return region
 }
 
+function drawCircularInversionRegions(
+  ctx: CanvasRenderingContext2D,
+  width: number,
+  height: number,
+  sequence: BlockSequence,
+  now: number,
+): void {
+  const ringGeometry = computeFocusRingGeometry(sequence.axis.starCircle, width, height)
+  const reveal = sequence.exitStartedAt === null
+    ? smoothstep(0.16, 0.58, sequence.drawProgress)
+    : 1 - smoothstep(0, EXIT_DURATION, now - sequence.exitStartedAt)
+  if (reveal <= 0.001) return
+
+  const ringRadii = {
+    ring2: ringGeometry.outerRingRadius,
+    ring4: ringGeometry.fourthRingRadius,
+    ring6: ringGeometry.sixthRingRadius,
+  }
+  const centerX = sequence.axis.starCircle.x
+  const centerY = sequence.axis.starCircle.y
+  const age = Math.max(0, sequence.focusAge)
+
+  ctx.save()
+  // XOR creates a binary mask: where a circle crosses an existing square
+  // inversion, the intersection becomes transparent instead of stacking a
+  // second inversion.
+  ctx.globalCompositeOperation = 'xor'
+  ctx.fillStyle = '#ffffff'
+  ctx.globalAlpha = reveal > 0.55 ? 1 : reveal
+  for (const spec of INVERSION_CIRCLE_SPECS) {
+    const ringRadius = ringRadii[spec.ring]
+    const angle = spec.baseAngle - age * spec.speed
+    const circleX = centerX + Math.cos(angle) * ringRadius
+    const circleY = centerY + Math.sin(angle) * ringRadius
+    const circleRadius = Math.max(10, Math.min(58, sequence.axis.starCircle.r * spec.sizeFactor))
+    ctx.beginPath()
+    ctx.arc(circleX, circleY, circleRadius, 0, Math.PI * 2)
+    ctx.fill()
+  }
+  ctx.restore()
+}
+
 function updateRestEvents(sequence: BlockSequence, now: number): void {
   if (sequence.exitStartedAt !== null || sequence.focusAge < sequence.restAt) return
   const deltaAge = Math.max(0, sequence.focusAge - sequence.lastEventAge)
@@ -361,6 +408,10 @@ function drawSequences(
         ctx.fillRect(Math.round(x), Math.round(y), Math.ceil(block.size), Math.ceil(block.size))
       }
     }
+  }
+
+  for (const sequence of sequences) {
+    drawCircularInversionRegions(ctx, width, height, sequence, now)
   }
 
   // Remove the inverted pixels inside the two-ray corridor. The exclusion is
