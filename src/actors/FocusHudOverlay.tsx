@@ -683,7 +683,10 @@ function drawNoisyRadiantRing(
     ringCtx.fill()
   }
   ringCtx.restore()
+  ctx.save()
+  clipOutsideCircles(ctx, width, height, exclusionCircles)
   ctx.drawImage(ringCanvas, 0, 0, width, height)
+  ctx.restore()
 }
 
 function clipOutsideCircles(
