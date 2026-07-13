@@ -489,19 +489,15 @@ function drawStarRadiantGeometry(
     alpha * 0.82,
     palette.tangentStroke,
   )
-  drawNoisyRadiantRing(
+  drawSolidRadiantRing(
     ctx,
-    width,
-    height,
     star.x,
     star.y,
     outerRingRadius + outerRingWidth * 0.5,
     Math.max(0.5, outerRingRadius - outerRingWidth * 0.5),
     ringStartAngle,
     ringStartAngle + Math.PI * 2 * ringProgress,
-    alpha * 0.62,
-    '#fff',
-    false,
+    alpha * 0.82,
   )
   drawNoisyRadiantRing(
     ctx,
@@ -516,19 +512,15 @@ function drawStarRadiantGeometry(
     alpha * 0.52,
     palette.tangentStroke,
   )
-  drawNoisyRadiantRing(
+  drawSolidRadiantRing(
     ctx,
-    width,
-    height,
     star.x,
     star.y,
     fourthRingRadius + outerRingWidth * 0.5,
     Math.max(0.5, fourthRingRadius - outerRingWidth * 0.5),
     ringStartAngle,
     ringStartAngle + Math.PI * 2 * ringProgress,
-    alpha * 0.42,
-    '#fff',
-    false,
+    alpha * 0.82,
   )
   drawNoisyRadiantRing(
     ctx,
@@ -543,19 +535,15 @@ function drawStarRadiantGeometry(
     alpha * 0.36,
     palette.tangentStroke,
   )
-  drawNoisyRadiantRing(
+  drawSolidRadiantRing(
     ctx,
-    width,
-    height,
     star.x,
     star.y,
     sixthRingRadius + outerRingWidth * 0.5,
     Math.max(0.5, sixthRingRadius - outerRingWidth * 0.5),
     ringStartAngle,
     ringStartAngle + Math.PI * 2 * ringProgress,
-    alpha * 0.30,
-    '#fff',
-    false,
+    alpha * 0.82,
   )
 
   const ringDefinitions = [
@@ -669,6 +657,29 @@ function drawNoisyRadiantRing(
   }
   ringCtx.restore()
   ctx.drawImage(ringCanvas, 0, 0, width, height)
+}
+
+function drawSolidRadiantRing(
+  ctx: CanvasRenderingContext2D,
+  centerX: number,
+  centerY: number,
+  outerRadius: number,
+  innerRadius: number,
+  startAngle: number,
+  endAngle: number,
+  alpha: number,
+): void {
+  if (endAngle <= startAngle) return
+
+  ctx.save()
+  ctx.globalAlpha = alpha
+  ctx.strokeStyle = '#fff'
+  ctx.lineWidth = 0.9
+  ctx.lineCap = 'butt'
+  ctx.beginPath()
+  ctx.arc(centerX, centerY, (outerRadius + innerRadius) * 0.5, startAngle, endAngle)
+  ctx.stroke()
+  ctx.restore()
 }
 
 function degreesToRadians(degrees: number): number {
