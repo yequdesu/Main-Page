@@ -810,7 +810,9 @@ function drawFocusEllipseSequence(
       const elapsed = timelineAge - ellipseStart
       if (elapsed < 0 || elapsed >= group.ellipseLifetime) continue
 
-      const revealWindow = Math.min(0.24, group.ellipseLifetime * 0.22)
+      // Keep the scale transition long enough to read at the HUD's thin
+      // stroke weight; each ellipse still owns this window independently.
+      const revealWindow = Math.min(0.55, group.ellipseLifetime * 0.42)
       const revealProgress = smoothstepNumber(0, revealWindow, elapsed)
       const concealProgress = smoothstepNumber(
         group.ellipseLifetime - revealWindow,
