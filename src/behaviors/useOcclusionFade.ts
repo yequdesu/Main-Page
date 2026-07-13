@@ -1,38 +1,28 @@
-import { Vector3, type PerspectiveCamera } from 'three'
+import { Ray, Vector3, type PerspectiveCamera } from 'three'
 
-// Pre-allocated
-const _occCamToPlanet = new Vector3()
+// Pre-allocated ray-bundle geometry.
+const _occRay = new Ray()
 const _occToParticle = new Vector3()
-const _occProj = new Vector3()
-const _occParticleNdc = new Vector3()
-const _occFocusedNdc = new Vector3()
-const _occSegment = new Vector3()
-const _occParticleFromStart = new Vector3()
-const _occClosestOnSegment = new Vector3()
+const _occClosestOnRay = new Vector3()
 const _occCamForward = new Vector3()
+const _occCameraTarget = new Vector3()
 
 const PLANET_BASE_RADIUS = 0.015
-const FOCUS_OCCLUSION_RANGE_SCALE = 2
-const SCREEN_OCCLUSION_MARGIN = 0.018 * FOCUS_OCCLUSION_RANGE_SCALE
-const AXIS_OCCLUSION_MARGIN = 0.025 * FOCUS_OCCLUSION_RANGE_SCALE
-const FOCUS_CLEAR_START = 0.08 * FOCUS_OCCLUSION_RANGE_SCALE
-const FOCUS_CLEAR_END = 0.24 * FOCUS_OCCLUSION_RANGE_SCALE
-const STAR_FOCUS_CORRIDOR_START = 0.16 * FOCUS_OCCLUSION_RANGE_SCALE
-const STAR_FOCUS_CORRIDOR_END = 0.55 * FOCUS_OCCLUSION_RANGE_SCALE
-const CAMERA_FRONT_CLEAR_START = 0.2
-const CAMERA_FRONT_CLEAR_FADE_IN_END = 0.65
-const CAMERA_FRONT_CLEAR_FADE_OUT_START = 2.8
-const CAMERA_FRONT_CLEAR_END = 3.4
-const CAMERA_FRONT_CLEAR_BASE_RADIUS = 0.72
-const CAMERA_FRONT_CLEAR_RADIUS_GROWTH = 0.16
+const STAR_OCCLUSION_RADIUS = 0.70
+const FOCUS_RAY_CLEARANCE_NDC = 0.35
+const STAR_RAY_CLEARANCE_NDC = 0.12
+const CAMERA_CLEAR_DEPTH = 3.4
+const CAMERA_RAY_CLEARANCE_NDC = 1.65
 
 /**
- * 遮挡淡化 �?处于相机与聚焦行星之间的粒子透明度降低�?
+ * 遮挡淡化：聚焦期间清除摄像机到受保护目标之间的视线。
  *
- * �?animateDust() 中完整遮挡检测逻辑，逐字保留�?
- * 纯函�?�?Three.js 依赖仅限�?Vector3 运算�?
+ * 所有保护规则都使用同一个“摄像机射线束”模型：
+ * - 摄像机 -> 聚焦行星：保证目标本身和 HUD 不被其他行星挡住；
+ * - 摄像机 -> 恒星：保证恒星和两者之间的视觉轴线不被挡住；
+ * - 摄像机正前方短射线束：清除靠近镜头、可能遮挡视野的行星。
  *
- * 援引：原版投�?垂直距离检测（LighthouseScene.vue:750-763�?
+ * NDC clearance 是射线束的角半径，而不是独立的三维空间区域。
  */
 
 /**
@@ -74,103 +64,76 @@ export function calcOcclusionFactor(
 ): number {
   if (!focusedPlanetPos) return 1
 
-  // Camera-to-planet direction
-  _occCamToPlanet.subVectors(focusedPlanetPos, camera.position).normalize()
-
-  // Particle projection distance along camera→planet axis
-  _occToParticle.subVectors(particlePos, camera.position)
-  const projDist = _occToParticle.dot(_occCamToPlanet)
-
-  const fpDist = focusedPlanetPos.distanceTo(camera.position)
-  const particleDist = particlePos.distanceTo(camera.position)
-  if (!Number.isFinite(fpDist) || !Number.isFinite(particleDist) || fpDist <= 0.001 || particleDist <= 0.001) {
-    return 1
-  }
-
-  // Use projected planet discs so nearby planets cannot remain visible over the focus target.
-  _occParticleNdc.copy(particlePos).project(camera)
-  _occFocusedNdc.copy(focusedPlanetPos).project(camera)
-  const aspect = Math.max(camera.aspect, 0.1)
-  // Measure an isotropic distance in screen space. The x axis needs to be
-  // expanded by the viewport aspect ratio to match the y axis.
-  const screenDistance = Math.hypot(
-    (_occParticleNdc.x - _occFocusedNdc.x) * aspect,
-    _occParticleNdc.y - _occFocusedNdc.y,
+  const candidateRadius = PLANET_BASE_RADIUS * Math.max(particleScale, 0.001)
+  const focusRadius = PLANET_BASE_RADIUS * Math.max(focusedScale, 0.001)
+  let factor = rayBundleFade(
+    particlePos,
+    candidateRadius,
+    camera,
+    focusedPlanetPos,
+    focusRadius,
+    FOCUS_RAY_CLEARANCE_NDC,
   )
-  const tanHalfFov = Math.max(Math.tan((camera.fov * Math.PI) / 360), 0.001)
-  const focusedScreenRadius = (PLANET_BASE_RADIUS * Math.max(focusedScale, 0.001)) / (fpDist * tanHalfFov)
-  const particleScreenRadius = (PLANET_BASE_RADIUS * Math.max(particleScale, 0.001)) / (particleDist * tanHalfFov)
-  const combinedScreenRadius = focusedScreenRadius + particleScreenRadius + SCREEN_OCCLUSION_MARGIN
-  const overlap = 1 - screenDistance / Math.max(combinedScreenRadius, 0.001)
 
-  let factor = 1
-  if (overlap >= 0.35) {
-    factor = 0
-  } else if (overlap > 0) {
-    factor = 1 - smoothstepNumber(0, 0.35, overlap)
+  if (starPos) {
+    factor = Math.min(
+      factor,
+      rayBundleFade(
+        particlePos,
+        candidateRadius,
+        camera,
+        starPos,
+        STAR_OCCLUSION_RADIUS,
+        STAR_RAY_CLEARANCE_NDC,
+      ),
+    )
   }
 
-  // Keep a deliberate clear zone around the focus target. Exact disc overlap
-  // is too small during the camera move, so nearby planets fade before they
-  // can cross the target and block the HUD or the focused planet.
+  // Clear only a short camera-facing ray bundle. It is a view protection
+  // zone, not a world-space box or sphere, so it follows camera orientation.
+  camera.getWorldDirection(_occCamForward)
+  _occCameraTarget.copy(camera.position).addScaledVector(_occCamForward, CAMERA_CLEAR_DEPTH)
   factor = Math.min(
     factor,
-    smoothstepNumber(FOCUS_CLEAR_START, FOCUS_CLEAR_END, screenDistance),
+    rayBundleFade(
+      particlePos,
+      candidateRadius,
+      camera,
+      _occCameraTarget,
+      0,
+      CAMERA_RAY_CLEARANCE_NDC,
+    ),
   )
 
-  // Treat the star-to-focus path as a spatial corridor. A planet inside this
-  // segment can cross the focus view even when its projected disc is separate.
-  if (starPos) {
-    _occSegment.subVectors(focusedPlanetPos, starPos)
-    const segmentLengthSq = _occSegment.lengthSq()
-    if (segmentLengthSq > 0.0001) {
-      _occParticleFromStart.subVectors(particlePos, starPos)
-      const segmentT = Math.max(0, Math.min(1, _occParticleFromStart.dot(_occSegment) / segmentLengthSq))
-      _occClosestOnSegment.copy(starPos).addScaledVector(_occSegment, segmentT)
-      const corridorDistance = particlePos.distanceTo(_occClosestOnSegment)
-      factor = Math.min(
-        factor,
-        smoothstepNumber(STAR_FOCUS_CORRIDOR_START, STAR_FOCUS_CORRIDOR_END, corridorDistance),
-      )
-    }
-  }
-
-  // Clear a finite near-camera view corridor as well. This catches foreground
-  // planets that are not close to the focus axis but still cross the lens.
-  camera.getWorldDirection(_occCamForward)
-  const cameraFrontDepth = _occToParticle.dot(_occCamForward)
-  if (cameraFrontDepth > CAMERA_FRONT_CLEAR_START && cameraFrontDepth < CAMERA_FRONT_CLEAR_END) {
-    _occProj.copy(camera.position).addScaledVector(_occCamForward, cameraFrontDepth)
-    const lateralDistance = particlePos.distanceTo(_occProj)
-    const clearRadius = CAMERA_FRONT_CLEAR_BASE_RADIUS + cameraFrontDepth * CAMERA_FRONT_CLEAR_RADIUS_GROWTH
-    const lateralFactor = smoothstepNumber(clearRadius * 0.48, clearRadius, lateralDistance)
-    const fadeIn = smoothstepNumber(
-      CAMERA_FRONT_CLEAR_START,
-      CAMERA_FRONT_CLEAR_FADE_IN_END,
-      cameraFrontDepth,
-    )
-    const fadeOut = 1 - smoothstepNumber(
-      CAMERA_FRONT_CLEAR_FADE_OUT_START,
-      CAMERA_FRONT_CLEAR_END,
-      cameraFrontDepth,
-    )
-    const clearPresence = Math.min(fadeIn, fadeOut)
-    factor = Math.min(factor, 1 - clearPresence * (1 - lateralFactor))
-  }
-
-  // Keep the direct camera-axis case for a planet between camera and focus.
-  if (projDist > 0.1 && projDist < fpDist + PLANET_BASE_RADIUS * particleScale) {
-    _occProj.copy(camera.position).addScaledVector(_occCamToPlanet, projDist)
-    const perpDist = particlePos.distanceTo(_occProj)
-    const axisRadius = PLANET_BASE_RADIUS * (
-      Math.max(particleScale, 0.001) + Math.max(focusedScale, 0.001)
-    ) + AXIS_OCCLUSION_MARGIN
-    if (perpDist < axisRadius) {
-      factor = Math.min(factor, smoothstepNumber(axisRadius * 0.45, axisRadius, perpDist))
-    }
-  }
-
   return Math.max(0, Math.min(1, factor))
+}
+
+function rayBundleFade(
+  candidate: Vector3,
+  candidateRadius: number,
+  camera: PerspectiveCamera,
+  target: Vector3,
+  targetRadius: number,
+  clearanceNdc: number,
+): number {
+  _occRay.origin.copy(camera.position)
+  _occRay.direction.subVectors(target, camera.position).normalize()
+  const targetDistance = camera.position.distanceTo(target)
+  if (!Number.isFinite(targetDistance) || targetDistance <= 0.001) return 1
+
+  _occToParticle.subVectors(candidate, camera.position)
+  const depth = _occToParticle.dot(_occRay.direction)
+  if (depth <= 0 || depth >= targetDistance) return 1
+
+  _occRay.at(depth, _occClosestOnRay)
+  const lateralDistance = candidate.distanceTo(_occClosestOnRay)
+  const tanHalfFov = Math.max(Math.tan((camera.fov * Math.PI) / 360), 0.001)
+  const targetConeRadius = (targetRadius * depth) / targetDistance
+  const angularClearance = depth * tanHalfFov * clearanceNdc
+  const bundleRadius = candidateRadius + targetConeRadius + angularClearance
+  const overlap = 1 - lateralDistance / Math.max(bundleRadius, 0.0001)
+  if (overlap <= 0) return 1
+  return 1 - smoothstepNumber(0.12, 0.82, overlap)
 }
 
 function smoothstepNumber(edge0: number, edge1: number, value: number): number {

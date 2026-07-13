@@ -76,4 +76,19 @@ describe('calcOcclusionFactor', () => {
 
     expect(factor).toBeLessThan(0.2)
   })
+
+  it('fades a planet on the camera-to-star ray even when it misses the focus ray', () => {
+    const camera = makeCamera()
+    const factor = calcOcclusionFactor(
+      new Vector3(0, 0, 7.2),
+      camera,
+      new Vector3(2, 0, 0),
+      1,
+      1,
+      1,
+      new Vector3(0, 0, 6),
+    )
+
+    expect(factor).toBeLessThan(0.2)
+  })
 })
