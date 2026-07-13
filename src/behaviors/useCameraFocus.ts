@@ -4,6 +4,7 @@ import { SCENE_CENTER_Z, FOCUS_TIMEOUT, ORBIT_RADII, clamped, smoothstep } from 
 import { TIMELINE } from '../composition/timeline'
 import { touchActorFrame } from '../composition/actorRuntime'
 import { readPlanetAtmosphereWorldRadius, readPlanetParticleIndex } from '../composition/coreAnchors'
+import { inverseProportionalEase } from '../composition/focusCorridorGeometry'
 import { renderFocusHudFrame } from '../actors/focusHudBridge'
 import type { ScreenCircle, ScreenPoint } from '../types'
 
@@ -43,6 +44,8 @@ let _lastHudPlanet: ScreenCircle | undefined
 let _lastHudFocusedIdx = -1
 let _lastHudFocusAge = 0
 let _lastHudDrawProgress = 0
+let _hudExitStartTime = 0
+let _hudExitStartProgress = 0
 let _focusSideSign = 1
 let _focusDepartFov = 40
 let _focusDepartDistance = 1
@@ -69,6 +72,7 @@ const FOCUS_CAMERA_FOLLOW = 0.055
 const FOCUS_LOOK_FOLLOW = 0.06
 const DEFAULT_CAMERA_FOV = 40
 const FOCUS_DOLLY_MAX_FOV = 72
+const HUD_EFFECT_EXIT_DURATION = 0.82
 const FOCUS_FOV_FOLLOW = 0.12
 const FOCUS_FOV_RETURN = 0.08
 
@@ -120,6 +124,8 @@ export function updateCameraFocus(
     _focusUIProgress = 0
     _focusOrbitAngle = 0
     _lastFocusTime = time
+    _hudExitStartTime = 0
+    _hudExitStartProgress = 0
     _focusDepartPos.copy(camera.position)
     _focusDepartLookAt.copy(_currentLookAt)
     _camToStar.subVectors(_starPos, planet).normalize()
@@ -227,7 +233,7 @@ export function updateCameraFocus(
     // the steady-state lifecycle alpha and exit behavior.
     emitOverlayData(camera, planet, store, activeAlpha, hudRevealProgress, focusAge)
   } else {
-    fadeOverlayOut(store, camera)
+    fadeOverlayOut(store, camera, time)
   }
 }
 
@@ -238,20 +244,28 @@ function updateCameraFov(camera: PerspectiveCamera, targetFov: number, follow: n
   camera.updateProjectionMatrix()
 }
 
-function fadeOverlayOut(store: ReturnType<typeof useScrollStore.getState>, camera: PerspectiveCamera): void {
+function fadeOverlayOut(store: ReturnType<typeof useScrollStore.getState>, camera: PerspectiveCamera, time: number): void {
   _focusUIProgress += (0 - _focusUIProgress) * HUD_FADE_OUT_SPEED
   const activeAlpha = overlayAlphaValue(_focusUIProgress)
 
-  if (!_lastHudStar || !_lastHudPlanet || activeAlpha <= 0.01) {
+  const exitFinished = _hudExitStartTime > 0 && time - _hudExitStartTime >= HUD_EFFECT_EXIT_DURATION
+  if (!_lastHudStar || !_lastHudPlanet || (activeAlpha <= 0.01 && exitFinished)) {
     _focusUIProgress = 0
     hideOverlayIfNeeded(store, camera)
     return
   }
 
+  if (_hudExitStartTime <= 0) {
+    _hudExitStartTime = time
+    _hudExitStartProgress = _lastHudDrawProgress
+  }
+  const exitProgress = clamped(time, _hudExitStartTime, _hudExitStartTime + HUD_EFFECT_EXIT_DURATION)
+  const drawProgress = _hudExitStartProgress * inverseProportionalEase(1 - exitProgress)
+
   renderFocusHudFrame({
     focused: true,
     alpha: activeAlpha,
-    drawProgress: _lastHudDrawProgress,
+    drawProgress,
     phase: 'exit',
     focusAge: _lastHudFocusAge,
     focusedPlanetIdx: _lastHudFocusedIdx,
@@ -268,6 +282,8 @@ function hideOverlayIfNeeded(store: ReturnType<typeof useScrollStore.getState>, 
   _lastHudFocusedIdx = -1
   _lastHudFocusAge = 0
   _lastHudDrawProgress = 0
+  _hudExitStartTime = 0
+  _hudExitStartProgress = 0
   renderFocusHudFrame({
     focused: false,
     alpha: 0,

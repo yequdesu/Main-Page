@@ -2,7 +2,7 @@ import { useEffect, useRef, type MutableRefObject } from 'react'
 import { useScrollStore } from '../stores/scrollStore'
 import type { DayNight } from '../stores/scrollStore'
 import { PLANET_LINKS, type OverlayData, type ScreenCircle } from '../types'
-import { contourArc, computeFocusInversionCircleGeometry, computeFocusRingGeometry, computeHudTangentGeometry, screenRx, screenRy, type FocusInversionCircleGeometry, type HudTangentGeometry } from '../composition/focusCorridorGeometry'
+import { contourArc, computeFocusInversionCircleGeometry, computeFocusRingGeometry, computeHudTangentGeometry, inverseProportionalEase, screenRx, screenRy, type FocusInversionCircleGeometry, type HudTangentGeometry } from '../composition/focusCorridorGeometry'
 import { readPlanetParticleIndex } from '../composition/coreAnchors'
 import { getDomLayer, resolvePointerEvents } from '../composition/layerRegistry'
 import { useActorRuntime } from '../composition/actorRuntime'
@@ -453,8 +453,8 @@ function drawStarRadiantGeometry(
   focusAge: number,
   palette: HudPalette,
 ): void {
-  const ringProgress = smoothstepNumber(0.04, 0.94, drawProgress)
-  const rayProgress = smoothstepNumber(0.16, 0.92, drawProgress)
+  const expansionProgress = inverseProportionalEase(drawProgress)
+  const rayProgress = expansionProgress
   const ringGeometry = computeFocusRingGeometry(star, width, height)
   const {
     radius,
@@ -470,10 +470,12 @@ function drawStarRadiantGeometry(
   } = ringGeometry
   const rotation = Math.max(0, focusAge) * STAR_RADIANT_ROTATION_SPEED
   const ringStartAngle = -Math.PI / 2 + rotation
-  const circleReveal = smoothstepNumber(0.16, 0.58, drawProgress)
+  const circleReveal = expansionProgress
   const inversionCircles = circleReveal > 0.55
-    ? computeFocusInversionCircleGeometry(star, width, height, focusAge)
+    ? computeFocusInversionCircleGeometry(star, width, height, focusAge, drawProgress)
     : []
+  const starEdge = Math.max(screenRx(star), screenRy(star))
+  const expandRadius = (target: number) => starEdge + (target - starEdge) * expansionProgress
 
   ctx.save()
   clipOutsideRayCorridor(ctx, width, height, geometry)
@@ -486,10 +488,10 @@ function drawStarRadiantGeometry(
     height,
     star.x,
     star.y,
-    radius + ringWidth * 0.5,
-    Math.max(0.5, radius - ringWidth * 0.5),
+    expandRadius(radius + ringWidth * 0.5),
+    Math.max(0.5, expandRadius(radius - ringWidth * 0.5)),
     ringStartAngle,
-    ringStartAngle + Math.PI * 2 * ringProgress,
+    ringStartAngle + Math.PI * 2,
     alpha * 0.82,
     palette.tangentStroke,
     inversionCircles,
@@ -500,10 +502,10 @@ function drawStarRadiantGeometry(
     height,
     star.x,
     star.y,
-    outerRingRadius + outerRingWidth * 0.5,
-    Math.max(0.5, outerRingRadius - outerRingWidth * 0.5),
+    expandRadius(outerRingRadius + outerRingWidth * 0.5),
+    Math.max(0.5, expandRadius(outerRingRadius - outerRingWidth * 0.5)),
     ringStartAngle,
-    ringStartAngle + Math.PI * 2 * ringProgress,
+    ringStartAngle + Math.PI * 2,
     alpha * 0.82,
     inversionCircles,
   )
@@ -513,10 +515,10 @@ function drawStarRadiantGeometry(
     height,
     star.x,
     star.y,
-    thirdRingRadius + thirdRingWidth * 0.5,
-    Math.max(0.5, thirdRingRadius - thirdRingWidth * 0.5),
+    expandRadius(thirdRingRadius + thirdRingWidth * 0.5),
+    Math.max(0.5, expandRadius(thirdRingRadius - thirdRingWidth * 0.5)),
     ringStartAngle,
-    ringStartAngle + Math.PI * 2 * ringProgress,
+    ringStartAngle + Math.PI * 2,
     alpha * 0.52,
     palette.tangentStroke,
     inversionCircles,
@@ -527,10 +529,10 @@ function drawStarRadiantGeometry(
     height,
     star.x,
     star.y,
-    fourthRingRadius + outerRingWidth * 0.5,
-    Math.max(0.5, fourthRingRadius - outerRingWidth * 0.5),
+    expandRadius(fourthRingRadius + outerRingWidth * 0.5),
+    Math.max(0.5, expandRadius(fourthRingRadius - outerRingWidth * 0.5)),
     ringStartAngle,
-    ringStartAngle + Math.PI * 2 * ringProgress,
+    ringStartAngle + Math.PI * 2,
     alpha * 0.82,
     inversionCircles,
   )
@@ -540,10 +542,10 @@ function drawStarRadiantGeometry(
     height,
     star.x,
     star.y,
-    fifthRingRadius + ringWidth * 0.5,
-    Math.max(0.5, fifthRingRadius - ringWidth * 0.5),
+    expandRadius(fifthRingRadius + ringWidth * 0.5),
+    Math.max(0.5, expandRadius(fifthRingRadius - ringWidth * 0.5)),
     ringStartAngle,
-    ringStartAngle + Math.PI * 2 * ringProgress,
+    ringStartAngle + Math.PI * 2,
     alpha * 0.36,
     palette.tangentStroke,
     inversionCircles,
@@ -554,10 +556,10 @@ function drawStarRadiantGeometry(
     height,
     star.x,
     star.y,
-    sixthRingRadius + outerRingWidth * 0.5,
-    Math.max(0.5, sixthRingRadius - outerRingWidth * 0.5),
+    expandRadius(sixthRingRadius + outerRingWidth * 0.5),
+    Math.max(0.5, expandRadius(sixthRingRadius - outerRingWidth * 0.5)),
     ringStartAngle,
-    ringStartAngle + Math.PI * 2 * ringProgress,
+    ringStartAngle + Math.PI * 2,
     alpha * 0.82,
     inversionCircles,
   )
@@ -588,14 +590,16 @@ function drawStarRadiantGeometry(
   for (const ring of ringDefinitions) {
     for (let rayIndex = 0; rayIndex < STAR_RADIANT_RAY_COUNT; rayIndex += ring.step) {
       const rayT = rayIndex / STAR_RADIANT_RAY_COUNT
-      const rayReveal = smoothstepNumber(rayT * 0.68, Math.min(1, rayT * 0.68 + 0.30), rayProgress)
+      const rayReveal = rayProgress
       if (rayReveal <= 0.01) continue
 
       const angle = -Math.PI / 2 + ring.phase + rayT * Math.PI * 2
       const radialJitter = (hudHashNoise(ring.seed + rayIndex * 17.31) - 0.5) * 7
       const lengthJitter = (hudHashNoise(ring.seed + rayIndex * 9.17 + 4.6) - 0.5) * 10
-      const startRadius = ring.startRadius + radialJitter
-      const length = Math.max(18, ring.length + lengthJitter)
+      const targetStartRadius = ring.startRadius + radialJitter
+      const targetLength = Math.max(18, ring.length + lengthJitter)
+      const startRadius = starEdge + (targetStartRadius - starEdge) * rayProgress
+      const length = Math.max(2, targetLength * rayProgress)
       const centerRadius = startRadius + length * 0.5
       const centerX = star.x + Math.cos(angle) * centerRadius
       const centerY = star.y + Math.sin(angle) * centerRadius

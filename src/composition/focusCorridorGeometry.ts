@@ -45,6 +45,14 @@ export interface FocusInversionCircleGeometry {
   radius: number
 }
 
+/** Reciprocal response: fast initial expansion, then a long eased tail. */
+export function inverseProportionalEase(value: number): number {
+  const t = Math.max(0, Math.min(1, value))
+  const strength = 8
+  const end = 1 - 1 / (1 + strength)
+  return (1 - 1 / (1 + strength * t)) / end
+}
+
 export const FOCUS_INVERSION_CIRCLE_SPECS = [
   { ring: 'ring2' as const, baseAngle: -Math.PI * 0.22, speed: 0.030, sizeFactor: 0.18 },
   { ring: 'ring4' as const, baseAngle: Math.PI * 0.28, speed: 0.020, sizeFactor: 0.28 },
@@ -94,6 +102,7 @@ export function computeFocusInversionCircleGeometry(
   width: number,
   height: number,
   focusAge: number,
+  progress = 1,
 ): FocusInversionCircleGeometry[] {
   const ringGeometry = computeFocusRingGeometry(star, width, height)
   const ringRadii = [
@@ -102,13 +111,14 @@ export function computeFocusInversionCircleGeometry(
     ringGeometry.sixthRingRadius,
   ]
   const age = Math.max(0, focusAge)
+  const radialProgress = inverseProportionalEase(progress)
 
   return FOCUS_INVERSION_CIRCLE_SPECS.map((spec, index) => {
     const angle = spec.baseAngle - age * spec.speed
     const ringRadius = ringRadii[index]
     return {
-      x: star.x + Math.cos(angle) * ringRadius,
-      y: star.y + Math.sin(angle) * ringRadius,
+      x: star.x + Math.cos(angle) * ringRadius * radialProgress,
+      y: star.y + Math.sin(angle) * ringRadius * radialProgress,
       radius: Math.max(20, Math.min(116, star.r * spec.sizeFactor * 2)),
     }
   })
