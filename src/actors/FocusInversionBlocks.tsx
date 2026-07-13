@@ -34,12 +34,20 @@ interface BlockSequence {
   id: number
   focusedPlanetIdx: number
   blocks: InversionBlock[]
+  connectors: InversionConnector[]
   axis: FocusAxis
   focusAge: number
   drawProgress: number
   restAt: number
   lastEventAge: number
   exitStartedAt: number | null
+}
+
+interface InversionConnector {
+  circleIndex: number
+  blockIndex: number
+  seed: number
+  phase: number
 }
 
 interface BodySnapshot {
@@ -205,6 +213,31 @@ function createBlocks(): InversionBlock[] {
   return blocks
 }
 
+function createConnectors(blocks: InversionBlock[]): InversionConnector[] {
+  const connectors: InversionConnector[] = []
+  const used = new Set<string>()
+  const linksPerCircle = Math.min(6, Math.max(1, Math.floor(blocks.length / 16)))
+
+  for (let circleIndex = 0; circleIndex < INVERSION_CIRCLE_SPECS.length; circleIndex += 1) {
+    let attempts = 0
+    while (attempts < linksPerCircle * 8 && connectors.filter((connector) => connector.circleIndex === circleIndex).length < linksPerCircle) {
+      attempts += 1
+      const blockIndex = Math.floor(Math.random() * blocks.length)
+      const key = `${circleIndex}:${blockIndex}`
+      if (used.has(key)) continue
+      used.add(key)
+      connectors.push({
+        circleIndex,
+        blockIndex,
+        seed: Math.random() * 1000,
+        phase: Math.random() * 2.4,
+      })
+    }
+  }
+
+  return connectors
+}
+
 function hashNoise(value: number): number {
   const result = Math.sin(value * 12.9898) * 43758.5453123
   return result - Math.floor(result)
@@ -260,6 +293,104 @@ function createRayRegion(width: number, height: number, axis: FocusAxis): Path2D
   return region
 }
 
+function getInversionCircleCenters(
+  sequence: BlockSequence,
+  width: number,
+  height: number,
+): Array<{ x: number; y: number; radius: number }> {
+  const ringGeometry = computeFocusRingGeometry(sequence.axis.starCircle, width, height)
+  const ringRadii = [
+    ringGeometry.outerRingRadius,
+    ringGeometry.fourthRingRadius,
+    ringGeometry.sixthRingRadius,
+  ]
+  const centerX = sequence.axis.starCircle.x
+  const centerY = sequence.axis.starCircle.y
+  const age = Math.max(0, sequence.focusAge)
+
+  return INVERSION_CIRCLE_SPECS.map((spec, index) => {
+    const angle = spec.baseAngle - age * spec.speed
+    const ringRadius = ringRadii[index]
+    const circleRadius = Math.max(20, Math.min(116, sequence.axis.starCircle.r * spec.sizeFactor * 2))
+    return {
+      x: centerX + Math.cos(angle) * ringRadius,
+      y: centerY + Math.sin(angle) * ringRadius,
+      radius: circleRadius,
+    }
+  })
+}
+
+function getVisibleBlockCenter(
+  sequence: BlockSequence,
+  block: InversionBlock,
+  width: number,
+  height: number,
+  exitAge: number,
+  now: number,
+): { x: number; y: number } | null {
+  if (sequence.exitStartedAt !== null && !block.visibleAtExit) return null
+  const flicker = sequence.exitStartedAt === null
+    ? activeBlockOpacity(block, sequence.drawProgress)
+    : exitingBlockOpacity(block, exitAge)
+  if (flicker < 0.5) return null
+
+  const event = sequence.exitStartedAt === null
+    ? eventVisual(block, now)
+    : { opacity: 1, offsetX: 0, offsetY: 0 }
+  if (event.opacity < 0.5) return null
+
+  const extent = Math.hypot(width, height) * 0.72
+  const along = (block.x - 0.5) * extent * 2
+  const normalOffset = height * block.yJitter
+  const x = sequence.axis.originX + sequence.axis.dirX * along + sequence.axis.normalX * normalOffset + event.offsetX
+  const y = sequence.axis.originY + sequence.axis.dirY * along + sequence.axis.normalY * normalOffset + event.offsetY
+  if (x - block.size * 0.5 < 0 || x + block.size * 0.5 > width || y - block.size * 0.5 < 0 || y + block.size * 0.5 > height) return null
+  return { x, y }
+}
+
+function connectorIsVisible(connector: InversionConnector, age: number): boolean {
+  const cycle = 0.72 + hashNoise(connector.seed + 1.7) * 1.55
+  const phase = connector.phase + hashNoise(connector.seed + 4.3) * cycle
+  const cycleAge = (age + phase) % cycle
+  const activeDuration = cycle * (0.28 + hashNoise(connector.seed + 8.1) * 0.38)
+  return cycleAge < activeDuration
+}
+
+function drawInversionConnectors(
+  ctx: CanvasRenderingContext2D,
+  width: number,
+  height: number,
+  sequence: BlockSequence,
+  now: number,
+  sequenceAlpha: number,
+): void {
+  if (sequence.connectors.length === 0) return
+  const circleCenters = getInversionCircleCenters(sequence, width, height)
+  const exitAge = sequence.exitStartedAt === null ? 0 : now - sequence.exitStartedAt
+  const age = sequence.exitStartedAt === null ? Math.max(0, sequence.focusAge) : exitAge
+
+  ctx.save()
+  ctx.globalCompositeOperation = 'source-over'
+  ctx.strokeStyle = '#fff'
+  ctx.lineWidth = 0.9
+  ctx.lineCap = 'butt'
+  ctx.globalAlpha = sequenceAlpha
+  for (const connector of sequence.connectors) {
+    if (!connectorIsVisible(connector, age)) continue
+    const circle = circleCenters[connector.circleIndex]
+    const block = sequence.blocks[connector.blockIndex]
+    if (!circle || !block) continue
+    const blockCenter = getVisibleBlockCenter(sequence, block, width, height, exitAge, now)
+    if (!blockCenter) continue
+
+    ctx.beginPath()
+    ctx.moveTo(circle.x, circle.y)
+    ctx.lineTo(blockCenter.x, blockCenter.y)
+    ctx.stroke()
+  }
+  ctx.restore()
+}
+
 function drawCircularInversionRegions(
   ctx: CanvasRenderingContext2D,
   width: number,
@@ -267,20 +398,12 @@ function drawCircularInversionRegions(
   sequence: BlockSequence,
   now: number,
 ): void {
-  const ringGeometry = computeFocusRingGeometry(sequence.axis.starCircle, width, height)
   const reveal = sequence.exitStartedAt === null
     ? smoothstep(0.16, 0.58, sequence.drawProgress)
     : 1 - smoothstep(0, EXIT_DURATION, now - sequence.exitStartedAt)
   if (reveal <= 0.001) return
 
-  const ringRadii = {
-    ring2: ringGeometry.outerRingRadius,
-    ring4: ringGeometry.fourthRingRadius,
-    ring6: ringGeometry.sixthRingRadius,
-  }
-  const centerX = sequence.axis.starCircle.x
-  const centerY = sequence.axis.starCircle.y
-  const age = Math.max(0, sequence.focusAge)
+  const circleCenters = getInversionCircleCenters(sequence, width, height)
 
   ctx.save()
   // XOR creates a binary mask: where a circle crosses an existing square
@@ -289,14 +412,9 @@ function drawCircularInversionRegions(
   ctx.globalCompositeOperation = 'xor'
   ctx.fillStyle = '#ffffff'
   ctx.globalAlpha = reveal > 0.55 ? 1 : reveal
-  for (const spec of INVERSION_CIRCLE_SPECS) {
-    const ringRadius = ringRadii[spec.ring]
-    const angle = spec.baseAngle - age * spec.speed
-    const circleX = centerX + Math.cos(angle) * ringRadius
-    const circleY = centerY + Math.sin(angle) * ringRadius
-    const circleRadius = Math.max(10, Math.min(58, sequence.axis.starCircle.r * spec.sizeFactor))
+  for (const circle of circleCenters) {
     ctx.beginPath()
-    ctx.arc(circleX, circleY, circleRadius, 0, Math.PI * 2)
+    ctx.arc(circle.x, circle.y, circle.radius, 0, Math.PI * 2)
     ctx.fill()
   }
   ctx.restore()
@@ -411,6 +529,15 @@ function drawSequences(
   }
 
   for (const sequence of sequences) {
+    const exitAge = sequence.exitStartedAt === null ? 0 : now - sequence.exitStartedAt
+    const sequenceAlpha = sequence.exitStartedAt === null
+      ? smoothstep(0.02, 0.20, sequence.focusAge)
+      : 1 - smoothstep(0, EXIT_DURATION, exitAge)
+    if (sequenceAlpha <= 0.001) continue
+    drawInversionConnectors(ctx, width, height, sequence, now, sequenceAlpha)
+  }
+
+  for (const sequence of sequences) {
     drawCircularInversionRegions(ctx, width, height, sequence, now)
   }
 
@@ -486,10 +613,12 @@ export default function FocusInversionBlocks() {
         activeSequenceIdRef.current = null
       } else if (!current || restarted || changedTarget) {
         markActiveSequencesExiting()
+        const blocks = createBlocks()
         const sequence: BlockSequence = {
           id: nextSequenceIdRef.current++,
           focusedPlanetIdx: frame.focusedPlanetIdx,
-          blocks: createBlocks(),
+          blocks,
+          connectors: createConnectors(blocks),
           axis: axisFromFrame(frame),
           focusAge: frame.focusAge,
           drawProgress: frame.drawProgress,

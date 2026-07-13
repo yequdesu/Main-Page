@@ -57,8 +57,10 @@ export function computeFocusRingGeometry(
   const thirdRingRadius = outermostRadiantRadius + 12
   const thirdRingWidth = ringWidth * 2
   const fourthRingRadius = thirdRingRadius + (thirdRingWidth + outerRingWidth) * 0.5 + ringGap
-  const fifthRingRadius = fourthRingRadius + (ringWidth + outerRingWidth) * 0.5 + ringGap
-  const sixthRingRadius = fifthRingRadius + (ringWidth + outerRingWidth) * 0.5 + ringGap
+  const pairSpacing = fourthRingRadius - thirdRingRadius
+  const groupSpacing = thirdRingRadius - outerRingRadius
+  const fifthRingRadius = fourthRingRadius + groupSpacing
+  const sixthRingRadius = fifthRingRadius + pairSpacing
 
   return {
     radius,
