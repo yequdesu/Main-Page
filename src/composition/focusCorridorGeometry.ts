@@ -39,6 +39,18 @@ export interface FocusRingGeometry {
   sixthRingRadius: number
 }
 
+export interface FocusInversionCircleGeometry {
+  x: number
+  y: number
+  radius: number
+}
+
+export const FOCUS_INVERSION_CIRCLE_SPECS = [
+  { ring: 'ring2' as const, baseAngle: -Math.PI * 0.22, speed: 0.030, sizeFactor: 0.18 },
+  { ring: 'ring4' as const, baseAngle: Math.PI * 0.28, speed: 0.020, sizeFactor: 0.28 },
+  { ring: 'ring6' as const, baseAngle: Math.PI * 1.12, speed: 0.012, sizeFactor: 0.40 },
+]
+
 /** Shared screen-space radii for the paired focus rings and radiant geometry. */
 export function computeFocusRingGeometry(
   star: ScreenCircle,
@@ -75,6 +87,31 @@ export function computeFocusRingGeometry(
     fifthRingRadius,
     sixthRingRadius,
   }
+}
+
+export function computeFocusInversionCircleGeometry(
+  star: ScreenCircle,
+  width: number,
+  height: number,
+  focusAge: number,
+): FocusInversionCircleGeometry[] {
+  const ringGeometry = computeFocusRingGeometry(star, width, height)
+  const ringRadii = [
+    ringGeometry.outerRingRadius,
+    ringGeometry.fourthRingRadius,
+    ringGeometry.sixthRingRadius,
+  ]
+  const age = Math.max(0, focusAge)
+
+  return FOCUS_INVERSION_CIRCLE_SPECS.map((spec, index) => {
+    const angle = spec.baseAngle - age * spec.speed
+    const ringRadius = ringRadii[index]
+    return {
+      x: star.x + Math.cos(angle) * ringRadius,
+      y: star.y + Math.sin(angle) * ringRadius,
+      radius: Math.max(20, Math.min(116, star.r * spec.sizeFactor * 2)),
+    }
+  })
 }
 
 export function computeHudTangentGeometry(

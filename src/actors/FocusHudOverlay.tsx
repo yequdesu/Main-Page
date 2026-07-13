@@ -2,7 +2,7 @@ import { useEffect, useRef, type MutableRefObject } from 'react'
 import { useScrollStore } from '../stores/scrollStore'
 import type { DayNight } from '../stores/scrollStore'
 import { PLANET_LINKS, type OverlayData, type ScreenCircle } from '../types'
-import { contourArc, computeFocusRingGeometry, computeHudTangentGeometry, screenRx, screenRy, type HudTangentGeometry } from '../composition/focusCorridorGeometry'
+import { contourArc, computeFocusInversionCircleGeometry, computeFocusRingGeometry, computeHudTangentGeometry, screenRx, screenRy, type FocusInversionCircleGeometry, type HudTangentGeometry } from '../composition/focusCorridorGeometry'
 import { readPlanetParticleIndex } from '../composition/coreAnchors'
 import { getDomLayer, resolvePointerEvents } from '../composition/layerRegistry'
 import { useActorRuntime } from '../composition/actorRuntime'
@@ -470,6 +470,10 @@ function drawStarRadiantGeometry(
   } = ringGeometry
   const rotation = Math.max(0, focusAge) * STAR_RADIANT_ROTATION_SPEED
   const ringStartAngle = -Math.PI / 2 + rotation
+  const circleReveal = smoothstepNumber(0.16, 0.58, drawProgress)
+  const inversionCircles = circleReveal > 0.55
+    ? computeFocusInversionCircleGeometry(star, width, height, focusAge)
+    : []
 
   ctx.save()
   clipOutsideRayCorridor(ctx, width, height, geometry)
@@ -488,9 +492,12 @@ function drawStarRadiantGeometry(
     ringStartAngle + Math.PI * 2 * ringProgress,
     alpha * 0.82,
     palette.tangentStroke,
+    inversionCircles,
   )
   drawSolidRadiantRing(
     ctx,
+    width,
+    height,
     star.x,
     star.y,
     outerRingRadius + outerRingWidth * 0.5,
@@ -498,6 +505,7 @@ function drawStarRadiantGeometry(
     ringStartAngle,
     ringStartAngle + Math.PI * 2 * ringProgress,
     alpha * 0.82,
+    inversionCircles,
   )
   drawNoisyRadiantRing(
     ctx,
@@ -511,9 +519,12 @@ function drawStarRadiantGeometry(
     ringStartAngle + Math.PI * 2 * ringProgress,
     alpha * 0.52,
     palette.tangentStroke,
+    inversionCircles,
   )
   drawSolidRadiantRing(
     ctx,
+    width,
+    height,
     star.x,
     star.y,
     fourthRingRadius + outerRingWidth * 0.5,
@@ -521,6 +532,7 @@ function drawStarRadiantGeometry(
     ringStartAngle,
     ringStartAngle + Math.PI * 2 * ringProgress,
     alpha * 0.82,
+    inversionCircles,
   )
   drawNoisyRadiantRing(
     ctx,
@@ -534,9 +546,12 @@ function drawStarRadiantGeometry(
     ringStartAngle + Math.PI * 2 * ringProgress,
     alpha * 0.36,
     palette.tangentStroke,
+    inversionCircles,
   )
   drawSolidRadiantRing(
     ctx,
+    width,
+    height,
     star.x,
     star.y,
     sixthRingRadius + outerRingWidth * 0.5,
@@ -544,6 +559,7 @@ function drawStarRadiantGeometry(
     ringStartAngle,
     ringStartAngle + Math.PI * 2 * ringProgress,
     alpha * 0.82,
+    inversionCircles,
   )
 
   const ringDefinitions = [
@@ -613,6 +629,7 @@ function drawNoisyRadiantRing(
   endAngle: number,
   alpha: number,
   color: string,
+  exclusionCircles: FocusInversionCircleGeometry[] = [],
   useNoise = true,
 ): void {
   if (useNoise && !ensureRadiantNoiseCanvas()) return
@@ -655,12 +672,40 @@ function drawNoisyRadiantRing(
     ringCtx.fillStyle = noisePattern
     ringCtx.fillRect(0, 0, width, height)
   }
+  if (exclusionCircles.length > 0) {
+    ringCtx.globalCompositeOperation = 'destination-out'
+    ringCtx.globalAlpha = 1
+    ringCtx.beginPath()
+    for (const circle of exclusionCircles) {
+      ringCtx.moveTo(circle.x + circle.radius, circle.y)
+      ringCtx.arc(circle.x, circle.y, circle.radius, 0, Math.PI * 2)
+    }
+    ringCtx.fill()
+  }
   ringCtx.restore()
   ctx.drawImage(ringCanvas, 0, 0, width, height)
 }
 
+function clipOutsideCircles(
+  ctx: CanvasRenderingContext2D,
+  width: number,
+  height: number,
+  circles: FocusInversionCircleGeometry[],
+): void {
+  if (circles.length === 0) return
+  ctx.beginPath()
+  ctx.rect(0, 0, width, height)
+  for (const circle of circles) {
+    ctx.moveTo(circle.x + circle.radius, circle.y)
+    ctx.arc(circle.x, circle.y, circle.radius, 0, Math.PI * 2)
+  }
+  ctx.clip('evenodd')
+}
+
 function drawSolidRadiantRing(
   ctx: CanvasRenderingContext2D,
+  width: number,
+  height: number,
   centerX: number,
   centerY: number,
   outerRadius: number,
@@ -668,10 +713,12 @@ function drawSolidRadiantRing(
   startAngle: number,
   endAngle: number,
   alpha: number,
+  exclusionCircles: FocusInversionCircleGeometry[] = [],
 ): void {
   if (endAngle <= startAngle) return
 
   ctx.save()
+  clipOutsideCircles(ctx, width, height, exclusionCircles)
   ctx.globalAlpha = alpha
   ctx.strokeStyle = '#fff'
   ctx.lineWidth = 0.9

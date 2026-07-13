@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react'
 import { getDomLayer } from '../composition/layerRegistry'
-import { computeFocusRingGeometry, computeHudTangentGeometry } from '../composition/focusCorridorGeometry'
+import { computeFocusInversionCircleGeometry, computeHudTangentGeometry } from '../composition/focusCorridorGeometry'
 import { registerFocusHudRenderer, type FocusHudFrame } from './focusHudBridge'
 import { getFocusInversionConfig } from './focusInversionConfig'
 import type { ScreenCircle } from '../types'
@@ -62,11 +62,6 @@ interface FocusAxis {
 }
 
 const EXIT_DURATION = 0.82
-const INVERSION_CIRCLE_SPECS = [
-  { ring: 'ring2' as const, baseAngle: -Math.PI * 0.22, speed: 0.030, sizeFactor: 0.18 },
-  { ring: 'ring4' as const, baseAngle: Math.PI * 0.28, speed: 0.020, sizeFactor: 0.28 },
-  { ring: 'ring6' as const, baseAngle: Math.PI * 1.12, speed: 0.012, sizeFactor: 0.40 },
-]
 
 function smoothstep(edge0: number, edge1: number, value: number): number {
   const t = Math.max(0, Math.min(1, (value - edge0) / (edge1 - edge0)))
@@ -264,27 +259,13 @@ function getInversionCircleCenters(
   sequence: BlockSequence,
   width: number,
   height: number,
-): Array<{ x: number; y: number; radius: number }> {
-  const ringGeometry = computeFocusRingGeometry(sequence.axis.starCircle, width, height)
-  const ringRadii = [
-    ringGeometry.outerRingRadius,
-    ringGeometry.fourthRingRadius,
-    ringGeometry.sixthRingRadius,
-  ]
-  const centerX = sequence.axis.starCircle.x
-  const centerY = sequence.axis.starCircle.y
-  const age = Math.max(0, sequence.focusAge)
-
-  return INVERSION_CIRCLE_SPECS.map((spec, index) => {
-    const angle = spec.baseAngle - age * spec.speed
-    const ringRadius = ringRadii[index]
-    const circleRadius = Math.max(20, Math.min(116, sequence.axis.starCircle.r * spec.sizeFactor * 2))
-    return {
-      x: centerX + Math.cos(angle) * ringRadius,
-      y: centerY + Math.sin(angle) * ringRadius,
-      radius: circleRadius,
-    }
-  })
+): ReturnType<typeof computeFocusInversionCircleGeometry> {
+  return computeFocusInversionCircleGeometry(
+    sequence.axis.starCircle,
+    width,
+    height,
+    sequence.focusAge,
+  )
 }
 
 function drawCircularInversionRegions(
