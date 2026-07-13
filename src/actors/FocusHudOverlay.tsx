@@ -810,18 +810,9 @@ function drawFocusEllipseSequence(
       const elapsed = timelineAge - ellipseStart
       if (elapsed < 0 || elapsed >= group.ellipseLifetime) continue
 
-      // Keep the scale transition long enough to read at the HUD's thin
-      // stroke weight; each ellipse still owns this window independently.
-      const revealWindow = Math.min(0.55, group.ellipseLifetime * 0.42)
-      const revealProgress = smoothstepNumber(0, revealWindow, elapsed)
-      const concealProgress = smoothstepNumber(
-        group.ellipseLifetime - revealWindow,
-        group.ellipseLifetime,
-        elapsed,
-      )
-      const lifecycleScale = revealProgress * (1 - concealProgress)
-      const scale = lifecycleScale * exitScale
-      if (scale <= 0.001) continue
+      // Individual lifecycle events remain binary. Only the global exit
+      // reverses the currently visible ellipses through a scale transition.
+      if (exitScale <= 0.001) continue
 
       const flickerRoll = hudHashNoise(seed + 13.6)
       const flickerStart = group.ellipseLifetime * (0.25 + hudHashNoise(seed + 15.8) * 0.5)
@@ -843,8 +834,8 @@ function drawFocusEllipseSequence(
       ctx.ellipse(
         star.x,
         star.y,
-        longRadius * scale,
-        shortRadius * scale,
+        longRadius * exitScale,
+        shortRadius * exitScale,
         group.startAngle + ellipseIndex * group.rotationStep,
         0,
         Math.PI * 2,
