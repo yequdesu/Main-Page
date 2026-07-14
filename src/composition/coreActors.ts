@@ -89,16 +89,6 @@ export const CORE_ACTORS: ActorSpec[] = [
     interaction: { pointer: 'none', hoverSource: 'screen' },
   },
   {
-    id: 'debris',
-    domain: 'webgl',
-    layer: 'webgl.debris',
-    lifecycle: { mount: 'always', dispose: 'auto' },
-    timing: { clocks: ['scroll', 'elapsedTime', 'delta'], ranges: ['whiteOut', 'act3Shift'] },
-    frame: { phase: 'webgl.mutate', after: ['planets'], skipWhenUnchanged: ['scroll', 'elapsedTime'] },
-    consumes: ['scroll.sp', 'clock.elapsedTime', 'clock.delta'],
-    produces: ['realtime.cameraData', 'realtime.debrisCount'],
-  },
-  {
     id: 'centralStar',
     domain: 'webgl',
     layer: 'webgl.star',

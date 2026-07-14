@@ -83,7 +83,7 @@ const FOCUS_FOV_RETURN = 0.08
  *
  * �?updateCameraFocus():776-913，逐字保留算法�?
  *
- * 用于 Act3ContentPhase �?DustField �?useFrame 中调用�?
+ * 由 Act3ContentPhase 的 useFrame 调用。
  *
  * 援引：Target-Lerp 模式（Three.js 社区通用�?
  */

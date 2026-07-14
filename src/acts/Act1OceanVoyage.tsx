@@ -8,7 +8,7 @@ import LighthouseCapture from '../actors/LighthouseCapture'
  *
  * 组装：OceanWaves + LightBeam + LighthouseCapture
  * 通过 visible prop 控制，始终挂载�?
- * Lighthouse / DustField（行�?粒子）已提升�?Canvas 根层级，不受 Act 可见性限制�?
+ * Lighthouse 已提升至 Canvas 根层级，不受 Act 可见性限制。
  *
  * 援引：R3F visible prop 模式
  */

@@ -5,7 +5,6 @@ import { SCENE_CENTER_Z } from './ScrollRig'
 import ScrollInvalidator from './ScrollInvalidator'
 import PlanetClickHandler from './PlanetClickHandler'
 import SceneLights from '../actors/SceneLights'
-import DustField from '../actors/DustField'
 import Planets from '../actors/Planets'
 import Lighthouse from '../actors/Lighthouse'
 import WindChimeLines from '../actors/WindChimeLines'
@@ -53,7 +52,6 @@ export default function SceneCanvas({ children }: CanvasProps) {
       <SceneLights />
       <SeaMist />
       <Planets />
-      <DustField />
       <Lighthouse />
       <WindChimeLines />
       <CentralStar />

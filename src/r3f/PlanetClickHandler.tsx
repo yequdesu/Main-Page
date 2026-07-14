@@ -28,7 +28,7 @@ export default function PlanetClickHandler() {
       const sp = useScrollStore.getState().scrollProgress
       if (sp < TIMELINE.act3Shift.start) return
 
-      // Reset auto-unfocus timer on any click (handled in DustField useFrame)
+      // Reset auto-unfocus timer on any click (handled by camera focus update)
       const store = useScrollStore.getState()
 
       const rect = canvas.getBoundingClientRect()
@@ -58,7 +58,7 @@ export default function PlanetClickHandler() {
           } else {
             // First click �?focus
             store.setFocusedPlanet(particleIdx)
-            store.setFocusStartTime(0) // will be set by DustField useFrame
+            store.setFocusStartTime(0) // initialized by the next camera-focus frame
           }
         }
       } else {
