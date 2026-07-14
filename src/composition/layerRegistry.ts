@@ -37,7 +37,10 @@ export const LAYERS = {
   },
   'webgl.oceanLines': {
     id: 'webgl.oceanLines',
-    contract: { kind: 'webgl', renderOrder: 0, depthTest: true, depthWrite: true, transparent: false },
+    // Wave contours must not occlude the transparent beam volume. They still
+    // test depth for spatial placement, but remain blendable and never write
+    // their own depth into the beam's path.
+    contract: { kind: 'webgl', renderOrder: 0, depthTest: true, depthWrite: false, transparent: true, blending: 'normal' },
   },
   'webgl.oceanMist': {
     id: 'webgl.oceanMist',
