@@ -17,6 +17,8 @@ import {
 import { computeHudTangentGeometry } from '../composition/focusCorridorGeometry'
 import { registerFocusHudRenderer, type FocusHudFrame } from '../actors/focusHudBridge'
 import type { ScreenCircle, TangentLine } from '../types'
+import { TIMELINE } from '../composition/timeline'
+import { useScrollStore } from '../stores/scrollStore'
 
 const vertexShader = /* glsl */ `
   varying vec2 vUv;
@@ -46,10 +48,27 @@ const corridorMaskFragmentShader = /* glsl */ `
   }
 `
 
+const squareMaskFragmentShader = /* glsl */ `
+  uniform vec2 uResolution;
+  uniform vec2 uSquareSize;
+
+  varying vec2 vUv;
+
+  void main() {
+    vec2 screenPoint = vec2(vUv.x * uResolution.x, (1.0 - vUv.y) * uResolution.y);
+    vec2 distanceFromCenter = abs(screenPoint - uResolution * 0.5);
+    vec2 halfSize = uSquareSize * 0.5;
+    float inside = step(distanceFromCenter.x, halfSize.x) * step(distanceFromCenter.y, halfSize.y);
+    gl_FragColor = vec4(inside, inside, inside, 1.0);
+  }
+`
+
 const effectFragmentShader = /* glsl */ `
   uniform sampler2D uScene;
   uniform sampler2D uCorridorMask;
+  uniform sampler2D uSquareMask;
   uniform float uStrength;
+  uniform float uBinaryStrength;
 
   varying vec2 vUv;
 
@@ -62,12 +81,17 @@ const effectFragmentShader = /* glsl */ `
   void main() {
     vec4 source = texture2D(uScene, vUv);
     float corridor = texture2D(uCorridorMask, vUv).r;
+    float square = texture2D(uSquareMask, vUv).r;
     float outside = 1.0 - corridor;
     float transition = smoothstep(0.0, 1.0, uStrength);
 
     float luminance = dot(source.rgb, vec3(0.299, 0.587, 0.114));
     vec3 grayscale = vec3(luminance);
     vec3 processed = mix(source.rgb, grayscale, outside * transition * 0.30);
+
+    // Experiment: binary-quantize each linear RGB channel only inside the square.
+    vec3 binaryColor = step(vec3(0.42), source.rgb);
+    processed = mix(processed, binaryColor, square * uBinaryStrength);
 
     // The scene target is linear. Encode once here, at the final screen pass.
     gl_FragColor = vec4(linearToSrgb(clamp(processed, 0.0, 1.0)), source.a);
@@ -124,10 +148,19 @@ export default function WebglCollagePostProcess() {
     depthBuffer: false,
     stencilBuffer: false,
   }), [])
+  const squareMaskTarget = useMemo(() => new WebGLRenderTarget(1, 1, {
+    minFilter: NearestFilter,
+    magFilter: NearestFilter,
+    format: RGBAFormat,
+    depthBuffer: false,
+    stencilBuffer: false,
+  }), [])
   sceneTarget.texture.colorSpace = NoColorSpace
   corridorMaskTarget.texture.colorSpace = NoColorSpace
+  squareMaskTarget.texture.colorSpace = NoColorSpace
 
   const maskScene = useMemo(() => new Scene(), [])
+  const squareMaskScene = useMemo(() => new Scene(), [])
   const effectScene = useMemo(() => new Scene(), [])
   const postCamera = useMemo(() => {
     const nextCamera = new OrthographicCamera(-1, 1, 1, -1, 0, 1)
@@ -139,11 +172,17 @@ export default function WebglCollagePostProcess() {
     uRayA: { value: new Vector4(0, 0, 0, 1) },
     uRayB: { value: new Vector4(0, 0, 0, 1) },
   }), [])
+  const squareMaskUniforms = useMemo(() => ({
+    uResolution: { value: new Vector2(1, 1) },
+    uSquareSize: { value: new Vector2(1, 1) },
+  }), [])
   const effectUniforms = useMemo(() => ({
     uScene: { value: sceneTarget.texture },
     uCorridorMask: { value: corridorMaskTarget.texture },
+    uSquareMask: { value: squareMaskTarget.texture },
     uStrength: { value: 0 },
-  }), [corridorMaskTarget.texture, sceneTarget.texture])
+    uBinaryStrength: { value: 0 },
+  }), [corridorMaskTarget.texture, sceneTarget.texture, squareMaskTarget.texture])
   const maskMaterial = useMemo(() => new ShaderMaterial({
     uniforms: maskUniforms,
     vertexShader,
@@ -151,6 +190,13 @@ export default function WebglCollagePostProcess() {
     depthTest: false,
     depthWrite: false,
   }), [maskUniforms])
+  const squareMaskMaterial = useMemo(() => new ShaderMaterial({
+    uniforms: squareMaskUniforms,
+    vertexShader,
+    fragmentShader: squareMaskFragmentShader,
+    depthTest: false,
+    depthWrite: false,
+  }), [squareMaskUniforms])
   const effectMaterial = useMemo(() => new ShaderMaterial({
     uniforms: effectUniforms,
     vertexShader,
@@ -159,22 +205,28 @@ export default function WebglCollagePostProcess() {
     depthWrite: false,
   }), [effectUniforms])
   const maskQuad = useMemo(() => new Mesh(new PlaneGeometry(2, 2), maskMaterial), [maskMaterial])
+  const squareMaskQuad = useMemo(() => new Mesh(new PlaneGeometry(2, 2), squareMaskMaterial), [squareMaskMaterial])
   const effectQuad = useMemo(() => new Mesh(new PlaneGeometry(2, 2), effectMaterial), [effectMaterial])
 
   useEffect(() => {
     maskScene.add(maskQuad)
+    squareMaskScene.add(squareMaskQuad)
     effectScene.add(effectQuad)
     return () => {
       maskScene.remove(maskQuad)
+      squareMaskScene.remove(squareMaskQuad)
       effectScene.remove(effectQuad)
       maskQuad.geometry.dispose()
+      squareMaskQuad.geometry.dispose()
       effectQuad.geometry.dispose()
       maskMaterial.dispose()
+      squareMaskMaterial.dispose()
       effectMaterial.dispose()
       sceneTarget.dispose()
       corridorMaskTarget.dispose()
+      squareMaskTarget.dispose()
     }
-  }, [corridorMaskTarget, effectMaterial, effectQuad, maskMaterial, maskQuad, maskScene, sceneTarget, effectScene])
+  }, [corridorMaskTarget, effectMaterial, effectQuad, maskMaterial, maskQuad, maskScene, sceneTarget, squareMaskMaterial, squareMaskQuad, squareMaskScene, squareMaskTarget])
 
   useEffect(() => {
     const unregister = registerFocusHudRenderer((frame: FocusHudFrame) => {
@@ -194,30 +246,39 @@ export default function WebglCollagePostProcess() {
     const height = Math.max(1, Math.floor(size.height * pixelRatio))
     sceneTarget.setSize(width, height)
     corridorMaskTarget.setSize(width, height)
+    squareMaskTarget.setSize(width, height)
     maskUniforms.uResolution.value.set(size.width, size.height)
-  }, [corridorMaskTarget, gl, maskUniforms, sceneTarget, size.height, size.width])
+    squareMaskUniforms.uResolution.value.set(size.width, size.height)
+    const squareSize = Math.max(160, Math.min(size.width, size.height) * 0.34)
+    squareMaskUniforms.uSquareSize.value.set(squareSize, squareSize)
+  }, [corridorMaskTarget, gl, maskUniforms, sceneTarget, size.height, size.width, squareMaskTarget, squareMaskUniforms])
 
   useFrame(() => {
     const frame = frameRef.current
     const strength = frame.focused && frame.star && frame.planet ? Math.max(0, Math.min(1, frame.alpha)) : 0
-    effectUniforms.uStrength.value = strength
+    const sp = useScrollStore.getState().scrollProgress
+    const binaryActive = sp < TIMELINE.act1OceanVoyage.end
+    effectUniforms.uBinaryStrength.value = binaryActive ? 1 : 0
 
-    if (strength <= 0.001 || !frame.star || !frame.planet) {
+    let focusMaskActive = false
+    if (strength > 0.001 && frame.star && frame.planet) {
+      const geometry = computeHudTangentGeometry(frame.star, frame.planet, size.width, size.height)
+      if (geometry && geometry.lines.length >= 2) {
+        const midpoint = {
+          x: (frame.star.x + frame.planet.x) * 0.5,
+          y: (frame.star.y + frame.planet.y) * 0.5,
+        }
+        updateLineUniform(maskUniforms.uRayA.value, makeRayLineUniform(geometry.lines[0], midpoint))
+        updateLineUniform(maskUniforms.uRayB.value, makeRayLineUniform(geometry.lines[1], midpoint))
+        focusMaskActive = true
+      }
+    }
+    effectUniforms.uStrength.value = focusMaskActive ? strength : 0
+
+    if (!binaryActive && !focusMaskActive) {
       gl.render(scene, camera)
       return
     }
-
-    const geometry = computeHudTangentGeometry(frame.star, frame.planet, size.width, size.height)
-    if (!geometry || geometry.lines.length < 2) {
-      gl.render(scene, camera)
-      return
-    }
-    const midpoint = {
-      x: (frame.star.x + frame.planet.x) * 0.5,
-      y: (frame.star.y + frame.planet.y) * 0.5,
-    }
-    updateLineUniform(maskUniforms.uRayA.value, makeRayLineUniform(geometry.lines[0], midpoint))
-    updateLineUniform(maskUniforms.uRayB.value, makeRayLineUniform(geometry.lines[1], midpoint))
 
     const previousTarget = gl.getRenderTarget()
 
@@ -225,9 +286,17 @@ export default function WebglCollagePostProcess() {
     gl.clear()
     gl.render(scene, camera)
 
-    gl.setRenderTarget(corridorMaskTarget)
-    gl.clear()
-    gl.render(maskScene, postCamera)
+    if (focusMaskActive) {
+      gl.setRenderTarget(corridorMaskTarget)
+      gl.clear()
+      gl.render(maskScene, postCamera)
+    }
+
+    if (binaryActive) {
+      gl.setRenderTarget(squareMaskTarget)
+      gl.clear()
+      gl.render(squareMaskScene, postCamera)
+    }
 
     gl.setRenderTarget(previousTarget)
     gl.clear()
