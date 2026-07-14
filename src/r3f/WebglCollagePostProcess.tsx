@@ -69,6 +69,7 @@ const effectFragmentShader = /* glsl */ `
   uniform sampler2D uSquareMask;
   uniform float uStrength;
   uniform float uBinaryStrength;
+  uniform float uBinaryOverlay;
 
   varying vec2 vUv;
 
@@ -94,7 +95,11 @@ const effectFragmentShader = /* glsl */ `
     processed = mix(processed, binaryColor, square * uBinaryStrength);
 
     // The scene target is linear. Encode once here, at the final screen pass.
-    gl_FragColor = vec4(linearToSrgb(clamp(processed, 0.0, 1.0)), source.a);
+    if (uBinaryOverlay > 0.5) {
+      gl_FragColor = vec4(linearToSrgb(clamp(binaryColor, 0.0, 1.0)), square * uBinaryStrength * source.a);
+    } else {
+      gl_FragColor = vec4(linearToSrgb(clamp(processed, 0.0, 1.0)), source.a);
+    }
   }
 `
 
@@ -182,6 +187,7 @@ export default function WebglCollagePostProcess() {
     uSquareMask: { value: squareMaskTarget.texture },
     uStrength: { value: 0 },
     uBinaryStrength: { value: 0 },
+    uBinaryOverlay: { value: 0 },
   }), [corridorMaskTarget.texture, sceneTarget.texture, squareMaskTarget.texture])
   const maskMaterial = useMemo(() => new ShaderMaterial({
     uniforms: maskUniforms,
@@ -203,6 +209,7 @@ export default function WebglCollagePostProcess() {
     fragmentShader: effectFragmentShader,
     depthTest: false,
     depthWrite: false,
+    transparent: true,
   }), [effectUniforms])
   const maskQuad = useMemo(() => new Mesh(new PlaneGeometry(2, 2), maskMaterial), [maskMaterial])
   const squareMaskQuad = useMemo(() => new Mesh(new PlaneGeometry(2, 2), squareMaskMaterial), [squareMaskMaterial])
@@ -274,6 +281,8 @@ export default function WebglCollagePostProcess() {
       }
     }
     effectUniforms.uStrength.value = focusMaskActive ? strength : 0
+    const binaryOverlayOnly = binaryActive && !focusMaskActive
+    effectUniforms.uBinaryOverlay.value = binaryOverlayOnly ? 1 : 0
 
     if (!binaryActive && !focusMaskActive) {
       gl.render(scene, camera)
@@ -299,8 +308,22 @@ export default function WebglCollagePostProcess() {
     }
 
     gl.setRenderTarget(previousTarget)
-    gl.clear()
-    gl.render(effectScene, postCamera)
+    if (binaryOverlayOnly) {
+      // Preserve the original framebuffer outside the square. The post-process
+      // quad is transparent outside its mask and is composited on top only.
+      const previousAutoClear = gl.autoClear
+      gl.clear()
+      gl.autoClear = false
+      try {
+        gl.render(scene, camera)
+        gl.render(effectScene, postCamera)
+      } finally {
+        gl.autoClear = previousAutoClear
+      }
+    } else {
+      gl.clear()
+      gl.render(effectScene, postCamera)
+    }
   }, 1)
 
   return null
