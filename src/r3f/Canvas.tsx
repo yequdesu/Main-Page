@@ -11,6 +11,7 @@ import WindChimeLines from '../actors/WindChimeLines'
 import CentralStar from '../actors/CentralStar'
 import SeaCameraBob from '../actors/SeaCameraBob'
 import SeaMist from '../actors/SeaMist'
+import WebglCollagePostProcess from './WebglCollagePostProcess'
 import { getDomLayer } from '../composition/layerRegistry'
 
 /**
@@ -56,6 +57,7 @@ export default function SceneCanvas({ children }: CanvasProps) {
       <WindChimeLines />
       <CentralStar />
       {children}
+      <WebglCollagePostProcess />
     </R3FCanvas>
   )
 }
