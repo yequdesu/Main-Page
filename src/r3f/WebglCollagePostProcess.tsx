@@ -2,7 +2,6 @@ import { useEffect, useMemo, useRef } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
 import {
   LinearFilter,
-  CanvasTexture,
   Mesh,
   NearestFilter,
   NoColorSpace,
@@ -12,17 +11,12 @@ import {
   Scene,
   ShaderMaterial,
   Vector2,
-  Vector3,
   Vector4,
   WebGLRenderTarget,
 } from 'three'
 import { computeHudTangentGeometry } from '../composition/focusCorridorGeometry'
 import { registerFocusHudRenderer, type FocusHudFrame } from '../actors/focusHudBridge'
 import type { ScreenCircle, TangentLine } from '../types'
-import { readBeamWorldDirection, readBeamWorldOrigin } from '../composition/coreAnchors'
-import { TIMELINE } from '../composition/timeline'
-import { clamped } from './ScrollRig'
-import { useScrollStore } from '../stores/scrollStore'
 
 const vertexShader = /* glsl */ `
   varying vec2 vUv;
@@ -55,9 +49,7 @@ const corridorMaskFragmentShader = /* glsl */ `
 const effectFragmentShader = /* glsl */ `
   uniform sampler2D uScene;
   uniform sampler2D uCorridorMask;
-  uniform sampler2D uSweepMask;
   uniform float uStrength;
-  uniform float uSweepStrength;
 
   varying vec2 vUv;
 
@@ -70,15 +62,12 @@ const effectFragmentShader = /* glsl */ `
   void main() {
     vec4 source = texture2D(uScene, vUv);
     float corridor = texture2D(uCorridorMask, vUv).r;
-    float sweep = texture2D(uSweepMask, vUv).r;
     float outside = 1.0 - corridor;
-    float focusTransition = smoothstep(0.0, 1.0, uStrength);
-    float sweepTransition = smoothstep(0.0, 1.0, uSweepStrength);
+    float transition = smoothstep(0.0, 1.0, uStrength);
 
     float luminance = dot(source.rgb, vec3(0.299, 0.587, 0.114));
     vec3 grayscale = vec3(luminance);
-    float grayMix = max(outside * focusTransition * 0.30, sweep * sweepTransition);
-    vec3 processed = mix(source.rgb, grayscale, clamp(grayMix, 0.0, 1.0));
+    vec3 processed = mix(source.rgb, grayscale, outside * transition * 0.30);
 
     // The scene target is linear. Encode once here, at the final screen pass.
     gl_FragColor = vec4(linearToSrgb(clamp(processed, 0.0, 1.0)), source.a);
@@ -97,75 +86,6 @@ interface FocusRayFrame {
   alpha: number
   star?: ScreenCircle
   planet?: ScreenCircle
-}
-
-interface SweepParticle {
-  angle: number
-  start: number
-  travelDuration: number
-  radius: number
-}
-
-const SWEEP_PARTICLE_COUNT = 28
-const SWEEP_DURATION = 1.8
-
-function createSweepParticles(): SweepParticle[] {
-  const jitter = (Math.random() - 0.5) * (Math.PI * 2 / SWEEP_PARTICLE_COUNT) * 0.72
-  return Array.from({ length: SWEEP_PARTICLE_COUNT }, (_, index) => ({
-    angle: jitter + index * Math.PI * 2 / SWEEP_PARTICLE_COUNT + (Math.random() - 0.5) * 0.09,
-    // Keep all starts early enough that the shape can close during white-out.
-    start: 0.03 + Math.random() * 0.27,
-    travelDuration: 0.72 + Math.random() * 0.56,
-    radius: 0.78 + Math.random() * 0.22,
-  })).sort((a, b) => a.start - b.start)
-}
-
-function updateSweepMask(
-  canvas: HTMLCanvasElement,
-  ctx: CanvasRenderingContext2D,
-  texture: CanvasTexture,
-  particles: SweepParticle[],
-  age: number,
-  sourceX: number,
-  sourceY: number,
-): void {
-  const width = canvas.width
-  const height = canvas.height
-  ctx.clearRect(0, 0, width, height)
-  if (age <= 0) {
-    texture.needsUpdate = true
-    return
-  }
-
-  const maxRadius = Math.hypot(width, height) * 0.82
-  const emitted: { x: number; y: number }[] = []
-  for (const particle of particles) {
-    if (age < particle.start) continue
-    const travel = Math.min(1, Math.max(0, (age - particle.start) / particle.travelDuration))
-    const radius = maxRadius * particle.radius * travel
-    emitted.push({
-      x: sourceX + Math.cos(particle.angle) * radius,
-      y: sourceY + Math.sin(particle.angle) * radius,
-    })
-  }
-
-  if (emitted.length < 2) {
-    texture.needsUpdate = true
-    return
-  }
-
-  ctx.fillStyle = '#ffffff'
-  ctx.beginPath()
-  for (let index = 1; index < emitted.length; index += 1) {
-    const previous = emitted[index - 1]
-    const current = emitted[index]
-    ctx.moveTo(sourceX, sourceY)
-    ctx.lineTo(previous.x, previous.y)
-    ctx.lineTo(current.x, current.y)
-    ctx.closePath()
-  }
-  ctx.fill()
-  texture.needsUpdate = true
 }
 
 const EMPTY_FRAME: FocusRayFrame = { focused: false, alpha: 0 }
@@ -190,20 +110,6 @@ function updateLineUniform(target: Vector4, line: RayLine): void {
 export default function WebglCollagePostProcess() {
   const { gl, scene, camera, size } = useThree()
   const frameRef = useRef<FocusRayFrame>(EMPTY_FRAME)
-  const sweepParticles = useMemo(createSweepParticles, [])
-  const sweepCanvas = useMemo(() => {
-    const canvas = document.createElement('canvas')
-    canvas.width = 2
-    canvas.height = 2
-    return canvas
-  }, [])
-  const sweepContext = useMemo(() => sweepCanvas.getContext('2d'), [sweepCanvas])
-  const sweepTexture = useMemo(() => {
-    const texture = new CanvasTexture(sweepCanvas)
-    texture.minFilter = LinearFilter
-    texture.magFilter = LinearFilter
-    return texture
-  }, [sweepCanvas])
   const sceneTarget = useMemo(() => new WebGLRenderTarget(1, 1, {
     minFilter: LinearFilter,
     magFilter: LinearFilter,
@@ -236,10 +142,8 @@ export default function WebglCollagePostProcess() {
   const effectUniforms = useMemo(() => ({
     uScene: { value: sceneTarget.texture },
     uCorridorMask: { value: corridorMaskTarget.texture },
-    uSweepMask: { value: sweepTexture },
     uStrength: { value: 0 },
-    uSweepStrength: { value: 0 },
-  }), [corridorMaskTarget.texture, sceneTarget.texture, sweepTexture])
+  }), [corridorMaskTarget.texture, sceneTarget.texture])
   const maskMaterial = useMemo(() => new ShaderMaterial({
     uniforms: maskUniforms,
     vertexShader,
@@ -269,7 +173,6 @@ export default function WebglCollagePostProcess() {
       effectMaterial.dispose()
       sceneTarget.dispose()
       corridorMaskTarget.dispose()
-      sweepTexture.dispose()
     }
   }, [corridorMaskTarget, effectMaterial, effectQuad, maskMaterial, maskQuad, maskScene, sceneTarget, effectScene])
 
@@ -291,60 +194,16 @@ export default function WebglCollagePostProcess() {
     const height = Math.max(1, Math.floor(size.height * pixelRatio))
     sceneTarget.setSize(width, height)
     corridorMaskTarget.setSize(width, height)
-    sweepCanvas.width = Math.max(1, Math.floor(size.width))
-    sweepCanvas.height = Math.max(1, Math.floor(size.height))
     maskUniforms.uResolution.value.set(size.width, size.height)
-  }, [corridorMaskTarget, gl, maskUniforms, sceneTarget, size.height, size.width, sweepCanvas])
+  }, [corridorMaskTarget, gl, maskUniforms, sceneTarget, size.height, size.width])
 
   useFrame(() => {
     const frame = frameRef.current
     const strength = frame.focused && frame.star && frame.planet ? Math.max(0, Math.min(1, frame.alpha)) : 0
-    const sp = useScrollStore.getState().scrollProgress
-    const whiteOutProgress = clamped(sp, TIMELINE.whiteOut.start, TIMELINE.whiteOut.end)
-    const beamOrigin = readBeamWorldOrigin()
-    const beamDirection = readBeamWorldDirection()
-    const viewDirection = new Vector3()
-    camera.getWorldDirection(viewDirection)
-    const beamFacing = beamDirection
-      ? Math.max(0, Math.min(1, -beamDirection.x * viewDirection.x - beamDirection.y * viewDirection.y - beamDirection.z * viewDirection.z))
-      : 0
-    const sweepGate = Math.max(0, Math.min(1, (beamFacing - 0.62) / 0.28))
-    const sweepStrength = whiteOutProgress * sweepGate
-    effectUniforms.uSweepStrength.value = sweepStrength
     effectUniforms.uStrength.value = strength
 
-    if (sweepContext) {
-      const projectedOrigin = new Vector3(
-        beamOrigin?.x ?? 0,
-        beamOrigin?.y ?? -0.428,
-        beamOrigin?.z ?? -16,
-      ).project(camera)
-      const sourceX = (projectedOrigin.x * 0.5 + 0.5) * size.width
-      const sourceY = (1 - (projectedOrigin.y * 0.5 + 0.5)) * size.height
-      updateSweepMask(
-        sweepCanvas,
-        sweepContext,
-        sweepTexture,
-        sweepParticles,
-        whiteOutProgress * SWEEP_DURATION,
-        sourceX,
-        sourceY,
-      )
-    }
-
-    if (strength <= 0.001 && sweepStrength <= 0.001) {
-      gl.render(scene, camera)
-      return
-    }
-
     if (strength <= 0.001 || !frame.star || !frame.planet) {
-      const previousTarget = gl.getRenderTarget()
-      gl.setRenderTarget(sceneTarget)
-      gl.clear()
       gl.render(scene, camera)
-      gl.setRenderTarget(previousTarget)
-      gl.clear()
-      gl.render(effectScene, postCamera)
       return
     }
 

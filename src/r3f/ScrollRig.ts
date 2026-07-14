@@ -23,42 +23,45 @@ export const {
 } = SCROLL_RIG
 
 // ============================================================
-// Scene background manager
-//
-// The Act 1 -> Act 2 transition is now represented by the local beam sweep
-// post-process. The scene manager keeps the theme background and normal fog
-// lifecycle, but does not apply a full-screen white-out.
+// Scene Manager �?white-out transition
+// �?sceneApplyWhiteOut():168-196，逐字保留
+// themeBlend: 0=night (暗色不白�?, 1=day (白雾过渡至亮�?
+//   �?App.tsx GSAP tween 驱动，实�?day↔night 平滑过渡
 // ============================================================
 let _themeBlend = 0 // 0=night, 1=day
 
 /** App.tsx GSAP tween 每帧更新，驱�?scene 背景平滑过渡 */
 export function setThemeBlend(v: number) { _themeBlend = v }
 
+const _bgBaseColor = new Color('#050811')
 const _bgNightTarget = new Color('#050811')   // night: Act 3 �?Act 1 一�?
 const _bgDayTarget = new Color('#f1f5f9')     // day: 白雾过渡至亮�?
 const _bgTargetColor = new Color()
-const _fogColor = new Color()
+const _bgLerpColor = new Color()
 
 export function sceneApplyWhiteOut(scene: Scene, sp: number): void {
+  const wof = clamped(sp, TIMELINE.whiteOut.start, TIMELINE.whiteOut.end)
   _bgTargetColor.copy(_bgNightTarget).lerp(_bgDayTarget, _themeBlend)
-  scene.background = _bgTargetColor
+  _bgLerpColor.copy(_bgBaseColor).lerp(_bgTargetColor, wof)
+  scene.background = _bgLerpColor
 
   let fogDensity = 0.02
-  if (sp >= TIMELINE.fogFade.start && sp < TIMELINE.fogFade.end) {
+  if (sp >= TIMELINE.whiteOut.start && sp < TIMELINE.whiteOut.end) {
+    fogDensity = 0.02 + wof * 0.08
+  } else if (sp >= TIMELINE.fogFade.start && sp < TIMELINE.fogFade.end) {
     const fogFade = clamped(sp, TIMELINE.fogFade.start, TIMELINE.fogFade.end)
-    fogDensity = 0.02 * (1.0 - fogFade)
+    fogDensity = 0.10 * (1.0 - fogFade)
   } else if (sp >= TIMELINE.fogFade.end) {
     fogDensity = 0  // 0.65 后完全除�?
   }
 
   if (fogDensity > 0.001) {
     if (!scene.fog) {
-      scene.fog = new FogExp2(_bgTargetColor, fogDensity)
+      scene.fog = new FogExp2(_bgLerpColor, fogDensity)
     }
     if (scene.fog) {
       const fog = scene.fog as FogExp2
-      _fogColor.copy(_bgTargetColor)
-      fog.color.copy(_fogColor)
+      fog.color.copy(_bgLerpColor)
       fog.density = fogDensity
     }
   } else {
