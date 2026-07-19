@@ -1,6 +1,6 @@
 # Debug 系统说明
 
-`src/debug/` 是通用的 3D 模型预览调试系统，支持程序化模型和 GLB/glTF 模型的实时参数调试。
+`src/debug/` 是通用的 3D 模型预览调试系统，基于 Studio 三栏布局架构，支持程序化模型和 GLB/glTF 模型的实时参数调试。
 
 ## pnpm debug vs pnpm dev
 
@@ -57,21 +57,35 @@ debugOnlyPlugin.configureServer(server)
 
 ```
 debug.html                              Vite 入口（独立于 index.html）
-  └─ src/debug.tsx                      挂载点（R3F extend 注册 + Suspense + createRoot）
-       └─ ModelPreviewShell             顶层路由（Leva 模型选择器 + 面板派发）
-            ├─ LighthousePreviewPanel   专用 Lighthouse 截图调试面板（useCapturePanel: true）
-            └─ ModelPreviewPanel         通用模型预览面板（OrbitControls + 动态灯光 + Leva）
-                 ├─ useModelPreviewControls   Leva 控件 hook（相机 / 灯光 / 变换 / 视觉 / 环境）
-                 └─ MODEL_REGISTRY 模型加载   （gltfjsx 生成的组件或程序化组件）
+  └─ src/debug.tsx                      挂载点（extend + Suspense + createRoot）
+       └─ StudioShell                   状态宿主（modelKey, env, helpers, selectedNode, viewportMode）
+            ├─ StudioToolbar             模型选择器 + 视口模式（single/split/quad）+ 截图导出
+            ├─ StudioLayout              CSS Grid 三栏：260px | 1fr | 280px
+            │   ├─ SceneExplorer         左栏：环境预设（Studio/Night/Dawn/Sunset）+ 辅助开关（Grid/Axes/BBox/Wireframe）+ 场景树
+            │   ├─ StudioViewport        中栏：Canvas + OrbitControls + Environment + Gizmo + ModelRenderer + 多视口布局
+            │   └─ PropertyPanel         右栏：模型信息 + 材质检查器 + 动画控制（播放/暂停/速度）
+            └─ StatusBar                 底栏：FPS / Draw Calls / Tris
 
 src/models/
   ├─ index.ts                           MODEL_REGISTRY 注册表（添加新模型只需在此加一项）
+  │                                     debugControls 标记启用自定义 Leva 面板（如 'lighthouse-capture'）
   ├─ Voyager1.tsx                        gltfjsx 生成的 Voyager 1 组件（useGLTF）
   └─ README.md                          模型来源与许可证文档
 
 public/models/
-  └─ Voyager1.glb                        GLB 二进制文件（Vite 静态服务，URL: /models/Voyager1.glb）
+  ├─ Voyager1.glb                        GLB 二进制文件（Vite 静态服务，URL: /models/Voyager1.glb）
+  └─ voyager-1-low-poly.glb              低模烘焙 GLB 文件
 ```
+
+## Studio 三栏布局
+
+Studio 采用固定宽度的三栏 CSS Grid 布局：
+
+- **左栏 - SceneExplorer（260px）**：环境预设选择、辅助工具开关、场景树节点浏览与选择
+- **中栏 - StudioViewport（1fr）**：Canvas 渲染区域，支持 single/split/quad 三种视口模式
+- **右栏 - PropertyPanel（280px）**：模型信息卡片、选中 Mesh 的材质属性、GLB 动画播放控制
+
+布局逻辑见 `StudioLayout.css`，使用 `flex: 1` 的 Shell 容器嵌套 CSS Grid。
 
 ## 模型注册表机制
 
@@ -79,12 +93,15 @@ public/models/
 
 ```ts
 {
-  label: string           // Leva 下拉菜单显示名
+  label: string           // 下拉菜单显示名
   component: ComponentType // 模型组件（GLB 模型用 lazy 导入）
+  glbPath?: string       // GLB 静态资源路径
+  environment?: EnvPreset // 默认环境预设（studio/night/dawn/sunset）
+  defaultCamera?: { fov: number; position: [number, number, number] } // 默认相机参数
   triCount?: number       // 三角面数
   attribution?: string    // 来源 / 许可证
   procedural?: boolean    // 是否为程序化几何
-  useCapturePanel?: boolean // 使用专用调试面板（Lighthouse 截图）
+  debugControls?: 'lighthouse-capture' // 自定义 Leva 控件标记
 }
 ```
 
@@ -95,6 +112,8 @@ public/models/
 4. 重启调试页面
 
 ## 配置流（Lighthouse 截图专用）
+
+带有 `debugControls: 'lighthouse-capture'` 标记的模型走独立的 Leva 配置面板（`useLevaCaptureConfig`），参数通过 YAML 文件持久化，供 `LighthouseCapture` 生产烘焙使用。
 
 ```
 调试面板 (Leva)               生产烘焙 (LighthouseCapture)
@@ -120,26 +139,31 @@ public/models/
 | 文件 | 职责 |
 |------|------|
 | `debug.html` | 独立 HTML 入口 |
-| `../debug.tsx` | 挂载点，`createRoot` → `<ModelPreviewShell />` |
-| `ModelPreviewShell.tsx` | 顶层路由，Leva 模型选择器 + 面板派发 |
-| `ModelPreviewPanel.tsx` | 通用模型预览：R3F Canvas + OrbitControls + 模型信息 |
-| `ModelPreviewPanel.css` | 双栏布局样式 |
-| `ModelPreviewControls.tsx` | Leva `useControls` hook，6 个折叠组 18 个参数 |
-| `LighthousePreviewPanel.tsx` | 专用 Lighthouse 截图调试面板（不变） |
-| `LighthousePreviewPanel.css` | Lighthouse 面板样式（不变） |
-| `useLevaCaptureConfig.ts` | Lighthouse 截图 Leva 控件（不变） |
-| `../models/index.ts` | 模型注册表 + 类型 |
+| `../debug.tsx` | 挂载点，`extend` + `createRoot` → `<StudioShell />` |
+| `StudioShell.tsx` | 状态宿主，三栏布局编排，Leva 全局主题 |
+| `StudioLayout.css` | 所有 Studio 样式：三栏 Grid、面板、工具栏、视口、状态栏 |
+| `StudioToolbar.tsx` | 顶部操作栏：模型选择器、视口模式切换、截图导出 |
+| `SceneExplorer.tsx` | 左栏：环境预设、辅助开关、场景树 |
+| `StudioViewport.tsx` | 中栏：Canvas、灯光、Environment、Gizmo、多视口（single/split/quad） |
+| `PropertyPanel.tsx` | 右栏：模型信息、材质检查器、动画控制 |
+| `StatusBar.tsx` | 底栏：FPS / Draw Calls / Tris 性能显示 |
+| `ModelPreviewControls.tsx` | 通用模型 Leva 控件 hook（6 个折叠组） |
+| `useLevaCaptureConfig.ts` | Lighthouse 截图专用 Leva 控件 hook |
+| `../models/index.ts` | 模型注册表 + 类型 + debugControls 标记 |
 | `../models/Voyager1.tsx` | Voyager 1 GLB 组件（gltfjsx 生成） |
-| `../models/README.md` | 模型来源文档 |
 
 ## 依赖
 
-- `@react-three/drei` — GLB 加载（`useGLTF`）、OrbitControls、`useProgress`
+- `@react-three/fiber` — R3F Canvas 渲染器
+- `@react-three/drei` — GLB 加载（`useGLTF`）、OrbitControls、Environment、GizmoHelper、`useProgress`、`useAnimations`
 - `leva` — 参数调试 GUI（pmndrs 出品）
+- `@three.ez/instanced-mesh` — InstancedMesh2 扩展注册
+- `three` — Three.js 核心库
 - `js-yaml` — YAML 读写（devDependency，仅 Vite 插件侧使用）
 
 ## 相关文档
 
 - [模型注册表说明](../models/README.md)
 - [轨道系统完整文档](../../docs/orbital-system.md)
-- [维护指南](../../docs/MAINTENANCE.md)
+- [维护指南](./MAINTENANCE.md)
+- [操作手册](./OPERATION.md)
