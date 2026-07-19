@@ -86,9 +86,7 @@ function MaterialInspector({ node }: { node: Object3D | null }) {
 // ============================================================
 
 function AnimationControls({ modelRef }: { modelRef: React.RefObject<Group | null> }) {
-  const { actions, names, mixer } = useAnimations(
-    (modelRef.current?.children ?? []) as any,
-  )
+  const { actions, names, mixer } = useAnimations(modelRef as any)
 
   if (names.length === 0) return null
 

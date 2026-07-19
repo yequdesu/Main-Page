@@ -78,13 +78,10 @@ function RendererStats() {
 // StudioLights — 通用场景灯光 + 可选 Lighthouse 截图控件
 // ============================================================
 
-function StudioLights({ env, showCaptureControls }: { env: EnvPreset; showCaptureControls: boolean }) {
+function StudioLights({ env }: { env: EnvPreset }) {
   const config = useModelPreviewControls()
-  // Lighthouse 截图专属控件 — 条件调用以注入 Leva
-  if (showCaptureControls) {
-    // eslint-disable-next-line react-hooks/rules-of-hooks
-    useLevaCaptureConfig()
-  }
+  // Lighthouse 截图专属控件 — 始终注册 Leva 控件组（非 Lighthouse 模型时无影响）
+  useLevaCaptureConfig()
   const ambientIntensity = ENV_DREI_PRESETS[env].ambientIntensity
   return (
     <>
@@ -205,7 +202,7 @@ function ModelRenderer({
 // ============================================================
 
 function SingleViewportCanvas({
-  env, helpers, modelKey, entry, modelRef, onSceneTreeUpdate, cameraOverride, showCaptureControls,
+  env, helpers, modelKey, entry, modelRef, onSceneTreeUpdate, cameraOverride,
 }: {
   env: EnvPreset
   helpers: HelperState
@@ -214,7 +211,6 @@ function SingleViewportCanvas({
   modelRef: React.RefObject<Group | null>
   onSceneTreeUpdate: (tree: SceneTreeNode[]) => void
   cameraOverride?: { fov: number; position: [number, number, number] }
-  showCaptureControls: boolean
 }) {
   const defaultCam = cameraOverride ?? { fov: 45, position: [5, 3, 8] }
 
@@ -235,7 +231,7 @@ function SingleViewportCanvas({
       <RendererStats />
 
       <Environment preset={ENV_DREI_PRESETS[env].preset as any} background={false} />
-      <StudioLights env={env} showCaptureControls={showCaptureControls} />
+      <StudioLights env={env} />
       <HelperOverlay helpers={helpers} modelRef={modelRef} />
 
       <GizmoHelper alignment="top-right" margin={[60, 60]}>
@@ -286,8 +282,7 @@ export default function StudioViewport({
 }: StudioViewportProps) {
   const entry = MODEL_REGISTRY[modelKey]
   const cameraOverride = entry?.defaultCamera
-  const showCaptureControls = entry?.debugControls === 'lighthouse-capture'
-  const canvasProps = { env, helpers, modelKey, entry, modelRef, onSceneTreeUpdate, showCaptureControls }
+  const canvasProps = { env, helpers, modelKey, entry, modelRef, onSceneTreeUpdate }
 
   return (
     <div className="studio-viewport">
