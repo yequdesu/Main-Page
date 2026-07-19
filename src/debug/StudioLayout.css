@@ -1,0 +1,141 @@
+/* ============================================================
+   StudioLayout.css — Debug Studio 全局样式
+   三栏布局：260px | 1fr | 280px, Toolbar 40px, StatusBar 28px
+   援引：gltf.report / pmndrs Studio 布局范式
+   ============================================================ */
+
+/* ---- Shell ---- */
+.studio-shell {
+  width: 100vw; height: 100vh;
+  display: flex; flex-direction: column;
+  background: #050811; color: #94a3b8;
+  font-family: 'Courier New', 'Consolas', monospace;
+  font-size: 12px; overflow: hidden;
+}
+
+/* ---- Toolbar ---- */
+.studio-toolbar {
+  height: 40px; min-height: 40px;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 12px; gap: 12px;
+  background: #0f172a; border-bottom: 1px solid #1e293b; z-index: 10;
+}
+.studio-toolbar select {
+  background: #1e293b; color: #cbd5e1; border: 1px solid #334155;
+  border-radius: 4px; padding: 4px 8px; font-size: 12px; font-family: inherit;
+  min-width: 220px;
+}
+.studio-toolbar select:focus { outline: none; border-color: #64748b; }
+.toolbar-buttons { display: flex; gap: 4px; }
+.toolbar-btn {
+  background: #1e293b; color: #94a3b8; border: 1px solid #334155;
+  border-radius: 4px; padding: 4px 10px; font-size: 12px;
+  font-family: inherit; cursor: pointer; transition: background 150ms;
+}
+.toolbar-btn:hover { background: #334155; }
+.toolbar-btn.active { background: #475569; color: #e2e8f0; }
+
+/* ---- Three-Column Grid ---- */
+.studio-layout {
+  flex: 1; display: grid;
+  grid-template-columns: 260px 1fr 280px;
+  overflow: hidden; min-height: 0;
+}
+
+/* ---- Panel Shared ---- */
+.scene-explorer, .property-panel {
+  background: #0b1120; overflow-y: auto; overflow-x: hidden;
+}
+.scene-explorer { border-right: 1px solid #1e293b; }
+.property-panel { border-left: 1px solid #1e293b; }
+.scene-explorer::-webkit-scrollbar, .property-panel::-webkit-scrollbar { width: 4px; }
+.scene-explorer::-webkit-scrollbar-thumb, .property-panel::-webkit-scrollbar-thumb {
+  background: #334155; border-radius: 2px;
+}
+
+/* ---- Section ---- */
+.panel-section {
+  padding: 8px 10px; border-bottom: 1px solid #1e293b;
+}
+.panel-section h3 {
+  margin: 0 0 8px 0; font-size: 11px; font-weight: 600;
+  color: #64748b; text-transform: uppercase; letter-spacing: 0.5px;
+  cursor: pointer; user-select: none;
+}
+.panel-section h3:hover { color: #94a3b8; }
+
+/* ---- Env Presets ---- */
+.env-preset-list { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.env-preset-btn {
+  background: #1e293b; color: #94a3b8; border: 1px solid #334155;
+  border-radius: 4px; padding: 6px 4px; font-size: 10px;
+  font-family: inherit; cursor: pointer; text-align: center;
+  transition: background 150ms, border-color 150ms;
+}
+.env-preset-btn:hover { background: #334155; }
+.env-preset-btn.active { background: #1e3a5f; border-color: #64748b; color: #e2e8f0; }
+
+/* ---- Helper Toggles ---- */
+.helper-toggle {
+  display: flex; align-items: center; gap: 8px; padding: 3px 0; font-size: 11px;
+}
+.helper-toggle input[type="checkbox"] { accent-color: #64748b; }
+
+/* ---- Scene Tree ---- */
+.scene-tree { font-size: 11px; line-height: 1.8; }
+.tree-node {
+  padding: 2px 4px; cursor: pointer; user-select: none;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; border-radius: 2px;
+}
+.tree-node:hover { background: #1e293b; }
+.tree-node.selected { background: #1e3a5f; color: #e2e8f0; }
+.tree-node .toggle { display: inline-block; width: 14px; color: #64748b; cursor: pointer; }
+.tree-children { padding-left: 16px; }
+
+/* ---- Viewport ---- */
+.studio-viewport { position: relative; background: #050811; overflow: hidden; }
+.studio-viewport canvas { display: block; }
+.viewport-split {
+  display: grid; grid-template-columns: 1fr 1fr; width: 100%; height: 100%;
+}
+.viewport-split > div:first-child { border-right: 1px solid #334155; }
+.viewport-quad {
+  display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr;
+  width: 100%; height: 100%;
+}
+.viewport-quad > div { border-right: 1px solid #334155; border-bottom: 1px solid #334155; }
+
+/* ---- Property Panel ---- */
+.model-info-card p { margin: 4px 0; font-size: 11px; }
+.info-label { color: #64748b; margin-right: 4px; }
+.material-props { font-size: 10px; }
+.material-props dl {
+  margin: 4px 0; display: grid; grid-template-columns: auto 1fr; gap: 2px 8px;
+}
+.material-props dt { color: #64748b; }
+.material-props dd { color: #94a3b8; margin: 0; }
+.anim-controls { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.anim-controls button {
+  background: #1e293b; color: #cbd5e1; border: 1px solid #334155;
+  border-radius: 4px; padding: 4px 10px; font-size: 11px; font-family: inherit; cursor: pointer;
+}
+.anim-controls button:hover { background: #334155; }
+.anim-controls button.active { background: #475569; }
+.anim-controls input[type="range"] { flex: 1; accent-color: #64748b; min-width: 60px; }
+
+/* ---- Empty / Error ---- */
+.panel-empty {
+  padding: 12px 10px; font-size: 11px; color: #475569; font-style: italic;
+}
+.panel-error { padding: 12px 10px; font-size: 11px; color: #ef4444; }
+
+/* ---- Status Bar ---- */
+.studio-status-bar {
+  height: 28px; min-height: 28px; display: flex; align-items: center; gap: 24px;
+  padding: 0 12px; background: #0f172a; border-top: 1px solid #1e293b;
+  font-size: 10px; color: #64748b;
+}
+.status-indicator {
+  display: inline-block; width: 6px; height: 6px; border-radius: 50%; margin-right: 6px;
+}
+.status-indicator.live { background: #22c55e; }
