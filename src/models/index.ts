@@ -1,49 +1,44 @@
 import { type ComponentType, lazy } from 'react'
 
 // ============================================================
-// 模型注册表 — 调试页面的模型选择数据源
+// 模型注册表 — Debug Studio 的模型选择数据源
 //
 // 要新增模型：
 // 1. 在此文件中添加一个 entry
-// 2. 如果来自 GLB，使用 `npx @react-three/gltfjsx` 生成组件
+// 2. 如果是 GLB 模型，使用 `npx @react-three/gltfjsx` 生成组件
 // 3. GLB 文件放入 public/models/
+// 4. 如需自定义 Leva 控件，设置 debugControls 标记
 //
 // 援引：pmndrs 生态 — gltfjsx + useGLTF 工作流
+//       Debug Studio 统一模型管道
 // ============================================================
 
+export type EnvPreset = 'studio' | 'night' | 'dawn' | 'sunset'
+
 export interface ModelRegistryEntry {
-  /** 用户可见标签（Leva 下拉菜单显示） */
   label: string
-  /** 模型组件（GLB 模型用 lazy 导入，程序化模型直接引用） */
   component: ComponentType<any>
-  /** GLB 文件路径（Vite public/ 静态服务），程序化模型不填 */
   glbPath?: string
-  /** 近似三角面数 */
+  environment?: EnvPreset
+  defaultCamera?: { fov: number; position: [number, number, number] }
   triCount?: number
-  /** 归属 / 许可证文本 */
   attribution?: string
-  /** 是否为程序化几何（非 GLB） */
   procedural?: boolean
-  /** 是否使用专用调试面板（如 Lighthouse 截图面板） */
-  useCapturePanel?: boolean
+  /** 自定义 Leva 控件标记 — 当前仅 'lighthouse-capture' */
+  debugControls?: 'lighthouse-capture'
 }
 
-/**
- * 模型注册表。
- *
- * key 用作 Leva select 选项值和 URL hash。
- * component 在调试页面中按需渲染。
- */
 export const MODEL_REGISTRY: Record<string, ModelRegistryEntry> = {
-  // ---- 程序化模型（专用面板） ----
+  // ---- 程序化模型 ----
   'lighthouse-capture': {
     label: 'Lighthouse · 截图调试',
-    // Lighthouse 是同步程序化组件，不用 lazy
-    component: (() => { throw new Error('Lighthouse 通过 useCapturePanel 标记使用专用面板') }) as any,
+    component: lazy(() => import('../actors/Lighthouse')),
     procedural: true,
     triCount: 30,
     attribution: '程序化生成（YeQuDeSu）',
-    useCapturePanel: true,
+    environment: 'night',
+    defaultCamera: { fov: 25, position: [0, -1.5, 9] },
+    debugControls: 'lighthouse-capture',
   },
 
   // ---- GLB 模型 ----
@@ -53,6 +48,7 @@ export const MODEL_REGISTRY: Record<string, ModelRegistryEntry> = {
     glbPath: '/models/voyager-1.glb',
     triCount: 20400,
     attribution: 'illidroid (Sketchfab) · CC BY 4.0',
+    environment: 'studio',
   },
   'voyager1-low-poly': {
     label: 'Voyager 1 · Low Poly',
@@ -60,15 +56,14 @@ export const MODEL_REGISTRY: Record<string, ModelRegistryEntry> = {
     glbPath: '/models/voyager-1-low-poly.glb',
     triCount: 10550,
     attribution: 'illidroid (Sketchfab) · CC BY 4.0 · 低模烘焙',
+    environment: 'studio',
   },
 }
 
-/** 获取所有注册模型的 key 列表（供 Leva select 使用） */
 export function getModelKeys(): string[] {
   return Object.keys(MODEL_REGISTRY)
 }
 
-/** 获取模型选择选项（供 Leva select 使用） */
 export function getModelOptions(): Record<string, string> {
   return Object.fromEntries(
     Object.entries(MODEL_REGISTRY).map(([key, entry]) => [key, entry.label]),
