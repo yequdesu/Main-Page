@@ -1,6 +1,5 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { Mesh, type Group, type Object3D, type MeshStandardMaterial } from 'three'
-import { useAnimations } from '@react-three/drei'
 import type { ModelRegistryEntry } from '../models'
 
 interface PropertyPanelProps {
@@ -14,11 +13,12 @@ interface PropertyPanelProps {
 // ============================================================
 
 function ModelInfoCard({ entry }: { entry: ModelRegistryEntry | undefined }) {
+  const [open, setOpen] = useState(true)
   if (!entry) return <div className="panel-empty">未选择模型</div>
   return (
     <div className="panel-section">
-      <h3>模型信息</h3>
-      <div className="model-info-card">
+      <h3 onClick={() => setOpen((v) => !v)}>{open ? '▾' : '▸'} 模型信息</h3>
+      {open && <div className="model-info-card">
         <p><span className="info-label">名称：</span>{entry.label}</p>
         {entry.triCount != null && (
           <p><span className="info-label">三角面：</span>~{entry.triCount.toLocaleString()}</p>
@@ -27,6 +27,7 @@ function ModelInfoCard({ entry }: { entry: ModelRegistryEntry | undefined }) {
         {entry.glbPath && <p><span className="info-label">路径：</span>{entry.glbPath}</p>}
         {entry.attribution && <p><span className="info-label">来源：</span>{entry.attribution}</p>}
       </div>
+      }
     </div>
   )
 }
@@ -36,6 +37,7 @@ function ModelInfoCard({ entry }: { entry: ModelRegistryEntry | undefined }) {
 // ============================================================
 
 function MaterialInspector({ node }: { node: Object3D | null }) {
+  const [open, setOpen] = useState(false)
   const material = useMemo(() => {
     if (!node || !(node instanceof Mesh)) return null
     const mats = Array.isArray(node.material) ? node.material : [node.material]
@@ -45,8 +47,8 @@ function MaterialInspector({ node }: { node: Object3D | null }) {
   if (!node || !(node instanceof Mesh)) {
     return (
       <div className="panel-section">
-        <h3>材质属性</h3>
-        <div className="panel-empty">选中 Mesh 节点后显示</div>
+        <h3 onClick={() => setOpen((v) => !v)}>{open ? '▾' : '▸'} 材质属性</h3>
+        {open && <div className="panel-empty">选中 Mesh 节点后显示</div>}
       </div>
     )
   }
@@ -54,16 +56,16 @@ function MaterialInspector({ node }: { node: Object3D | null }) {
   if (!material) {
     return (
       <div className="panel-section">
-        <h3>材质属性</h3>
-        <div className="panel-empty">无标准材质信息</div>
+        <h3 onClick={() => setOpen((v) => !v)}>{open ? '▾' : '▸'} 材质属性</h3>
+        {open && <div className="panel-empty">无标准材质信息</div>}
       </div>
     )
   }
 
   return (
     <div className="panel-section">
-      <h3>材质属性</h3>
-      <div className="material-props">
+      <h3 onClick={() => setOpen((v) => !v)}>{open ? '▾' : '▸'} 材质属性</h3>
+      {open && <div className="material-props">
         <p style={{ fontSize: 11, margin: '4px 0' }}>
           <span className="info-label">节点：</span>{node.name || node.type}
         </p>
@@ -77,6 +79,7 @@ function MaterialInspector({ node }: { node: Object3D | null }) {
           {'wireframe' in material && <><dt>wireframe</dt><dd>{material.wireframe ? '是' : '否'}</dd></>}
         </dl>
       </div>
+      }
     </div>
   )
 }
@@ -86,53 +89,11 @@ function MaterialInspector({ node }: { node: Object3D | null }) {
 // ============================================================
 
 function AnimationControls({ modelRef }: { modelRef: React.RefObject<Group | null> }) {
-  const { actions, names, mixer } = useAnimations(modelRef as any)
-
-  if (names.length === 0) return null
-
-  return (
-    <div className="panel-section">
-      <h3>动画</h3>
-      <div className="anim-controls">
-        {names.map((name) => {
-          const action = actions[name]
-          if (!action) return null
-          const isPlaying = action.isRunning()
-          return (
-            <button
-              key={name}
-              className={isPlaying ? 'active' : ''}
-              onClick={() => {
-                if (isPlaying) {
-                  action.paused = true
-                  action.stop()
-                } else {
-                  action.reset().play()
-                }
-              }}
-            >
-              {isPlaying ? '⏸' : '▶'} {name}
-            </button>
-          )
-        })}
-        <button onClick={() => { actions[names[0]]?.stop(); mixer?.stopAllAction() }}>
-          ⏹ 停止
-        </button>
-      </div>
-      <div style={{ marginTop: 6, fontSize: 11 }}>
-        速度：
-        <input
-          type="range"
-          min={0.1} max={3} step={0.1} defaultValue={1}
-          onChange={(e) => {
-            const v = parseFloat(e.target.value)
-            Object.values(actions).forEach((a) => { if (a) a.timeScale = v })
-          }}
-          style={{ marginLeft: 8, accentColor: '#64748b', width: '60%' }}
-        />
-      </div>
-    </div>
-  )
+  // useAnimations 依赖 R3F 内部 hooks（useFrame），必须在 <Canvas> 内调用。
+  // PropertyPanel 位于 Canvas 外的 DOM 面板中，无法直接使用。
+  // 将来支持带动画的模型时，在 Canvas 内创建 AnimationBridge 组件，
+  // 通过 drei <Html> 将控件渲染到面板区域。
+  return null
 }
 
 // ============================================================

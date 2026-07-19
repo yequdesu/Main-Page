@@ -1,6 +1,6 @@
 import { useRef, useEffect, Suspense, Component, type ReactNode } from 'react'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
-import { OrbitControls, Environment, GizmoHelper, GizmoViewport, useProgress, Html } from '@react-three/drei'
+import { OrbitControls, GizmoHelper, GizmoViewport, useProgress, Html } from '@react-three/drei'
 import { Box3, Vector3, Mesh, type Group, type Material, type Object3D } from 'three'
 import { MODEL_REGISTRY } from '../models'
 import type { EnvPreset } from '../models'
@@ -9,14 +9,16 @@ import { useLevaCaptureConfig } from './useLevaCaptureConfig'
 import type { HelperState, ViewportMode, SceneTreeNode } from './StudioShell'
 
 // ============================================================
-// Environment presets → drei <Environment> + ambient intensity
+// 环境预设 → ambient light 强度
+// HDR 贴图由 drei <Environment> 从 GitHub CDN 加载，调试环境网络不稳定，
+// 已移除 <Environment> 以避免加载失败导致 Canvas 崩溃。
 // ============================================================
 
-const ENV_DREI_PRESETS: Record<EnvPreset, { preset: string; ambientIntensity: number }> = {
-  studio: { preset: 'studio', ambientIntensity: 1.0 },
-  night:  { preset: 'night',  ambientIntensity: 0.4 },
-  dawn:   { preset: 'dawn',   ambientIntensity: 0.7 },
-  sunset: { preset: 'sunset', ambientIntensity: 0.6 },
+const ENV_AMBIENT: Record<EnvPreset, number> = {
+  studio: 1.0,
+  night:  0.4,
+  dawn:   0.7,
+  sunset: 0.6,
 }
 
 // ============================================================
@@ -82,7 +84,7 @@ function StudioLights({ env }: { env: EnvPreset }) {
   const config = useModelPreviewControls()
   // Lighthouse 截图专属控件 — 始终注册 Leva 控件组（非 Lighthouse 模型时无影响）
   useLevaCaptureConfig()
-  const ambientIntensity = ENV_DREI_PRESETS[env].ambientIntensity
+  const ambientIntensity = ENV_AMBIENT[env]
   return (
     <>
       <ambientLight color={config.ambientColor} intensity={ambientIntensity * config.ambientIntensity} />
@@ -213,6 +215,8 @@ function SingleViewportCanvas({
   cameraOverride?: { fov: number; position: [number, number, number] }
 }) {
   const defaultCam = cameraOverride ?? { fov: 45, position: [5, 3, 8] }
+  // 从 Leva 读取背景色（与 StudioLights / ModelRenderer 共享同一 Leva store）
+  const { backgroundColor } = useModelPreviewControls()
 
   return (
     <Canvas
@@ -227,10 +231,10 @@ function SingleViewportCanvas({
         logarithmicDepthBuffer: true,
       }}
     >
-      <color attach="background" args={['#050811']} />
+      <color attach="background" args={[backgroundColor]} />
       <RendererStats />
 
-      <Environment preset={ENV_DREI_PRESETS[env].preset as any} background={false} />
+
       <StudioLights env={env} />
       <HelperOverlay helpers={helpers} modelRef={modelRef} />
 
