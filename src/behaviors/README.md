@@ -17,6 +17,7 @@
 | `useScreenProjection.ts` | Hook | 3D 世界坐标 �?屏幕坐标投影（NDC 管线），包括中央恒星 |
 | `usePBDLayout.ts` | 纯函�?| PBD 标签布局引擎——速度前馈 + 6 类约束投�?|
 | `useFloatingLabels.ts` | Hook | PBD 编排层——rAF 驱动 60fps 物理 + 入场排序 + 退出管�?|
+| `reefObstacleMask.ts` | 纯函数 | 将导入礁石网格的俯视三角形轮廓栅格化为浅水模拟障碍场 |
 
 > **PBD 文档�?* [`../../docs/actors/pbd-layout-operation-guide.md`](../../docs/actors/pbd-layout-operation-guide.md)  
 > [`../../docs/actors/pbd-layout-maintenance-guide.md`](../../docs/actors/pbd-layout-maintenance-guide.md)  

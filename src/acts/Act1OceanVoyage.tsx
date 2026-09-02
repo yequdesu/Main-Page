@@ -23,8 +23,8 @@ const Act1OceanVoyage = memo(function Act1OceanVoyage({ visible }: Act1Props) {
     <group visible={visible}>
       <AsteroidBelts variant="act1" />
       <MiniatureUniverse>
-        <OceanWaves />
         <LightBeam />
+        <OceanWaves />
         <Lighthouse />
       </MiniatureUniverse>
       <LighthouseCapture onCaptureReady={() => {}} />

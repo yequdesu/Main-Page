@@ -81,18 +81,6 @@ export const PLANET_LINKS: PlanetLink[] = [
 ]
 
 // ============================================================
-// 波浪数据
-// ============================================================
-export interface WaveLineData {
-  baseY: number; z: number
-  amplitude: number; frequency: number; speed: number
-  phase: number; span: number; segCount: number
-  opacity: number
-}
-
-export interface WaveBaseColor { r: number; g: number; b: number }
-
-// ============================================================
 // 网格线数�?
 // ============================================================
 export interface GridLineData {
@@ -122,14 +110,6 @@ export interface OverlayData {
 // ============================================================
 // Act 引用（从 act.exit 保存�?ctx 的数据）
 // ============================================================
-export interface Act1State {
-  oceanLines: Line[]
-  waveData: WaveLineData[]
-  waveBaseColors: WaveBaseColor[]
-  beamFinalAngleY: number
-  beamFinalAngleX: number
-}
-
 export interface Act2State {
   gridVerticalLines: GridLineData[]
 }

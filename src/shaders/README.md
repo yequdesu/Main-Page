@@ -9,6 +9,8 @@ GLSL 着色器代码，以 TypeScript 模块导出，供 Actor 中的 `ShaderMat
 | 文件 | 用�?| 使用�?|
 |------|------|--------|
 | `VolumetricBeamShader.ts` | 灯塔光束的体积锥体着色器（边缘发�?+ 长度衰减�?| `LightBeam.tsx` |
+| `ShallowWaterSimulationShader.ts` | GPU 高度、速度与泡沫的浅水模拟更新 | `OceanWaves.tsx` |
+| `StylizedOceanShader.ts` | 高度场位移、色阶光照、波峰泡沫与灯塔高光 | `OceanWaves.tsx` |
 
 ## 着色器说明
 

@@ -18,8 +18,8 @@ import { SCENE_CENTER_Z } from '../r3f/ScrollRig'
 // Module-level ref shared with LighthouseCapture for offscreen rendering.
 export let _lighthouseGroupRef: Group | null = null
 
-const LIGHTHOUSE_MODEL_URL = '/models/lighthouse.glb?v=51c4a32b'
-const LIGHTHOUSE_MODEL_SCALE = 0.28
+export const LIGHTHOUSE_MODEL_URL = '/models/lighthouse.glb?v=51c4a32b'
+export const LIGHTHOUSE_MODEL_SCALE = 0.28
 const LIGHTHOUSE_LAMP_LOCAL_Y = 9.4912
 const LIGHTHOUSE_MODEL_WORLD_Y = -2.05
 export const LIGHTHOUSE_LAMP_WORLD_Y =

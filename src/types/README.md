@@ -8,7 +8,7 @@ TypeScript 类型定义、滚动阈值常量（`SCROLL_RIG`）、行星链接数
 
 | 文件 | 内容 |
 |------|------|
-| `index.ts` | `SCROLL_RIG`（阈值）、`ParticleData`、`PlanetLink`、`PLANET_LINKS`、`WaveLineData`、`GridLineData`、`OverlayData`、`Act1State`、`Act2State` |
+| `index.ts` | `SCROLL_RIG`（阈值）、`ParticleData`、`PlanetLink`、`PLANET_LINKS`、`GridLineData`、`OverlayData`、`Act2State` |
 
 ## 维护要点
 

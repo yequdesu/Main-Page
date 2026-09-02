@@ -31,20 +31,14 @@ export interface RegisteredLayer {
 }
 
 export const LAYERS = {
-  'webgl.oceanCurtainDepth': {
-    id: 'webgl.oceanCurtainDepth',
-    contract: { kind: 'webgl', renderOrder: -2, depthTest: true, depthWrite: true, transparent: false },
-    description: 'Colorless ocean curtain depth pre-pass for underwater occlusion.',
-  },
-  'webgl.oceanCurtain': {
-    id: 'webgl.oceanCurtain',
-    contract: { kind: 'webgl', renderOrder: -1, depthTest: true, depthWrite: false, transparent: true },
+  'webgl.oceanSurface': {
+    id: 'webgl.oceanSurface',
+    contract: { kind: 'webgl', renderOrder: -1, depthTest: true, depthWrite: true, transparent: true },
+    description: 'GPU shallow-water height field with stylised foam and lighthouse response.',
   },
   'webgl.oceanLines': {
     id: 'webgl.oceanLines',
-    // Wave contours must not occlude the transparent beam volume. They still
-    // test depth for spatial placement, but remain blendable and never write
-    // their own depth into the beam's path.
+    // Retained for scene-background metadata and optional contour overlays.
     contract: { kind: 'webgl', renderOrder: 0, depthTest: true, depthWrite: false, transparent: true, blending: 'normal' },
   },
   'webgl.lightBeam': {

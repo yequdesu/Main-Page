@@ -30,7 +30,7 @@ export const CORE_ACTORS: ActorSpec[] = [
   {
     id: 'waves',
     domain: 'webgl',
-    layer: 'webgl.oceanLines',
+    layer: 'webgl.oceanSurface',
     lifecycle: { mount: 'always', activeWhen: 'timeline.wavesAct3Fade.progress < 1', dispose: 'auto' },
     timing: { clocks: ['scroll', 'elapsedTime'], ranges: ['wavesAct3Fade'] },
     frame: {
