@@ -31,15 +31,10 @@ export interface RegisteredLayer {
 }
 
 export const LAYERS = {
-  'webgl.oceanSurface': {
-    id: 'webgl.oceanSurface',
-    contract: { kind: 'webgl', renderOrder: -1, depthTest: true, depthWrite: true, transparent: true },
-    description: 'GPU shallow-water height field with stylised foam and lighthouse response.',
-  },
   'webgl.oceanLines': {
     id: 'webgl.oceanLines',
-    // Retained for scene-background metadata and optional contour overlays.
-    contract: { kind: 'webgl', renderOrder: 0, depthTest: true, depthWrite: false, transparent: true, blending: 'normal' },
+    contract: { kind: 'webgl', renderOrder: -1, depthTest: true, depthWrite: true, transparent: true, blending: 'normal' },
+    description: 'GPU shallow-water height field with stylised foam and lighthouse response.',
   },
   'webgl.lightBeam': {
     id: 'webgl.lightBeam',

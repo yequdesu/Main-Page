@@ -16,6 +16,8 @@ import {
   Scene,
   ShaderMaterial,
   UnsignedByteType,
+  UniformsLib,
+  UniformsUtils,
   Vector2,
   Vector3,
   WebGLRenderTarget,
@@ -129,7 +131,7 @@ export default function OceanWaves() {
   useActorRuntime('waves', true)
   const { gl } = useThree()
   const gltf = useLoader(GLTFLoader, LIGHTHOUSE_MODEL_URL)
-  const surfaceLayer = getWebglLayer('webgl.oceanSurface')
+  const surfaceLayer = getWebglLayer('webgl.oceanLines')
   const surfaceRef = useRef<Mesh>(null)
 
   const obstacleTexture = useMemo(() => {
@@ -174,16 +176,19 @@ export default function OceanWaves() {
     const oceanMaterial = new ShaderMaterial({
       vertexShader: stylizedOceanVertexShader,
       fragmentShader: stylizedOceanFragmentShader,
-      uniforms: {
-        uState: { value: simulation.read.texture },
-        uObstacle: { value: obstacleTexture },
-        uTexel: { value: new Vector2(1 / SIMULATION_RESOLUTION, 1 / SIMULATION_RESOLUTION) },
-        uHeightScale: { value: 1.65 },
-        uBeamOrigin: { value: DEFAULT_BEAM_ORIGIN.clone() },
-        uBeamDirection: { value: DEFAULT_BEAM_DIRECTION.clone() },
-        uTime: { value: 0 },
-        uOpacity: { value: 1 },
-      },
+      uniforms: UniformsUtils.merge([
+        UniformsLib.fog,
+        {
+          uState: { value: simulation.read.texture },
+          uObstacle: { value: obstacleTexture },
+          uTexel: { value: new Vector2(1 / SIMULATION_RESOLUTION, 1 / SIMULATION_RESOLUTION) },
+          uHeightScale: { value: 1.65 },
+          uBeamOrigin: { value: DEFAULT_BEAM_ORIGIN.clone() },
+          uBeamDirection: { value: DEFAULT_BEAM_DIRECTION.clone() },
+          uTime: { value: 0 },
+          uOpacity: { value: 1 },
+        },
+      ]),
       transparent: surfaceLayer.transparent,
       depthTest: surfaceLayer.depthTest,
       depthWrite: surfaceLayer.depthWrite,
