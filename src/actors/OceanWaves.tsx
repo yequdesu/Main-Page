@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef } from 'react'
 import { useFrame, useLoader } from '@react-three/fiber'
 import {
   ClampToEdgeWrapping,
+  BackSide,
   BoxGeometry,
   DataTexture,
   DoubleSide,
@@ -126,8 +127,9 @@ export default function OceanWaves() {
     })
 
     // BoxGeometry stores +Y as its third material group. Omitting that group
-    // leaves an open top, so wave troughs remain visible from above while the
-    // sides and bottom make the miniature ocean read as a filled body.
+    // leaves an open top. The remaining shell is rendered inward-only so its
+    // near wall cannot sit in front of and truncate the animated surface; the
+    // far walls and bottom still make the miniature ocean read as filled.
     const oceanVolumeGeometry = new BoxGeometry(
       OCEAN_WIDTH,
       OCEAN_VOLUME_DEPTH,
@@ -158,7 +160,7 @@ export default function OceanWaves() {
       transparent: surfaceLayer.transparent,
       depthTest: surfaceLayer.depthTest,
       depthWrite: surfaceLayer.depthWrite,
-      side: DoubleSide,
+      side: BackSide,
       fog: true,
     })
 
