@@ -31,6 +31,11 @@ export interface RegisteredLayer {
 }
 
 export const LAYERS = {
+  'webgl.oceanCurtainDepth': {
+    id: 'webgl.oceanCurtainDepth',
+    contract: { kind: 'webgl', renderOrder: -2, depthTest: true, depthWrite: true, transparent: false },
+    description: 'Colorless ocean curtain depth pre-pass for underwater occlusion.',
+  },
   'webgl.oceanCurtain': {
     id: 'webgl.oceanCurtain',
     contract: { kind: 'webgl', renderOrder: -1, depthTest: true, depthWrite: false, transparent: true },
@@ -41,10 +46,6 @@ export const LAYERS = {
     // test depth for spatial placement, but remain blendable and never write
     // their own depth into the beam's path.
     contract: { kind: 'webgl', renderOrder: 0, depthTest: true, depthWrite: false, transparent: true, blending: 'normal' },
-  },
-  'webgl.oceanMist': {
-    id: 'webgl.oceanMist',
-    contract: { kind: 'webgl', renderOrder: 0, depthTest: false, depthWrite: false, transparent: true, blending: 'normal' },
   },
   'webgl.lightBeam': {
     id: 'webgl.lightBeam',

@@ -47,15 +47,6 @@ export const CORE_ACTORS: ActorSpec[] = [
     ],
   },
   {
-    id: 'seaMist',
-    domain: 'webgl',
-    layer: 'webgl.oceanMist',
-    lifecycle: { mount: 'always', activeWhen: 'timeline.act1OceanVoyage.active', dispose: 'auto' },
-    timing: { clocks: ['scroll', 'elapsedTime'], ranges: ['act1OceanVoyage'] },
-    frame: { phase: 'webgl.mutate', after: ['waves'], before: ['grid'], skipWhenUnchanged: ['scroll', 'elapsedTime'] },
-    consumes: ['scroll.sp', 'clock.elapsedTime'],
-  },
-  {
     id: 'grid',
     domain: 'webgl',
     layer: 'webgl.grid',

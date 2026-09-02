@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useLayoutEffect, useRef } from 'react'
 import { gsap } from 'gsap'
 import { smoothstep } from '../r3f/ScrollRig'
 import { TIMELINE } from '../composition/timeline'
@@ -13,7 +13,7 @@ import './BrandTitle.css'
 // �?App.tsx 抽离，独立维护。内部拆分为 BrandIcon（灯塔截图）
 // �?BrandText（主/副标题文字）�?
 //
-// 进入 Act 2 后出现（sp �?TEXT_START），Act 3 grid shift
+// 全部滚动进度完成（sp = 1）后出现，行星聚焦时 GSAP 淡出
 // 期间向上位移 -90px 腾出空间，行星聚焦时 GSAP 淡出�?
 // ============================================================
 
@@ -82,13 +82,15 @@ export default function BrandTitle({
   isClickPlaying,
 }: BrandTitleProps) {
   const rootRef = useRef<HTMLDivElement | null>(null)
+  const completionRef = useRef<HTMLDivElement | null>(null)
   const focusTweenRef = useRef<gsap.core.Tween | null>(null)
+  const completionTimelineRef = useRef<gsap.core.Timeline | null>(null)
   const effectScope = useEffectScope('brandTitle')
   const focusedPlanetIdx = useScrollStore(s => s.focusedPlanetIdx)
 
-  // ---- 显示控制：sp �?TEXT_START 且未聚焦 ----
+  // ---- 显示控制：仅在全部滚动进度完成时显示 ----
   const sp = scrollProgress
-  const visible = sp >= TIMELINE.brandTitle.start
+  const visible = sp >= TIMELINE.act3ContentPhase.end - 0.000001
   const isFocused = focusedPlanetIdx >= 0 && sp >= TIMELINE.act3Shift.start
   useActorRuntime('brandTitle', visible && !isFocused)
 
@@ -107,13 +109,40 @@ export default function BrandTitle({
     textOffsetY = TEXT_OFFSET_MAX * smoothstep(t)
   }
 
-  // ---- 行星聚焦�?GSAP 淡出 ----
-  useEffect(() => {
-    const el = rootRef.current
+  // ---- 100% 触发的渐入渐出：离开 100% 时从当前进度反向播放 ----
+  useLayoutEffect(() => {
+    const el = completionRef.current
     if (!el) return
 
+    gsap.set(el, { opacity: 0 })
+    const timeline = gsap.timeline({ paused: true })
+      .to(el, {
+        opacity: 1,
+        duration: 0.5,
+        ease: 'power2.out',
+      })
+    completionTimelineRef.current = timeline
+
+    return () => {
+      timeline.kill()
+      completionTimelineRef.current = null
+    }
+  }, [])
+
+  useEffect(() => {
+    const timeline = completionTimelineRef.current
+    if (!timeline) return
+    if (visible) timeline.play()
+    else timeline.reverse()
+  }, [visible])
+
+  // ---- 行星聚焦：GSAP 淡出 ----
+  useEffect(() => {
     if (focusTweenRef.current) focusTweenRef.current.kill()
     effectScope.cancel('replace focus tween')
+
+    const el = rootRef.current
+    if (!el) return
 
     focusTweenRef.current = effectScope.addTween(gsap.to(el, {
       opacity: isFocused ? 0 : 1,
@@ -132,8 +161,6 @@ export default function BrandTitle({
     }
   }, [effectScope])
 
-  if (!visible) return null
-
   return (
     <div
       ref={rootRef}
@@ -141,9 +168,11 @@ export default function BrandTitle({
       aria-hidden="true"
       style={{ '--text-offset-y': `${textOffsetY}px` } as React.CSSProperties}
     >
-      <div className="brand-title-row">
-        <BrandIcon src={lighthouseImage} opacity={line1Opacity} />
-        <BrandText line1Opacity={line1Opacity} line2Opacity={line2Opacity} />
+      <div ref={completionRef} className="brand-title-content">
+        <div className="brand-title-row">
+          <BrandIcon src={lighthouseImage} opacity={line1Opacity} />
+          <BrandText line1Opacity={line1Opacity} line2Opacity={line2Opacity} />
+        </div>
       </div>
     </div>
   )

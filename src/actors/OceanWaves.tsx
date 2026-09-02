@@ -11,6 +11,10 @@ import { readBeamWorldDirection, readBeamWorldOrigin } from '../composition/core
 import type { WaveLineData, WaveBaseColor } from '../types'
 
 const CURTAIN_BOTTOM_Y = -10
+const REEF_DEPTH_WAVE_INDEX = 24
+const REEF_DEPTH_Z = SCENE_CENTER_Z + 2.45
+const REEF_DEPTH_HALF_WIDTH = 3.5
+const REEF_DEPTH_SEGMENTS = 64
 const DEFAULT_BEAM_ORIGIN = { x: 0, y: -0.428, z: SCENE_CENTER_Z }
 const DEFAULT_BEAM_DIRECTION = { x: 0, y: 0, z: 1 }
 
@@ -30,11 +34,14 @@ const DEFAULT_BEAM_DIRECTION = { x: 0, y: 0, z: 1 }
 export default function OceanWaves() {
   useActorRuntime('waves', true)
   const lineLayer = getWebglLayer('webgl.oceanLines')
+  const curtainDepthLayer = getWebglLayer('webgl.oceanCurtainDepth')
   const curtainLayer = getWebglLayer('webgl.oceanCurtain')
-  const { waveLines, waveData, waveBaseColors, curtainMeshes } = useMemo(() => {
+  const { waveLines, waveData, waveBaseColors, curtainMeshes, reefCurtainMeshes, curtainDepthMeshes } = useMemo(() => {
     const TOTAL = 30, POWER = 2.2
     const lines: Line[] = []
     const curtains: Mesh[] = []
+    const reefCurtains: Mesh[] = []
+    const depthCurtains: Mesh[] = []
     const data: WaveLineData[] = []
     const baseColors: WaveBaseColor[] = []
 
@@ -106,12 +113,86 @@ export default function OceanWaves() {
       const cMesh = new Mesh(cGeom, cMat)
       cMesh.renderOrder = curtainLayer.renderOrder
       curtains.push(cMesh)
+
       // ------------------------------------------------------------
 
       data.push({ baseY, z, amplitude, frequency, speed, phase, span, segCount, opacity })
     }
-    return { waveLines: lines, waveData: data, waveBaseColors: baseColors, curtainMeshes: curtains }
+
+    // A depth-only waterline is placed immediately in front of the imported
+    // reef. The old implementation borrowed a far ocean curtain; because the
+    // reef spans several Z layers, that curtain could slice through the rock
+    // while still leaving the front face visible. This local mask only covers
+    // the lighthouse footprint and lets the layered ocean remain untouched.
+    const reefWave = data[REEF_DEPTH_WAVE_INDEX]
+    const vCount = REEF_DEPTH_SEGMENTS + 1
+    const depthPositions = new Float32Array(vCount * 2 * 3)
+    for (let j = 0; j < vCount; j++) {
+      const x = (j / REEF_DEPTH_SEGMENTS - 0.5) * REEF_DEPTH_HALF_WIDTH * 2
+      depthPositions[j * 3] = x
+      depthPositions[j * 3 + 1] = reefWave.baseY
+      depthPositions[j * 3 + 2] = REEF_DEPTH_Z
+      const bottomIndex = (vCount + j) * 3
+      depthPositions[bottomIndex] = x
+      depthPositions[bottomIndex + 1] = CURTAIN_BOTTOM_Y
+      depthPositions[bottomIndex + 2] = REEF_DEPTH_Z
+    }
+    const depthIndices: number[] = []
+    for (let j = 0; j < REEF_DEPTH_SEGMENTS; j++) {
+      const topLeft = j
+      const topRight = j + 1
+      const bottomLeft = vCount + j
+      const bottomRight = vCount + j + 1
+      depthIndices.push(topLeft, bottomLeft, topRight, topRight, bottomLeft, bottomRight)
+    }
+    const depthGeom = new BufferGeometry()
+    depthGeom.setAttribute('position', new BufferAttribute(depthPositions, 3))
+    depthGeom.setIndex(depthIndices)
+        const depthMat = new MeshBasicMaterial({
+          color: '#000000',
+          colorWrite: false,
+          // Keep the pre-pass completely invisible even on renderers that
+          // defer the color-write flag until the material is first compiled.
+          transparent: true,
+          opacity: 0,
+          depthWrite: curtainDepthLayer.depthWrite,
+      depthTest: curtainDepthLayer.depthTest,
+      side: DoubleSide,
+    })
+    const depthMesh = new Mesh(depthGeom, depthMat)
+    depthMesh.renderOrder = curtainDepthLayer.renderOrder
+    depthCurtains.push(depthMesh)
+
+    // The depth pre-pass deliberately has no color. Put a matching local
+    // water curtain just in front of it so the cleared background never shows
+    // through the masked area; this is the water volume that hides the reef.
+    const reefCurtainGeom = depthGeom.clone()
+    const reefCurtainMat = new MeshBasicMaterial({
+      color: '#1c232b',
+      transparent: true,
+      opacity: 0.90,
+      depthWrite: false,
+      depthTest: curtainLayer.depthTest,
+      side: DoubleSide,
+    })
+    const reefCurtain = new Mesh(reefCurtainGeom, reefCurtainMat)
+    reefCurtain.position.z = 0.035
+    reefCurtain.renderOrder = curtainLayer.renderOrder
+    reefCurtains.push(reefCurtain)
+
+    return {
+      waveLines: lines,
+      waveData: data,
+      waveBaseColors: baseColors,
+      curtainMeshes: curtains,
+      reefCurtainMeshes: reefCurtains,
+      curtainDepthMeshes: depthCurtains,
+    }
   }, [
+    curtainDepthLayer.depthTest,
+    curtainDepthLayer.depthWrite,
+    curtainDepthLayer.renderOrder,
+    curtainDepthLayer.transparent,
     curtainLayer.depthTest,
     curtainLayer.depthWrite,
     curtainLayer.renderOrder,
@@ -132,8 +213,16 @@ export default function OceanWaves() {
         m.geometry.dispose()
         ;(m.material as MeshBasicMaterial).dispose()
       })
+      reefCurtainMeshes.forEach(m => {
+        m.geometry.dispose()
+        ;(m.material as MeshBasicMaterial).dispose()
+      })
+      curtainDepthMeshes.forEach(m => {
+        m.geometry.dispose()
+        ;(m.material as MeshBasicMaterial).dispose()
+      })
     }
-  }, [waveLines, curtainMeshes])
+  }, [waveLines, curtainMeshes, reefCurtainMeshes, curtainDepthMeshes])
 
   const { shouldSkip } = useFrameCache()
   const wavesVisibleRef = useRef(true)
@@ -154,12 +243,16 @@ export default function OceanWaves() {
       if (wavesVisibleRef.current) {
         waveLines.forEach(l => l.visible = false)
         curtainMeshes.forEach(m => m.visible = false)
+        reefCurtainMeshes.forEach(m => m.visible = false)
+        curtainDepthMeshes.forEach(m => m.visible = false)
         wavesVisibleRef.current = false
       }
       return
     } else if (!wavesVisibleRef.current) {
       waveLines.forEach(l => l.visible = true)
       curtainMeshes.forEach(m => m.visible = true)
+      reefCurtainMeshes.forEach(m => m.visible = true)
+      curtainDepthMeshes.forEach(m => m.visible = true)
       wavesVisibleRef.current = true
     }
 
@@ -243,12 +336,52 @@ export default function OceanWaves() {
           cPosArr[(vCount + j) * 3 + 1] = CURTAIN_BOTTOM_Y + dropY  // 底边同步下落
         }
         cMesh.geometry.attributes.position.needsUpdate = true
+
       }
+    }
+
+    // Animate the local reef mask from the same near wave that defines its
+    // waterline. It follows the cascade, but never changes the depth of the
+    // visible ocean curtains themselves.
+    const reefWave = waveData[REEF_DEPTH_WAVE_INDEX]
+    const reefDepthMesh = curtainDepthMeshes[0]
+    const reefCurtainMesh = reefCurtainMeshes[0]
+    if (reefDepthMesh) {
+      const reefDepthPosition = reefDepthMesh.geometry.attributes.position
+      const reefDepthArr = reefDepthPosition.array as Float32Array
+      const reefCurtainPosition = reefCurtainMesh?.geometry.attributes.position
+      const reefCurtainArr = reefCurtainPosition?.array as Float32Array | undefined
+      const reefZNorm = (reefWave.z + 52) / 57
+      const reefDropStart = CASCADE_START + reefZNorm * (TIMELINE.gridExtend.start - CASCADE_START)
+      const reefWaveGF = clamped(sp, reefDropStart, CASCADE_END)
+      const reefDropY = -40.0 * reefWaveGF
+      for (let j = 0; j <= REEF_DEPTH_SEGMENTS; j++) {
+        const idx = j * 3
+        const x = reefDepthArr[idx]
+        const tWave = time * reefWave.speed + reefWave.phase
+        const waveY = reefWave.baseY +
+          Math.sin(x * reefWave.frequency + tWave) * reefWave.amplitude +
+          Math.sin(x * reefWave.frequency * 1.8 + tWave * 1.2) * reefWave.amplitude * 0.4
+        reefDepthArr[idx + 1] = waveY + (reefWave.baseY - waveY) * reefWaveGF + shiftY + reefDropY
+        reefDepthArr[(REEF_DEPTH_SEGMENTS + 1 + j) * 3 + 1] = CURTAIN_BOTTOM_Y + reefDropY
+        if (reefCurtainArr) {
+          reefCurtainArr[idx + 1] = reefDepthArr[idx + 1]
+          reefCurtainArr[(REEF_DEPTH_SEGMENTS + 1 + j) * 3 + 1] = reefDepthArr[(REEF_DEPTH_SEGMENTS + 1 + j) * 3 + 1]
+        }
+      }
+      reefDepthPosition.needsUpdate = true
+      if (reefCurtainPosition) reefCurtainPosition.needsUpdate = true
     }
   })
 
   return (
     <group>
+      {curtainDepthMeshes.map((m, i) => (
+        <primitive key={`depth-${i}`} object={m} />
+      ))}
+      {reefCurtainMeshes.map((m, i) => (
+        <primitive key={`reef-curtain-${i}`} object={m} />
+      ))}
       {curtainMeshes.map((m, i) => (
         <primitive key={`c-${i}`} object={m} />
       ))}

@@ -157,10 +157,15 @@ function writeBeltPositions(
   }
 }
 
-export default function AsteroidBelts() {
+interface AsteroidBeltsProps {
+  variant?: 'act1' | 'act3'
+}
+
+export default function AsteroidBelts({ variant = 'act3' }: AsteroidBeltsProps) {
+  const isAct1 = variant === 'act1'
   const layer = getWebglLayer('webgl.debris')
   const innerConfig = useMemo<BeltConfig>(() => ({
-    count: 360,
+    count: isAct1 ? 0 : 360,
     innerRadius: ORBIT_RADII[1] + 0.34,
     outerRadius: ORBIT_RADII[2] - 0.38,
     inclination: 0.045,
@@ -172,22 +177,22 @@ export default function AsteroidBelts() {
     opacity: 0.52,
     colorA: '#7d8796',
     colorB: '#c1cad6',
-  }), [])
+  }), [isAct1])
   const outerConfig = useMemo<BeltConfig>(() => ({
-    count: 2400,
-    innerRadius: ORBIT_RADII[2] + 7.2,
-    outerRadius: ORBIT_RADII[2] + 22.0,
-    inclination: -0.38,
-    nodeAngle: 0.62,
-    thickness: 1.85,
-    speed: -0.0024,
+    count: isAct1 ? 1800 : 2400,
+    innerRadius: ORBIT_RADII[2] + (isAct1 ? 10.0 : 7.2),
+    outerRadius: ORBIT_RADII[2] + (isAct1 ? 26.0 : 22.0),
+    inclination: isAct1 ? -0.24 : -0.38,
+    nodeAngle: isAct1 ? 0.88 : 0.62,
+    thickness: isAct1 ? 2.25 : 1.85,
+    speed: isAct1 ? -0.0018 : -0.0024,
     sizeMin: 0.026,
-    sizeMax: 0.082,
+    sizeMax: isAct1 ? 0.076 : 0.082,
     opacity: 0.44,
-    colorA: '#596677',
-    colorB: '#a5b0bf',
-    revealSpan: 4.5,
-  }), [])
+    colorA: isAct1 ? '#5b687a' : '#596677',
+    colorB: isAct1 ? '#a8b4c2' : '#a5b0bf',
+    revealSpan: isAct1 ? 0 : 4.5,
+  }), [isAct1])
   const innerParticles = useMemo(() => makeBelt(innerConfig), [innerConfig])
   const outerParticles = useMemo(() => makeBelt(outerConfig), [outerConfig])
   const totalCount = innerParticles.length + outerParticles.length
@@ -227,7 +232,12 @@ export default function AsteroidBelts() {
 
   useFrame(({ camera, gl, clock }, delta) => {
     const sp = useScrollStore.getState().scrollProgress
-    const innerAlpha = smoothstep(clamped(sp, TIMELINE.act3Shift.start, 1.0))
+    if (isAct1 && sp >= TIMELINE.whiteOut.end) {
+      pointsRef.current.visible = false
+      return
+    }
+    pointsRef.current.visible = true
+    const innerAlpha = isAct1 ? 0 : smoothstep(clamped(sp, TIMELINE.act3Shift.start, 1.0))
     const material = pointsRef.current.material as ShaderMaterial
     const geometry = pointsRef.current.geometry
     const positionAttr = geometry.getAttribute('position') as BufferAttribute
@@ -239,39 +249,51 @@ export default function AsteroidBelts() {
     const sizes = sizeAttr.array as Float32Array
     const opacities = opacityAttr.array as Float32Array
     const fov = 'fov' in camera ? (camera.fov * Math.PI) / 180 : Math.PI / 4
-    const centerZ = SCENE_CENTER_Z + 6 * getWindChimeProgress(sp).smoothP
+    const centerZ = isAct1
+      ? SCENE_CENTER_Z - 10
+      : SCENE_CENTER_Z + 6 * getWindChimeProgress(sp).smoothP
     const time = clock.elapsedTime
-    const outerSignal = sp >= 0.998
-    const wasOuterSignal = prevOuterSignalRef.current
-    if (outerSignal && !wasOuterSignal) {
-      outerHasTriggeredRef.current = true
-      outerRevealStartRef.current = time
-      outerRevealElapsedRef.current = 0
-    }
-    if (outerSignal && outerRevealStartRef.current !== null) {
-      outerRevealElapsedRef.current = time - outerRevealStartRef.current
-    }
-    if (outerSignal) {
-      outerFadeOutStartRef.current = null
-    } else if (outerFadeOutStartRef.current === null) {
-      outerFadeOutStartRef.current = time
-    }
+    let outerAlpha: number
+    let outerRevealTime: number | null
 
-    const fadeOutElapsed = outerFadeOutStartRef.current === null ? 0 : time - outerFadeOutStartRef.current
-    const fadeTarget =
-      outerSignal || (outerHasTriggeredRef.current && fadeOutElapsed < OUTER_BELT_FADE_OUT_HOLD_SECONDS) ? 1 : 0
-    const fadeSeconds = fadeTarget > outerFadeRef.current ? OUTER_BELT_FADE_IN_SECONDS : OUTER_BELT_FADE_OUT_SECONDS
-    const fadeStep = 1 - Math.exp(-delta / fadeSeconds)
-    outerFadeRef.current += (fadeTarget - outerFadeRef.current) * fadeStep
-    if (!outerSignal && outerFadeRef.current < 0.002) {
-      outerFadeRef.current = 0
-      outerRevealStartRef.current = null
-      outerRevealElapsedRef.current = null
-      outerFadeOutStartRef.current = null
-      outerHasTriggeredRef.current = false
+    if (isAct1) {
+      const fadeOut = smoothstep(clamped(sp, 0.24, TIMELINE.whiteOut.end))
+      outerAlpha = 0.78 * (1 - fadeOut)
+      outerRevealTime = null
+    } else {
+      const outerSignal = sp >= 0.998
+      const wasOuterSignal = prevOuterSignalRef.current
+      if (outerSignal && !wasOuterSignal) {
+        outerHasTriggeredRef.current = true
+        outerRevealStartRef.current = time
+        outerRevealElapsedRef.current = 0
+      }
+      if (outerSignal && outerRevealStartRef.current !== null) {
+        outerRevealElapsedRef.current = time - outerRevealStartRef.current
+      }
+      if (outerSignal) {
+        outerFadeOutStartRef.current = null
+      } else if (outerFadeOutStartRef.current === null) {
+        outerFadeOutStartRef.current = time
+      }
+
+      const fadeOutElapsed = outerFadeOutStartRef.current === null ? 0 : time - outerFadeOutStartRef.current
+      const fadeTarget =
+        outerSignal || (outerHasTriggeredRef.current && fadeOutElapsed < OUTER_BELT_FADE_OUT_HOLD_SECONDS) ? 1 : 0
+      const fadeSeconds = fadeTarget > outerFadeRef.current ? OUTER_BELT_FADE_IN_SECONDS : OUTER_BELT_FADE_OUT_SECONDS
+      const fadeStep = 1 - Math.exp(-delta / fadeSeconds)
+      outerFadeRef.current += (fadeTarget - outerFadeRef.current) * fadeStep
+      if (!outerSignal && outerFadeRef.current < 0.002) {
+        outerFadeRef.current = 0
+        outerRevealStartRef.current = null
+        outerRevealElapsedRef.current = null
+        outerFadeOutStartRef.current = null
+        outerHasTriggeredRef.current = false
+      }
+      prevOuterSignalRef.current = outerSignal
+      outerAlpha = outerFadeRef.current
+      outerRevealTime = outerRevealElapsedRef.current
     }
-    prevOuterSignalRef.current = outerSignal
-    const outerRevealTime = outerRevealElapsedRef.current
 
     material.uniforms.uPixelRatio.value = Math.min(2, gl.getPixelRatio())
     material.uniforms.uProjectionScale.value = gl.domElement.clientHeight / (2 * Math.tan(fov / 2))
@@ -300,7 +322,7 @@ export default function AsteroidBelts() {
       innerParticles.length,
       outerConfig,
       time,
-      outerFadeRef.current,
+      outerAlpha,
       centerZ,
       camera.position.x,
       camera.position.y,

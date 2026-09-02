@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import React from 'react'
 import ReactThreeTestRenderer from '@react-three/test-renderer'
+import { BoxGeometry, Group, Mesh, MeshBasicMaterial } from 'three'
 
 /**
  * L2 场景图测�?�?Act 组件渲染 + 可见性控制�?
@@ -45,11 +46,17 @@ describe('R3F Component Scene Graph', () => {
     await renderer.unmount()
   })
 
-  it('renders Lighthouse component with 30 meshes', async () => {
-    const { default: Lighthouse } = await import('../../actors/Lighthouse')
+  it('renders the imported lighthouse scene wrapper', async () => {
+    const { LighthouseScene } = await import('../../actors/Lighthouse')
+    const source = new Group()
+    const sourceGeometry = new BoxGeometry()
+    const sourceMaterial = new MeshBasicMaterial()
+    const sourceMesh = new Mesh(sourceGeometry, sourceMaterial)
+    sourceMesh.name = 'Plane'
+    source.add(sourceMesh)
 
     const renderer = await ReactThreeTestRenderer.create(
-      <Lighthouse />,
+      <LighthouseScene source={source} />,
     )
 
     const graph = renderer.toGraph()
@@ -63,6 +70,8 @@ describe('R3F Component Scene Graph', () => {
     expect(groupItem).toBeDefined()
 
     await renderer.unmount()
+    sourceGeometry.dispose()
+    sourceMaterial.dispose()
   })
 
   it('renders LightBeam component with correct hierarchy', async () => {

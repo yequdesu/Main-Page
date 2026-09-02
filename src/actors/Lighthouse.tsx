@@ -1,249 +1,192 @@
-import { useRef, useEffect } from 'react'
-import { useFrame } from '@react-three/fiber'
-import { AdditiveBlending, Mesh, Material, type Group } from 'three'
+import { useEffect, useMemo, useRef } from 'react'
+import { useFrame, useLoader } from '@react-three/fiber'
+import {
+  AdditiveBlending,
+  DataTexture,
+  Material,
+  Mesh,
+  MeshBasicMaterial,
+  MeshToonMaterial,
+  NearestFilter,
+  RGBAFormat,
+  type Group,
+} from 'three'
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
+import { RectAreaLightUniformsLib } from 'three/addons/lights/RectAreaLightUniformsLib.js'
 import { clamped, SCENE_CENTER_Z, smoothstep } from '../r3f/ScrollRig'
 import { useScrollStore } from '../stores/scrollStore'
 import { TIMELINE } from '../composition/timeline'
 
-// Module-level ref �?shared with LighthouseCapture for offscreen rendering
+// Module-level ref shared with LighthouseCapture for offscreen rendering.
 export let _lighthouseGroupRef: Group | null = null
 
+const LIGHTHOUSE_MODEL_URL = '/models/lighthouse.glb?v=51c4a32b'
+const LIGHTHOUSE_MODEL_SCALE = 0.28
+const LIGHTHOUSE_LAMP_LOCAL_Y = 9.4912
+const LIGHTHOUSE_MODEL_WORLD_Y = -2.05
+export const LIGHTHOUSE_LAMP_WORLD_Y =
+  LIGHTHOUSE_MODEL_WORLD_Y + LIGHTHOUSE_LAMP_LOCAL_Y * LIGHTHOUSE_MODEL_SCALE
+
+RectAreaLightUniformsLib.init()
+
+// The waist of the GLB is the tapered band between local Y 3.57 and 4.11.
+// Keep these planes on that band, just outside its four cardinal faces, so
+// they sit in the modeled window openings instead of floating above the body.
+const WINDOW_LIGHTS = [
+  { position: [0, 3.84, 1.035], rotationY: 0 },
+  { position: [1.035, 3.84, 0], rotationY: Math.PI / 2 },
+  { position: [0, 3.84, -1.035], rotationY: Math.PI },
+  { position: [-1.035, 3.84, 0], rotationY: -Math.PI / 2 },
+] as const
+
+// Four hard light bands keep the imported white model graphic and low-poly.
+const LIGHTHOUSE_TOON_GRADIENT = new DataTexture(
+  new Uint8Array([
+    24, 24, 24, 255,
+    86, 86, 86, 255,
+    164, 164, 164, 255,
+    255, 255, 255, 255,
+  ]),
+  4,
+  1,
+  RGBAFormat,
+)
+LIGHTHOUSE_TOON_GRADIENT.minFilter = NearestFilter
+LIGHTHOUSE_TOON_GRADIENT.magFilter = NearestFilter
+LIGHTHOUSE_TOON_GRADIENT.generateMipmaps = false
+LIGHTHOUSE_TOON_GRADIENT.needsUpdate = true
+
+function createModelMaterial(meshName: string): Material {
+  if (meshName === 'Sphere') {
+    return new MeshBasicMaterial({
+      color: '#ffffff',
+      transparent: true,
+      opacity: 0.95,
+      depthWrite: false,
+      blending: AdditiveBlending,
+      fog: true,
+    })
+  }
+
+  const isReef = meshName === 'Plane'
+  const isDarkDetail = /Circle\.00[1-6]/.test(meshName)
+  const color = isReef ? '#35414b' : isDarkDetail ? '#303740' : '#69737d'
+
+  return new MeshToonMaterial({
+    color,
+    gradientMap: LIGHTHOUSE_TOON_GRADIENT,
+  })
+}
+
 /**
- * 灯塔 �?�?buildLighthouse() 声明式迁移�?
- *
- * �?LighthouseScene.vue:267-366 �?30 �?Mesh 逐行转为 R3F JSX�?
- * 所�?position / rotation / scale 值逐字保留�?
- *
- * 白化完成 (sp≥WHITE_OUT_END) 后隐藏，与背景白化同步�?
- *
- * 援引：R3F 声明式场景图 �?pmndrs 官方 Getting Started
+ * Imported lighthouse + reef model. The GLB contains geometry only; materials
+ * are assigned here so the asset follows the site's stylised lighting.
  */
-export default function Lighthouse() {
+export function LighthouseScene({ source }: { source: Group }) {
   const groupRef = useRef<Group>(null)
   const materialsRef = useRef<Material[]>([])
   const meshesRef = useRef<Mesh[]>([])
+
+  const model = useMemo(() => {
+    const clone = source.clone(true)
+    clone.traverse((child) => {
+      if (!(child instanceof Mesh)) return
+      child.material = createModelMaterial(child.name)
+      child.castShadow = false
+      child.receiveShadow = false
+    })
+    return clone
+  }, [source])
 
   useEffect(() => {
     _lighthouseGroupRef = groupRef.current
     const materials: Material[] = []
     const meshes: Mesh[] = []
+
     groupRef.current?.traverse((child) => {
       if (!(child instanceof Mesh)) return
       child.userData.lighthouseBaseRenderOrder = child.renderOrder
       meshes.push(child)
       const childMaterials = Array.isArray(child.material) ? child.material : [child.material]
       for (const material of childMaterials) {
-        if (!materials.includes(material)) {
-          material.userData.lighthouseBaseOpacity = material.opacity
-          material.userData.lighthouseBaseTransparent = material.transparent
-          material.userData.lighthouseBaseDepthWrite = material.depthWrite
-          materials.push(material)
-        }
+        if (materials.includes(material)) continue
+        material.userData.lighthouseBaseOpacity = material.opacity
+        material.userData.lighthouseBaseTransparent = material.transparent
+        material.userData.lighthouseBaseDepthWrite = material.depthWrite
+        materials.push(material)
       }
     })
+
     materialsRef.current = materials
     meshesRef.current = meshes
-    return () => { _lighthouseGroupRef = null }
-  }, [])
 
-  // 白化过渡后隐藏灯�?�?sp �?0.55 �?visible=false
+    return () => {
+      _lighthouseGroupRef = null
+      for (const material of materials) material.dispose()
+    }
+  }, [model])
+
   useFrame(() => {
     const sp = useScrollStore.getState().scrollProgress
-    if (groupRef.current) {
-      const fadeOut = smoothstep(clamped(sp, TIMELINE.whiteOut.start, TIMELINE.whiteOut.end))
-      const visibleOpacity = 1 - fadeOut
-      groupRef.current.visible = visibleOpacity > 0.015
-      for (const mesh of meshesRef.current) {
-        const baseRenderOrder = mesh.userData.lighthouseBaseRenderOrder ?? 0
-        mesh.renderOrder = visibleOpacity < 0.999 ? -20 : baseRenderOrder
-      }
-      for (const material of materialsRef.current) {
-        const baseOpacity = material.userData.lighthouseBaseOpacity ?? 1
-        const baseTransparent = material.userData.lighthouseBaseTransparent ?? material.transparent
-        const baseDepthWrite = material.userData.lighthouseBaseDepthWrite ?? material.depthWrite
-        material.opacity = baseOpacity * visibleOpacity
-        material.transparent = baseTransparent || visibleOpacity < 0.999
-        material.depthWrite = fadeOut > 0.68 ? false : baseDepthWrite
-        material.needsUpdate = true
-      }
+    const fadeOut = smoothstep(clamped(sp, TIMELINE.whiteOut.start, TIMELINE.whiteOut.end))
+    const visibleOpacity = 1 - fadeOut
+
+    if (!groupRef.current) return
+    groupRef.current.visible = visibleOpacity > 0.015
+
+    for (const mesh of meshesRef.current) {
+      const baseRenderOrder = mesh.userData.lighthouseBaseRenderOrder ?? 0
+      mesh.renderOrder = visibleOpacity < 0.999 ? -20 : baseRenderOrder
+    }
+
+    for (const material of materialsRef.current) {
+      const baseOpacity = material.userData.lighthouseBaseOpacity ?? 1
+      const baseTransparent = material.userData.lighthouseBaseTransparent ?? material.transparent
+      const baseDepthWrite = material.userData.lighthouseBaseDepthWrite ?? material.depthWrite
+      material.opacity = baseOpacity * visibleOpacity
+      material.transparent = baseTransparent || visibleOpacity < 0.999
+      material.depthWrite = fadeOut > 0.68 ? false : baseDepthWrite
+      material.needsUpdate = true
     }
   })
 
   return (
     <group
       ref={groupRef}
-      position={[0, -2.5, SCENE_CENTER_Z]}
-      scale={0.7}
+      position={[0, LIGHTHOUSE_MODEL_WORLD_Y, SCENE_CENTER_Z]}
+      scale={LIGHTHOUSE_MODEL_SCALE}
     >
-      {/* 地基 �?材质与塔身一�?*/}
-      <mesh position={[0, -0.9, 0]}>
-        <cylinderGeometry args={[0.7, 0.7, 1.4, 16]} />
-        <meshStandardMaterial color="#4d535c" roughness={0.5} metalness={0.1} />
-      </mesh>
-
-      {/* 遮罩 �?不透明 */}
-      <mesh position={[0, -0.95, 0]}>
-        <cylinderGeometry args={[0.75, 1.3, 1.6, 16]} />
-        <meshBasicMaterial color="#050811" />
-      </mesh>
-
-      {/* 岩石底座 */}
-      <mesh position={[0, -0.1, 0]}>
-        <cylinderGeometry args={[0.55, 0.65, 0.4, 16]} />
-        <meshStandardMaterial color="#40454f" roughness={0.9} />
-      </mesh>
-
-      {/* 过渡�?*/}
-      <mesh position={[0, 0.12, 0]} rotation={[0, 0, 0]}>
-        <cylinderGeometry args={[0.42, 0.55, 0.12, 16]} />
-        <meshStandardMaterial color="#252930" roughness={0.8} />
-      </mesh>
-
-      {/* 塔身 */}
-      <mesh position={[0, 1.3, 0]}>
-        <cylinderGeometry args={[0.20, 0.30, 2.6, 20]} />
-        <meshStandardMaterial color="#4d535c" roughness={0.5} metalness={0.1} />
-      </mesh>
-
-      {/* 装饰�?*/}
-      <mesh position={[0, 0.6, 0]} rotation={[Math.PI / 2, 0, 0]}>
-        <torusGeometry args={[0.27, 0.022, 8, 20]} />
-        <meshStandardMaterial color="#7a828f" roughness={0.6} />
-      </mesh>
-      <mesh position={[0, 1.8, 0]} rotation={[Math.PI / 2, 0, 0]}>
-        <torusGeometry args={[0.22, 0.022, 8, 20]} />
-        <meshStandardMaterial color="#7a828f" roughness={0.6} />
-      </mesh>
-
-      {/* 窗户 1 */}
-      <group position={[0, 1.0, 0.24]} rotation={[0, 0.5, 0]}>
-        <mesh>
-          <boxGeometry args={[0.06, 0.12, 0.05]} />
-          <meshBasicMaterial color="#111317" fog />
-        </mesh>
-        <mesh>
-          <boxGeometry args={[0.04, 0.10, 0.055]} />
-          <meshBasicMaterial color="#ffdf6d" fog />
-        </mesh>
-      </group>
-
-      {/* 窗户 2 */}
-      <group position={[0, 1.9, 0.19]} rotation={[0, -0.8, 0]}>
-        <mesh>
-          <boxGeometry args={[0.06, 0.12, 0.05]} />
-          <meshBasicMaterial color="#111317" fog />
-        </mesh>
-        <mesh>
-          <boxGeometry args={[0.04, 0.10, 0.055]} />
-          <meshBasicMaterial color="#ffdf6d" fog />
-        </mesh>
-      </group>
-
-      {/* 阳台 */}
-      <mesh position={[0, 2.6, 0]}>
-        <cylinderGeometry args={[0.32, 0.22, 0.12, 16]} />
-        <meshStandardMaterial color="#252930" roughness={0.8} />
-      </mesh>
-
-      {/* 平台�?*/}
-      <mesh position={[0, 2.67, 0]}>
-        <cylinderGeometry args={[0.35, 0.35, 0.03, 16]} />
-        <meshStandardMaterial color="#1b1f26" roughness={0.4} metalness={0.8} />
-      </mesh>
-
-      {/* 栏杆�?*/}
-      <group position={[0, 2.68, 0]}>
-        <mesh rotation={[Math.PI / 2, 0, 0]} position={[0, 0.15, 0]}>
-          <torusGeometry args={[0.33, 0.008, 6, 24]} />
-          <meshStandardMaterial color="#1b1f26" roughness={0.4} metalness={0.8} />
-        </mesh>
-        {Array.from({ length: 8 }, (_, i) => {
-          const a = (i / 8) * Math.PI * 2
-          return (
-            <mesh key={i} position={[Math.cos(a) * 0.33, 0.075, Math.sin(a) * 0.33]}>
-              <cylinderGeometry args={[0.006, 0.006, 0.15, 6]} />
-              <meshStandardMaterial color="#1b1f26" roughness={0.4} metalness={0.8} />
-            </mesh>
-          )
-        })}
-      </group>
-
-      {/* 灯座�?*/}
-      <mesh position={[0, 2.74, 0]}>
-        <cylinderGeometry args={[0.24, 0.24, 0.06, 16]} />
-        <meshStandardMaterial color="#1b1f26" roughness={0.4} metalness={0.8} />
-      </mesh>
-
-      {/* 玻璃�?*/}
-      <mesh position={[0, 2.96, 0]}>
-        <cylinderGeometry args={[0.21, 0.21, 0.44, 16, 1, true]} />
-        <meshStandardMaterial
-          color="#ffffff"
-          roughness={0.1}
-          metalness={0.9}
-          emissive="#ffffff"
-          emissiveIntensity={1.0}
-          side={2} // DoubleSide
-          transparent
-          opacity={0.2}
-        />
-      </mesh>
-
-      {/* 灯泡 */}
-      <group position={[0, 2.96, 0]}>
-        <mesh>
-          <sphereGeometry args={[0.095, 20, 14]} />
-          <meshBasicMaterial
-            color="#ffffff"
-            transparent
-            opacity={0.95}
-            depthWrite={false}
-            blending={AdditiveBlending}
-            fog
-          />
-        </mesh>
-      </group>
-
-      {/* 玻璃框架�?×6 */}
-      {Array.from({ length: 6 }, (_, i) => {
-        const a = (i / 6) * Math.PI * 2
-        return (
-          <mesh key={`frame-${i}`} position={[Math.cos(a) * 0.22, 2.96, Math.sin(a) * 0.22]}>
-            <cylinderGeometry args={[0.012, 0.012, 0.44, 6]} />
-            <meshStandardMaterial color="#1b1f26" roughness={0.4} metalness={0.8} />
+      <primitive object={model} />
+      {WINDOW_LIGHTS.map(({ position, rotationY }, index) => (
+        <group key={`window-light-${index}`} position={position} rotation={[0, rotationY, 0]}>
+          <mesh renderOrder={2}>
+            <planeGeometry args={[0.32, 0.42]} />
+            <meshBasicMaterial
+              color="#ffd99a"
+              transparent
+              opacity={0.7}
+              depthWrite={false}
+              blending={AdditiveBlending}
+              toneMapped={false}
+            />
           </mesh>
-        )
-      })}
-
-      {/* 屋顶�?*/}
-      <mesh position={[0, 3.18, 0]}>
-        <cylinderGeometry args={[0.24, 0.24, 0.04, 16]} />
-        <meshStandardMaterial color="#1b1f26" roughness={0.4} metalness={0.8} />
-      </mesh>
-
-      {/* 穹顶 */}
-      <mesh position={[0, 3.20, 0]}>
-        <sphereGeometry args={[0.22, 16, 12, 0, Math.PI * 2, 0, Math.PI / 2]} />
-        <meshStandardMaterial color="#1b1f26" roughness={0.4} metalness={0.8} />
-      </mesh>
-
-      {/* 尖顶底座 */}
-      <mesh position={[0, 3.42, 0]}>
-        <cylinderGeometry args={[0.08, 0.08, 0.06, 12]} />
-        <meshStandardMaterial color="#1b1f26" roughness={0.4} metalness={0.8} />
-      </mesh>
-
-      {/* 黄铜�?*/}
-      <mesh position={[0, 3.47, 0]}>
-        <sphereGeometry args={[0.035, 12, 12]} />
-        <meshStandardMaterial color="#e5c158" roughness={0.2} metalness={0.9} />
-      </mesh>
-
-      {/* 尖顶锥体 */}
-      <mesh position={[0, 3.65, 0]}>
-        <cylinderGeometry args={[0.005, 0.012, 0.35, 8]} />
-        <meshStandardMaterial color="#1b1f26" roughness={0.4} metalness={0.8} />
-      </mesh>
+          <rectAreaLight
+            color="#ffd7a0"
+            intensity={0.55}
+            width={0.48}
+            height={0.52}
+            position={[0, 0, -0.035]}
+            rotation={[0, Math.PI, 0]}
+          />
+        </group>
+      ))}
     </group>
   )
 }
+
+export default function Lighthouse() {
+  const gltf = useLoader(GLTFLoader, LIGHTHOUSE_MODEL_URL)
+  return <LighthouseScene source={gltf.scene} />
+}
+
+useLoader.preload(GLTFLoader, LIGHTHOUSE_MODEL_URL)

@@ -14,6 +14,7 @@ import {
   pointFromVector3,
   setCoreAnchors,
 } from '../composition/coreAnchors'
+import { LIGHTHOUSE_LAMP_WORLD_Y } from './Lighthouse'
 
 // shortestDelta �?角度最短路径差（逐字保留自原 lightBeam.js�?
 function shortestDelta(from: number, to: number): number {
@@ -28,10 +29,12 @@ const _lastBeam = { time: -1, sp: -1 }
 
 // 共享光束世界空间变换 �?OceanWaves 读取用于波面照亮计算
 // 初始化使�?beamPivot 已知位置 [0, -0.428, SCENE_CENTER_Z] + 朝向 (0,0,1)
-const _beamWorldOrigin = new Vector3(0, -0.428, SCENE_CENTER_Z)
+const _beamWorldOrigin = new Vector3(0, LIGHTHOUSE_LAMP_WORLD_Y, SCENE_CENTER_Z)
 const _beamWorldDirection = new Vector3(0, 0, 1)
 const _beamQuat = new Quaternion()
 const _beamFwd = new Vector3()
+const CAMERA_HOME_Y = 0.25
+const CAMERA_HOME_Z = 8
 
 const BEACON_HALO_TEX_SIZE = 128
 let _beaconHaloTexture: CanvasTexture | null = null
@@ -76,7 +79,7 @@ interface LightBeamProps {
   lighthouseY?: number // 灯泡世界 Y 坐标（默�?-2.5 + 2.96*0.7 �?-0.428�?
 }
 
-export default function LightBeam({ lighthouseY = -0.428 }: LightBeamProps) {
+export default function LightBeam({ lighthouseY = LIGHTHOUSE_LAMP_WORLD_Y }: LightBeamProps) {
   useActorRuntime('beam', true)
   const beamPivotRef = useRef<Group>(null)
   const coneMatsRef = useRef<ShaderMaterial[]>([])
@@ -86,6 +89,7 @@ export default function LightBeam({ lighthouseY = -0.428 }: LightBeamProps) {
   const ptLightRef = useRef<PointLight | null>(null)
   const layer = getWebglLayer('webgl.lightBeam')
   const beaconHaloTex = useMemo(() => getBeaconHaloTexture(), [])
+  const homeBeamPitch = Math.atan2(lighthouseY - CAMERA_HOME_Y, CAMERA_HOME_Z - SCENE_CENTER_Z)
 
   // Idle animation state（跨帧持久）
   const idleState = useRef({
@@ -186,7 +190,7 @@ export default function LightBeam({ lighthouseY = -0.428 }: LightBeamProps) {
       // ---- White-out �?snap to home ----
       is.wasScrolling = true
       targetY = 0
-      targetX = -0.02
+      targetX = homeBeamPitch
     } else {
       // ---- Scroll homing ----
       if (!is.wasScrolling) {
@@ -196,7 +200,7 @@ export default function LightBeam({ lighthouseY = -0.428 }: LightBeamProps) {
       }
       const e = smoothstep(sp / TIMELINE.whiteOut.start)
       targetY = is.scrollStartAngle + shortestDelta(is.scrollStartAngle, 0) * e
-      targetX = MathUtils.lerp(is.scrollStartAngleX, -0.02, e)
+      targetX = MathUtils.lerp(is.scrollStartAngleX, homeBeamPitch, e)
     }
 
     pivot.rotation.y = targetY
