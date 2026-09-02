@@ -6,8 +6,8 @@ import type { Mesh, InstancedMesh, Sprite, Group, Line } from 'three'
 // ============================================================
 export const SCROLL_RIG = {
   SCENE_CENTER_Z: -16.0,
-  WHITE_OUT_THRESHOLD: 0.40,
-  WHITE_OUT_END: 0.55,
+  MINIATURE_START: 0.40,
+  MINIATURE_END: 0.60,
   GRID_START: 0.45,
   VERTICAL_START: 0.58,
   TEXT_START: 0.70,

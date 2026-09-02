@@ -6,7 +6,6 @@ import ScrollInvalidator from './ScrollInvalidator'
 import PlanetClickHandler from './PlanetClickHandler'
 import SceneLights from '../actors/SceneLights'
 import Planets from '../actors/Planets'
-import Lighthouse from '../actors/Lighthouse'
 import WindChimeLines from '../actors/WindChimeLines'
 import CentralStar from '../actors/CentralStar'
 import SeaCameraBob from '../actors/SeaCameraBob'
@@ -50,7 +49,6 @@ export default function SceneCanvas({ children }: CanvasProps) {
       <PlanetClickHandler />
       <SceneLights />
       <Planets />
-      <Lighthouse />
       <WindChimeLines />
       <CentralStar />
       {children}

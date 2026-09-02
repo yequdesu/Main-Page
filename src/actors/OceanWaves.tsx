@@ -9,6 +9,7 @@ import { getWebglLayer } from '../composition/layerRegistry'
 import { touchActorFrame, useActorRuntime } from '../composition/actorRuntime'
 import { readBeamWorldDirection, readBeamWorldOrigin } from '../composition/coreAnchors'
 import type { WaveLineData, WaveBaseColor } from '../types'
+import { containOceanX, getMiniatureTransform } from '../behaviors/miniatureUniverse'
 
 const CURTAIN_BOTTOM_Y = -10
 const REEF_DEPTH_WAVE_INDEX = 24
@@ -256,11 +257,12 @@ export default function OceanWaves() {
       wavesVisibleRef.current = true
     }
 
-    const hlWeight = Math.max(0, Math.min(1, (TIMELINE.whiteOut.start - sp) / 0.10))
+    const hlWeight = Math.max(0, Math.min(1, (TIMELINE.miniatureShrink.start - sp) / 0.10))
     const CASCADE_START = TIMELINE.wavesCascade.start
     const CASCADE_END = TIMELINE.wavesCascade.end
     const baseGridFactor = clamped(sp, CASCADE_START, CASCADE_END)
     const shiftY = -32.0 * smooth3
+    const miniatureContainment = getMiniatureTransform(sp).containment
     const beamWorldOrigin = readBeamWorldOrigin() ?? DEFAULT_BEAM_ORIGIN
     const beamWorldDirection = readBeamWorldDirection() ?? DEFAULT_BEAM_DIRECTION
 
@@ -284,11 +286,13 @@ export default function OceanWaves() {
 
       for (let j = 0; j <= d.segCount; j++) {
         const idx = j * 3
-        const x = pArr[idx]
+        const originalX = (j / d.segCount - 0.5) * d.span * 2
+        const x = containOceanX(originalX, miniatureContainment)
+        pArr[idx] = x
         const tWave = time * d.speed + d.phase
         const waveY = d.baseY +
-          Math.sin(x * d.frequency + tWave) * d.amplitude +
-          Math.sin(x * d.frequency * 1.8 + tWave * 1.2) * d.amplitude * 0.4
+          Math.sin(originalX * d.frequency + tWave) * d.amplitude +
+          Math.sin(originalX * d.frequency * 1.8 + tWave * 1.2) * d.amplitude * 0.4
 
         pArr[idx + 1] = waveY + (d.baseY - waveY) * waveGF + shiftY + dropY
 
@@ -332,7 +336,9 @@ export default function OceanWaves() {
         const cPosArr = (cMesh.geometry.attributes.position.array as Float32Array)
         const vCount = d.segCount + 1
         for (let j = 0; j < vCount; j++) {
+          cPosArr[j * 3] = pArr[j * 3]
           cPosArr[j * 3 + 1] = pArr[j * 3 + 1]           // 顶边 = 波浪�?Y
+          cPosArr[(vCount + j) * 3] = pArr[j * 3]
           cPosArr[(vCount + j) * 3 + 1] = CURTAIN_BOTTOM_Y + dropY  // 底边同步下落
         }
         cMesh.geometry.attributes.position.needsUpdate = true

@@ -367,7 +367,7 @@ export default function DustField() {
     touchActorFrame('debris', Math.round(time * 60), true)
     if (shouldSkip(time, sp)) return
 
-    const wof = clamped(sp, TIMELINE.whiteOut.start, TIMELINE.whiteOut.end)
+    const miniatureProgress = clamped(sp, TIMELINE.miniatureShrink.start, TIMELINE.miniatureShrink.end)
     const act3Progress = clamped(sp, TIMELINE.act3Shift.start, 1.0)
     const smooth3 = smoothstep(act3Progress)
     const impact = smoothRange(TIMELINE.windChimeDrop.start, TIMELINE.windChimeDrop.end, sp) *
@@ -388,8 +388,8 @@ export default function DustField() {
     const beamOrigin = readBeamWorldOrigin()
     const beamDirection = readBeamWorldDirection()
     const beamFacingCamera = beamDirection ? smoothRange(0.42, 0.92, beamDirection.z) : 0
-    const act1Weight = 1 - smoothRange(TIMELINE.whiteOut.start, TIMELINE.whiteOut.end, sp)
-    const act2Weight = smoothRange(TIMELINE.whiteOut.start, TIMELINE.act3Shift.start, sp) *
+    const act1Weight = 1 - smoothRange(TIMELINE.miniatureShrink.start, TIMELINE.miniatureShrink.end, sp)
+    const act2Weight = smoothRange(TIMELINE.miniatureShrink.start, TIMELINE.act3Shift.start, sp) *
       (1 - smoothRange(TIMELINE.act3Shift.start, 1.0, sp))
     const wc = getWindChimeProgress(sp)
     const impactors = [
@@ -417,7 +417,7 @@ export default function DustField() {
       const act1Y = cloudY
       const act1Z = cloudZ
       const orbitPoint = calcOrbitPosition(d, time, delta, cx, cy, cz, smooth3)
-      const act2Ease = smoothstep(wof)
+      const act2Ease = smoothstep(miniatureProgress)
       const act3Ease = smooth3
       const proto = getProtoFormationPoint(d, time, act2Ease)
       const protoX = proto.x
@@ -482,7 +482,7 @@ export default function DustField() {
       const act2Twinkle = 0.68 + twinkle * 0.32
 
       _color2.set(d.grayHex)
-      _scratch2.copy(_colorAct1).lerp(_color2, wof).lerp(_colorAct3, smooth3)
+      _scratch2.copy(_colorAct1).lerp(_color2, miniatureProgress).lerp(_colorAct3, smooth3)
       const protoCoreGlow = d.protoCoreWeight * d.protoDensity * act2Ease * (1 - act3Ease)
       _scratch2.lerp(_beamColor, protoCoreGlow * 0.72)
       _scratch2.lerp(_beamColor, beamFactor * 0.92)

@@ -15,6 +15,7 @@ import {
   setCoreAnchors,
 } from '../composition/coreAnchors'
 import { LIGHTHOUSE_LAMP_WORLD_Y } from './Lighthouse'
+import { getContainedBeamDepthScale, getMiniatureTransform } from '../behaviors/miniatureUniverse'
 
 // shortestDelta �?角度最短路径差（逐字保留自原 lightBeam.js�?
 function shortestDelta(from: number, to: number): number {
@@ -71,7 +72,7 @@ function getBeaconHaloTexture(): CanvasTexture {
  * 三种模式�?
  *   空闲漫游 �?sin/cos 组合慢扫
  *   滚动归位 �?sp 0�?.40 平滑过渡到目标角�?
- *   白化增强 �?sp�?.40 固定角度 + 强度提升
+ *   微缩转场 �?sp�?.40 固定角度并逐步收短到立方体内部
  *
  * 援引：VolumetricBeamShader 自定�?ShaderMaterial（逐字迁移�?
  */
@@ -186,8 +187,8 @@ export default function LightBeam({ lighthouseY = LIGHTHOUSE_LAMP_WORLD_Y }: Lig
         targetY = wanderY + is.idlePhase
         targetX = wanderX
       }
-    } else if (sp >= TIMELINE.whiteOut.start) {
-      // ---- White-out �?snap to home ----
+    } else if (sp >= TIMELINE.miniatureShrink.start) {
+      // ---- Miniature transition: snap to home ----
       is.wasScrolling = true
       targetY = 0
       targetX = homeBeamPitch
@@ -198,37 +199,37 @@ export default function LightBeam({ lighthouseY = LIGHTHOUSE_LAMP_WORLD_Y }: Lig
         is.scrollStartAngleX = pivot.rotation.x
         is.wasScrolling = true
       }
-      const e = smoothstep(sp / TIMELINE.whiteOut.start)
+      const e = smoothstep(sp / TIMELINE.miniatureShrink.start)
       targetY = is.scrollStartAngle + shortestDelta(is.scrollStartAngle, 0) * e
       targetX = MathUtils.lerp(is.scrollStartAngleX, homeBeamPitch, e)
     }
 
     pivot.rotation.y = targetY
     pivot.rotation.x = targetX
+    const miniature = getMiniatureTransform(sp)
+    pivot.scale.z = getContainedBeamDepthScale(miniature.containment)
 
     // ---- Beam intensity ----
     const beamBoost = Math.pow(sp, 1.5) * 0.4
-    const wof = clamped(sp, TIMELINE.whiteOut.start, TIMELINE.whiteOut.end)
-    const beamFade = Math.max(0, 1.0 - wof)
 
     coneMatsRef.current.forEach((mat, i) => {
       const baseOpacity = configs[i]?.opacity ?? 0.1
       const boostScale = i >= 2 ? 1.3 : 1.75
-      mat.uniforms.uOpacity.value = (baseOpacity + beamBoost * boostScale + wof * 2.35) * beamFade
+      mat.uniforms.uOpacity.value = baseOpacity + beamBoost * boostScale
       mat.uniforms.uTime.value = time
     })
     rayMatsRef.current.forEach((mat) => {
-      mat.opacity = (0.45 + sp * 0.34 + wof * 0.9) * beamFade
+      mat.opacity = 0.45 + sp * 0.34
     })
     const lampPulse = 1 + Math.sin(time * 1.7) * 0.06 + Math.sin(time * 0.63) * 0.035
     if (sourceCoreMatRef.current) {
-      sourceCoreMatRef.current.opacity = 1.0 * beamFade
+      sourceCoreMatRef.current.opacity = 1.0
     }
     if (sourceHaloMatRef.current) {
-      sourceHaloMatRef.current.opacity = 0.9 * beamFade * lampPulse
+      sourceHaloMatRef.current.opacity = 0.9 * lampPulse
     }
     if (ptLightRef.current) {
-      ptLightRef.current.intensity = (3.0 + Math.pow(sp, 1.5) * 12 + wof * 50) * beamFade
+      ptLightRef.current.intensity = 3.0 + Math.pow(sp, 1.5) * 12
     }
 
     // 发布光束世界空间变换�?OceanWaves 读取
@@ -237,8 +238,8 @@ export default function LightBeam({ lighthouseY = LIGHTHOUSE_LAMP_WORLD_Y }: Lig
     _beamFwd.set(0, 0, 1).applyQuaternion(_beamQuat)
     _beamWorldDirection.copy(_beamFwd)
     setCoreAnchors([
-      makeCoreAnchor(beamWorldOriginAnchorId, pointFromVector3(_beamWorldOrigin), 'world', 'beam', beamFade > 0),
-      makeCoreAnchor(beamWorldDirectionAnchorId, pointFromVector3(_beamWorldDirection), 'world', 'beam', beamFade > 0),
+      makeCoreAnchor(beamWorldOriginAnchorId, pointFromVector3(_beamWorldOrigin), 'world', 'beam', sp < TIMELINE.miniatureShrink.end),
+      makeCoreAnchor(beamWorldDirectionAnchorId, pointFromVector3(_beamWorldDirection), 'world', 'beam', sp < TIMELINE.miniatureShrink.end),
     ])
   })
 

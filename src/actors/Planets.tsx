@@ -307,7 +307,7 @@ export default function Planets() {
     const _screenRadii: [number, number, number] = [0, 0, 0]
     const anchorWrites: AnchorInput[] = []
 
-    const wof = clamped(sp, TIMELINE.whiteOut.start, TIMELINE.whiteOut.end)
+    const miniatureProgress = clamped(sp, TIMELINE.miniatureShrink.start, TIMELINE.miniatureShrink.end)
     const ORBIT_START = TIMELINE.gridRetract.end
     const act3Progress = clamped(sp, ORBIT_START, 1.0)
     const smooth3 = smoothstep(act3Progress)
@@ -375,7 +375,7 @@ export default function Planets() {
 
       const isMain = mainPlanetIndices.includes(i)
       const appearanceSmooth3 = isMain ? orbitSmooth3 : smooth3
-      const appearance = calcAppearance(d, sp, wof, appearanceSmooth3, cd, 0)
+      const appearance = calcAppearance(d, sp, miniatureProgress, appearanceSmooth3, cd, 0)
 
       // Color
       _color2.set(d.grayHex)

@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
 import { useScrollStore } from '../stores/scrollStore'
-import { sceneApplyWhiteOut } from './ScrollRig'
+import { sceneApplyThemeTransition } from './ScrollRig'
 import { _ambientLight } from '../actors/SceneLights'
 import { progress, TIMELINE } from '../composition/timeline'
 import { useAnchorStore } from '../composition/anchorStore'
@@ -12,7 +12,7 @@ const CONTINUOUS_INVALIDATE_MIN_DELTA = 1000 / 240
 function hasTimeDrivenWebgl(sp: number, focusedPlanetIdx: number): boolean {
   return (
     focusedPlanetIdx >= 0 ||
-    sp < TIMELINE.whiteOut.end ||
+    sp < TIMELINE.miniatureShrink.end ||
     sp < TIMELINE.wavesAct3Fade.end ||
     sp >= TIMELINE.planetVisible.start
   )
@@ -23,8 +23,8 @@ function hasTimeDrivenWebgl(sp: number, focusedPlanetIdx: number): boolean {
  *
  * 双重职责�?
  *   1. frameloop 桥接：subscribe scrollProgress �?invalidate()
- *   2. 全局�?背景更新：sceneApplyWhiteOut 必须每帧调用（不�?Act 可见性限制）
- *   3. 白化过渡环境光增强：�?whiteOutManager.js:28 逐字保留
+ *   2. 全局背景更新：微缩宇宙消失后再恢复 Act 2 主题。
+ *   3. Act 2 环境光随主题恢复区间增强。
  *
  * 援引：R3F 官方文档 "Frameloop �?demand mode with external state"
  */
@@ -39,13 +39,13 @@ export default function ScrollInvalidator() {
     ;(window as any).__WEBGL_FRAME_COUNT__ = ((window as any).__WEBGL_FRAME_COUNT__ ?? 0) + 1
     useAnchorStore.getState().setFrameId(frameId)
     const sp = useScrollStore.getState().scrollProgress
-    sceneApplyWhiteOut(scene, sp)
+    sceneApplyThemeTransition(scene, sp)
     touchActorFrame('sceneBackground', frameId, true)
 
-    // 白化过渡时环境光逐步增强（原 whiteOutManager.js:28�?
+    // The miniature remains in the original night lighting; Act 2 brightens afterwards.
     if (_ambientLight) {
-      const wof = progress('whiteOut', sp)
-      _ambientLight.intensity = 1.4 + wof * 3.5
+      const themeProgress = progress('act2ThemeReveal', sp)
+      _ambientLight.intensity = 1.4 + themeProgress * 3.5
     }
   })
 

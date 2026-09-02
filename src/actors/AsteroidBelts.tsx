@@ -50,6 +50,7 @@ function smoothRange(edge0: number, edge1: number, value: number): number {
 const OUTER_BELT_FADE_IN_SECONDS = 0.08
 const OUTER_BELT_FADE_OUT_HOLD_SECONDS = 0.12
 const OUTER_BELT_FADE_OUT_SECONDS = 0.42
+const ACT1_ASTEROID_FADE_END = 0.55
 
 interface AsteroidParticle {
   radius: number
@@ -232,7 +233,7 @@ export default function AsteroidBelts({ variant = 'act3' }: AsteroidBeltsProps) 
 
   useFrame(({ camera, gl, clock }, delta) => {
     const sp = useScrollStore.getState().scrollProgress
-    if (isAct1 && sp >= TIMELINE.whiteOut.end) {
+    if (isAct1 && sp >= ACT1_ASTEROID_FADE_END) {
       pointsRef.current.visible = false
       return
     }
@@ -257,7 +258,7 @@ export default function AsteroidBelts({ variant = 'act3' }: AsteroidBeltsProps) 
     let outerRevealTime: number | null
 
     if (isAct1) {
-      const fadeOut = smoothstep(clamped(sp, 0.24, TIMELINE.whiteOut.end))
+      const fadeOut = smoothstep(clamped(sp, 0.24, ACT1_ASTEROID_FADE_END))
       outerAlpha = 0.78 * (1 - fadeOut)
       outerRevealTime = null
     } else {

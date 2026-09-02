@@ -111,10 +111,9 @@ export default function App() {
   scrollProgressRef.current = scrollProgress
 
   // ---- Act visibility ----
-  // Act 1 扩展�?GRID_SHIFT_START(0.85)：波浪展平后需�?Act2 竖线共存形成网格�?
-  // Act3 开始后波浪自行通过 gridOpacityMult 淡出
-  const needsAct1 = (sp: number) => sp < TIMELINE.act3Shift.start + 0.01
-  const needsAct2 = (sp: number) => sp >= TIMELINE.whiteOut.start - 0.01
+  // Act 1 ends only after the miniature universe has shrunk out of view.
+  const needsAct1 = (sp: number) => sp < TIMELINE.miniatureShrink.end + 0.01
+  const needsAct2 = (sp: number) => sp >= TIMELINE.miniatureShrink.end - 0.01
   const needsAct3 = (sp: number) => sp >= TIMELINE.act3Shift.start - 0.01
 
   // ---- syncScrollbar ----
@@ -271,7 +270,7 @@ export default function App() {
   }, [themeKey])
 
   useEffect(() => {
-    if (scrollProgress >= 0.54 && !lighthouseCapturedRef.current) {
+    if (scrollProgress >= TIMELINE.miniatureShrink.start - 0.01 && !lighthouseCapturedRef.current) {
       lighthouseCapturedRef.current = true
       const captureFn = getLighthouseCapture()
       if (captureFn) {
@@ -314,8 +313,8 @@ export default function App() {
   ) as [LabelConfig, LabelConfig, LabelConfig]
   const handleBuildStatusLine = useCallback((sp: number) => {
     const pct = Math.round(sp * 100)
-    const actName = sp < 0.45 ? 'OceanVoyage' : sp < TIMELINE.act3Shift.start ? 'GridTransition' : 'ContentPhase'
-    const actNum = sp < 0.45 ? '1' : sp < TIMELINE.act3Shift.start ? '2' : '3'
+    const actName = sp < TIMELINE.act1OceanVoyage.end ? 'OceanVoyage' : sp < TIMELINE.act3Shift.start ? 'GridTransition' : 'ContentPhase'
+    const actNum = sp < TIMELINE.act1OceanVoyage.end ? '1' : sp < TIMELINE.act3Shift.start ? '2' : '3'
     return `# Act ${actNum} · ${actName} · scroll ${pct}%`
   }, [])
 

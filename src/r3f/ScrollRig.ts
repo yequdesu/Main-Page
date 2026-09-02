@@ -15,7 +15,7 @@ export function clamped(sp: number, start: number, end: number): number {
 // 集中导出所有阈值（唯一真相源）
 export const {
   SCENE_CENTER_Z,
-  WHITE_OUT_THRESHOLD, WHITE_OUT_END,
+  MINIATURE_START, MINIATURE_END,
   GRID_START, VERTICAL_START,
   TEXT_START, GRID_SHIFT_START,
   ORBIT_RADII, ORBIT_COUNT,
@@ -23,8 +23,7 @@ export const {
 } = SCROLL_RIG
 
 // ============================================================
-// Scene Manager �?white-out transition
-// �?sceneApplyWhiteOut():168-196，逐字保留
+// Scene manager: Act 2 theme reveal after the miniature universe disappears.
 // themeBlend: 0=night (暗色不白�?, 1=day (白雾过渡至亮�?
 //   �?App.tsx GSAP tween 驱动，实�?day↔night 平滑过渡
 // ============================================================
@@ -39,21 +38,13 @@ const _bgDayTarget = new Color('#f1f5f9')     // day: 白雾过渡至亮�?
 const _bgTargetColor = new Color()
 const _bgLerpColor = new Color()
 
-export function sceneApplyWhiteOut(scene: Scene, sp: number): void {
-  const wof = clamped(sp, TIMELINE.whiteOut.start, TIMELINE.whiteOut.end)
+export function sceneApplyThemeTransition(scene: Scene, sp: number): void {
+  const themeProgress = smoothstep(clamped(sp, TIMELINE.act2ThemeReveal.start, TIMELINE.act2ThemeReveal.end))
   _bgTargetColor.copy(_bgNightTarget).lerp(_bgDayTarget, _themeBlend)
-  _bgLerpColor.copy(_bgBaseColor).lerp(_bgTargetColor, wof)
+  _bgLerpColor.copy(_bgBaseColor).lerp(_bgTargetColor, themeProgress)
   scene.background = _bgLerpColor
 
-  let fogDensity = 0.02
-  if (sp >= TIMELINE.whiteOut.start && sp < TIMELINE.whiteOut.end) {
-    fogDensity = 0.02 + wof * 0.08
-  } else if (sp >= TIMELINE.fogFade.start && sp < TIMELINE.fogFade.end) {
-    const fogFade = clamped(sp, TIMELINE.fogFade.start, TIMELINE.fogFade.end)
-    fogDensity = 0.10 * (1.0 - fogFade)
-  } else if (sp >= TIMELINE.fogFade.end) {
-    fogDensity = 0  // 0.65 后完全除�?
-  }
+  const fogDensity = 0.02 * (1 - themeProgress)
 
   if (fogDensity > 0.001) {
     if (!scene.fog) {

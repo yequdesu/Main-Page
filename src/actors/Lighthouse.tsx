@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef } from 'react'
-import { useFrame, useLoader } from '@react-three/fiber'
+import { useLoader } from '@react-three/fiber'
 import {
   AdditiveBlending,
   DataTexture,
@@ -13,9 +13,7 @@ import {
 } from 'three'
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
 import { RectAreaLightUniformsLib } from 'three/addons/lights/RectAreaLightUniformsLib.js'
-import { clamped, SCENE_CENTER_Z, smoothstep } from '../r3f/ScrollRig'
-import { useScrollStore } from '../stores/scrollStore'
-import { TIMELINE } from '../composition/timeline'
+import { SCENE_CENTER_Z } from '../r3f/ScrollRig'
 
 // Module-level ref shared with LighthouseCapture for offscreen rendering.
 export let _lighthouseGroupRef: Group | null = null
@@ -84,8 +82,6 @@ function createModelMaterial(meshName: string): Material {
  */
 export function LighthouseScene({ source }: { source: Group }) {
   const groupRef = useRef<Group>(null)
-  const materialsRef = useRef<Material[]>([])
-  const meshesRef = useRef<Mesh[]>([])
 
   const model = useMemo(() => {
     const clone = source.clone(true)
@@ -101,54 +97,21 @@ export function LighthouseScene({ source }: { source: Group }) {
   useEffect(() => {
     _lighthouseGroupRef = groupRef.current
     const materials: Material[] = []
-    const meshes: Mesh[] = []
 
     groupRef.current?.traverse((child) => {
       if (!(child instanceof Mesh)) return
-      child.userData.lighthouseBaseRenderOrder = child.renderOrder
-      meshes.push(child)
       const childMaterials = Array.isArray(child.material) ? child.material : [child.material]
       for (const material of childMaterials) {
         if (materials.includes(material)) continue
-        material.userData.lighthouseBaseOpacity = material.opacity
-        material.userData.lighthouseBaseTransparent = material.transparent
-        material.userData.lighthouseBaseDepthWrite = material.depthWrite
         materials.push(material)
       }
     })
-
-    materialsRef.current = materials
-    meshesRef.current = meshes
 
     return () => {
       _lighthouseGroupRef = null
       for (const material of materials) material.dispose()
     }
   }, [model])
-
-  useFrame(() => {
-    const sp = useScrollStore.getState().scrollProgress
-    const fadeOut = smoothstep(clamped(sp, TIMELINE.whiteOut.start, TIMELINE.whiteOut.end))
-    const visibleOpacity = 1 - fadeOut
-
-    if (!groupRef.current) return
-    groupRef.current.visible = visibleOpacity > 0.015
-
-    for (const mesh of meshesRef.current) {
-      const baseRenderOrder = mesh.userData.lighthouseBaseRenderOrder ?? 0
-      mesh.renderOrder = visibleOpacity < 0.999 ? -20 : baseRenderOrder
-    }
-
-    for (const material of materialsRef.current) {
-      const baseOpacity = material.userData.lighthouseBaseOpacity ?? 1
-      const baseTransparent = material.userData.lighthouseBaseTransparent ?? material.transparent
-      const baseDepthWrite = material.userData.lighthouseBaseDepthWrite ?? material.depthWrite
-      material.opacity = baseOpacity * visibleOpacity
-      material.transparent = baseTransparent || visibleOpacity < 0.999
-      material.depthWrite = fadeOut > 0.68 ? false : baseDepthWrite
-      material.needsUpdate = true
-    }
-  })
 
   return (
     <group

@@ -24,7 +24,7 @@ export interface AppearanceResult {
 export function calcAppearance(
   d: ParticleData,
   sp: number,
-  wof: number,        // white-out factor [0,1]
+  wof: number,        // Act 1-to-2 formation factor [0,1]
   smooth3: number,     // Act 3 progress [0,1]
   cameraDistance: number,
   beamFactor: number,  // 光束照射因子 [0,1]

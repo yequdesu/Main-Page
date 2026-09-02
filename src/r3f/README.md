@@ -9,8 +9,8 @@ R3F Canvas 配置、渲染循环桥接、全局场景管理。本目录的组�
 | 文件 | 职责 | 生命周期 |
 |------|------|----------|
 | `Canvas.tsx` | R3F `<Canvas>` 配置：`flat`（NoToneMapping）、`frameloop="demand"`、相机、初始背�?�?| 始终挂载 |
-| `ScrollRig.ts` | 所有滚动阈值常量导�?+ `sceneApplyWhiteOut()`（背景色/雾密度） | 纯函�?常量 |
-| `ScrollInvalidator.tsx` | �?`subscribe` Zustand �?`invalidate()` 桥接渲染循环 �?每帧调用 `sceneApplyWhiteOut` | 始终挂载 |
+| `ScrollRig.ts` | 所有滚动阈值常量导�?+ `sceneApplyThemeTransition()`（背景色/雾密度） | 纯函�?常量 |
+| `ScrollInvalidator.tsx` | �?`subscribe` Zustand �?`invalidate()` 桥接渲染循环 �?每帧调用 `sceneApplyThemeTransition` | 始终挂载 |
 | `PlanetClickHandler.tsx` | NDC 投影行星点击检测（替代 R3F raycasting），`stopPropagation` 阻止快进 | 始终挂载 |
 
 ## 维护要点

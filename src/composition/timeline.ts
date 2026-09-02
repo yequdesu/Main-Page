@@ -24,16 +24,16 @@ function defineRange(
 }
 
 export const TIMELINE = {
-  act1OceanVoyage: defineRange('act1OceanVoyage', 0, 0.45, 'Act 1 ocean voyage macro phase'),
-  act2GridTransition: defineRange('act2GridTransition', 0.45, SCROLL_RIG.GRID_SHIFT_START, 'Act 2 grid transition macro phase'),
+  act1OceanVoyage: defineRange('act1OceanVoyage', 0, SCROLL_RIG.MINIATURE_END, 'Act 1 ocean voyage and miniature-universe exit'),
+  act2GridTransition: defineRange('act2GridTransition', SCROLL_RIG.MINIATURE_END, SCROLL_RIG.GRID_SHIFT_START, 'Act 2 grid transition macro phase'),
   act3ContentPhase: defineRange('act3ContentPhase', SCROLL_RIG.GRID_SHIFT_START, 1.0, 'Act 3 content macro phase'),
-  whiteOut: defineRange(
-    'whiteOut',
-    SCROLL_RIG.WHITE_OUT_THRESHOLD,
-    SCROLL_RIG.WHITE_OUT_END,
-    'Scene background/fog white-out transition',
+  miniatureShrink: defineRange(
+    'miniatureShrink',
+    SCROLL_RIG.MINIATURE_START,
+    SCROLL_RIG.MINIATURE_END,
+    'Act 1 scene continuously shrinks into a framed miniature universe',
   ),
-  fogFade: defineRange('fogFade', SCROLL_RIG.WHITE_OUT_END, 0.65, 'Fog fades out after white-out'),
+  act2ThemeReveal: defineRange('act2ThemeReveal', SCROLL_RIG.MINIATURE_END, 0.68, 'Theme background and lighting return after the miniature disappears'),
   wavesCascade: defineRange('wavesCascade', 0.24, 0.72, 'Ocean waves cascade into the grid transition'),
   wavesAct3Fade: defineRange('wavesAct3Fade', SCROLL_RIG.GRID_SHIFT_START, 1.0, 'Ocean fades as Act 3 shifts in'),
   gridExtend: defineRange('gridExtend', 0.60, SCROLL_RIG.GRID_SHIFT_START, 'Grid lines extend from near to far'),

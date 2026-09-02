@@ -13,7 +13,7 @@ import { NIGHT_ACT1, NIGHT_ACT3, DAY_ACT1, DAY_ACT3, scrollThemeVars, blendTheme
 //
 //   Scroll 驱动 �?TerminalBar useEffect [scrollProgress] �?
 //                  handleThemeUpdate(sp) �?--tw-* CSS 变量
-//                  scrollT 夹紧�?Act 2 (0.40�?.55)，Act 1/3 保持端点�?
+//                  scrollT 在微缩宇宙消失后的 Act 2 主题恢复区间推进。
 //
 //   Command 驱动 �?setDayNight() �?themeKey 递增 �?
 //                  TerminalBar 立即重渲�?�?handleThemeUpdate 读最�?blend
@@ -62,8 +62,8 @@ export function useDayNight(): { handleThemeUpdate: (sp: number) => Record<strin
   const handleThemeUpdate = useCallback((sp: number) => {
     // Act 1：强�?night 色板，忽�?dayNight 选择（dark ocean 场景需暗色终端�?
     // 进入 Act 2 后恢复实�?blend 值，scroll �?Act 1 时立即切�?night
-    const blend = sp < TIMELINE.whiteOut.start ? 0 : blendRef.current
-    const scrollT = smoothstep01(progress('whiteOut', sp))
+    const blend = sp < TIMELINE.act2ThemeReveal.start ? 0 : blendRef.current
+    const scrollT = smoothstep01(progress('act2ThemeReveal', sp))
     const nightCss = scrollThemeVars(NIGHT_ACT1, NIGHT_ACT3, scrollT)
     const dayCss = scrollThemeVars(DAY_ACT1, DAY_ACT3, scrollT)
     return blendThemeVars(nightCss, dayCss, blend)
