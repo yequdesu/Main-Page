@@ -1,17 +1,4 @@
-export const stylizedOceanVertexShader = /* glsl */`
-  uniform sampler2D uReefField;
-  uniform vec2 uOceanOrigin;
-  uniform vec2 uOceanExtent;
-  uniform float uTime;
-  varying vec2 vUv;
-  varying vec3 vWorldPosition;
-  varying vec3 vLocalPosition;
-  varying float vWaveHeight;
-  varying float vCrest;
-  varying float vReefProximity;
-  varying float vObstacle;
-  #include <fog_pars_vertex>
-
+const stylizedOceanWaveDisplacement = /* glsl */`
   const float TAU = 6.28318530718;
 
   vec2 oceanUvFromLocalXZ(vec2 localXZ) {
@@ -53,12 +40,13 @@ export const stylizedOceanVertexShader = /* glsl */`
     compression += max(0.0, sharpenedSine * steepness) * brokenCrest;
   }
 
-  void main() {
-    vUv = uv;
-    vec4 restReefField = texture2D(uReefField, uv);
-
-    vec2 restPoint = position.xz;
-    vec2 warpedPoint = restPoint + vec2(
+  void sampleOceanDisplacement(
+    vec2 restPoint,
+    out vec2 warpedPoint,
+    out vec3 displacement,
+    out float compression
+  ) {
+    warpedPoint = restPoint + vec2(
       sin(restPoint.y * 0.105 + uTime * 0.075),
       cos(restPoint.x * 0.092 - uTime * 0.061)
     ) * 1.25;
@@ -67,8 +55,8 @@ export const stylizedOceanVertexShader = /* glsl */`
       cos(restPoint.y * 0.49 + restPoint.x * 0.28 - uTime * 0.14)
     ) * 0.34;
 
-    vec3 displacement = vec3(0.0);
-    float compression = 0.0;
+    displacement = vec3(0.0);
+    compression = 0.0;
     addWave(displacement, compression, warpedPoint, vec2(0.82, 0.57), 19.5, 0.42, 1.04, 0.50, 0.0);
     addWave(displacement, compression, warpedPoint, vec2(-0.34, 0.94), 13.0, 0.27, 0.98, 0.62, 1.3);
     addWave(displacement, compression, warpedPoint, vec2(0.96, -0.27), 8.2, 0.16, 0.92, 0.78, 2.5);
@@ -79,6 +67,34 @@ export const stylizedOceanVertexShader = /* glsl */`
     addWave(displacement, compression, warpedPoint, vec2(0.48, 0.88), 1.18, 0.015, 0.64, 1.72, 5.0);
     addWave(displacement, compression, warpedPoint, vec2(0.99, 0.12), 0.86, 0.010, 0.60, 1.91, 0.4);
     addWave(displacement, compression, warpedPoint, vec2(-0.57, -0.82), 0.64, 0.006, 0.56, 2.12, 3.0);
+  }
+`
+
+export const stylizedOceanVertexShader = /* glsl */`
+  uniform sampler2D uReefField;
+  uniform vec2 uOceanOrigin;
+  uniform vec2 uOceanExtent;
+  uniform float uTime;
+  varying vec2 vUv;
+  varying vec3 vWorldPosition;
+  varying vec3 vLocalPosition;
+  varying float vWaveHeight;
+  varying float vCrest;
+  varying float vReefProximity;
+  varying float vObstacle;
+  #include <fog_pars_vertex>
+
+  ${stylizedOceanWaveDisplacement}
+
+  void main() {
+    vUv = uv;
+    vec4 restReefField = texture2D(uReefField, uv);
+
+    vec2 restPoint = position.xz;
+    vec2 warpedPoint;
+    vec3 displacement;
+    float compression;
+    sampleOceanDisplacement(restPoint, warpedPoint, displacement, compression);
 
     // Gerstner waves move vertices horizontally. Damp that movement before
     // entering the reef, then resample from the displaced local XZ position so
@@ -238,9 +254,18 @@ export const stylizedOceanFragmentShader = /* glsl */`
       shoreNoise * 0.66 + contactDetail * 0.34
     );
     float contactEnvelope = smoothstep(0.08, 0.38, vReefProximity) *
-      (1.0 - smoothstep(0.94, 1.0, vReefProximity));
-    float contactFoam = contactEnvelope * movingContactFront * contactFragments *
-      (1.0 - vObstacle);
+      (1.0 - smoothstep(0.96, 1.0, vReefProximity));
+    float movingContactFoam = contactEnvelope * movingContactFront * contactFragments;
+
+    // A narrow near-shore rim follows the actual rasterised reef footprint.
+    // Noise only varies its thickness and energy, so it reads as surf without
+    // exposing the broader distance field as a perfect static ring.
+    float shorelineBand = smoothstep(0.72, 0.84, vReefProximity) *
+      (1.0 - smoothstep(0.955, 0.995, vReefProximity));
+    float shorelineVariation = mix(0.58, 1.0, contactFragments) *
+      (0.82 + 0.18 * sin(contactPhase * 0.72 + uTime * 0.65));
+    float shorelineFoam = shorelineBand * shorelineVariation;
+    float contactFoam = max(movingContactFoam, shorelineFoam) * (1.0 - vObstacle);
 
     vec3 toSurface = vWorldPosition - uBeamOrigin;
     float alongBeam = dot(toSurface, uBeamDirection);
@@ -271,7 +296,7 @@ export const stylizedOceanFragmentShader = /* glsl */`
       beamFoam
     );
     float crestOpacity = smoothstep(0.48, 0.62, crestFoam) * mix(0.30, 0.96, beamFoam);
-    float contactOpacity = smoothstep(0.34, 0.58, contactFoam) * mix(0.14, 0.78, beamFoam);
+    float contactOpacity = smoothstep(0.30, 0.56, contactFoam) * mix(0.20, 0.82, beamFoam);
     float foamOpacity = max(crestOpacity, contactOpacity);
     color = mix(color, foamColor, foamOpacity);
 
@@ -281,13 +306,37 @@ export const stylizedOceanFragmentShader = /* glsl */`
 `
 
 export const stylizedOceanVolumeVertexShader = /* glsl */`
+  attribute float aSurfaceEdge;
+  uniform vec2 uOceanOrigin;
+  uniform vec2 uOceanExtent;
+  uniform float uTime;
   varying float vLocalY;
   varying vec3 vWorldPosition;
   #include <fog_pars_vertex>
 
+  ${stylizedOceanWaveDisplacement}
+
   void main() {
-    vLocalY = position.y;
-    vec4 worldPosition = modelMatrix * vec4(position, 1.0);
+    vec3 displaced = position;
+    if (aSurfaceEdge > 0.5) {
+      vec2 warpedPoint;
+      vec3 waveDisplacement;
+      float compression;
+      sampleOceanDisplacement(position.xz, warpedPoint, waveDisplacement, compression);
+      displaced += waveDisplacement;
+      vec2 containerMin = vec2(
+        uOceanOrigin.x,
+        uOceanOrigin.y - uOceanExtent.y
+      ) + vec2(0.015);
+      vec2 containerMax = vec2(
+        uOceanOrigin.x + uOceanExtent.x,
+        uOceanOrigin.y
+      ) - vec2(0.015);
+      displaced.xz = clamp(displaced.xz, containerMin, containerMax);
+    }
+
+    vLocalY = displaced.y;
+    vec4 worldPosition = modelMatrix * vec4(displaced, 1.0);
     vWorldPosition = worldPosition.xyz;
     vec4 mvPosition = viewMatrix * worldPosition;
     gl_Position = projectionMatrix * mvPosition;

@@ -2,8 +2,8 @@ import { useEffect, useMemo, useRef } from 'react'
 import { useFrame, useLoader } from '@react-three/fiber'
 import {
   ClampToEdgeWrapping,
-  BackSide,
-  BoxGeometry,
+  BufferAttribute,
+  BufferGeometry,
   DataTexture,
   DoubleSide,
   LinearFilter,
@@ -55,6 +55,62 @@ const OCEAN_WIDTH = OCEAN_BOUNDS.maxX - OCEAN_BOUNDS.minX
 const OCEAN_DEPTH = OCEAN_BOUNDS.maxZ - OCEAN_BOUNDS.minZ
 const DEFAULT_BEAM_ORIGIN = new Vector3(0, LIGHTHOUSE_LAMP_WORLD_Y, SCENE_CENTER_Z)
 const DEFAULT_BEAM_DIRECTION = new Vector3(0, 0, 1)
+
+interface OceanEdge {
+  from: readonly [number, number]
+  to: readonly [number, number]
+}
+
+function buildOceanVolumeGeometry(segments: number): BufferGeometry {
+  const geometry = new BufferGeometry()
+  const positions: number[] = []
+  const surfaceEdges: number[] = []
+  const indices: number[] = []
+  const edges: OceanEdge[] = [
+    { from: [OCEAN_BOUNDS.minX, OCEAN_BOUNDS.maxZ], to: [OCEAN_BOUNDS.maxX, OCEAN_BOUNDS.maxZ] },
+    { from: [OCEAN_BOUNDS.maxX, OCEAN_BOUNDS.maxZ], to: [OCEAN_BOUNDS.maxX, OCEAN_BOUNDS.minZ] },
+    { from: [OCEAN_BOUNDS.maxX, OCEAN_BOUNDS.minZ], to: [OCEAN_BOUNDS.minX, OCEAN_BOUNDS.minZ] },
+    { from: [OCEAN_BOUNDS.minX, OCEAN_BOUNDS.minZ], to: [OCEAN_BOUNDS.minX, OCEAN_BOUNDS.maxZ] },
+  ]
+
+  for (const edge of edges) {
+    const edgeVertexStart = positions.length / 3
+    for (let index = 0; index <= segments; index++) {
+      const t = index / segments
+      const x = edge.from[0] + (edge.to[0] - edge.from[0]) * t
+      const z = edge.from[1] + (edge.to[1] - edge.from[1]) * t
+      positions.push(x, OCEAN_BASE_Y, z, x, OCEAN_VOLUME_BOTTOM_Y, z)
+      surfaceEdges.push(1, 0)
+    }
+    for (let index = 0; index < segments; index++) {
+      const topA = edgeVertexStart + index * 2
+      const bottomA = topA + 1
+      const topB = topA + 2
+      const bottomB = topA + 3
+      indices.push(topA, bottomA, topB, topB, bottomA, bottomB)
+    }
+  }
+
+  const bottomStart = positions.length / 3
+  positions.push(
+    OCEAN_BOUNDS.minX, OCEAN_VOLUME_BOTTOM_Y, OCEAN_BOUNDS.maxZ,
+    OCEAN_BOUNDS.maxX, OCEAN_VOLUME_BOTTOM_Y, OCEAN_BOUNDS.maxZ,
+    OCEAN_BOUNDS.maxX, OCEAN_VOLUME_BOTTOM_Y, OCEAN_BOUNDS.minZ,
+    OCEAN_BOUNDS.minX, OCEAN_VOLUME_BOTTOM_Y, OCEAN_BOUNDS.minZ,
+  )
+  surfaceEdges.push(0, 0, 0, 0)
+  indices.push(
+    bottomStart, bottomStart + 2, bottomStart + 1,
+    bottomStart, bottomStart + 3, bottomStart + 2,
+  )
+
+  geometry.setAttribute('position', new BufferAttribute(new Float32Array(positions), 3))
+  geometry.setAttribute('aSurfaceEdge', new BufferAttribute(new Float32Array(surfaceEdges), 1))
+  geometry.setIndex(indices)
+  geometry.computeBoundingSphere()
+  if (geometry.boundingSphere) geometry.boundingSphere.radius += 2
+  return geometry
+}
 
 /**
  * A fully three-dimensional procedural ocean. Broad Gerstner waves provide
@@ -126,25 +182,10 @@ export default function OceanWaves() {
       fog: true,
     })
 
-    // BoxGeometry stores +Y as its third material group. Omitting that group
-    // leaves an open top. The remaining shell is rendered inward-only so its
-    // near wall cannot sit in front of and truncate the animated surface; the
-    // far walls and bottom still make the miniature ocean read as filled.
-    const oceanVolumeGeometry = new BoxGeometry(
-      OCEAN_WIDTH,
-      OCEAN_VOLUME_DEPTH,
-      OCEAN_DEPTH,
-    )
-    oceanVolumeGeometry.translate(
-      0,
-      (OCEAN_BASE_Y + OCEAN_VOLUME_BOTTOM_Y) / 2,
-      OCEAN_CENTER_Z,
-    )
-    const visibleVolumeGroups = oceanVolumeGeometry.groups.filter((_, index) => index !== 2)
-    oceanVolumeGeometry.clearGroups()
-    for (const group of visibleVolumeGroups) {
-      oceanVolumeGeometry.addGroup(group.start, group.count, 0)
-    }
+    // The volume is an animated perimeter skirt plus a fixed bottom. Its top
+    // row runs through the same displacement function as the surface edge, so
+    // the miniature water body remains sealed at every point in the wave cycle.
+    const oceanVolumeGeometry = buildOceanVolumeGeometry(SURFACE_SEGMENTS)
 
     const oceanVolumeMaterial = new ShaderMaterial({
       vertexShader: stylizedOceanVolumeVertexShader,
@@ -154,13 +195,16 @@ export default function OceanWaves() {
         {
           uSurfaceY: { value: OCEAN_BASE_Y },
           uVolumeDepth: { value: OCEAN_VOLUME_DEPTH },
+          uOceanOrigin: { value: new Vector2(OCEAN_BOUNDS.minX, OCEAN_BOUNDS.maxZ) },
+          uOceanExtent: { value: new Vector2(OCEAN_WIDTH, OCEAN_DEPTH) },
+          uTime: { value: 0 },
           uOpacity: { value: 1 },
         },
       ]),
       transparent: surfaceLayer.transparent,
       depthTest: surfaceLayer.depthTest,
       depthWrite: surfaceLayer.depthWrite,
-      side: BackSide,
+      side: DoubleSide,
       fog: true,
     })
 
@@ -190,13 +234,23 @@ export default function OceanWaves() {
     const active = sp < TIMELINE.miniatureShrink.end + 0.01
     touchActorFrame('waves', Math.round(state.clock.elapsedTime * 60), active)
     if (surfaceRef.current) surfaceRef.current.visible = active
-    if (volumeRef.current) volumeRef.current.visible = active
-    if (!active) return
+    if (!active) {
+      if (volumeRef.current) volumeRef.current.visible = false
+      return
+    }
 
     material.uniforms.uTime.value = state.clock.elapsedTime
     const act3Progress = clamped(sp, TIMELINE.act3Shift.start, 1)
-    material.uniforms.uOpacity.value = 1 - smoothstep(act3Progress)
-    volumeMaterial.uniforms.uOpacity.value = 1 - smoothstep(act3Progress)
+    const sceneOpacity = 1 - smoothstep(act3Progress)
+    const volumeReveal = smoothstep(clamped(
+      sp,
+      TIMELINE.miniatureShrink.start + 0.015,
+      0.48,
+    ))
+    material.uniforms.uOpacity.value = sceneOpacity
+    volumeMaterial.uniforms.uTime.value = state.clock.elapsedTime
+    volumeMaterial.uniforms.uOpacity.value = sceneOpacity * volumeReveal
+    if (volumeRef.current) volumeRef.current.visible = volumeReveal > 0.001
 
     const beamOrigin = readBeamWorldOrigin()
     const beamDirection = readBeamWorldDirection()
