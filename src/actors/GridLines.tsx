@@ -123,7 +123,7 @@ export default function GridLines() {
       return
     }
 
-    // 0.60-0.85: 延伸(A→B)  /  0.85-0.95: 回收(A→B，近先消失如擦除)
+    // 0.55-0.85: 延伸(A→B)  /  0.85-0.95: 回收(A→B，近先消失如擦除)
     const retracting = sp >= EXT_END
     const rawLp = retracting
       ? 1.0 - clamped(sp, EXT_END, RETRACT_END)  // 1�?

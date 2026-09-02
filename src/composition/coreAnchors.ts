@@ -1,6 +1,6 @@
 import { Vector3 } from 'three'
 import { readAnchor, useAnchorStore, type AnchorInput, type DataRef } from './anchorStore'
-import type { CoordinateSpace } from './coordinate'
+import type { CoordinateSpace, LayoutBox } from './coordinate'
 
 export interface WorldPoint {
   x: number
@@ -49,6 +49,7 @@ export const centralStarWorldAnchorId = 'anchor.centralStar.world'
 export const centralStarScreenAnchorId = 'anchor.centralStar.screen'
 export const beamWorldOriginAnchorId = 'anchor.beam.worldOrigin'
 export const beamWorldDirectionAnchorId = 'anchor.beam.worldDirection'
+export const miniatureFaceRectAnchorId = 'anchor.miniature.faceRect'
 
 export function pointFromVector3(v: Vector3): WorldPoint {
   return { x: v.x, y: v.y, z: v.z }
@@ -128,4 +129,8 @@ export function readBeamWorldOrigin(): WorldPoint | undefined {
 
 export function readBeamWorldDirection(): WorldPoint | undefined {
   return readAnchorValue<WorldPoint>(beamWorldDirectionAnchorId)
+}
+
+export function readMiniatureFaceRect(): LayoutBox | undefined {
+  return readAnchorValue<LayoutBox>(miniatureFaceRectAnchorId)
 }

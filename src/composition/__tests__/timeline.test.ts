@@ -3,12 +3,16 @@ import { TIMELINE, contains, direction, progress, smoothProgress } from '../time
 
 describe('composition timeline', () => {
   it('keeps core scroll ranges explicit and reversible', () => {
-    expect(TIMELINE.act1OceanVoyage).toMatchObject({ start: 0, end: 0.60, reversible: true })
-    expect(TIMELINE.act2GridTransition).toMatchObject({ start: 0.60, end: 0.85, reversible: true })
+    expect(TIMELINE.act1OceanVoyage).toMatchObject({ start: 0, end: 0.55, reversible: true })
+    expect(TIMELINE.act2GridTransition).toMatchObject({ start: 0.55, end: 0.85, reversible: true })
     expect(TIMELINE.act3ContentPhase).toMatchObject({ start: 0.85, end: 1.0, reversible: true })
-    expect(TIMELINE.miniatureShrink).toMatchObject({ start: 0.40, end: 0.60, reversible: true })
-    expect(TIMELINE.act2ThemeReveal).toMatchObject({ start: 0.60, end: 0.68, reversible: true })
-    expect(TIMELINE.gridExtend).toMatchObject({ start: 0.60, end: 0.85, reversible: true })
+    expect(TIMELINE.miniatureShrink).toMatchObject({ start: 0.40, end: 0.55, reversible: true })
+    expect(TIMELINE.cubeDrawAndTumble).toMatchObject({ start: 0.40, end: 0.50, reversible: true })
+    expect(TIMELINE.cubeWhiteFill).toMatchObject({ start: 0.50, end: 0.55, reversible: true })
+    expect(TIMELINE.squareSeedShrink).toMatchObject({ start: 0.55, end: 0.56, reversible: true })
+    expect(TIMELINE.squareBfsWave).toMatchObject({ start: 0.56, end: 0.60, reversible: true })
+    expect(TIMELINE.act2ThemeReveal).toMatchObject({ start: 0.55, end: 0.63, reversible: true })
+    expect(TIMELINE.gridExtend).toMatchObject({ start: 0.55, end: 0.85, reversible: true })
     expect(TIMELINE.gridRetract).toMatchObject({ start: 0.85, end: 0.95, reversible: true })
     expect(TIMELINE.orbitLineReveal).toMatchObject({ start: 0.85, end: 1.0, reversible: true })
     expect(TIMELINE.orbitGlow).toMatchObject({ start: 0.94, end: 1.0, reversible: true })
@@ -17,10 +21,10 @@ describe('composition timeline', () => {
   it('computes clamped progress without side effects', () => {
     expect(progress('miniatureShrink', 0.20)).toBe(0)
     expect(progress('miniatureShrink', 0.40)).toBe(0)
-    expect(progress('miniatureShrink', 0.50)).toBeCloseTo(0.5)
-    expect(progress('miniatureShrink', 0.60)).toBe(1)
+    expect(progress('miniatureShrink', 0.475)).toBeCloseTo(0.5)
+    expect(progress('miniatureShrink', 0.55)).toBe(1)
     expect(progress('miniatureShrink', 0.80)).toBe(1)
-    expect(smoothProgress('miniatureShrink', 0.50)).toBeCloseTo(0.5)
+    expect(smoothProgress('miniatureShrink', 0.475)).toBeCloseTo(0.5)
   })
 
   it('reports containment and scroll direction', () => {

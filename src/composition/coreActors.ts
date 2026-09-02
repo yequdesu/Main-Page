@@ -13,6 +13,16 @@ export const CORE_ACTORS: ActorSpec[] = [
     debug: { label: 'Scene Background', inspect: ['miniatureShrink', 'themeReveal', 'fogDensity'] },
   },
   {
+    id: 'squareWaveTransition',
+    domain: 'dom',
+    layer: 'dom.squareWaveTransition',
+    lifecycle: { mount: 'always', activeWhen: 'timeline.squareSeedShrink.active || timeline.squareBfsWave.active', dispose: 'auto' },
+    timing: { clocks: ['scroll'], ranges: ['squareSeedShrink', 'squareBfsWave'] },
+    frame: { phase: 'dom.apply', after: ['sceneBackground'], skipWhenUnchanged: ['scroll', 'anchor'] },
+    consumes: ['scroll.sp', 'anchor.miniature.faceRect'],
+    interaction: { pointer: 'none' },
+  },
+  {
     id: 'beam',
     domain: 'webgl',
     layer: 'webgl.lightBeam',

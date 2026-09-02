@@ -15,7 +15,7 @@ export function clamped(sp: number, start: number, end: number): number {
 // 集中导出所有阈值（唯一真相源）
 export const {
   SCENE_CENTER_Z,
-  MINIATURE_START, MINIATURE_END,
+  MINIATURE_START, MINIATURE_END, SQUARE_TRANSITION_END,
   GRID_START, VERTICAL_START,
   TEXT_START, GRID_SHIFT_START,
   ORBIT_RADII, ORBIT_COUNT,

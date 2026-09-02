@@ -20,6 +20,7 @@ import FocusHudOverlay from './actors/FocusHudOverlay'
 import FocusInversionBlocks from './actors/FocusInversionBlocks'
 import FocusInversionDebugPanel from './composition/debug/FocusInversionDebugPanel'
 import LusionAtmosphereOverlay from './actors/LusionAtmosphereOverlay'
+import SquareWaveTransition from './actors/SquareWaveTransition'
 import { registerCoreActors } from './composition/coreActors'
 import { registerCoreSequences } from './composition/coreSequences'
 import { resetSequence, useSignal } from './composition/sequenceStore'
@@ -111,9 +112,9 @@ export default function App() {
   scrollProgressRef.current = scrollProgress
 
   // ---- Act visibility ----
-  // Act 1 ends only after the miniature universe has shrunk out of view.
-  const needsAct1 = (sp: number) => sp < TIMELINE.miniatureShrink.end + 0.01
-  const needsAct2 = (sp: number) => sp >= TIMELINE.miniatureShrink.end - 0.01
+  // The screen-space square takes over the face-on miniature at exactly 55%.
+  const needsAct1 = (sp: number) => sp <= TIMELINE.cubeWhiteFill.end + 0.0005
+  const needsAct2 = (sp: number) => sp >= TIMELINE.act2GridTransition.start - 0.001
   const needsAct3 = (sp: number) => sp >= TIMELINE.act3Shift.start - 0.01
 
   // ---- syncScrollbar ----
@@ -327,6 +328,7 @@ export default function App() {
       </SceneCanvas>
 
       <LusionAtmosphereOverlay />
+      <SquareWaveTransition />
 
       <MainTerminal
         mode={terminalMode}

@@ -121,6 +121,11 @@ export const LAYERS = {
     contract: { kind: 'dom', zIndex: 4, position: 'fixed', pointerEvents: 'none' },
     description: 'Independent Act 3 atmosphere overlay for Lusion particles and Tyndall light shafts.',
   },
+  'dom.squareWaveTransition': {
+    id: 'dom.squareWaveTransition',
+    contract: { kind: 'dom', zIndex: 6, position: 'fixed', pointerEvents: 'none' },
+    description: 'Act 1 to Act 2 white square BFS transition above the scene and below persistent UI.',
+  },
   'dom.mainTerminal': {
     id: 'dom.mainTerminal',
     contract: { kind: 'dom', zIndex: 15, position: 'fixed', pointerEvents: 'auto' },
