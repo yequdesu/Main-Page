@@ -34,7 +34,6 @@ export const TIMELINE = {
     'Act 1 scene continuously shrinks into a framed miniature universe',
   ),
   act2ThemeReveal: defineRange('act2ThemeReveal', SCROLL_RIG.MINIATURE_END, 0.68, 'Theme background and lighting return after the miniature disappears'),
-  wavesCascade: defineRange('wavesCascade', 0.24, 0.72, 'Ocean waves cascade into the grid transition'),
   wavesAct3Fade: defineRange('wavesAct3Fade', SCROLL_RIG.GRID_SHIFT_START, 1.0, 'Ocean fades as Act 3 shifts in'),
   gridExtend: defineRange('gridExtend', 0.60, SCROLL_RIG.GRID_SHIFT_START, 'Grid lines extend from near to far'),
   gridRetract: defineRange('gridRetract', SCROLL_RIG.GRID_SHIFT_START, 0.95, 'Grid lines retract as planets take over'),

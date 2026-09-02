@@ -22,7 +22,9 @@ describe('miniature universe transition', () => {
     expect(framed.scale).toBeLessThan(0.26)
     expect(framed.scale).toBeGreaterThan(0.23)
     expect(framed.wireOpacity).toBeGreaterThan(0.99)
+    expect(framed.rotation[1]).toBeGreaterThan(0.17)
     expect(gone.scale).toBeCloseTo(0.001)
+    expect(gone.rotation[1]).toBeCloseTo(0.42)
     expect(gone.wireOpacity).toBe(0)
   })
 

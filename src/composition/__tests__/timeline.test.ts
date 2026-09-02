@@ -8,7 +8,6 @@ describe('composition timeline', () => {
     expect(TIMELINE.act3ContentPhase).toMatchObject({ start: 0.85, end: 1.0, reversible: true })
     expect(TIMELINE.miniatureShrink).toMatchObject({ start: 0.40, end: 0.60, reversible: true })
     expect(TIMELINE.act2ThemeReveal).toMatchObject({ start: 0.60, end: 0.68, reversible: true })
-    expect(TIMELINE.wavesCascade).toMatchObject({ start: 0.24, end: 0.72, reversible: true })
     expect(TIMELINE.gridExtend).toMatchObject({ start: 0.60, end: 0.85, reversible: true })
     expect(TIMELINE.gridRetract).toMatchObject({ start: 0.85, end: 0.95, reversible: true })
     expect(TIMELINE.orbitLineReveal).toMatchObject({ start: 0.85, end: 1.0, reversible: true })

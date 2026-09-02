@@ -3,7 +3,7 @@ import { SCROLL_RIG } from '../types'
 export const MINIATURE_CUBE_SIZE = 64
 export const MINIATURE_CUBE_HALF_SIZE = MINIATURE_CUBE_SIZE / 2
 export const MINIATURE_PIVOT = [0, -0.65, -24] as const
-export const MINIATURE_TILT = [-0.10, 0.16, 0.025] as const
+export const MINIATURE_TILT = [-0.10, 0.42, 0.025] as const
 
 const OCEAN_UNCHANGED_HALF_WIDTH = 28
 const OCEAN_CONTAINED_HALF_WIDTH = 31.5

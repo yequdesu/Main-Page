@@ -236,8 +236,7 @@ export default function OceanWaves() {
     if (shouldSkip(time, sp)) return
 
     const act3Progress = clamped(sp, TIMELINE.act3Shift.start, 1.0)
-    const smooth3 = smoothstep(act3Progress)
-    const gridOpacityMult = 1.0 - smooth3
+    const gridOpacityMult = 1.0 - smoothstep(act3Progress)
 
     // Bulk visibility
     if (gridOpacityMult < 0.001) {
@@ -258,10 +257,6 @@ export default function OceanWaves() {
     }
 
     const hlWeight = Math.max(0, Math.min(1, (TIMELINE.miniatureShrink.start - sp) / 0.10))
-    const CASCADE_START = TIMELINE.wavesCascade.start
-    const CASCADE_END = TIMELINE.wavesCascade.end
-    const baseGridFactor = clamped(sp, CASCADE_START, CASCADE_END)
-    const shiftY = -32.0 * smooth3
     const miniatureContainment = getMiniatureTransform(sp).containment
     const beamWorldOrigin = readBeamWorldOrigin() ?? DEFAULT_BEAM_ORIGIN
     const beamWorldDirection = readBeamWorldDirection() ?? DEFAULT_BEAM_DIRECTION
@@ -277,13 +272,6 @@ export default function OceanWaves() {
 
       const rawZ = d.z
       const baseDepthFade = Math.max(0, Math.min(1, (rawZ - (-52)) / 20.0))
-      // 层叠下落：远快近慢，非均匀间距
-      // 远处 (zNorm=0) �?0.24 开始；近处 (zNorm=1) �?0.60 开�?
-      const zNorm = (rawZ + 52) / 57  // 0(�? �?1(�?
-      const dropStart = CASCADE_START + zNorm * (TIMELINE.gridExtend.start - CASCADE_START)  // 0.24�?.60
-      const waveGF = clamped(sp, dropStart, CASCADE_END)  // 每层独立起止
-      const dropY = -40.0 * waveGF  // 每层下落出画�?
-
       for (let j = 0; j <= d.segCount; j++) {
         const idx = j * 3
         const originalX = (j / d.segCount - 0.5) * d.span * 2
@@ -294,7 +282,7 @@ export default function OceanWaves() {
           Math.sin(originalX * d.frequency + tWave) * d.amplitude +
           Math.sin(originalX * d.frequency * 1.8 + tWave * 1.2) * d.amplitude * 0.4
 
-        pArr[idx + 1] = waveY + (d.baseY - waveY) * waveGF + shiftY + dropY
+        pArr[idx + 1] = waveY
 
         // ---- Volumetric spotlight: per-vertex color highlight ----
         // �?animateWavesAndLighting():106-122
@@ -328,7 +316,7 @@ export default function OceanWaves() {
       }
       pa.needsUpdate = true
       ca.needsUpdate = true
-      ;(line.material as LineBasicMaterial).opacity = (d.opacity + (0.45 - d.opacity) * waveGF) * baseDepthFade * gridOpacityMult
+      ;(line.material as LineBasicMaterial).opacity = d.opacity * baseDepthFade * gridOpacityMult
 
       // 同步水幕顶边 + 底边 Y 到波浪曲�?
       const cMesh = curtainMeshes[i]
@@ -339,7 +327,7 @@ export default function OceanWaves() {
           cPosArr[j * 3] = pArr[j * 3]
           cPosArr[j * 3 + 1] = pArr[j * 3 + 1]           // 顶边 = 波浪�?Y
           cPosArr[(vCount + j) * 3] = pArr[j * 3]
-          cPosArr[(vCount + j) * 3 + 1] = CURTAIN_BOTTOM_Y + dropY  // 底边同步下落
+          cPosArr[(vCount + j) * 3 + 1] = CURTAIN_BOTTOM_Y
         }
         cMesh.geometry.attributes.position.needsUpdate = true
 
@@ -347,8 +335,7 @@ export default function OceanWaves() {
     }
 
     // Animate the local reef mask from the same near wave that defines its
-    // waterline. It follows the cascade, but never changes the depth of the
-    // visible ocean curtains themselves.
+    // waterline. It remains spatially fixed while the wave surface moves.
     const reefWave = waveData[REEF_DEPTH_WAVE_INDEX]
     const reefDepthMesh = curtainDepthMeshes[0]
     const reefCurtainMesh = reefCurtainMeshes[0]
@@ -357,10 +344,6 @@ export default function OceanWaves() {
       const reefDepthArr = reefDepthPosition.array as Float32Array
       const reefCurtainPosition = reefCurtainMesh?.geometry.attributes.position
       const reefCurtainArr = reefCurtainPosition?.array as Float32Array | undefined
-      const reefZNorm = (reefWave.z + 52) / 57
-      const reefDropStart = CASCADE_START + reefZNorm * (TIMELINE.gridExtend.start - CASCADE_START)
-      const reefWaveGF = clamped(sp, reefDropStart, CASCADE_END)
-      const reefDropY = -40.0 * reefWaveGF
       for (let j = 0; j <= REEF_DEPTH_SEGMENTS; j++) {
         const idx = j * 3
         const x = reefDepthArr[idx]
@@ -368,8 +351,8 @@ export default function OceanWaves() {
         const waveY = reefWave.baseY +
           Math.sin(x * reefWave.frequency + tWave) * reefWave.amplitude +
           Math.sin(x * reefWave.frequency * 1.8 + tWave * 1.2) * reefWave.amplitude * 0.4
-        reefDepthArr[idx + 1] = waveY + (reefWave.baseY - waveY) * reefWaveGF + shiftY + reefDropY
-        reefDepthArr[(REEF_DEPTH_SEGMENTS + 1 + j) * 3 + 1] = CURTAIN_BOTTOM_Y + reefDropY
+        reefDepthArr[idx + 1] = waveY
+        reefDepthArr[(REEF_DEPTH_SEGMENTS + 1 + j) * 3 + 1] = CURTAIN_BOTTOM_Y
         if (reefCurtainArr) {
           reefCurtainArr[idx + 1] = reefDepthArr[idx + 1]
           reefCurtainArr[(REEF_DEPTH_SEGMENTS + 1 + j) * 3 + 1] = reefDepthArr[(REEF_DEPTH_SEGMENTS + 1 + j) * 3 + 1]
