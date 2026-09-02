@@ -37,13 +37,14 @@ export const stylizedOceanVertexShader = /* glsl */`
     float phase = waveNumber * dot(waveDirection, point) - uTime * speed + phaseOffset;
     float phaseBreakup =
       sin(dot(point, vec2(0.37, -0.29)) + uTime * 0.17 + phaseOffset * 1.7) * 0.24 +
-      sin(dot(point, vec2(-0.21, 0.43)) * 1.7 - uTime * 0.11) * 0.10;
+      sin(dot(point, vec2(-0.21, 0.43)) * 1.7 - uTime * 0.11) * 0.10 +
+      sin(dot(point, vec2(0.73, 0.51)) * 2.65 + uTime * 0.23 + phaseOffset) * 0.075;
     phase += phaseBreakup;
     float sine = sin(phase);
     float cosine = cos(phase);
-    float crestProfile = 2.0 * pow(0.5 + 0.5 * sine, 2.2) - 0.66;
-    float sharpenedSine = mix(sine, crestProfile, 0.72);
-    float crestPush = mix(0.68, 1.0, smoothstep(-0.05, 0.92, sharpenedSine));
+    float crestProfile = 2.0 * pow(0.5 + 0.5 * sine, 3.45) - 0.58;
+    float sharpenedSine = mix(sine, crestProfile, 0.88);
+    float crestPush = mix(0.58, 1.08, smoothstep(-0.08, 0.86, sharpenedSine));
     displacement.xz += waveDirection * (steepness * amplitude) * cosine * crestPush;
     displacement.y += amplitude * sharpenedSine;
     float brokenCrest = 0.72 + 0.28 * sin(
@@ -61,15 +62,23 @@ export const stylizedOceanVertexShader = /* glsl */`
       sin(restPoint.y * 0.105 + uTime * 0.075),
       cos(restPoint.x * 0.092 - uTime * 0.061)
     ) * 1.25;
+    warpedPoint += vec2(
+      sin(restPoint.x * 0.57 - restPoint.y * 0.31 + uTime * 0.18),
+      cos(restPoint.y * 0.49 + restPoint.x * 0.28 - uTime * 0.14)
+    ) * 0.34;
 
     vec3 displacement = vec3(0.0);
     float compression = 0.0;
-    addWave(displacement, compression, warpedPoint, vec2(0.82, 0.57), 19.5, 0.46, 0.94, 0.50, 0.0);
-    addWave(displacement, compression, warpedPoint, vec2(-0.34, 0.94), 13.0, 0.30, 0.88, 0.62, 1.3);
-    addWave(displacement, compression, warpedPoint, vec2(0.96, -0.27), 8.2, 0.18, 0.82, 0.78, 2.5);
-    addWave(displacement, compression, warpedPoint, vec2(-0.72, -0.69), 5.4, 0.105, 0.74, 0.96, 0.7);
-    addWave(displacement, compression, warpedPoint, vec2(0.19, 0.98), 3.4, 0.060, 0.64, 1.15, 3.4);
-    addWave(displacement, compression, warpedPoint, vec2(0.67, -0.74), 2.25, 0.035, 0.55, 1.38, 4.1);
+    addWave(displacement, compression, warpedPoint, vec2(0.82, 0.57), 19.5, 0.42, 1.04, 0.50, 0.0);
+    addWave(displacement, compression, warpedPoint, vec2(-0.34, 0.94), 13.0, 0.27, 0.98, 0.62, 1.3);
+    addWave(displacement, compression, warpedPoint, vec2(0.96, -0.27), 8.2, 0.16, 0.92, 0.78, 2.5);
+    addWave(displacement, compression, warpedPoint, vec2(-0.72, -0.69), 5.4, 0.090, 0.86, 0.96, 0.7);
+    addWave(displacement, compression, warpedPoint, vec2(0.19, 0.98), 3.4, 0.050, 0.78, 1.15, 3.4);
+    addWave(displacement, compression, warpedPoint, vec2(0.67, -0.74), 2.25, 0.030, 0.72, 1.38, 4.1);
+    addWave(displacement, compression, warpedPoint, vec2(-0.91, 0.41), 1.62, 0.021, 0.68, 1.56, 2.1);
+    addWave(displacement, compression, warpedPoint, vec2(0.48, 0.88), 1.18, 0.015, 0.64, 1.72, 5.0);
+    addWave(displacement, compression, warpedPoint, vec2(0.99, 0.12), 0.86, 0.010, 0.60, 1.91, 0.4);
+    addWave(displacement, compression, warpedPoint, vec2(-0.57, -0.82), 0.64, 0.006, 0.56, 2.12, 3.0);
 
     // Gerstner waves move vertices horizontally. Damp that movement before
     // entering the reef, then resample from the displaced local XZ position so
@@ -109,7 +118,7 @@ export const stylizedOceanVertexShader = /* glsl */`
     displaced.xz = clamp(displaced.xz, containerMin, containerMax);
     vLocalPosition = displaced;
     vWaveHeight = displacement.y;
-    vCrest = clamp(compression / 3.0, 0.0, 1.0);
+    vCrest = clamp(compression / 3.65, 0.0, 1.0);
     vReefProximity = reefProximity;
     vObstacle = obstacle;
 
@@ -195,12 +204,19 @@ export const stylizedOceanFragmentShader = /* glsl */`
     ) - 0.5;
     float broadFoam = fbm(foamPoint + foamWarp * 1.7);
     float fineFoam = fbm(foamPoint * 2.35 - vec2(uTime * 0.045, uTime * 0.018));
+    vec2 streakPoint = vec2(
+      dot(vLocalPosition.xz, vec2(0.84, 0.54)) * 0.38,
+      dot(vLocalPosition.xz, vec2(-0.54, 0.84)) * 1.42
+    );
+    float streakFoam = fbm(streakPoint + vec2(uTime * 0.055, -uTime * 0.11));
+    float brokenStreaks = smoothstep(0.54, 0.68, streakFoam) *
+      smoothstep(0.20, 0.62, vCrest + max(vWaveHeight, 0.0) * 0.34);
     float crestSignal =
       vCrest * 0.78 +
       smoothstep(0.26, 0.96, vWaveHeight) * 0.30 +
       (broadFoam - 0.50) * 0.34 +
-      (fineFoam - 0.52) * 0.12;
-    float crestFoam = smoothstep(0.64, 0.73, crestSignal);
+      (fineFoam - 0.52) * 0.16;
+    float crestFoam = max(smoothstep(0.64, 0.72, crestSignal), brokenStreaks * 0.82);
 
     float shoreNoise = fbm(
       vLocalPosition.xz * 0.42 + vec2(-uTime * 0.055, uTime * 0.031)
