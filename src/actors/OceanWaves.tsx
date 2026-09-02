@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef } from 'react'
 import { useFrame, useLoader } from '@react-three/fiber'
 import {
   ClampToEdgeWrapping,
+  BoxGeometry,
   DataTexture,
   DoubleSide,
   LinearFilter,
@@ -33,12 +34,15 @@ import {
 } from '../behaviors/reefObstacleMask'
 import {
   stylizedOceanFragmentShader,
+  stylizedOceanVolumeFragmentShader,
+  stylizedOceanVolumeVertexShader,
   stylizedOceanVertexShader,
 } from '../shaders/StylizedOceanShader'
 
-const REEF_FIELD_RESOLUTION = 512
-const SURFACE_SEGMENTS = 256
+const REEF_FIELD_RESOLUTION = 768
+const SURFACE_SEGMENTS = 384
 const OCEAN_BASE_Y = -2.18
+const OCEAN_VOLUME_DEPTH = 14
 const OCEAN_WIDTH = OCEAN_BOUNDS.maxX - OCEAN_BOUNDS.minX
 const OCEAN_DEPTH = OCEAN_BOUNDS.maxZ - OCEAN_BOUNDS.minZ
 const DEFAULT_BEAM_ORIGIN = new Vector3(0, LIGHTHOUSE_LAMP_WORLD_Y, SCENE_CENTER_Z)
@@ -55,6 +59,7 @@ export default function OceanWaves() {
   const gltf = useLoader(GLTFLoader, LIGHTHOUSE_MODEL_URL)
   const surfaceLayer = getWebglLayer('webgl.oceanLines')
   const surfaceRef = useRef<Mesh>(null)
+  const volumeRef = useRef<Mesh>(null)
 
   const reefFieldTexture = useMemo(() => {
     const mask = buildReefObstacleMask(gltf.scene, {
@@ -80,7 +85,7 @@ export default function OceanWaves() {
     return texture
   }, [gltf.scene])
 
-  const { geometry, material } = useMemo(() => {
+  const { geometry, material, volumeGeometry, volumeMaterial } = useMemo(() => {
     const oceanGeometry = new PlaneGeometry(
       OCEAN_WIDTH,
       OCEAN_DEPTH,
@@ -111,7 +116,49 @@ export default function OceanWaves() {
       fog: true,
     })
 
-    return { geometry: oceanGeometry, material: oceanMaterial }
+    // BoxGeometry stores +Y as its third material group. Omitting that group
+    // leaves an open top, so wave troughs remain visible from above while the
+    // sides and bottom make the miniature ocean read as a filled body.
+    const oceanVolumeGeometry = new BoxGeometry(
+      OCEAN_WIDTH - 0.8,
+      OCEAN_VOLUME_DEPTH,
+      OCEAN_DEPTH - 0.8,
+    )
+    oceanVolumeGeometry.translate(
+      0,
+      OCEAN_BASE_Y - 0.12 - OCEAN_VOLUME_DEPTH / 2,
+      SCENE_CENTER_Z,
+    )
+    const visibleVolumeGroups = oceanVolumeGeometry.groups.filter((_, index) => index !== 2)
+    oceanVolumeGeometry.clearGroups()
+    for (const group of visibleVolumeGroups) {
+      oceanVolumeGeometry.addGroup(group.start, group.count, 0)
+    }
+
+    const oceanVolumeMaterial = new ShaderMaterial({
+      vertexShader: stylizedOceanVolumeVertexShader,
+      fragmentShader: stylizedOceanVolumeFragmentShader,
+      uniforms: UniformsUtils.merge([
+        UniformsLib.fog,
+        {
+          uSurfaceY: { value: OCEAN_BASE_Y },
+          uVolumeDepth: { value: OCEAN_VOLUME_DEPTH },
+          uOpacity: { value: 1 },
+        },
+      ]),
+      transparent: surfaceLayer.transparent,
+      depthTest: surfaceLayer.depthTest,
+      depthWrite: surfaceLayer.depthWrite,
+      side: DoubleSide,
+      fog: true,
+    })
+
+    return {
+      geometry: oceanGeometry,
+      material: oceanMaterial,
+      volumeGeometry: oceanVolumeGeometry,
+      volumeMaterial: oceanVolumeMaterial,
+    }
   }, [
     reefFieldTexture,
     surfaceLayer.depthTest,
@@ -123,18 +170,22 @@ export default function OceanWaves() {
     reefFieldTexture.dispose()
     geometry.dispose()
     material.dispose()
-  }, [geometry, material, reefFieldTexture])
+    volumeGeometry.dispose()
+    volumeMaterial.dispose()
+  }, [geometry, material, reefFieldTexture, volumeGeometry, volumeMaterial])
 
   useFrame((state) => {
     const sp = useScrollStore.getState().scrollProgress
     const active = sp < TIMELINE.miniatureShrink.end + 0.01
     touchActorFrame('waves', Math.round(state.clock.elapsedTime * 60), active)
     if (surfaceRef.current) surfaceRef.current.visible = active
+    if (volumeRef.current) volumeRef.current.visible = active
     if (!active) return
 
     material.uniforms.uTime.value = state.clock.elapsedTime
     const act3Progress = clamped(sp, TIMELINE.act3Shift.start, 1)
     material.uniforms.uOpacity.value = 1 - smoothstep(act3Progress)
+    volumeMaterial.uniforms.uOpacity.value = 1 - smoothstep(act3Progress)
 
     const beamOrigin = readBeamWorldOrigin()
     const beamDirection = readBeamWorldDirection()
@@ -150,11 +201,19 @@ export default function OceanWaves() {
   })
 
   return (
-    <mesh
-      ref={surfaceRef}
-      geometry={geometry}
-      material={material}
-      renderOrder={surfaceLayer.renderOrder}
-    />
+    <>
+      <mesh
+        ref={volumeRef}
+        geometry={volumeGeometry}
+        material={volumeMaterial}
+        renderOrder={surfaceLayer.renderOrder - 1}
+      />
+      <mesh
+        ref={surfaceRef}
+        geometry={geometry}
+        material={material}
+        renderOrder={surfaceLayer.renderOrder}
+      />
+    </>
   )
 }
