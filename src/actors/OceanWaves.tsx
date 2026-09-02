@@ -13,6 +13,7 @@ import {
   UniformsLib,
   UniformsUtils,
   UnsignedByteType,
+  Vector2,
   Vector3,
 } from 'three'
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
@@ -103,6 +104,8 @@ export default function OceanWaves() {
         UniformsLib.fog,
         {
           uReefField: { value: reefFieldTexture },
+          uOceanOrigin: { value: new Vector2(OCEAN_BOUNDS.minX, OCEAN_BOUNDS.maxZ) },
+          uOceanExtent: { value: new Vector2(OCEAN_WIDTH, OCEAN_DEPTH) },
           uTime: { value: 0 },
           uBeamOrigin: { value: DEFAULT_BEAM_ORIGIN.clone() },
           uBeamDirection: { value: DEFAULT_BEAM_DIRECTION.clone() },

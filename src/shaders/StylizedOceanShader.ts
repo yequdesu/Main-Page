@@ -1,5 +1,7 @@
 export const stylizedOceanVertexShader = /* glsl */`
   uniform sampler2D uReefField;
+  uniform vec2 uOceanOrigin;
+  uniform vec2 uOceanExtent;
   uniform float uTime;
   varying vec2 vUv;
   varying vec3 vWorldPosition;
@@ -11,6 +13,13 @@ export const stylizedOceanVertexShader = /* glsl */`
   #include <fog_pars_vertex>
 
   const float TAU = 6.28318530718;
+
+  vec2 oceanUvFromLocalXZ(vec2 localXZ) {
+    return vec2(
+      (localXZ.x - uOceanOrigin.x) / uOceanExtent.x,
+      (uOceanOrigin.y - localXZ.y) / uOceanExtent.y
+    );
+  }
 
   void addWave(
     inout vec3 displacement,
@@ -40,9 +49,7 @@ export const stylizedOceanVertexShader = /* glsl */`
 
   void main() {
     vUv = uv;
-    vec4 reefField = texture2D(uReefField, uv);
-    float obstacle = reefField.r;
-    float reefProximity = reefField.g * (1.0 - obstacle);
+    vec4 restReefField = texture2D(uReefField, uv);
 
     vec2 restPoint = position.xz;
     vec2 warpedPoint = restPoint + vec2(
@@ -59,13 +66,27 @@ export const stylizedOceanVertexShader = /* glsl */`
     addWave(displacement, compression, warpedPoint, vec2(0.19, 0.98), 3.4, 0.060, 0.64, 1.15, 3.4);
     addWave(displacement, compression, warpedPoint, vec2(0.67, -0.74), 2.25, 0.035, 0.55, 1.38, 4.1);
 
-    float reefInfluence = pow(reefField.g, 1.35);
-    float waveScale = mix(1.0, 0.34, reefInfluence);
-    displacement *= waveScale;
+    // Gerstner waves move vertices horizontally. Damp that movement before
+    // entering the reef, then resample from the displaced local XZ position so
+    // the rendered response remains attached to the actual GLB footprint.
+    float restInfluence = smoothstep(0.04, 0.68, restReefField.g);
+    displacement.xz *= mix(1.0, 0.035, restInfluence);
+    vec2 collisionUv = oceanUvFromLocalXZ(position.xz + displacement.xz);
+    vec4 collisionField = texture2D(uReefField, collisionUv);
+    float displacedInfluence = smoothstep(0.04, 0.68, collisionField.g);
+    displacement.xz *= mix(1.0, 0.035, displacedInfluence);
+    collisionUv = oceanUvFromLocalXZ(position.xz + displacement.xz);
+    collisionField = texture2D(uReefField, collisionUv);
+
+    float obstacle = collisionField.r;
+    float reefProximity = collisionField.g * (1.0 - obstacle);
+    float reefInfluence = pow(collisionField.g, 1.35);
+    displacement.y *= mix(1.0, 0.34, reefInfluence);
+    compression *= mix(1.0, 0.44, reefInfluence);
 
     // The smooth proximity field creates a compressed reflected wave around
     // the actual imported reef footprint without a discontinuous simulation.
-    float reflectedPhase = (1.0 - reefField.g) * 25.0;
+    float reflectedPhase = (1.0 - collisionField.g) * 25.0;
     float reflectedWave =
       sin(reflectedPhase - uTime * 1.45 + warpedPoint.x * 0.22) *
       reefProximity * 0.11;
