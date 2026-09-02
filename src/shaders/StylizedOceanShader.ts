@@ -221,18 +221,26 @@ export const stylizedOceanFragmentShader = /* glsl */`
       (fineFoam - 0.52) * 0.16;
     float crestFoam = max(smoothstep(0.64, 0.72, crestSignal), brokenStreaks * 0.82);
 
-    float shoreNoise = fbm(
-      vLocalPosition.xz * 0.42 + vec2(-uTime * 0.055, uTime * 0.031)
+    vec2 contactFlow = vec2(-uTime * 0.085, uTime * 0.052);
+    float shoreNoise = fbm(vLocalPosition.xz * 0.48 + contactFlow);
+    float contactDetail = fbm(
+      vLocalPosition.xz * 1.14 - contactFlow * 1.7 + vec2(4.8, -7.2)
     );
-    float contactPulse = 0.78 + sin(
-      uTime * 1.55 + vLocalPosition.x * 0.34 - vLocalPosition.z * 0.21
-    ) * 0.22;
-    float contactFoam =
-      smoothstep(0.14, 0.62, vReefProximity) *
-      smoothstep(0.42, 0.52, shoreNoise + contactPulse * 0.22) *
+    float contactPhase =
+      (1.0 - vReefProximity) * 23.0 -
+      uTime * 1.85 +
+      dot(vLocalPosition.xz, vec2(0.38, -0.27)) +
+      shoreNoise * 3.2;
+    float movingContactFront = pow(max(sin(contactPhase), 0.0), 4.5);
+    float contactFragments = smoothstep(
+      0.51,
+      0.68,
+      shoreNoise * 0.66 + contactDetail * 0.34
+    );
+    float contactEnvelope = smoothstep(0.08, 0.38, vReefProximity) *
+      (1.0 - smoothstep(0.94, 1.0, vReefProximity));
+    float contactFoam = contactEnvelope * movingContactFront * contactFragments *
       (1.0 - vObstacle);
-
-    float foam = clamp(max(crestFoam, contactFoam), 0.0, 1.0);
 
     vec3 toSurface = vWorldPosition - uBeamOrigin;
     float alongBeam = dot(toSurface, uBeamDirection);
@@ -262,7 +270,9 @@ export const stylizedOceanFragmentShader = /* glsl */`
       vec3(0.82, 0.87, 0.90),
       beamFoam
     );
-    float foamOpacity = smoothstep(0.48, 0.62, foam) * mix(0.30, 0.96, beamFoam);
+    float crestOpacity = smoothstep(0.48, 0.62, crestFoam) * mix(0.30, 0.96, beamFoam);
+    float contactOpacity = smoothstep(0.34, 0.58, contactFoam) * mix(0.14, 0.78, beamFoam);
+    float foamOpacity = max(crestOpacity, contactOpacity);
     color = mix(color, foamColor, foamOpacity);
 
     gl_FragColor = vec4(color, uOpacity);
