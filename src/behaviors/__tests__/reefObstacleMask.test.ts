@@ -1,8 +1,22 @@
 import { BoxGeometry, Group, Mesh } from 'three'
 import { describe, expect, it } from 'vitest'
-import { buildReefObstacleMask, buildReefProximityField } from '../reefObstacleMask'
+import {
+  buildReefObstacleMask,
+  buildReefProximityField,
+  OCEAN_BOUNDS,
+  OCEAN_CENTER_Z,
+} from '../reefObstacleMask'
+import { MINIATURE_CUBE_HALF_SIZE, MINIATURE_PIVOT } from '../miniatureUniverse'
 
 describe('reef obstacle mask', () => {
+  it('keeps the ocean bounds inside the miniature cube', () => {
+    expect(OCEAN_CENTER_Z).toBe(MINIATURE_PIVOT[2])
+    expect(OCEAN_BOUNDS.maxX).toBeLessThan(MINIATURE_CUBE_HALF_SIZE)
+    expect(-OCEAN_BOUNDS.minX).toBeLessThan(MINIATURE_CUBE_HALF_SIZE)
+    expect(OCEAN_BOUNDS.maxZ - OCEAN_CENTER_Z).toBeLessThan(MINIATURE_CUBE_HALF_SIZE)
+    expect(OCEAN_CENTER_Z - OCEAN_BOUNDS.minZ).toBeLessThan(MINIATURE_CUBE_HALF_SIZE)
+  })
+
   it('rasterises the actual mesh footprint into ocean coordinates', () => {
     const source = new Group()
     const reef = new Mesh(new BoxGeometry(2, 2, 2))

@@ -14,6 +14,8 @@ export const OCEAN_BOUNDS: OceanBounds = {
   maxZ: 7.5,
 }
 
+export const OCEAN_CENTER_Z = (OCEAN_BOUNDS.minZ + OCEAN_BOUNDS.maxZ) / 2
+
 interface ReefMaskOptions {
   resolution: number
   modelScale: number

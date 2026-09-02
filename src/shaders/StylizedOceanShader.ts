@@ -35,16 +35,21 @@ export const stylizedOceanVertexShader = /* glsl */`
     vec2 waveDirection = normalize(direction);
     float waveNumber = TAU / wavelength;
     float phase = waveNumber * dot(waveDirection, point) - uTime * speed + phaseOffset;
+    float phaseBreakup =
+      sin(dot(point, vec2(0.37, -0.29)) + uTime * 0.17 + phaseOffset * 1.7) * 0.24 +
+      sin(dot(point, vec2(-0.21, 0.43)) * 1.7 - uTime * 0.11) * 0.10;
+    phase += phaseBreakup;
     float sine = sin(phase);
     float cosine = cos(phase);
-    float sharpenedSine = mix(
-      sine,
-      sign(sine) * pow(abs(sine), 1.45),
-      0.58
-    );
-    displacement.xz += waveDirection * (steepness * amplitude) * cosine;
+    float crestProfile = 2.0 * pow(0.5 + 0.5 * sine, 2.2) - 0.66;
+    float sharpenedSine = mix(sine, crestProfile, 0.72);
+    float crestPush = mix(0.68, 1.0, smoothstep(-0.05, 0.92, sharpenedSine));
+    displacement.xz += waveDirection * (steepness * amplitude) * cosine * crestPush;
     displacement.y += amplitude * sharpenedSine;
-    compression += max(0.0, sharpenedSine * steepness);
+    float brokenCrest = 0.72 + 0.28 * sin(
+      point.x * 0.83 - point.y * 0.57 + phaseOffset * 2.3
+    );
+    compression += max(0.0, sharpenedSine * steepness) * brokenCrest;
   }
 
   void main() {
@@ -93,6 +98,15 @@ export const stylizedOceanVertexShader = /* glsl */`
     displacement.y += reflectedWave;
 
     vec3 displaced = position + displacement;
+    vec2 containerMin = vec2(
+      uOceanOrigin.x,
+      uOceanOrigin.y - uOceanExtent.y
+    ) + vec2(0.015);
+    vec2 containerMax = vec2(
+      uOceanOrigin.x + uOceanExtent.x,
+      uOceanOrigin.y
+    ) - vec2(0.015);
+    displaced.xz = clamp(displaced.xz, containerMin, containerMax);
     vLocalPosition = displaced;
     vWaveHeight = displacement.y;
     vCrest = clamp(compression / 3.0, 0.0, 1.0);
@@ -159,19 +173,20 @@ export const stylizedOceanFragmentShader = /* glsl */`
     vec3 keyDirection = normalize(vec3(-0.38, 0.84, 0.39));
 
     float diffuse = clamp(dot(normal, keyDirection) * 0.5 + 0.5, 0.0, 1.0);
-    float toonTone = step(0.34, diffuse) * 0.48 + step(0.66, diffuse) * 0.52;
-    float highFace = smoothstep(0.10, 1.12, vWaveHeight) * 0.18;
+    float shadowBlend = smoothstep(0.24, 0.55, diffuse);
+    float highlightBlend = smoothstep(0.52, 0.82, diffuse);
+    float highFace = smoothstep(0.16, 0.92, vWaveHeight) * 0.08;
 
-    // Lifted dark-scene palette: the shadow band stays blue-grey instead of
-    // collapsing into the near-black scene background.
-    vec3 deepColor = vec3(0.018, 0.045, 0.075);
-    vec3 middleColor = vec3(0.055, 0.120, 0.180);
-    vec3 lightColor = vec3(0.145, 0.245, 0.325);
-    vec3 color = mix(deepColor, middleColor, min(toonTone * 1.45 + highFace, 1.0));
-    color = mix(color, lightColor, max(0.0, toonTone - 0.48) * 1.92);
+    // Keep a narrow dark-scene value range and blend between it continuously;
+    // the surface remains stylised without posterised black/white jumps.
+    vec3 deepColor = vec3(0.028, 0.058, 0.084);
+    vec3 middleColor = vec3(0.052, 0.098, 0.132);
+    vec3 lightColor = vec3(0.088, 0.145, 0.188);
+    vec3 color = mix(deepColor, middleColor, shadowBlend);
+    color = mix(color, lightColor, clamp(highlightBlend * 0.72 + highFace, 0.0, 1.0));
 
     float fresnel = pow(1.0 - clamp(dot(normal, viewDirection), 0.0, 1.0), 3.0);
-    color = mix(color, lightColor * 1.08, smoothstep(0.18, 0.70, fresnel) * 0.34);
+    color = mix(color, lightColor * 1.04, smoothstep(0.22, 0.78, fresnel) * 0.18);
 
     vec2 foamPoint = vLocalPosition.xz * 0.235 + vec2(uTime * 0.075, -uTime * 0.047);
     vec2 foamWarp = vec2(
@@ -181,11 +196,11 @@ export const stylizedOceanFragmentShader = /* glsl */`
     float broadFoam = fbm(foamPoint + foamWarp * 1.7);
     float fineFoam = fbm(foamPoint * 2.35 - vec2(uTime * 0.045, uTime * 0.018));
     float crestSignal =
-      vCrest * 0.72 +
-      smoothstep(0.22, 1.10, vWaveHeight) * 0.42 +
-      (broadFoam - 0.48) * 0.52 +
-      (fineFoam - 0.50) * 0.16;
-    float crestFoam = smoothstep(0.600, 0.675, crestSignal);
+      vCrest * 0.78 +
+      smoothstep(0.26, 0.96, vWaveHeight) * 0.30 +
+      (broadFoam - 0.50) * 0.34 +
+      (fineFoam - 0.52) * 0.12;
+    float crestFoam = smoothstep(0.64, 0.73, crestSignal);
 
     float shoreNoise = fbm(
       vLocalPosition.xz * 0.42 + vec2(-uTime * 0.055, uTime * 0.031)
@@ -208,14 +223,16 @@ export const stylizedOceanFragmentShader = /* glsl */`
     beam *= smoothstep(-0.35, 2.2, alongBeam) *
       (1.0 - smoothstep(42.0, 64.0, alongBeam));
     float beamLight = beam * (0.55 + max(normal.y, 0.0) * 0.45);
-    color = mix(color, vec3(0.40, 0.56, 0.68), beamLight * 0.62);
+    color = mix(color, vec3(0.30, 0.43, 0.53), beamLight * 0.52);
 
+    float beamFoam = smoothstep(0.04, 0.62, beam);
     vec3 foamColor = mix(
-      vec3(0.52, 0.62, 0.70),
-      vec3(0.80, 0.86, 0.90),
-      toonTone * 0.65 + beam * 0.35
+      vec3(0.16, 0.22, 0.26),
+      vec3(0.82, 0.87, 0.90),
+      beamFoam
     );
-    color = mix(color, foamColor, smoothstep(0.46, 0.60, foam));
+    float foamOpacity = smoothstep(0.48, 0.62, foam) * mix(0.30, 0.96, beamFoam);
+    color = mix(color, foamColor, foamOpacity);
 
     gl_FragColor = vec4(color, uOpacity);
     #include <fog_fragment>
@@ -249,8 +266,8 @@ export const stylizedOceanVolumeFragmentShader = /* glsl */`
 
   void main() {
     float depth = clamp((uSurfaceY - vLocalY) / uVolumeDepth, 0.0, 1.0);
-    vec3 upperColor = vec3(0.018, 0.050, 0.078);
-    vec3 lowerColor = vec3(0.004, 0.012, 0.022);
+    vec3 upperColor = vec3(0.020, 0.047, 0.068);
+    vec3 lowerColor = vec3(0.006, 0.014, 0.024);
     vec3 color = mix(upperColor, lowerColor, smoothstep(0.0, 0.82, depth));
 
     // A faint horizontal band keeps the block readable as water in the dark

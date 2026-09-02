@@ -32,7 +32,12 @@ import {
   buildReefObstacleMask,
   buildReefProximityField,
   OCEAN_BOUNDS,
+  OCEAN_CENTER_Z,
 } from '../behaviors/reefObstacleMask'
+import {
+  MINIATURE_CUBE_HALF_SIZE,
+  MINIATURE_PIVOT,
+} from '../behaviors/miniatureUniverse'
 import {
   stylizedOceanFragmentShader,
   stylizedOceanVolumeFragmentShader,
@@ -43,7 +48,8 @@ import {
 const REEF_FIELD_RESOLUTION = 768
 const SURFACE_SEGMENTS = 384
 const OCEAN_BASE_Y = -2.18
-const OCEAN_VOLUME_DEPTH = 14
+const OCEAN_VOLUME_BOTTOM_Y = MINIATURE_PIVOT[1] - MINIATURE_CUBE_HALF_SIZE + 0.1
+const OCEAN_VOLUME_DEPTH = OCEAN_BASE_Y - OCEAN_VOLUME_BOTTOM_Y
 const OCEAN_WIDTH = OCEAN_BOUNDS.maxX - OCEAN_BOUNDS.minX
 const OCEAN_DEPTH = OCEAN_BOUNDS.maxZ - OCEAN_BOUNDS.minZ
 const DEFAULT_BEAM_ORIGIN = new Vector3(0, LIGHTHOUSE_LAMP_WORLD_Y, SCENE_CENTER_Z)
@@ -94,7 +100,7 @@ export default function OceanWaves() {
       SURFACE_SEGMENTS,
     )
     oceanGeometry.rotateX(-Math.PI / 2)
-    oceanGeometry.translate(0, OCEAN_BASE_Y, SCENE_CENTER_Z)
+    oceanGeometry.translate(0, OCEAN_BASE_Y, OCEAN_CENTER_Z)
     oceanGeometry.computeBoundingSphere()
 
     const oceanMaterial = new ShaderMaterial({
@@ -123,14 +129,14 @@ export default function OceanWaves() {
     // leaves an open top, so wave troughs remain visible from above while the
     // sides and bottom make the miniature ocean read as a filled body.
     const oceanVolumeGeometry = new BoxGeometry(
-      OCEAN_WIDTH - 0.8,
+      OCEAN_WIDTH,
       OCEAN_VOLUME_DEPTH,
-      OCEAN_DEPTH - 0.8,
+      OCEAN_DEPTH,
     )
     oceanVolumeGeometry.translate(
       0,
-      OCEAN_BASE_Y - 0.12 - OCEAN_VOLUME_DEPTH / 2,
-      SCENE_CENTER_Z,
+      (OCEAN_BASE_Y + OCEAN_VOLUME_BOTTOM_Y) / 2,
+      OCEAN_CENTER_Z,
     )
     const visibleVolumeGroups = oceanVolumeGeometry.groups.filter((_, index) => index !== 2)
     oceanVolumeGeometry.clearGroups()
