@@ -8,7 +8,7 @@
 |---|---|---|---|
 | `Lighthouse.tsx` | 静�?Mesh �?| scroll group transform | actor + layer |
 | `LightBeam.tsx` | Cone / Line / Glow / PointLight | scroll + elapsed time | actor + layer + beam anchors |
-| `OceanWaves.tsx` | GPU shallow-water height field | scroll + elapsed time + beam anchors + reef mask | actor + layer + anchor consumer |
+| `OceanWaves.tsx` | Procedural Gerstner toon ocean | scroll + elapsed time + beam anchors + reef field | actor + layer + anchor consumer |
 | `DustField.tsx` | Mesh + InstancedMesh2 | scroll + elapsed time | actor + layer |
 | `GridLines.tsx` | Lines + points | scroll progress | actor + layer |
 | `Planets.tsx` | Planet meshes / halos | scroll + elapsed time | actor + layer + world/screen anchors |

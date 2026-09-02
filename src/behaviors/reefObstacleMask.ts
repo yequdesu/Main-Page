@@ -131,3 +131,60 @@ export function buildReefObstacleMask(
   return dilateMask(mask, resolution, dilation)
 }
 
+/**
+ * Converts the binary reef footprint into a smooth, outward-facing proximity
+ * field. Red stores the solid obstacle and green fades from one at the reef to
+ * zero in open water. The ocean shader uses the gradient for contact foam and
+ * a small reflected-wave band without running a full-domain fluid solver.
+ */
+export function buildReefProximityField(
+  mask: Uint8Array,
+  resolution: number,
+  maxDistance = 48,
+): Uint8Array {
+  const distance = new Float32Array(resolution * resolution)
+  const diagonal = Math.SQRT2
+
+  for (let index = 0; index < distance.length; index++) {
+    distance[index] = mask[index] > 0 ? 0 : maxDistance
+  }
+
+  const relax = (index: number, neighbour: number, cost: number) => {
+    distance[index] = Math.min(distance[index], distance[neighbour] + cost)
+  }
+
+  for (let y = 0; y < resolution; y++) {
+    for (let x = 0; x < resolution; x++) {
+      const index = y * resolution + x
+      if (x > 0) relax(index, index - 1, 1)
+      if (y > 0) relax(index, index - resolution, 1)
+      if (x > 0 && y > 0) relax(index, index - resolution - 1, diagonal)
+      if (x + 1 < resolution && y > 0) relax(index, index - resolution + 1, diagonal)
+    }
+  }
+
+  for (let y = resolution - 1; y >= 0; y--) {
+    for (let x = resolution - 1; x >= 0; x--) {
+      const index = y * resolution + x
+      if (x + 1 < resolution) relax(index, index + 1, 1)
+      if (y + 1 < resolution) relax(index, index + resolution, 1)
+      if (x + 1 < resolution && y + 1 < resolution) {
+        relax(index, index + resolution + 1, diagonal)
+      }
+      if (x > 0 && y + 1 < resolution) {
+        relax(index, index + resolution - 1, diagonal)
+      }
+    }
+  }
+
+  const field = new Uint8Array(resolution * resolution * 4)
+  for (let index = 0; index < distance.length; index++) {
+    const proximity = 1 - Math.min(distance[index] / Math.max(1, maxDistance), 1)
+    const offset = index * 4
+    field[offset] = mask[index]
+    field[offset + 1] = Math.round(proximity * 255)
+    field[offset + 2] = 0
+    field[offset + 3] = 255
+  }
+  return field
+}

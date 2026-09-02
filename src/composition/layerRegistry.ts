@@ -34,7 +34,7 @@ export const LAYERS = {
   'webgl.oceanLines': {
     id: 'webgl.oceanLines',
     contract: { kind: 'webgl', renderOrder: -1, depthTest: true, depthWrite: true, transparent: true, blending: 'normal' },
-    description: 'GPU shallow-water height field with stylised foam and lighthouse response.',
+    description: 'Procedural Gerstner ocean with toon bands, reef foam and lighthouse response.',
   },
   'webgl.lightBeam': {
     id: 'webgl.lightBeam',
