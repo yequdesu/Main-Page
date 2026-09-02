@@ -182,17 +182,20 @@ export const stylizedOceanFragmentShader = /* glsl */`
     vec3 keyDirection = normalize(vec3(-0.38, 0.84, 0.39));
 
     float diffuse = clamp(dot(normal, keyDirection) * 0.5 + 0.5, 0.0, 1.0);
-    float shadowBlend = smoothstep(0.24, 0.55, diffuse);
-    float highlightBlend = smoothstep(0.52, 0.82, diffuse);
-    float highFace = smoothstep(0.16, 0.92, vWaveHeight) * 0.08;
+    float toneBreakup = (valueNoise(vLocalPosition.xz * 0.16 + 17.0) - 0.5) * 0.10;
+    float heightLift = clamp(vWaveHeight * 0.055, -0.04, 0.07);
+    float tone = clamp(diffuse + toneBreakup + heightLift, 0.0, 1.0);
 
-    // Keep a narrow dark-scene value range and blend between it continuously;
-    // the surface remains stylised without posterised black/white jumps.
-    vec3 deepColor = vec3(0.028, 0.058, 0.084);
-    vec3 middleColor = vec3(0.052, 0.098, 0.132);
-    vec3 lightColor = vec3(0.088, 0.145, 0.188);
-    vec3 color = mix(deepColor, middleColor, shadowBlend);
-    color = mix(color, lightColor, clamp(highlightBlend * 0.72 + highFace, 0.0, 1.0));
+    // Four close-value toon bands prevent one dark face from swallowing large
+    // parts of the ocean while keeping every transition crisp and low-poly.
+    vec3 deepColor = vec3(0.030, 0.061, 0.086);
+    vec3 shadowColor = vec3(0.041, 0.078, 0.106);
+    vec3 middleColor = vec3(0.057, 0.102, 0.135);
+    vec3 lightColor = vec3(0.083, 0.137, 0.176);
+    vec3 color = deepColor;
+    color = mix(color, shadowColor, step(0.16, tone));
+    color = mix(color, middleColor, step(0.36, tone));
+    color = mix(color, lightColor, step(0.62, tone));
 
     float fresnel = pow(1.0 - clamp(dot(normal, viewDirection), 0.0, 1.0), 3.0);
     color = mix(color, lightColor * 1.04, smoothstep(0.22, 0.78, fresnel) * 0.18);
@@ -235,13 +238,25 @@ export const stylizedOceanFragmentShader = /* glsl */`
     float alongBeam = dot(toSurface, uBeamDirection);
     vec3 radialVector = toSurface - uBeamDirection * alongBeam;
     float beamRadius = 1.35 + max(0.0, alongBeam) * 0.22;
-    float beam = smoothstep(beamRadius, beamRadius * 0.25, length(radialVector));
-    beam *= smoothstep(-0.35, 2.2, alongBeam) *
-      (1.0 - smoothstep(42.0, 64.0, alongBeam));
-    float beamLight = beam * (0.55 + max(normal.y, 0.0) * 0.45);
-    color = mix(color, vec3(0.30, 0.43, 0.53), beamLight * 0.52);
+    vec3 beamRight = normalize(cross(uBeamDirection, vec3(0.0, 1.0, 0.0)));
+    vec3 beamUp = normalize(cross(beamRight, uBeamDirection));
+    vec2 beamPlane = vec2(dot(radialVector, beamRight), dot(radialVector, beamUp));
+    float beamAngle = atan(beamPlane.y, beamPlane.x);
+    const float beamSides = 9.0;
+    const float PI = 3.14159265359;
+    float beamSector = 2.0 * PI / beamSides;
+    float sectorAngle = mod(beamAngle + PI, beamSector) - beamSector * 0.5;
+    float polygonRadius = beamRadius * cos(PI / beamSides) / max(cos(sectorAngle), 0.001);
+    float radialRatio = length(beamPlane) / max(polygonRadius, 0.001);
+    float beamRange = step(0.0, alongBeam) * step(alongBeam, 64.0);
+    float beamOuter = step(radialRatio, 1.0) * beamRange;
+    float beamMiddle = step(radialRatio, 0.63) * beamRange;
+    float beamCore = step(radialRatio, 0.29) * beamRange;
+    float beamLight = (beamOuter * 0.18 + beamMiddle * 0.18 + beamCore * 0.22) *
+      (0.72 + max(normal.y, 0.0) * 0.28);
+    color = mix(color, vec3(0.27, 0.39, 0.49), beamLight);
 
-    float beamFoam = smoothstep(0.04, 0.62, beam);
+    float beamFoam = clamp(beamOuter * 0.30 + beamMiddle * 0.34 + beamCore * 0.36, 0.0, 1.0);
     vec3 foamColor = mix(
       vec3(0.16, 0.22, 0.26),
       vec3(0.82, 0.87, 0.90),
