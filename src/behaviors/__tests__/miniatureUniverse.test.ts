@@ -42,17 +42,6 @@ describe('miniature universe transition', () => {
     expect(handedOff.wireOpacity).toBe(0)
   })
 
-  it('uses the same slow-to-fast quadratic curve for rotation and white fill', () => {
-    const rotationHalfway = getMiniatureTransform(0.45)
-    const fillHalfway = getMiniatureTransform(0.525)
-
-    expect(rotationHalfway.rotation[0] / (Math.PI * 2 * 0.06)).toBeCloseTo(0.25)
-    expect(rotationHalfway.rotation[1] / (Math.PI * 2 * 0.32)).toBeCloseTo(0.25)
-    expect(rotationHalfway.rotation[2] / (Math.PI * 2 * 0.045)).toBeCloseTo(0.25)
-    expect(fillHalfway.whiteFillProgress).toBeCloseTo(0.25)
-    expect(fillHalfway.faceAlignProgress).toBeCloseTo(0.25)
-  })
-
   it('soft-caps only offscreen ocean vertices and is reversible', () => {
     expect(containOceanX(20, 1)).toBe(20)
     expect(containOceanX(80, 0)).toBe(80)

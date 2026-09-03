@@ -19,9 +19,9 @@ function smoothstep01(value: number): number {
   return t * t * (3 - 2 * t)
 }
 
-function accelerate01(value: number): number {
+function smootherstep01(value: number): number {
   const t = clamp01(value)
-  return t * t
+  return t * t * t * (t * (t * 6 - 15) + 10)
 }
 
 function rangeProgress(value: number, start: number, end: number): number {
@@ -48,10 +48,10 @@ export function getMiniatureTransform(scrollProgress: number): MiniatureTransfor
     SCROLL_RIG.SQUARE_TRANSITION_END,
   )
   const containment = smoothstep01(rangeProgress(miniatureScroll, SCROLL_RIG.MINIATURE_START, 0.49))
-  const tumbleProgress = accelerate01(rangeProgress(miniatureScroll, 0.40, 0.50))
-  const whiteFillProgress = accelerate01(rangeProgress(miniatureScroll, 0.50, 0.55))
+  const tumbleProgress = smootherstep01(rangeProgress(miniatureScroll, 0.40, 0.50))
+  const whiteFillProgress = smoothstep01(rangeProgress(miniatureScroll, 0.50, 0.55))
   const canvasHandoffProgress = smoothstep01(rangeProgress(scrollProgress, 0.55, 0.56))
-  const shrinkProgress = accelerate01(rangeProgress(miniatureScroll, 0.40, 0.55))
+  const shrinkProgress = Math.pow(rangeProgress(miniatureScroll, 0.40, 0.55), 2)
   const finalScaleExponent = -3 * 0.75 * 0.75
   const finalScale = Math.pow(10, finalScaleExponent)
   const tau = Math.PI * 2
