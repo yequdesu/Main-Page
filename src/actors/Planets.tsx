@@ -338,9 +338,11 @@ export default function Planets() {
       const d = particleData[i]
       if (!d.isMainPlanet) continue
       const trackIdx = mainPlanetIndices.indexOf(i)
-      if (trackIdx >= 0 && sp <= TIMELINE.act3OrbitResume.start) {
-        d.orbitAngle = ACT3_TERMINAL_LAYOUT.planets[trackIdx].orbitAngle
-      }
+
+      // The main planets are initialized at the deterministic terminal angles.
+      // Once Act 3 has advanced them, keep those live angles when scrolling
+      // backward; orbitMotionScale reaches zero at the handoff and freezes the
+      // current composition for the square-contour reverse transition.
 
       // Hover/focus target
       const targetHover = (i === hoveredIdx && act3Progress >= 0.95) ? 1.0 : 0.0
