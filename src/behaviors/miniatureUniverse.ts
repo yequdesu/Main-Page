@@ -51,14 +51,15 @@ export function getMiniatureTransform(scrollProgress: number): MiniatureTransfor
   const tumbleProgress = smootherstep01(rangeProgress(miniatureScroll, 0.40, 0.50))
   const whiteFillProgress = smoothstep01(rangeProgress(miniatureScroll, 0.50, 0.55))
   const canvasHandoffProgress = smoothstep01(rangeProgress(scrollProgress, 0.55, 0.56))
-  const acceleratedShrink = Math.pow(rangeProgress(miniatureScroll, 0.40, 0.55), 0.68)
+  const shrinkProgress = Math.pow(rangeProgress(miniatureScroll, 0.40, 0.55), 2)
   const finalScaleExponent = -3 * 0.75 * 0.75
+  const finalScale = Math.pow(10, finalScaleExponent)
   const tau = Math.PI * 2
 
   return {
     progress,
     containment,
-    scale: Math.pow(10, finalScaleExponent * acceleratedShrink),
+    scale: 1 + (finalScale - 1) * shrinkProgress,
     rotation: tumbleProgress === 0
       ? [0, 0, 0]
       : [
