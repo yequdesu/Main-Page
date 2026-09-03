@@ -4,7 +4,11 @@ import {
   SQUARE_TITLE,
   SQUARE_TITLE_FONT_SCALE,
   SQUARE_WAVE_HANDOFF_RADIUS_CELLS,
+  PLANET_FLIGHT_TIMINGS,
+  buildPlanetFlightPlans,
   buildSquareContourLayout,
+  getPlanetFlightElapsed,
+  getPlanetFlightFrame,
   getSquareContourTransform,
   getSquareContourTransitionFrame,
   getSquareWaveExpansionProgress,
@@ -12,6 +16,7 @@ import {
   getSquareWaveHandoffGeneration,
   getSquareTypedText,
   projectContourPoint,
+  projectPlanetFlightCircle,
 } from '../act2SquareContourTransition'
 
 const TARGET: Act3ContourTarget = {
@@ -107,12 +112,14 @@ describe('Act 2 square contour transition', () => {
     expect(terminal.focusY).toBe(TARGET.central.y)
   })
 
-  it('deterministically samples planet outlines but excludes every orbit', () => {
+  it('builds deterministic planet flight targets while excluding every orbit', () => {
     const first = buildSquareContourLayout(TARGET, FROZEN, 500, 350, 22, 20, 0.5)
     const second = buildSquareContourLayout(TARGET, FROZEN, 500, 350, 22, 20, 0.5)
     expect(second).toEqual(first)
-    expect(first.peripheralSquares.length).toBeGreaterThan(0)
-    expect(first.peripheralSquares.every((square) => square.source === 'planet')).toBe(true)
+    expect(first.planetTargets).toHaveLength(3)
+    expect(first.planetTargets.map((target) => target.trackIdx)).toEqual([0, 1, 2])
+    expect('peripheralSquares' in first).toBe(false)
+    expect('orbits' in first).toBe(false)
   })
 
   it('crossfades only after the full planetary framing is reached', () => {
@@ -122,10 +129,36 @@ describe('Act 2 square contour transition', () => {
     expect(getSquareContourTransitionFrame(0.85, 1000, 800).contourAlpha).toBe(0)
   })
 
-  it('reversibly fades peripheral planet contours between 75% and 80%', () => {
-    expect(getSquareContourTransitionFrame(0.75, 1000, 800).peripheralAlpha).toBe(0)
-    expect(getSquareContourTransitionFrame(0.775, 1000, 800).peripheralAlpha).toBeCloseTo(0.5)
-    expect(getSquareContourTransitionFrame(0.80, 1000, 800).peripheralAlpha).toBe(1)
-    expect(getSquareContourTransitionFrame(0.85, 1000, 800).peripheralAlpha).toBe(0)
+  it('launches three planets with the specified stagger and exact arrivals', () => {
+    const layout = buildSquareContourLayout(TARGET, FROZEN, 500, 350, 22, 20, 0.5)
+    const plans = buildPlanetFlightPlans(layout)
+    expect(plans).toHaveLength(3)
+
+    PLANET_FLIGHT_TIMINGS.forEach((timing, trackIdx) => {
+      expect(getPlanetFlightElapsed(timing.start, trackIdx)).toBe(0)
+      expect(getPlanetFlightElapsed(timing.end, trackIdx)).toBeCloseTo(1)
+      const startFrame = getPlanetFlightFrame(plans[trackIdx], timing.start)
+      const endFrame = getPlanetFlightFrame(plans[trackIdx], timing.end)
+      const target = layout.planetTargets[trackIdx]
+      expect(startFrame.main.point).toEqual({ x: 0, y: 0 })
+      expect(startFrame.main.radius).toBe(0)
+      expect(endFrame.main.point.x).toBeCloseTo(target.x, 6)
+      expect(endFrame.main.point.y).toBeCloseTo(target.y, 6)
+      expect(endFrame.main.radius).toBeCloseTo(target.radius, 6)
+    })
+  })
+
+  it('matches every Act 3 planet projection at the terminal zoom', () => {
+    const layout = buildSquareContourLayout(TARGET, FROZEN, 500, 350, 22, 20, 0.5)
+    const transform = getSquareContourTransform(layout, 1)
+    const plans = buildPlanetFlightPlans(layout)
+
+    plans.forEach((plan, trackIdx) => {
+      const frame = getPlanetFlightFrame(plan, PLANET_FLIGHT_TIMINGS[trackIdx].end)
+      const projected = projectPlanetFlightCircle(frame.main, transform)
+      expect(projected.x).toBeCloseTo(TARGET.planets[trackIdx].x, 6)
+      expect(projected.y).toBeCloseTo(TARGET.planets[trackIdx].y, 6)
+      expect(projected.radius).toBeCloseTo(TARGET.planets[trackIdx].r, 6)
+    })
   })
 })

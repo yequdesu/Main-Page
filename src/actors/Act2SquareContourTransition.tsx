@@ -18,14 +18,19 @@ import {
   type SquareWaveSprite,
 } from '../behaviors/squareWaveTransition'
 import {
+  PLANET_FLIGHT_TIMINGS,
+  buildPlanetFlightPlans,
   buildSquareContourLayout,
+  getPlanetFlightFrame,
   getSquareContourTransform,
   getSquareContourTransitionFrame,
   getSquareWaveCanvasTransform,
   getSquareWaveHandoffGeneration,
   type ContourPoint,
+  type PlanetFlightPlan,
   type SquareContourLayout,
 } from '../behaviors/act2SquareContourTransition'
+import { getCircleConnector, type MotionTrailFrame } from '../behaviors/motionTrail'
 import { TIMELINE, progress, smoothstep01 } from '../composition/timeline'
 import { useActorRuntime } from '../composition/actorRuntime'
 
@@ -104,6 +109,62 @@ function drawLogicalContour(
   ctx.globalAlpha = 1
 }
 
+function drawSmoothFlight(
+  ctx: CanvasRenderingContext2D,
+  frame: MotionTrailFrame,
+): void {
+  const circles = [...frame.trail, frame.main]
+  for (let index = 1; index < circles.length; index += 1) {
+    const connector = getCircleConnector(circles[index - 1], circles[index])
+    if (!connector) continue
+    ctx.beginPath()
+    ctx.moveTo(connector.firstPositive.x, connector.firstPositive.y)
+    ctx.lineTo(connector.secondPositive.x, connector.secondPositive.y)
+    ctx.lineTo(connector.secondNegative.x, connector.secondNegative.y)
+    ctx.lineTo(connector.firstNegative.x, connector.firstNegative.y)
+    ctx.closePath()
+    ctx.fill()
+  }
+
+  for (const circle of circles) {
+    if (circle.radius <= 0.01) continue
+    ctx.beginPath()
+    ctx.arc(circle.point.x, circle.point.y, circle.radius, 0, Math.PI * 2)
+    ctx.fill()
+  }
+}
+
+function drawPlanetFlights(
+  ctx: CanvasRenderingContext2D,
+  plans: readonly PlanetFlightPlan[],
+  scrollProgress: number,
+  focusX: number,
+  focusY: number,
+  zoom: number,
+  clipRadius: number,
+  opacity: number,
+  viewportWidth: number,
+  viewportHeight: number,
+): void {
+  if (opacity <= 0 || scrollProgress < TIMELINE.squarePlanetFlights.start) return
+  ctx.save()
+  ctx.beginPath()
+  ctx.rect(0, 0, viewportWidth, viewportHeight)
+  ctx.arc(focusX, focusY, Math.max(0, clipRadius * zoom), 0, Math.PI * 2)
+  ctx.clip('evenodd')
+  ctx.translate(focusX, focusY)
+  ctx.scale(zoom, zoom)
+  ctx.globalAlpha = opacity
+
+  for (const plan of plans) {
+    const timing = PLANET_FLIGHT_TIMINGS[plan.trackIdx] ?? PLANET_FLIGHT_TIMINGS[0]
+    if (scrollProgress < timing.start) continue
+    drawSmoothFlight(ctx, getPlanetFlightFrame(plan, scrollProgress))
+  }
+  ctx.restore()
+  ctx.globalAlpha = 1
+}
+
 interface HandoffCache {
   solidSprites: SquareWaveSprite[]
   fadingCells: SquareWaveCell[]
@@ -116,6 +177,7 @@ interface LayoutCache {
   centerX: number
   centerY: number
   layout: SquareContourLayout
+  flightPlans: PlanetFlightPlan[]
 }
 
 export default function Act2SquareContourTransition() {
@@ -213,33 +275,38 @@ export default function Act2SquareContourTransition() {
         cached.handoffZoom !== handoffView.zoom ||
         cached.centerX !== initialCenterX || cached.centerY !== initialCenterY
       ) {
+        const layout = buildSquareContourLayout(
+          target,
+          solidSprites,
+          initialCenterX,
+          initialCenterY,
+          handoffView.logicalSpacing,
+          logicalSquareSize,
+          handoffView.zoom,
+        )
         layoutCacheRef.current = {
           target,
           logicalSquareSize,
           handoffZoom: handoffView.zoom,
           centerX: initialCenterX,
           centerY: initialCenterY,
-          layout: buildSquareContourLayout(
-            target,
-            solidSprites,
-            initialCenterX,
-            initialCenterY,
-            handoffView.logicalSpacing,
-            logicalSquareSize,
-            handoffView.zoom,
-          ),
+          layout,
+          flightPlans: buildPlanetFlightPlans(layout),
         }
       }
       layout = layoutCacheRef.current!.layout
       const transform = getSquareContourTransform(layout, frame.zoomProgress)
-      drawLogicalContour(
+      drawPlanetFlights(
         ctx,
-        layout.peripheralSquares,
+        layoutCacheRef.current!.flightPlans,
+        scrollProgress,
         transform.focusX,
         transform.focusY,
         transform.zoom,
-        layout.logicalSquareSize,
-        frame.peripheralAlpha,
+        Math.max(0, layout.logicalCentralRadius - layout.logicalSquareSize),
+        frame.contourAlpha,
+        width,
+        height,
       )
       drawLogicalContour(
         ctx,

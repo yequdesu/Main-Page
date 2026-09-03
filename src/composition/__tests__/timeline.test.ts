@@ -13,7 +13,7 @@ describe('composition timeline', () => {
     expect(TIMELINE.squareBfsWave).toMatchObject({ start: 0.56, end: 0.70, reversible: true })
     expect(TIMELINE.squareTitleTyping).toMatchObject({ start: 0.58, end: 0.64, reversible: true })
     expect(TIMELINE.squareContourZoom).toMatchObject({ start: 0.70, end: 0.80, reversible: true })
-    expect(TIMELINE.squarePlanetContourReveal).toMatchObject({ start: 0.75, end: 0.80, reversible: true })
+    expect(TIMELINE.squarePlanetFlights).toMatchObject({ start: 0.70, end: 0.80, reversible: true })
     expect(TIMELINE.squareTitleFade).toMatchObject({ start: 0.64, end: 0.72, reversible: true })
     expect(TIMELINE.squareAct3Crossfade).toMatchObject({ start: 0.80, end: 0.85, reversible: true })
     expect(TIMELINE.act3OrbitResume).toMatchObject({ start: 0.85, end: 0.90, reversible: true })

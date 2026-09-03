@@ -8,7 +8,7 @@ import {
   pointAtPathProgress,
   smootherstep,
   type MotionTrailConfig,
-} from '../motionTrail'
+} from '../../behaviors/motionTrail'
 
 const config: MotionTrailConfig = {
   width: 1280,

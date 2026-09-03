@@ -5,7 +5,7 @@ import {
   getMotionTrailFrame,
   type MotionPoint,
   type MotionTrailConfig,
-} from './motionTrail'
+} from '../behaviors/motionTrail'
 import './MotionTrailDemo.css'
 
 interface DemoSettings {

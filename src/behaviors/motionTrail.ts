@@ -13,6 +13,12 @@ export interface MotionTrailConfig {
   waypointCount: number
   randomness: number
   margin?: number
+  bounds?: {
+    minX: number
+    maxX: number
+    minY: number
+    maxY: number
+  }
 }
 
 export interface MotionPathSample {
@@ -135,10 +141,10 @@ export function createMotionPath(
   const normalX = -dirY
   const normalY = dirX
   const margin = Math.max(config.finalRadius + 10, config.margin ?? 28)
-  const minX = Math.min(margin, config.width * 0.45)
-  const minY = Math.min(margin, config.height * 0.45)
-  const maxX = Math.max(minX, config.width - minX)
-  const maxY = Math.max(minY, config.height - minY)
+  const minX = config.bounds?.minX ?? Math.min(margin, config.width * 0.45)
+  const minY = config.bounds?.minY ?? Math.min(margin, config.height * 0.45)
+  const maxX = config.bounds?.maxX ?? Math.max(minX, config.width - minX)
+  const maxY = config.bounds?.maxY ?? Math.max(minY, config.height - minY)
   const waypointCount = Math.max(0, Math.round(config.waypointCount))
   const controlPoints: MotionPoint[] = [start]
 

@@ -1,18 +1,43 @@
 import type { Act3ContourTarget } from '../composition/coreAnchors'
 import { TIMELINE, clamp01, progress, smoothProgress } from '../composition/timeline'
 import { SQUARE_WAVE_SPACING, type SquareWaveSprite } from './squareWaveTransition'
+import {
+  createMotionPath,
+  getMotionTrailFrame,
+  type MotionPath,
+  type MotionTrailConfig,
+  type MotionTrailFrame,
+} from './motionTrail'
 
 export const SQUARE_TITLE = 'Ēarendel'
 export const SQUARE_TITLE_FONT_SCALE = 0.85
 export const SQUARE_WAVE_HANDOFF_RADIUS_RATIO = 0.38
 export const SQUARE_WAVE_HANDOFF_RADIUS_CELLS = 400
+export const PLANET_FLIGHT_TIMINGS = [
+  { start: 0.700, end: 0.784, seed: 0xea7e1001 },
+  { start: 0.708, end: 0.792, seed: 0xea7e1002 },
+  { start: 0.716, end: 0.800, seed: 0xea7e1003 },
+] as const
 
 export interface ContourPoint {
   /** Position in the fixed square-wave logical coordinate system. */
   x: number
   y: number
   opacity: number
-  source: 'central' | 'planet'
+  source: 'central'
+}
+
+export interface PlanetFlightTarget {
+  trackIdx: number
+  x: number
+  y: number
+  radius: number
+}
+
+export interface PlanetFlightPlan {
+  trackIdx: number
+  path: MotionPath
+  config: MotionTrailConfig
 }
 
 export interface SquareWaveCanvasTransform {
@@ -32,8 +57,9 @@ export interface SquareContourLayout {
   terminalZoom: number
   logicalSquareSize: number
   logicalSpacing: number
+  logicalCentralRadius: number
   centralSquares: ContourPoint[]
-  peripheralSquares: ContourPoint[]
+  planetTargets: PlanetFlightTarget[]
 }
 
 export interface SquareContourTransform {
@@ -50,7 +76,6 @@ export interface SquareContourTransitionFrame {
   titleFontPx: number
   titleAlpha: number
   contourAlpha: number
-  peripheralAlpha: number
   zoomProgress: number
 }
 
@@ -100,7 +125,6 @@ export function getSquareContourTransitionFrame(
     titleFontPx: initialFont,
     titleAlpha: titleVisible ? 1 - smoothProgress('squareTitleFade', scrollProgress) : 0,
     contourAlpha,
-    peripheralAlpha: smoothProgress('squarePlanetContourReveal', scrollProgress) * contourAlpha,
     zoomProgress: progress('squareContourZoom', scrollProgress),
   }
 }
@@ -141,25 +165,6 @@ export function getSquareWaveCanvasTransform(
   }
 }
 
-function sampleCircle(
-  x: number,
-  y: number,
-  radius: number,
-  pitch: number,
-): Array<{ x: number; y: number }> {
-  const circumference = Math.PI * 2 * Math.max(0, radius)
-  const count = Math.max(12, Math.ceil(circumference / Math.max(0.25, pitch)))
-  return Array.from({ length: count }, (_, index) => {
-    const angle = (index / count) * Math.PI * 2
-    return { x: x + Math.cos(angle) * radius, y: y + Math.sin(angle) * radius }
-  })
-}
-
-function occupancyKey(x: number, y: number, pitch: number): string {
-  const bucket = Math.max(0.5, pitch * 0.72)
-  return `${Math.round(x / bucket)}:${Math.round(y / bucket)}`
-}
-
 export function buildSquareContourLayout(
   target: Act3ContourTarget,
   frozenWave: readonly SquareWaveSprite[],
@@ -185,27 +190,15 @@ export function buildSquareContourLayout(
     source: 'central',
   }))
 
-  const occupied = new Set<string>()
-  for (const square of centralSquares) {
-    occupied.add(occupancyKey(square.x, square.y, logicalSpacing))
-  }
-  const peripheralSquares: ContourPoint[] = []
-  const append = (point: { x: number; y: number }) => {
-    const key = occupancyKey(point.x, point.y, logicalSpacing)
-    if (occupied.has(key)) return
-    occupied.add(key)
-    peripheralSquares.push({ ...point, opacity: 1, source: 'planet' })
-  }
-
-  for (const planet of target.planets) {
-    if (!planet.visible) continue
-    const logicalX = (planet.x - target.central.x) / terminalZoom
-    const logicalY = (planet.y - target.central.y) / terminalZoom
-    const logicalRadius = planet.r / terminalZoom
-    for (const point of sampleCircle(logicalX, logicalY, logicalRadius, logicalSpacing)) {
-      append(point)
-    }
-  }
+  const planetTargets = target.planets.flatMap((planet, trackIdx) => {
+    if (!planet.visible) return []
+    return [{
+      trackIdx,
+      x: (planet.x - target.central.x) / terminalZoom,
+      y: (planet.y - target.central.y) / terminalZoom,
+      radius: planet.r / terminalZoom,
+    }]
+  })
 
   return {
     centralX: target.central.x,
@@ -216,9 +209,58 @@ export function buildSquareContourLayout(
     terminalZoom,
     logicalSquareSize,
     logicalSpacing,
+    logicalCentralRadius,
     centralSquares,
-    peripheralSquares,
+    planetTargets,
   }
+}
+
+export function buildPlanetFlightPlans(layout: SquareContourLayout): PlanetFlightPlan[] {
+  const padding = layout.logicalCentralRadius * 0.8
+  const allX = [0, ...layout.planetTargets.map((target) => target.x)]
+  const allY = [0, ...layout.planetTargets.map((target) => target.y)]
+  const bounds = {
+    minX: Math.min(...allX) - padding,
+    maxX: Math.max(...allX) + padding,
+    minY: Math.min(...allY) - padding,
+    maxY: Math.max(...allY) + padding,
+  }
+
+  return layout.planetTargets.map((target) => {
+    const timing = PLANET_FLIGHT_TIMINGS[target.trackIdx] ?? PLANET_FLIGHT_TIMINGS[0]
+    const config: MotionTrailConfig = {
+      width: bounds.maxX - bounds.minX,
+      height: bounds.maxY - bounds.minY,
+      duration: 1,
+      finalRadius: target.radius,
+      trailSpacing: Math.max(0.5, target.radius * (8 / 36)),
+      shrinkRate: target.radius * (8 / 3),
+      waypointCount: 4,
+      randomness: 0.52,
+      bounds,
+    }
+    return {
+      trackIdx: target.trackIdx,
+      path: createMotionPath({ x: 0, y: 0 }, { x: target.x, y: target.y }, config, timing.seed),
+      config,
+    }
+  })
+}
+
+export function getPlanetFlightElapsed(scrollProgress: number, trackIdx: number): number {
+  const timing = PLANET_FLIGHT_TIMINGS[trackIdx] ?? PLANET_FLIGHT_TIMINGS[0]
+  return Math.max(0, (scrollProgress - timing.start) / (timing.end - timing.start))
+}
+
+export function getPlanetFlightFrame(
+  plan: PlanetFlightPlan,
+  scrollProgress: number,
+): MotionTrailFrame {
+  return getMotionTrailFrame(
+    plan.path,
+    plan.config,
+    getPlanetFlightElapsed(scrollProgress, plan.trackIdx),
+  )
 }
 
 export function getSquareContourTransform(
@@ -244,5 +286,16 @@ export function projectContourPoint(
   return {
     x: transform.focusX + point.x * transform.zoom,
     y: transform.focusY + point.y * transform.zoom,
+  }
+}
+
+export function projectPlanetFlightCircle(
+  circle: { point: { x: number; y: number }; radius: number },
+  transform: SquareContourTransform,
+): { x: number; y: number; radius: number } {
+  return {
+    x: transform.focusX + circle.point.x * transform.zoom,
+    y: transform.focusY + circle.point.y * transform.zoom,
+    radius: circle.radius * transform.zoom,
   }
 }
