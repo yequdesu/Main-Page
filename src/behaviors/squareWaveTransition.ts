@@ -61,12 +61,24 @@ function radialDistance(x: number, y: number): number {
 }
 
 function chooseInwardParent(x: number, y: number): Direction {
-  const distance = radialDistance(x, y)
-  const candidates = DIRECTIONS.filter((direction) =>
-    radialDistance(x - direction.dx, y - direction.dy) < distance,
-  )
-  const offset = hashCell(x, y) % candidates.length
-  return candidates[offset]
+  const distanceSquared = x * x + y * y
+  let candidateCount = 0
+  for (const direction of DIRECTIONS) {
+    const parentX = x - direction.dx
+    const parentY = y - direction.dy
+    if (parentX * parentX + parentY * parentY < distanceSquared) candidateCount += 1
+  }
+
+  let offset = hashCell(x, y) % candidateCount
+  for (const direction of DIRECTIONS) {
+    const parentX = x - direction.dx
+    const parentY = y - direction.dy
+    if (parentX * parentX + parentY * parentY >= distanceSquared) continue
+    if (offset === 0) return direction
+    offset -= 1
+  }
+
+  return DIRECTIONS[0]
 }
 
 function createSquareWaveCell(x: number, y: number): SquareWaveCell {

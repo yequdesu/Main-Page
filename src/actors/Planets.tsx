@@ -306,6 +306,12 @@ export default function Planets() {
 
     const _screenRadii: [number, number, number] = [0, 0, 0]
     const anchorWrites: AnchorInput[] = []
+    const realtimeStore = useRealtimeStore.getState()
+    const realtimeCoords = [...realtimeStore.planetCoords] as [PlanetCoords, PlanetCoords, PlanetCoords]
+    const realtimeAngles = [...realtimeStore.planetAngles] as [number, number, number]
+    const realtimeSpeeds = [...realtimeStore.planetSpeeds] as [number, number, number]
+    const realtimeOrbitAngles = [...realtimeStore.orbitAngles] as [number, number, number]
+    let realtimeUpdatePasses = 0
 
     const miniatureProgress = clamped(sp, TIMELINE.miniatureShrink.start, TIMELINE.miniatureShrink.end)
     const act3Progress = clamped(sp, TIMELINE.act3Shift.start, 1.0)
@@ -403,20 +409,12 @@ export default function Planets() {
       }
 
       // Publish planet coords + orbit data to realtime store
-      const store = useRealtimeStore.getState()
-      const coords = [...store.planetCoords] as [PlanetCoords, PlanetCoords, PlanetCoords]
-      const angles = [...store.planetAngles] as [number, number, number]
-      const speeds = [...store.planetSpeeds] as [number, number, number]
-      const orbAngles = [...store.orbitAngles] as [number, number, number]
       if (trackIdx >= 0 && trackIdx < 3) {
-        coords[trackIdx] = { x: px, y: py, z: pz }
-        angles[trackIdx] = d.orbitAngle
-        speeds[trackIdx] = d._baseSpeed ?? d.orbitSpeed
+        realtimeCoords[trackIdx] = { x: px, y: py, z: pz }
+        realtimeAngles[trackIdx] = d.orbitAngle
+        realtimeSpeeds[trackIdx] = d._baseSpeed ?? d.orbitSpeed
       }
-      for (let oi = 0; oi < 3; oi++) {
-        orbAngles[oi] = (orbAngles[oi] + delta * store.orbitSpeeds[oi]) % (Math.PI * 2)
-      }
-      store.setPlanetData(coords, angles, speeds, store.orbitSpeeds, orbAngles as [number, number, number])
+      realtimeUpdatePasses += 1
 
       // Opacity with occlusion
       const basicMat = planetBasicMats[trackIdx]
@@ -504,6 +502,23 @@ export default function Planets() {
             : planetHaloLayer.renderOrder
         sMat2.opacity = planetOpacity * ATMOS_HALO_OPACITY * pulse * glowFactor
       }
+    }
+
+    if (realtimeUpdatePasses > 0) {
+      for (let pass = 0; pass < realtimeUpdatePasses; pass += 1) {
+        for (let orbitIndex = 0; orbitIndex < 3; orbitIndex += 1) {
+          realtimeOrbitAngles[orbitIndex] = (
+            realtimeOrbitAngles[orbitIndex] + delta * realtimeStore.orbitSpeeds[orbitIndex]
+          ) % (Math.PI * 2)
+        }
+      }
+      realtimeStore.setPlanetData(
+        realtimeCoords,
+        realtimeAngles,
+        realtimeSpeeds,
+        realtimeStore.orbitSpeeds,
+        realtimeOrbitAngles,
+      )
     }
 
     // Publish world/screen anchors for downstream consumers.

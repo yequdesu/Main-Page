@@ -59,6 +59,16 @@ export interface MotionTrailFrame {
   trail: TrailCircle[]
 }
 
+interface TrailEmission {
+  id: number
+  point: MotionPoint
+  emittedRadius: number
+  birthTime: number
+  deathTime: number
+}
+
+const trailEmissionCache = new WeakMap<MotionPath, Map<string, TrailEmission[]>>()
+
 export function scaleMotionTrailRadii(
   frame: MotionTrailFrame,
   scale: number,
@@ -143,6 +153,68 @@ export function inverseBellDistanceProgress(progress: number): number {
     else high = mid
   }
   return (low + high) * 0.5
+}
+
+function getTrailEmissionCacheKey(config: MotionTrailConfig): string {
+  return [
+    Math.max(0.001, config.duration),
+    config.finalRadius,
+    Math.max(0.5, config.trailSpacing),
+    Math.max(0, config.shrinkRate),
+  ].join('|')
+}
+
+function getTrailEmissions(
+  path: MotionPath,
+  config: MotionTrailConfig,
+  requiredCount: number,
+): TrailEmission[] {
+  let pathCache = trailEmissionCache.get(path)
+  if (!pathCache) {
+    pathCache = new Map()
+    trailEmissionCache.set(path, pathCache)
+  }
+
+  const cacheKey = getTrailEmissionCacheKey(config)
+  let emissions = pathCache.get(cacheKey)
+  if (!emissions) {
+    emissions = []
+    pathCache.set(cacheKey, emissions)
+  }
+  const duration = Math.max(0.001, config.duration)
+  const spacing = Math.max(0.5, config.trailSpacing)
+  const shrinkRate = Math.max(0, config.shrinkRate)
+  const stampCount = Math.min(
+    Math.max(0, requiredCount),
+    Math.floor(path.totalLength / spacing),
+  )
+
+  for (let id = emissions.length + 1; id <= stampCount; id += 1) {
+    const pathDistance = Math.min(path.totalLength, id * spacing)
+    const stampDistanceProgress = path.totalLength > 0 ? pathDistance / path.totalLength : 0
+    const birthProgress = inverseBellDistanceProgress(stampDistanceProgress)
+    const birthTime = birthProgress * duration
+    const emittedRadius = config.finalRadius * smootherstep(birthProgress)
+    emissions.push({
+      id,
+      point: pointAtPathProgress(path, stampDistanceProgress),
+      emittedRadius,
+      birthTime,
+      deathTime: shrinkRate > 0 ? birthTime + emittedRadius / shrinkRate : Number.POSITIVE_INFINITY,
+    })
+  }
+  return emissions
+}
+
+function findFirstLiveEmission(emissions: readonly TrailEmission[], time: number): number {
+  let low = 0
+  let high = emissions.length
+  while (low < high) {
+    const mid = Math.floor((low + high) * 0.5)
+    if (emissions[mid].deathTime <= time) low = mid + 1
+    else high = mid
+  }
+  return low
 }
 
 export function createMotionPath(
@@ -315,20 +387,21 @@ export function getMotionTrailFrame(
   const travelledDistance = path.totalLength * distanceProgress
   const stampCount = Math.floor(travelledDistance / spacing)
 
-  for (let id = 1; id <= stampCount; id += 1) {
-    const pathDistance = Math.min(path.totalLength, id * spacing)
-    const stampDistanceProgress = path.totalLength > 0 ? pathDistance / path.totalLength : 0
-    const birthProgress = inverseBellDistanceProgress(stampDistanceProgress)
-    const birthTime = birthProgress * duration
-    const emittedRadius = config.finalRadius * smootherstep(birthProgress)
-    const radius = Math.max(0, emittedRadius - Math.max(0, config.shrinkRate) * (time - birthTime))
+  const shrinkRate = Math.max(0, config.shrinkRate)
+  const emissions = getTrailEmissions(path, config, stampCount)
+  const firstLiveIndex = findFirstLiveEmission(emissions, time)
+  const emittedCount = Math.min(stampCount, emissions.length)
+
+  for (let index = firstLiveIndex; index < emittedCount; index += 1) {
+    const emission = emissions[index]
+    const radius = Math.max(0, emission.emittedRadius - shrinkRate * (time - emission.birthTime))
     if (radius <= 0) continue
     trail.push({
-      id,
-      point: pointAtPathProgress(path, stampDistanceProgress),
+      id: emission.id,
+      point: emission.point,
       radius,
-      emittedRadius,
-      birthTime,
+      emittedRadius: emission.emittedRadius,
+      birthTime: emission.birthTime,
     })
   }
 

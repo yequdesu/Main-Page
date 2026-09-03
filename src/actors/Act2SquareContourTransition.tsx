@@ -66,9 +66,30 @@ function drawLogicalWave(
   ctx.save()
   ctx.translate(focusX, focusY)
   ctx.scale(zoom, zoom)
+  let hasBatchedSquares = false
+  const flushBatchedSquares = () => {
+    if (!hasBatchedSquares) return
+    ctx.globalAlpha = 1
+    ctx.fill()
+    hasBatchedSquares = false
+  }
   for (const sprite of sprites) {
     const opacity = sprite.opacity * opacityMultiplier
     if (opacity <= 0) continue
+    const isSettledOpaqueSquare = opacity === 1 &&
+      Number.isInteger(sprite.x) && Number.isInteger(sprite.y)
+    if (isSettledOpaqueSquare) {
+      if (!hasBatchedSquares) ctx.beginPath()
+      ctx.rect(
+        sprite.x * logicalSpacing - half,
+        sprite.y * logicalSpacing - half,
+        logicalSquareSize,
+        logicalSquareSize,
+      )
+      hasBatchedSquares = true
+      continue
+    }
+    flushBatchedSquares()
     ctx.globalAlpha = opacity
     ctx.fillRect(
       sprite.x * logicalSpacing - half,
@@ -77,6 +98,7 @@ function drawLogicalWave(
       logicalSquareSize,
     )
   }
+  flushBatchedSquares()
   ctx.restore()
   ctx.globalAlpha = 1
 }
@@ -94,9 +116,28 @@ function drawLogicalContour(
   ctx.save()
   ctx.translate(focusX, focusY)
   ctx.scale(zoom, zoom)
+  let hasBatchedSquares = false
+  const flushBatchedSquares = () => {
+    if (!hasBatchedSquares) return
+    ctx.globalAlpha = 1
+    ctx.fill()
+    hasBatchedSquares = false
+  }
   for (const square of squares) {
     const opacity = square.opacity * opacityMultiplier
     if (opacity <= 0) continue
+    if (opacity === 1) {
+      if (!hasBatchedSquares) ctx.beginPath()
+      ctx.rect(
+        square.x - half,
+        square.y - half,
+        logicalSquareSize,
+        logicalSquareSize,
+      )
+      hasBatchedSquares = true
+      continue
+    }
+    flushBatchedSquares()
     ctx.globalAlpha = opacity
     ctx.fillRect(
       square.x - half,
@@ -105,6 +146,7 @@ function drawLogicalContour(
       logicalSquareSize,
     )
   }
+  flushBatchedSquares()
   ctx.restore()
   ctx.globalAlpha = 1
 }
@@ -112,26 +154,31 @@ function drawLogicalContour(
 function drawSmoothFlight(
   ctx: CanvasRenderingContext2D,
   frame: MotionTrailFrame,
+  batchOpaque: boolean,
 ): void {
   const circles = [...frame.trail, frame.main]
+  if (batchOpaque) ctx.beginPath()
   for (let index = 1; index < circles.length; index += 1) {
     const connector = getCircleConnector(circles[index - 1], circles[index])
     if (!connector) continue
-    ctx.beginPath()
+    if (!batchOpaque) ctx.beginPath()
     ctx.moveTo(connector.firstPositive.x, connector.firstPositive.y)
     ctx.lineTo(connector.secondPositive.x, connector.secondPositive.y)
     ctx.lineTo(connector.secondNegative.x, connector.secondNegative.y)
     ctx.lineTo(connector.firstNegative.x, connector.firstNegative.y)
     ctx.closePath()
-    ctx.fill()
+    if (!batchOpaque) ctx.fill()
   }
+  if (batchOpaque) ctx.fill()
 
+  if (batchOpaque) ctx.beginPath()
   for (const circle of circles) {
     if (circle.radius <= 0.01) continue
-    ctx.beginPath()
+    if (!batchOpaque) ctx.beginPath()
     ctx.arc(circle.point.x, circle.point.y, circle.radius, 0, Math.PI * 2)
-    ctx.fill()
+    if (!batchOpaque) ctx.fill()
   }
+  if (batchOpaque) ctx.fill()
 }
 
 function drawPlanetFlights(
@@ -163,6 +210,7 @@ function drawPlanetFlights(
     drawSmoothFlight(
       ctx,
       getPlanetFlightRenderFrame(plan, scrollProgress, zoom, terminalZoom),
+      opacity === 1,
     )
   }
   ctx.restore()
@@ -186,6 +234,7 @@ interface LayoutCache {
 
 export default function Act2SquareContourTransition() {
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
+  const drawRef = useRef<() => void>(() => {})
   const handoffCacheRef = useRef<HandoffCache | null>(null)
   const layoutCacheRef = useRef<LayoutCache | null>(null)
   const scrollProgress = useScrollStore((state) => state.scrollProgress)
@@ -367,11 +416,17 @@ export default function Act2SquareContourTransition() {
     ctx.globalAlpha = 1
   }, [active, faceRectAnchor, scrollProgress, targetAnchor])
 
+  drawRef.current = draw
+
   useEffect(() => {
     draw()
-    window.addEventListener('resize', draw)
-    return () => window.removeEventListener('resize', draw)
   }, [draw])
+
+  useEffect(() => {
+    const handleResize = () => drawRef.current()
+    window.addEventListener('resize', handleResize)
+    return () => window.removeEventListener('resize', handleResize)
+  }, [])
 
   return (
     <canvas

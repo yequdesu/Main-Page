@@ -4,7 +4,6 @@ import { SQUARE_WAVE_SPACING, type SquareWaveSprite } from './squareWaveTransiti
 import {
   createSampledMotionPath,
   getMotionTrailFrame,
-  scaleMotionTrailRadii,
   type MotionPath,
   type MotionTrailConfig,
   type MotionTrailFrame,
@@ -348,10 +347,14 @@ export function getPlanetFlightRenderFrame(
   currentZoom: number,
   terminalZoom: number,
 ): MotionTrailFrame {
-  return scaleMotionTrailRadii(
-    getPlanetFlightFrame(plan, scrollProgress),
-    terminalZoom / Math.max(0.000001, currentZoom),
-  )
+  const frame = getPlanetFlightFrame(plan, scrollProgress)
+  const radiusScale = terminalZoom / Math.max(0.000001, currentZoom)
+  frame.main.radius *= radiusScale
+  for (const circle of frame.trail) {
+    circle.radius *= radiusScale
+    circle.emittedRadius *= radiusScale
+  }
+  return frame
 }
 
 export function getSquareContourTransform(
