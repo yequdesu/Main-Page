@@ -39,6 +39,7 @@ export const TIMELINE = {
   squareBfsWave: defineRange('squareBfsWave', 0.56, 0.70, 'Deterministic square wave expands to its 400-cell handoff radius'),
   squareTitleTyping: defineRange('squareTitleTyping', 0.58, 0.64, 'Centered bracket title types Earendel'),
   squareContourZoom: defineRange('squareContourZoom', 0.70, 0.80, 'Frozen square contour canvas zooms out to the Act 3 terminal framing'),
+  squarePlanetContourReveal: defineRange('squarePlanetContourReveal', 0.75, 0.80, 'Peripheral planet square contours fade into the terminal framing'),
   squareTitleFade: defineRange('squareTitleFade', 0.64, 0.72, 'Earendel title shrinks with the logical canvas and fades out'),
   squareAct3Crossfade: defineRange('squareAct3Crossfade', 0.80, SCROLL_RIG.ACT3_START, 'Square contours crossfade into matching Act 3 geometry'),
   act3OrbitResume: defineRange('act3OrbitResume', SCROLL_RIG.ACT3_START, 0.90, 'Frozen terminal layout smoothly resumes orbit motion'),

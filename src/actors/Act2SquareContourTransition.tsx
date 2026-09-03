@@ -239,7 +239,7 @@ export default function Act2SquareContourTransition() {
         transform.focusY,
         transform.zoom,
         layout.logicalSquareSize,
-        frame.contourAlpha,
+        frame.peripheralAlpha,
       )
       drawLogicalContour(
         ctx,

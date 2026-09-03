@@ -121,4 +121,11 @@ describe('Act 2 square contour transition', () => {
     expect(getSquareContourTransitionFrame(0.80, 1000, 800).contourAlpha).toBe(1)
     expect(getSquareContourTransitionFrame(0.85, 1000, 800).contourAlpha).toBe(0)
   })
+
+  it('reversibly fades peripheral planet contours between 75% and 80%', () => {
+    expect(getSquareContourTransitionFrame(0.75, 1000, 800).peripheralAlpha).toBe(0)
+    expect(getSquareContourTransitionFrame(0.775, 1000, 800).peripheralAlpha).toBeCloseTo(0.5)
+    expect(getSquareContourTransitionFrame(0.80, 1000, 800).peripheralAlpha).toBe(1)
+    expect(getSquareContourTransitionFrame(0.85, 1000, 800).peripheralAlpha).toBe(0)
+  })
 })

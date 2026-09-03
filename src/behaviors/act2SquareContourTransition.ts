@@ -50,6 +50,7 @@ export interface SquareContourTransitionFrame {
   titleFontPx: number
   titleAlpha: number
   contourAlpha: number
+  peripheralAlpha: number
   zoomProgress: number
 }
 
@@ -91,13 +92,15 @@ export function getSquareContourTransitionFrame(
     SQUARE_TITLE_FONT_SCALE
   const titleVisible = scrollProgress >= TIMELINE.squareTitleTyping.start &&
     scrollProgress < TIMELINE.squareTitleFade.end
+  const contourAlpha = 1 - smoothProgress('squareAct3Crossfade', scrollProgress)
   return {
     active: scrollProgress >= TIMELINE.act2SquareTransition.start &&
       scrollProgress < TIMELINE.act2SquareTransition.end,
     typedText: getSquareTypedText(scrollProgress),
     titleFontPx: initialFont,
     titleAlpha: titleVisible ? 1 - smoothProgress('squareTitleFade', scrollProgress) : 0,
-    contourAlpha: 1 - smoothProgress('squareAct3Crossfade', scrollProgress),
+    contourAlpha,
+    peripheralAlpha: smoothProgress('squarePlanetContourReveal', scrollProgress) * contourAlpha,
     zoomProgress: progress('squareContourZoom', scrollProgress),
   }
 }
