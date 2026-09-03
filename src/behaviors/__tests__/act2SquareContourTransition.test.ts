@@ -3,9 +3,10 @@ import type { Act3ContourTarget } from '../../composition/coreAnchors'
 import {
   SQUARE_TITLE,
   buildSquareContourLayout,
+  getContourSquareFreezeSize,
+  getSquareContourFreezeProgress,
   getSquareContourTransform,
   getSquareContourTransitionFrame,
-  getSquareWaveDisplayMetrics,
   getSquareWaveHandoffGeneration,
   getSquareTypedText,
   projectContourPoint,
@@ -50,12 +51,8 @@ describe('Act 2 square contour transition', () => {
   })
 
   it('hands the circular wave to the shrinking canvas at 60% and crossfades after full framing', () => {
-    const handoffGeneration = getSquareWaveHandoffGeneration()
-    const handoffMetrics = getSquareWaveDisplayMetrics(1, 1000, 800, 20)
-    expect(handoffGeneration).toBe(1000)
-    expect(handoffMetrics.generation).toBe(1000)
-    expect(handoffMetrics.radiusPx).toBeCloseTo(800 * 0.38)
-    expect(handoffMetrics.squareSize).toBeLessThan(1)
+    const handoffGeneration = getSquareWaveHandoffGeneration(1000, 800, 20)
+    expect(handoffGeneration).toBeCloseTo((800 * 0.38) / 22)
     expect(getSquareContourTransitionFrame(0.60, 1000, 800).zoomProgress).toBe(0)
     expect(getSquareContourTransitionFrame(0.80, 1000, 800).zoomProgress).toBe(1)
     expect(getSquareContourTransitionFrame(0.80, 1000, 800).contourAlpha).toBe(1)
@@ -80,6 +77,18 @@ describe('Act 2 square contour transition', () => {
     expect(terminal.zoom).toBeCloseTo(1)
     expect(terminal.focusX).toBe(TARGET.central.x)
     expect(terminal.focusY).toBe(TARGET.central.y)
+  })
+
+  it('does not freeze the contour until its squares reach the small responsive threshold', () => {
+    const layout = buildSquareContourLayout(TARGET, FROZEN, 500, 350, 22, 20)
+    const freezeProgress = getSquareContourFreezeProgress(layout, 1000, 700)
+    const threshold = getContourSquareFreezeSize(1000, 700)
+    const atFreeze = getSquareContourTransform(layout, freezeProgress)
+    const justBefore = getSquareContourTransform(layout, Math.max(0, freezeProgress - 0.001))
+    expect(freezeProgress).toBeGreaterThan(0)
+    expect(freezeProgress).toBeLessThan(1)
+    expect(atFreeze.squareSize).toBeLessThanOrEqual(threshold + 0.001)
+    expect(justBefore.squareSize).toBeGreaterThan(threshold)
   })
 
   it('deterministically samples only square outlines for planets and orbits', () => {
