@@ -39,7 +39,7 @@ export default function SeaCameraBob() {
     const sp = useScrollStore.getState().scrollProgress
     const strength = seaBobStrength(sp)
     if (sp >= TIMELINE.act1OceanVoyage.end) {
-      if (!restoredRef.current && sp < TIMELINE.act2GridTransition.end) {
+      if (!restoredRef.current && sp < TIMELINE.act2SquareTransition.end) {
         camera.position.copy(BASE_CAMERA_POS)
         ;(camera as PerspectiveCamera).lookAt(BASE_LOOK_AT)
         restoredRef.current = true

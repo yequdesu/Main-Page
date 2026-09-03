@@ -1,4 +1,4 @@
-import type { Mesh, InstancedMesh, Sprite, Group, Line } from 'three'
+import type { Mesh, InstancedMesh, Sprite, Group } from 'three'
 
 // ============================================================
 // Scroll 阈值（�?LighthouseScene.vue 逐字保留�?
@@ -9,10 +9,8 @@ export const SCROLL_RIG = {
   MINIATURE_START: 0.40,
   MINIATURE_END: 0.55,
   SQUARE_TRANSITION_END: 0.60,
-  GRID_START: 0.45,
-  VERTICAL_START: 0.58,
   TEXT_START: 0.70,
-  GRID_SHIFT_START: 0.85,
+  ACT3_START: 0.85,
   ORBIT_RADII: [3.6, 5.0, 6.4] as const,
   ORBIT_COUNT: 3,
   FOCUS_TIMEOUT: 30,
@@ -82,18 +80,6 @@ export const PLANET_LINKS: PlanetLink[] = [
 ]
 
 // ============================================================
-// 网格线数�?
-// ============================================================
-export interface GridLineData {
-  line: Line
-  x: number; baseY: number
-  zStart: number; zEnd: number
-  staggerOffset: number
-  arcHeight: number
-  basePositions: Float32Array  // 初始顶点位置（供每帧复位用）
-}
-
-// ============================================================
 // 屏幕覆盖数据
 // ============================================================
 export interface ScreenPoint { x: number; y: number }
@@ -106,11 +92,4 @@ export interface OverlayData {
   star?: ScreenCircle
   planet?: ScreenCircle
   tangents?: TangentLine[]
-}
-
-// ============================================================
-// Act 引用（从 act.exit 保存�?ctx 的数据）
-// ============================================================
-export interface Act2State {
-  gridVerticalLines: GridLineData[]
 }

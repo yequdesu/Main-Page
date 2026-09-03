@@ -11,7 +11,6 @@ import { updateCameraFocus } from '../behaviors/useCameraFocus'
 import { readPlanetWorldByParticleIndex, readPlanetWorldPoint, vector3FromPoint } from '../composition/coreAnchors'
 import { useScreenProjection } from '../behaviors/useScreenProjection'
 import { renderLusionAtmosphereFrame } from '../actors/lusionAtmosphereBridge'
-import { getWindChimeProgress } from '../behaviors/useWindChime'
 
 const _viewDir = new Vector3()
 const _starWorld = new Vector3()
@@ -53,7 +52,7 @@ const Act3ContentPhase = memo(function Act3ContentPhase({ visible }: Act3Props) 
     const alpha = smoothstep(progress)
     updateCameraFocus(camera as PerspectiveCamera, sp, time, getPlanetPosition)
     project()
-    _starWorld.set(0, -1, SCENE_CENTER_Z + 6 * getWindChimeProgress(sp).smoothP)
+    _starWorld.set(0, -1, SCENE_CENTER_Z)
     ;(camera as PerspectiveCamera).getWorldDirection(_viewDir)
     const starDepth = _starWorld.sub(camera.position).dot(_viewDir)
     const occluderWeights = [0, 0, 0] as [number, number, number]

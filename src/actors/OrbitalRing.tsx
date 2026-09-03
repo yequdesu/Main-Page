@@ -6,6 +6,7 @@ import { useScrollStore } from '../stores/scrollStore'
 import { getWebglLayer } from '../composition/layerRegistry'
 import { TIMELINE } from '../composition/timeline'
 import type { OrbitalRingConfig } from '../types'
+import { getAct3OrbitMotionScale } from '../behaviors/act3TerminalLayout'
 
 /**
  * 单条轨道�?�?行星轨道面力学模拟�?
@@ -85,7 +86,7 @@ export default function OrbitalRing({ config, speedScale = 1.0, color: colorOver
 
     // 进动（时间驱动）
     if (outerGroupRef.current) {
-      outerGroupRef.current.rotation.y += delta * speed * speedScale
+      outerGroupRef.current.rotation.y += delta * speed * speedScale * getAct3OrbitMotionScale(sp)
     }
   })
 

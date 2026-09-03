@@ -1,7 +1,6 @@
 import { useMemo, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import { BufferAttribute, BufferGeometry, Color, Points, ShaderMaterial } from 'three'
-import { getWindChimeProgress } from '../behaviors/useWindChime'
 import { getWebglLayer } from '../composition/layerRegistry'
 import { TIMELINE } from '../composition/timeline'
 import { clamped, ORBIT_RADII, SCENE_CENTER_Z, smoothstep } from '../r3f/ScrollRig'
@@ -252,7 +251,7 @@ export default function AsteroidBelts({ variant = 'act3' }: AsteroidBeltsProps) 
     const fov = 'fov' in camera ? (camera.fov * Math.PI) / 180 : Math.PI / 4
     const centerZ = isAct1
       ? SCENE_CENTER_Z - 10
-      : SCENE_CENTER_Z + 6 * getWindChimeProgress(sp).smoothP
+      : SCENE_CENTER_Z
     const time = clock.elapsedTime
     let outerAlpha: number
     let outerRevealTime: number | null

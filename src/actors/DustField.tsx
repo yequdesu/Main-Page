@@ -10,7 +10,6 @@ import { TIMELINE } from '../composition/timeline'
 import { getWebglLayer } from '../composition/layerRegistry'
 import { touchActorFrame, useActorRuntime } from '../composition/actorRuntime'
 import { readBeamWorldDirection, readBeamWorldOrigin } from '../composition/coreAnchors'
-import { getWindChimeCenterPhysicalPoint, getWindChimePlanetPhysicalPoint, getWindChimeProgress } from '../behaviors/useWindChime'
 import { type ParticleData } from '../types'
 
 const DEBRIS_COUNT = 560
@@ -370,8 +369,6 @@ export default function DustField() {
     const miniatureProgress = clamped(sp, TIMELINE.miniatureShrink.start, TIMELINE.miniatureShrink.end)
     const act3Progress = clamped(sp, TIMELINE.act3Shift.start, 1.0)
     const smooth3 = smoothstep(act3Progress)
-    const impact = smoothRange(TIMELINE.windChimeDrop.start, TIMELINE.windChimeDrop.end, sp) *
-      (1 - smoothRange(TIMELINE.orbitGlow.start, TIMELINE.orbitGlow.end, sp))
 
     const cx = 0, cy = -1.0, cz = SCENE_CENTER_Z
     const points = debrisRef.current
@@ -391,13 +388,6 @@ export default function DustField() {
     const act1Weight = 1 - smoothRange(TIMELINE.miniatureShrink.start, TIMELINE.miniatureShrink.end, sp)
     const act2Weight = smoothRange(TIMELINE.miniatureShrink.start, TIMELINE.act3Shift.start, sp) *
       (1 - smoothRange(TIMELINE.act3Shift.start, 1.0, sp))
-    const wc = getWindChimeProgress(sp)
-    const impactors = [
-      { point: getWindChimeCenterPhysicalPoint(wc.smoothP, time), radius: 2.85, strength: 3.25, central: true },
-      { point: getWindChimePlanetPhysicalPoint(0, wc.smoothP, time), radius: 0.90, strength: 0.72, central: false },
-      { point: getWindChimePlanetPhysicalPoint(1, wc.smoothP, time), radius: 0.90, strength: 0.72, central: false },
-      { point: getWindChimePlanetPhysicalPoint(2, wc.smoothP, time), radius: 0.90, strength: 0.72, central: false },
-    ]
     material.uniforms.uPixelRatio.value = Math.min(2, gl.getPixelRatio())
     material.uniforms.uProjectionScale.value = gl.domElement.clientHeight / (2 * Math.tan((cam.fov * Math.PI) / 360))
 
@@ -429,35 +419,9 @@ export default function DustField() {
       const midX = act1X + (act2X - act1X) * act2Ease
       const midY = act1Y + (act2Y - act1Y) * act2Ease
       const midZ = act1Z + (act2Z - act1Z) * act2Ease
-      let pushX = 0
-      let pushY = 0
-      let pushZ = 0
-      for (const impactor of impactors) {
-        const dx = midX - impactor.point.x
-        const dy = midY - impactor.point.y
-        const dz = midZ - impactor.point.z
-        const radial = Math.hypot(dx, dz) || 0.001
-        const fallSide = Math.max(0, 1 - Math.abs(dy) / (impactor.radius * 2.4))
-        const near = Math.exp(-((radial / impactor.radius) ** 2)) * fallSide * impactor.strength
-        const wake = Math.exp(-((radial / (impactor.radius * 2.6)) ** 2)) *
-          smoothRange(-2.4, 1.0, impactor.point.y - midY) *
-          impactor.strength * 0.45
-        const centralBoost = impactor.central ? 1.0 + d.protoCoreWeight * 1.75 : 1
-        const force = impact * (near + wake) * centralBoost
-        const spread = impactor.central ? 2.15 + d.protoCoreWeight * 1.15 : 1.18 + d.protoRadius * 0.05
-        pushX += (dx / radial) * force * spread
-        pushY += (impactor.central ? -1.42 : -0.62 - Math.abs(d.impactY) * 0.22) * force
-        pushZ += (dz / radial) * force * spread
-      }
-      pushX += d.impactX * impact * 0.18
-      pushY += d.impactY * impact * 0.20
-      pushZ += d.impactZ * impact * 0.18
-      const shockX = midX + pushX
-      const shockY = midY + pushY
-      const shockZ = midZ + pushZ
-      const px = shockX + (orbitPoint.x - shockX) * act3Ease
-      const py = shockY + (orbitPoint.y - shockY) * act3Ease
-      const pz = shockZ + (orbitPoint.z - shockZ) * act3Ease
+      const px = midX + (orbitPoint.x - midX) * act3Ease
+      const py = midY + (orbitPoint.y - midY) * act3Ease
+      const pz = midZ + (orbitPoint.z - midZ) * act3Ease
 
       _scratch.set(px, py, pz)
       const cd = _scratch.distanceTo(camera.position)

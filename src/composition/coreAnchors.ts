@@ -37,6 +37,18 @@ export function planetScreenRadiusAnchorId(trackIdx: number): DataRef {
   return `anchor.planet.${trackIdx}.screenRadius`
 }
 
+export interface ScreenPolyline {
+  points: Array<{ x: number; y: number }>
+}
+
+export interface Act3ContourTarget {
+  width: number
+  height: number
+  central: ScreenCircle
+  planets: ScreenCircle[]
+  orbits: ScreenPolyline[]
+}
+
 export function planetAtmosphereWorldRadiusAnchorId(trackIdx: number): DataRef {
   return `anchor.planet.${trackIdx}.atmosphereWorldRadius`
 }
@@ -50,6 +62,7 @@ export const centralStarScreenAnchorId = 'anchor.centralStar.screen'
 export const beamWorldOriginAnchorId = 'anchor.beam.worldOrigin'
 export const beamWorldDirectionAnchorId = 'anchor.beam.worldDirection'
 export const miniatureFaceRectAnchorId = 'anchor.miniature.faceRect'
+export const act3ContourTargetAnchorId = 'anchor.act3Contour.target'
 
 export function pointFromVector3(v: Vector3): WorldPoint {
   return { x: v.x, y: v.y, z: v.z }
@@ -133,4 +146,8 @@ export function readBeamWorldDirection(): WorldPoint | undefined {
 
 export function readMiniatureFaceRect(): LayoutBox | undefined {
   return readAnchorValue<LayoutBox>(miniatureFaceRectAnchorId)
+}
+
+export function readAct3ContourTarget(): Act3ContourTarget | undefined {
+  return readAnchorValue<Act3ContourTarget>(act3ContourTargetAnchorId)
 }

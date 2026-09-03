@@ -25,8 +25,8 @@ function defineRange(
 
 export const TIMELINE = {
   act1OceanVoyage: defineRange('act1OceanVoyage', 0, SCROLL_RIG.MINIATURE_END, 'Act 1 ocean voyage and miniature-universe exit'),
-  act2GridTransition: defineRange('act2GridTransition', SCROLL_RIG.MINIATURE_END, SCROLL_RIG.GRID_SHIFT_START, 'Act 2 grid transition macro phase'),
-  act3ContentPhase: defineRange('act3ContentPhase', SCROLL_RIG.GRID_SHIFT_START, 1.0, 'Act 3 content macro phase'),
+  act2SquareTransition: defineRange('act2SquareTransition', SCROLL_RIG.MINIATURE_END, SCROLL_RIG.ACT3_START, 'Act 2 square-contour terminal-layout transition'),
+  act3ContentPhase: defineRange('act3ContentPhase', SCROLL_RIG.ACT3_START, 1.0, 'Act 3 content macro phase'),
   miniatureShrink: defineRange(
     'miniatureShrink',
     SCROLL_RIG.MINIATURE_START,
@@ -37,17 +37,18 @@ export const TIMELINE = {
   cubeWhiteFill: defineRange('cubeWhiteFill', 0.50, 0.55, 'Cube settles face-on and fills to pure white'),
   squareSeedShrink: defineRange('squareSeedShrink', 0.55, 0.56, 'Screen-space square takes over and shrinks slightly'),
   squareBfsWave: defineRange('squareBfsWave', 0.56, SCROLL_RIG.SQUARE_TRANSITION_END, 'Deterministic square wave expands over Act 2'),
+  squareTitleTyping: defineRange('squareTitleTyping', 0.58, 0.64, 'Centered bracket title types Earendel'),
+  squareContourZoom: defineRange('squareContourZoom', SCROLL_RIG.SQUARE_TRANSITION_END, 0.80, 'Square contour canvas zooms out to the Act 3 terminal framing'),
+  squareTitleFade: defineRange('squareTitleFade', 0.64, 0.72, 'Earendel title shrinks with the logical canvas and fades out'),
+  squareAct3Crossfade: defineRange('squareAct3Crossfade', 0.80, SCROLL_RIG.ACT3_START, 'Square contours crossfade into matching Act 3 geometry'),
+  act3OrbitResume: defineRange('act3OrbitResume', SCROLL_RIG.ACT3_START, 0.90, 'Frozen terminal layout smoothly resumes orbit motion'),
   act2ThemeReveal: defineRange('act2ThemeReveal', SCROLL_RIG.MINIATURE_END, 0.63, 'Theme background and lighting return beneath the square wave'),
-  wavesAct3Fade: defineRange('wavesAct3Fade', SCROLL_RIG.GRID_SHIFT_START, 1.0, 'Ocean fades as Act 3 shifts in'),
-  gridExtend: defineRange('gridExtend', SCROLL_RIG.MINIATURE_END, SCROLL_RIG.GRID_SHIFT_START, 'Grid lines extend from near to far beneath the square wave'),
-  gridRetract: defineRange('gridRetract', SCROLL_RIG.GRID_SHIFT_START, 0.95, 'Grid lines retract as planets take over'),
-  orbitLineReveal: defineRange('orbitLineReveal', SCROLL_RIG.GRID_SHIFT_START, 1.0, 'Orbit and gyroscope line draw/retract'),
-  windChimeDrop: defineRange('windChimeDrop', 0.60, 0.75, 'Star and planets drop from the upper anchor'),
-  windChimeRetract: defineRange('windChimeRetract', 0.75, 0.88, 'Wind chime guide lines retract'),
-  planetVisible: defineRange('planetVisible', 0.60, 1.0, 'Main planets and central star can be visible'),
+  wavesAct3Fade: defineRange('wavesAct3Fade', SCROLL_RIG.ACT3_START, 1.0, 'Ocean fades as Act 3 shifts in'),
+  orbitLineReveal: defineRange('orbitLineReveal', SCROLL_RIG.ACT3_START, 1.0, 'Decorative gyroscope lines reveal after the square-contour handoff'),
+  planetVisible: defineRange('planetVisible', 0.58, 1.0, 'Main planets and central star publish their terminal layout'),
   orbitGlow: defineRange('orbitGlow', 0.94, 1.0, 'Orbit rings and planet glow fade in'),
   brandTitle: defineRange('brandTitle', SCROLL_RIG.TEXT_START, 0.92, 'Brand title scroll-driven reveal'),
-  act3Shift: defineRange('act3Shift', SCROLL_RIG.GRID_SHIFT_START, 1.0, 'Act 3 scene shift and DOM overlay phase'),
+  act3Shift: defineRange('act3Shift', SCROLL_RIG.ACT3_START, 1.0, 'Act 3 scene shift and DOM overlay phase'),
 } as const
 
 export type TimelineKey = keyof typeof TIMELINE

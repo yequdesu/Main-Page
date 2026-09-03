@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import {
   buildSquareWavePlan,
-  getRequiredSquareWaveGenerations,
   getSquareWaveFrame,
+  SQUARE_WAVE_FADE_GENERATIONS,
   SQUARE_WAVE_LIFETIME,
 } from '../squareWaveTransition'
 
@@ -27,7 +27,7 @@ describe('square wave transition', () => {
     }
   })
 
-  it('moves children from their parent and expires cells after four generations', () => {
+  it('moves children from their parent and expires cells after six generations', () => {
     const plan = buildSquareWavePlan(8)
     const firstChild = plan.find((cell) => cell.birthGeneration > 0)
     expect(firstChild).toBeDefined()
@@ -40,6 +40,16 @@ describe('square wave transition', () => {
     expect(lateFrame.some((sprite) => sprite.x === 0 && sprite.y === 0)).toBe(false)
   })
 
+  it('keeps cells solid for three generations and fades them over the final three', () => {
+    expect(SQUARE_WAVE_LIFETIME).toBe(6)
+    expect(SQUARE_WAVE_FADE_GENERATIONS).toBe(3)
+    const plan = buildSquareWavePlan(2)
+    const atFadeStart = getSquareWaveFrame(plan, 3).find((sprite) => sprite.x === 0 && sprite.y === 0)
+    const halfway = getSquareWaveFrame(plan, 4.5).find((sprite) => sprite.x === 0 && sprite.y === 0)
+    expect(atFadeStart?.opacity).toBe(1)
+    expect(halfway?.opacity).toBeCloseTo(0.5)
+  })
+
   it('uses Euclidean radius so axis and diagonal fronts stay circular', () => {
     const plan = buildSquareWavePlan(12)
     const axis = plan.find((cell) => cell.x === 10 && cell.y === 0)
@@ -47,23 +57,5 @@ describe('square wave transition', () => {
     expect(axis).toBeDefined()
     expect(diagonal).toBeDefined()
     expect(Math.abs(axis!.birthGeneration - diagonal!.birthGeneration)).toBeLessThan(0.6)
-  })
-
-  it('allocates enough generations to cross the viewport corners', () => {
-    const width = 1920
-    const height = 1080
-    const squareSize = 48
-    const spacing = squareSize * 1.1
-    const generations = getRequiredSquareWaveGenerations(width, height, squareSize)
-    expect(generations).toBeGreaterThan(Math.hypot(width * 0.5, height * 0.5) / spacing)
-
-    const finalRing = getSquareWaveFrame(
-      buildSquareWavePlan(generations),
-      generations - 0.001,
-    )
-    expect(finalRing.every((sprite) =>
-      Math.abs(sprite.x * spacing) - squareSize * 0.5 > width * 0.5 ||
-      Math.abs(sprite.y * spacing) - squareSize * 0.5 > height * 0.5,
-    )).toBe(true)
   })
 })

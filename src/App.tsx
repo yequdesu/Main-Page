@@ -4,7 +4,6 @@ import { ScrollTrigger } from 'gsap/ScrollTrigger'
 import { useGSAP } from '@gsap/react'
 import SceneCanvas from './r3f/Canvas'
 import Act1OceanVoyage from './acts/Act1OceanVoyage'
-import Act2GridTransition from './acts/Act2GridTransition'
 import Act3ContentPhase from './acts/Act3ContentPhase'
 import { useScrollStore } from './stores/scrollStore'
 import { TIMELINE } from './composition/timeline'
@@ -20,7 +19,7 @@ import FocusHudOverlay from './actors/FocusHudOverlay'
 import FocusInversionBlocks from './actors/FocusInversionBlocks'
 import FocusInversionDebugPanel from './composition/debug/FocusInversionDebugPanel'
 import LusionAtmosphereOverlay from './actors/LusionAtmosphereOverlay'
-import SquareWaveTransition from './actors/SquareWaveTransition'
+import Act2SquareContourTransition from './actors/Act2SquareContourTransition'
 import { registerCoreActors } from './composition/coreActors'
 import { registerCoreSequences } from './composition/coreSequences'
 import { resetSequence, useSignal } from './composition/sequenceStore'
@@ -42,7 +41,7 @@ const SCROLL_Y_EPSILON = 0.5
 const RAW_ACT1_END = 0.30
 const RAW_ACT2_END = 0.70
 const SCENE_ACT1_END = TIMELINE.act1OceanVoyage.end
-const SCENE_ACT2_END = TIMELINE.act2GridTransition.end
+const SCENE_ACT2_END = TIMELINE.act2SquareTransition.end
 
 function lerpRange(value: number, inStart: number, inEnd: number, outStart: number, outEnd: number): number {
   const t = Math.max(0, Math.min(1, (value - inStart) / (inEnd - inStart)))
@@ -114,8 +113,8 @@ export default function App() {
   // ---- Act visibility ----
   // The screen-space square takes over the face-on miniature at exactly 55%.
   const needsAct1 = (sp: number) => sp <= TIMELINE.cubeWhiteFill.end + 0.0005
-  const needsAct2 = (sp: number) => sp >= TIMELINE.act2GridTransition.start - 0.001
-  const needsAct3 = (sp: number) => sp >= TIMELINE.act3Shift.start - 0.01
+  const needsAct3Visual = (sp: number) => sp >= TIMELINE.squareTitleTyping.start - 0.001
+  const needsAct3 = (sp: number) => sp >= TIMELINE.act3Shift.start - 0.001
 
   // ---- syncScrollbar ----
   const syncScrollbar = useCallback((targetScene = rawToSceneProgress(physRef.current.target)) => {
@@ -314,7 +313,7 @@ export default function App() {
   ) as [LabelConfig, LabelConfig, LabelConfig]
   const handleBuildStatusLine = useCallback((sp: number) => {
     const pct = Math.round(sp * 100)
-    const actName = sp < TIMELINE.act1OceanVoyage.end ? 'OceanVoyage' : sp < TIMELINE.act3Shift.start ? 'GridTransition' : 'ContentPhase'
+    const actName = sp < TIMELINE.act1OceanVoyage.end ? 'OceanVoyage' : sp < TIMELINE.act3Shift.start ? 'SquareTransition' : 'ContentPhase'
     const actNum = sp < TIMELINE.act1OceanVoyage.end ? '1' : sp < TIMELINE.act3Shift.start ? '2' : '3'
     return `# Act ${actNum} · ${actName} · scroll ${pct}%`
   }, [])
@@ -323,12 +322,11 @@ export default function App() {
     <>
       <SceneCanvas>
         <Act1OceanVoyage visible={needsAct1(sp)} />
-        <Act2GridTransition visible={needsAct2(sp)} />
-        <Act3ContentPhase visible={needsAct3(sp)} />
+        <Act3ContentPhase visible={needsAct3Visual(sp)} />
       </SceneCanvas>
 
       <LusionAtmosphereOverlay />
-      <SquareWaveTransition />
+      <Act2SquareContourTransition />
 
       <MainTerminal
         mode={terminalMode}

@@ -12,14 +12,11 @@ import { smoothstep, clamped, SCENE_CENTER_Z, ORBIT_RADII, ORBIT_COUNT } from '.
 import { atmosphereVertex, atmosphereFragment } from '../shaders/AtmosphereShader'
 import { type ParticleData } from '../types'
 import {
-  WC_ANCHOR_Y,
-  WC_DROP_START,
-  WC_DROP_END,
-  WC_RETRACT_END,
-  getWindChimeProgress,
-  getWindChimePlanetOrbitAngle,
-  getWindChimePlanetPhysicalPoint,
-} from '../behaviors/useWindChime'
+  ACT3_TERMINAL_LAYOUT,
+  createAct3Random,
+  getAct3OrbitMotionScale,
+  getAct3VisualAlpha,
+} from '../behaviors/act3TerminalLayout'
 import { useScreenProjection } from '../behaviors/useScreenProjection'
 import { TIMELINE } from '../composition/timeline'
 import { getWebglLayer } from '../composition/layerRegistry'
@@ -122,14 +119,15 @@ export default function Planets() {
 
   // ---- Create 3 planet meshes + atmosphere (one-time) ----
   const { mainPlanets, planetBasicMats, planetLitMats, innerGlows, atmosShells, haloSpriteMats, haloSprites, mainPlanetIndices, particleData } = useMemo(() => {
+    const random = createAct3Random()
     const haloTexture = getHaloTexture()
     const count = 83
     const dustConfigs: { scale: number; sizeBoost: number; totalSize: number }[] = []
 
     // Re-create the same deterministic config that DustField uses for planet index selection
     for (let i = 0; i < count; i++) {
-      const scale = 0.4 + Math.random() * 0.8
-      const sizeBoost = Math.random() < 0.60 ? 1.5 + Math.random() * 2.5 : 0.7 + Math.random() * 0.8
+      const scale = 0.4 + random() * 0.8
+      const sizeBoost = random() < 0.60 ? 1.5 + random() * 2.5 : 0.7 + random() * 0.8
       dustConfigs.push({ scale, sizeBoost, totalSize: scale * sizeBoost })
     }
 
@@ -153,39 +151,41 @@ export default function Planets() {
       const cfg = dustConfigs[i]
 
       const worldOrigin = new Vector3(0, -2.5 + 2.96 * 0.7, SCENE_CENTER_Z)
-      const tt = Math.random()
+      const tt = random()
       const zDist = 1 + tt * 41
       const maxR = (zDist / 42) * 7.5 + 0.2
-      const angle = Math.random() * Math.PI * 2
-      const r = Math.sqrt(Math.random()) * maxR
+      const angle = random() * Math.PI * 2
+      const r = Math.sqrt(random()) * maxR
       const wx = worldOrigin.x + Math.cos(angle) * r
-      const wy = worldOrigin.y + (Math.random() - 0.5) * maxR * 0.6
+      const wy = worldOrigin.y + (random() - 0.5) * maxR * 0.6
       const wz = worldOrigin.z + zDist
 
-      const gray = Math.floor(100 + Math.random() * 60)
+      const gray = Math.floor(100 + random() * 60)
       const grayHex = '#' + gray.toString(16).padStart(2, '0').repeat(3)
 
       const orbitR = isMain
         ? ORBIT_RADII[mainTrackIdx]
-        : 2.5 + Math.random() * 4.5
+        : 2.5 + random() * 4.5
       const orbitSpeed = isMain
         ? -0.04 - mainTrackIdx * 0.015
-        : -(0.03 + Math.random() * 0.08)
+        : -(0.03 + random() * 0.08)
 
       const particle: ParticleData = {
         wx, wy, wz,
-        dx: (Math.random() - 0.5) * 0.15,
-        dy: (Math.random() - 0.5) * 0.1 + 0.06,
-        dz: (Math.random() - 0.5) * 0.08,
-        ph: Math.random() * Math.PI * 2,
+        dx: (random() - 0.5) * 0.15,
+        dy: (random() - 0.5) * 0.1 + 0.06,
+        dz: (random() - 0.5) * 0.08,
+        ph: random() * Math.PI * 2,
         scale: cfg.scale,
         sizeBoost: cfg.sizeBoost,
         grayHex,
-        orbitAngle: isMain ? getWindChimePlanetOrbitAngle(mainTrackIdx) : Math.random() * Math.PI * 2,
+        orbitAngle: isMain
+          ? ACT3_TERMINAL_LAYOUT.planets[mainTrackIdx].orbitAngle
+          : random() * Math.PI * 2,
         orbitR,
         orbitSpeed,
         _baseSpeed: orbitSpeed,
-        scaleMult: isMain ? 2.4 + mainTrackIdx * 0.2 : 0.4 + Math.random() * 0.9,
+        scaleMult: isMain ? 2.4 + mainTrackIdx * 0.2 : 0.4 + random() * 0.9,
         isMainPlanet: isMain,
         hoverFactor: 0.0,
         orbitTilt: 0,
@@ -308,18 +308,14 @@ export default function Planets() {
     const anchorWrites: AnchorInput[] = []
 
     const miniatureProgress = clamped(sp, TIMELINE.miniatureShrink.start, TIMELINE.miniatureShrink.end)
-    const ORBIT_START = TIMELINE.gridRetract.end
-    const act3Progress = clamped(sp, ORBIT_START, 1.0)
-    const smooth3 = smoothstep(act3Progress)
-
+    const act3Progress = clamped(sp, TIMELINE.act3Shift.start, 1.0)
+    const visualAlpha = getAct3VisualAlpha(sp)
+    const orbitMotionScale = getAct3OrbitMotionScale(sp)
     const VISIBLE_START = TIMELINE.planetVisible.start
-    const wc = getWindChimeProgress(sp)
-    const inWindChime = wc.active
-    const orbitSmooth3 = 1.0
 
     const cx = 0, cy = CENTRAL_STAR_Y, cz = SCENE_CENTER_Z
     const { hoveredIdx, focusedPlanetIdx, volumeLightEnabled } = useScrollStore.getState()
-    _starWorld.set(cx, cy, SCENE_CENTER_Z + 6 * wc.smoothP)
+    _starWorld.set(cx, cy, SCENE_CENTER_Z)
     if (starLightRef.current) {
       const lightFactor = clamped(sp, TIMELINE.orbitGlow.start, TIMELINE.orbitGlow.end)
       starLightRef.current.position.copy(_starWorld)
@@ -342,40 +338,33 @@ export default function Planets() {
       const d = particleData[i]
       if (!d.isMainPlanet) continue
       const trackIdx = mainPlanetIndices.indexOf(i)
+      if (trackIdx >= 0 && sp <= TIMELINE.act3OrbitResume.start) {
+        d.orbitAngle = ACT3_TERMINAL_LAYOUT.planets[trackIdx].orbitAngle
+      }
 
       // Hover/focus target
       const targetHover = (i === hoveredIdx && act3Progress >= 0.95) ? 1.0 : 0.0
       d.hoverFactor += (targetHover - d.hoverFactor) * 0.10
 
-      if (trackIdx >= 0 && sp < WC_RETRACT_END) {
-        d.orbitAngle = getWindChimePlanetOrbitAngle(trackIdx)
-      }
-
       // Position
       const freezeFocusedOrbit = i === focusedPlanetIdx && sp >= TIMELINE.act3Shift.start
-      const orbitPoint = calcOrbitPosition(d, time, delta, cx, cy, cz, orbitSmooth3, freezeFocusedOrbit)
-      let { x: px, y: py, z: pz } = orbitPoint
-      const inWindChimeToOrbitBlend = trackIdx >= 0 && sp < TIMELINE.orbitGlow.start
-      if (inWindChimeToOrbitBlend) {
-        const point = getWindChimePlanetPhysicalPoint(trackIdx, wc.smoothP, time)
-        let windChimeY = point.y
-        if (sp >= VISIBLE_START && sp < WC_DROP_END) {
-          const dropOnly = clamped(sp, VISIBLE_START, WC_DROP_END)
-          windChimeY = WC_ANCHOR_Y + (point.y - WC_ANCHOR_Y) * smoothstep(dropOnly)
-        }
-        const orbitBlend = smoothstep(clamped(sp, WC_RETRACT_END, TIMELINE.orbitGlow.start))
-        px = point.x + (orbitPoint.x - point.x) * orbitBlend
-        py = windChimeY + (orbitPoint.y - windChimeY) * orbitBlend
-        pz = point.z + (orbitPoint.z - point.z) * orbitBlend
-      }
+      const orbitPoint = calcOrbitPosition(
+        d,
+        time,
+        delta * orbitMotionScale,
+        cx,
+        cy,
+        cz,
+        1,
+        freezeFocusedOrbit,
+      )
+      const { x: px, y: py, z: pz } = orbitPoint
 
       // Distance for appearance
       _scratch.set(px, py, pz)
       const cd = _scratch.distanceTo(camera.position)
 
-      const isMain = mainPlanetIndices.includes(i)
-      const appearanceSmooth3 = isMain ? orbitSmooth3 : smooth3
-      const appearance = calcAppearance(d, sp, miniatureProgress, appearanceSmooth3, cd, 0)
+      const appearance = calcAppearance(d, sp, miniatureProgress, 1, cd, 0)
 
       // Color
       _color2.set(d.grayHex)
@@ -390,9 +379,6 @@ export default function Planets() {
       }
 
       mesh.position.set(px, py, pz)
-      if (inWindChime && !inWindChimeToOrbitBlend) {
-        mesh.position.z += 6 * wc.smoothP
-      }
       mesh.visible = sp >= VISIBLE_START
       mesh.scale.setScalar(appearance.scale)
 
@@ -456,7 +442,7 @@ export default function Planets() {
         targetOcclusionFactor - currentOcclusionFactor
       ) * occlusionEase
       occlusionFactorsRef.current[trackIdx] = occlusionFactor
-      const planetOpacity = appearance.opacity * occlusionFactor
+      const planetOpacity = appearance.opacity * occlusionFactor * visualAlpha
       // Keep a neighbour's depth until it is almost invisible. Releasing it
       // at focus start makes the higher grid layer jump through the planet.
       mat.depthWrite = planetLayer.depthWrite && (

@@ -1,4 +1,5 @@
-export const SQUARE_WAVE_LIFETIME = 4
+export const SQUARE_WAVE_LIFETIME = 6
+export const SQUARE_WAVE_FADE_GENERATIONS = 3
 export const SQUARE_WAVE_SPACING = 1.1
 export const SQUARE_WAVE_SEED_SCALE = 0.88
 
@@ -100,9 +101,10 @@ export function getSquareWaveFrame(
     const age = generationProgress - cell.birthGeneration
     if (age < 0 || age >= SQUARE_WAVE_LIFETIME) continue
     const movement = smootherstep(age)
-    const fade = age <= SQUARE_WAVE_LIFETIME - 1
+    const fadeStart = SQUARE_WAVE_LIFETIME - SQUARE_WAVE_FADE_GENERATIONS
+    const fade = age <= fadeStart
       ? 1
-      : 1 - smootherstep(age - (SQUARE_WAVE_LIFETIME - 1))
+      : 1 - smootherstep((age - fadeStart) / SQUARE_WAVE_FADE_GENERATIONS)
     sprites.push({
       x: cell.parentX + (cell.x - cell.parentX) * movement,
       y: cell.parentY + (cell.y - cell.parentY) * movement,
@@ -111,17 +113,4 @@ export function getSquareWaveFrame(
   }
 
   return sprites
-}
-
-export function getRequiredSquareWaveGenerations(
-  viewportWidth: number,
-  viewportHeight: number,
-  squareSize: number,
-): number {
-  const spacing = Math.max(1, squareSize * SQUARE_WAVE_SPACING)
-  const cornerRadius = Math.hypot(
-    viewportWidth * 0.5 + squareSize,
-    viewportHeight * 0.5 + squareSize,
-  ) / spacing
-  return Math.ceil(cornerRadius) + SQUARE_WAVE_LIFETIME + 2
 }

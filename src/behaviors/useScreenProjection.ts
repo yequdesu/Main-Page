@@ -1,8 +1,6 @@
 import { useThree } from '@react-three/fiber'
 import { Vector3, type PerspectiveCamera } from 'three'
 import { SCENE_CENTER_Z } from '../r3f/ScrollRig'
-import { useScrollStore } from '../stores/scrollStore'
-import { getWindChimeProgress } from './useWindChime'
 import { touchActorFrame } from '../composition/actorRuntime'
 import {
   centralStarScreenAnchorId,
@@ -30,7 +28,7 @@ const _ndc = new Vector3()
 /** 中央恒星世界位置 */
 const CENTRAL_STAR_WORLD = new Vector3(0, -1.0, SCENE_CENTER_Z)
 /** 中央恒星内层光晕世界半径（与 CentralStar.tsx INNER_GLOW_RADIUS 一致） */
-const CENTRAL_STAR_WORLD_RADIUS = 0.70
+const CENTRAL_STAR_WORLD_RADIUS = 0.42
 
 export function useScreenProjection() {
   const { camera, gl } = useThree()
@@ -42,7 +40,6 @@ export function useScreenProjection() {
     const pcam = camera as PerspectiveCamera
     const fovY = (pcam.fov * Math.PI) / 180
     const halfTan = Math.tan(fovY / 2)
-    const wc = getWindChimeProgress(useScrollStore.getState().scrollProgress)
 
     // ---- 行星投影 ----
     const coords: [ScreenPoint, ScreenPoint, ScreenPoint] = [
@@ -77,7 +74,7 @@ export function useScreenProjection() {
     setCoreAnchors(anchorWrites)
 
     // ---- 中央恒星投影 ----
-    CENTRAL_STAR_WORLD.z = SCENE_CENTER_Z + 6 * wc.smoothP
+    CENTRAL_STAR_WORLD.z = SCENE_CENTER_Z
     _ndc.copy(CENTRAL_STAR_WORLD).project(camera)
     const csVisible = _ndc.z < 1
     if (csVisible) {

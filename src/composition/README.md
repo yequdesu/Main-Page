@@ -54,7 +54,7 @@ WebGL / DOM / SVG visual result
 Most scene animation in this project must be reversible because the page is controlled by scroll progress. For these effects, use `timeline.ts`.
 
 ```ts
-const p = smoothProgress('windChimeDrop', scrollProgress)
+const p = smoothProgress('squareContourZoom', scrollProgress)
 mesh.position.y = startY + (endY - startY) * p
 material.opacity = p
 ```

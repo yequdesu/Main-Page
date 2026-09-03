@@ -9,8 +9,7 @@
 | 文件 | 区间 | 组装内容 | 可见性控�?|
 |------|:---:|------|------|
 | `Act1OceanVoyage.tsx` | 0�?6% | `OceanWaves` + `Lighthouse` + `LightBeam` + `LighthouseCapture` | `<group visible={visible}>` |
-| `Act2GridTransition.tsx` | 40�?5% | `GridLines` | `<group visible={visible}>` |
-| `Act3ContentPhase.tsx` | 85�?00% | `OrbitRings` + `CentralStar` + `PlanetLabel` ×3 + `updateCameraFocus` | `<group visible={visible}>` |
+| `Act3ContentPhase.tsx` | 58�?00% | `OrbitRings` + `AsteroidBelts` + `updateCameraFocus` | `<group visible={visible}>` |
 
 ## 组织原则
 

@@ -10,12 +10,12 @@
 | `LightBeam.tsx` | Cone / Line / Glow / PointLight | scroll + elapsed time | actor + layer + beam anchors |
 | `OceanWaves.tsx` | Procedural Gerstner toon ocean | scroll + elapsed time + beam anchors + reef field | actor + layer + anchor consumer |
 | `DustField.tsx` | Mesh + InstancedMesh2 | scroll + elapsed time | actor + layer |
-| `GridLines.tsx` | Lines + points | scroll progress | actor + layer |
 | `Planets.tsx` | Planet meshes / halos | scroll + elapsed time | actor + layer + world/screen anchors |
-| `WindChimeLines.tsx` | SVG/WebGL-style chime lines | pure wind-chime layout function | actor + layer |
 | `CentralStar.tsx` | Mesh + sprites | scroll + elapsed time | actor + layer + screen anchor |
 | `OrbitRings.tsx` | Orbit reference lines | scroll progress | actor + layer |
 | `OrbitalRing.tsx` | Single orbit line loop | scroll progress | actor + layer |
+| `Act3ContourProjection.tsx` | Act 3 screen-space contour target | camera + terminal layout | actor + contour anchor |
+| `Act2SquareContourTransition.tsx` | DOM Canvas square wave and contour handoff | scroll + contour anchor | actor + layer |
 | `FloatingLabels.tsx` | DOM terminal pills | sequence + PBD layout | actor + layer + effect scopes |
 | `PlanetLabelGuideLines.tsx` | SVG guide lines | label layout phase + anchors | actor + layer |
 | `PlanetLabelDebug.tsx` | Debug overlay | anchors | actor + layer |

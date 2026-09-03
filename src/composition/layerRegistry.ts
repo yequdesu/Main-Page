@@ -71,10 +71,6 @@ export const LAYERS = {
     id: 'webgl.debris',
     contract: { kind: 'webgl', renderOrder: 2, depthTest: true, depthWrite: false, transparent: true, sort: 'instanced' },
   },
-  'webgl.windChime': {
-    id: 'webgl.windChime',
-    contract: { kind: 'webgl', renderOrder: 2, depthTest: true, depthWrite: false, transparent: true },
-  },
   'dom.canvas': {
     id: 'dom.canvas',
     contract: { kind: 'dom', zIndex: 0, position: 'fixed', pointerEvents: 'auto' },
@@ -121,10 +117,10 @@ export const LAYERS = {
     contract: { kind: 'dom', zIndex: 4, position: 'fixed', pointerEvents: 'none' },
     description: 'Independent Act 3 atmosphere overlay for Lusion particles and Tyndall light shafts.',
   },
-  'dom.squareWaveTransition': {
-    id: 'dom.squareWaveTransition',
-    contract: { kind: 'dom', zIndex: 6, position: 'fixed', pointerEvents: 'none' },
-    description: 'Act 1 to Act 2 white square BFS transition above the scene and below persistent UI.',
+  'dom.act2SquareContourTransition': {
+    id: 'dom.act2SquareContourTransition',
+    contract: { kind: 'dom', zIndex: 7, position: 'fixed', pointerEvents: 'none' },
+    description: 'Continuous square wave, Earendel title and deterministic Act 3 contour reveal.',
   },
   'dom.mainTerminal': {
     id: 'dom.mainTerminal',

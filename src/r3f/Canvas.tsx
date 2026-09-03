@@ -6,8 +6,8 @@ import ScrollInvalidator from './ScrollInvalidator'
 import PlanetClickHandler from './PlanetClickHandler'
 import SceneLights from '../actors/SceneLights'
 import Planets from '../actors/Planets'
-import WindChimeLines from '../actors/WindChimeLines'
 import CentralStar from '../actors/CentralStar'
+import Act3ContourProjection from '../actors/Act3ContourProjection'
 import SeaCameraBob from '../actors/SeaCameraBob'
 import { getDomLayer } from '../composition/layerRegistry'
 
@@ -49,8 +49,8 @@ export default function SceneCanvas({ children }: CanvasProps) {
       <PlanetClickHandler />
       <SceneLights />
       <Planets />
-      <WindChimeLines />
       <CentralStar />
+      <Act3ContourProjection />
       {children}
     </R3FCanvas>
   )

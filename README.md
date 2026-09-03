@@ -38,10 +38,10 @@
 | 常量 | 值 | 说明 |
 |------|:---:|------|
 | `SCENE_CENTER_Z` | -16.0 | 灯塔、轨道、恒星、行星的统一 Z 深度 |
-| `WHITE_OUT_THRESHOLD` / `WHITE_OUT_END` | 0.40 / 0.55 | 白雾过渡区间 |
-| `GRID_START` / `VERTICAL_START` | 0.45 / 0.58 | 网格展平 / 垂直线开始 |
+| `MINIATURE_START` / `MINIATURE_END` | 0.40 / 0.55 | 第一幕微缩宇宙转场 |
+| `SQUARE_TRANSITION_END` | 0.60 | 方块扩散冻结为恒星轮廓 |
 | `TEXT_START` | 0.70 | 品牌文字出现 |
-| `GRID_SHIFT_START` | 0.85 | Act 3 出现，全部元素下移 32Y |
+| `ACT3_START` | 0.85 | 方块轮廓与 Act 3 完成交接 |
 | 轨道半径 / 轨道中心 | `[3.6, 5.0, 6.4]` / `(0, -1.0, -16)` | 三颗主行星 |
 
 ### 源文件结构
@@ -55,7 +55,7 @@ src/
 ├── InfoPanelTerminal.tsx + .css   信息面板终端（Act 3 左上角）
 ├── r3f/
 │   ├── Canvas.tsx                 flat + frameloop:demand
-│   ├── ScrollRig.ts              阈值 + sceneApplyWhiteOut
+│   ├── ScrollRig.ts              场景阈值与通用缓动
 │   ├── ScrollInvalidator.tsx     订阅→invalidate + 全局雾
 │   └── PlanetClickHandler.tsx    NDC 投影点击检测
 ├── stores/
@@ -86,13 +86,13 @@ src/
 ├── types/index.ts                SCROLL_RIG + 数据接口
 ├── acts/                          Act 编排（group visible，始终挂载）
 │   ├── Act1OceanVoyage.tsx        OceanWaves + Lighthouse + LightBeam
-│   ├── Act2GridTransition.tsx     GridLines
 │   └── Act3ContentPhase.tsx       OrbitRings（标签由 App.tsx 的 FloatingLabels 管理）
 ├── actors/                        3D 对象（创建 + useFrame 动画）
 │   ├── SceneLights.tsx            全局灯光（Canvas 根层级）
 │   ├── DustField.tsx              3 主行星 + InstancedMesh2×80（Canvas 根层级）
 │   ├── Lighthouse.tsx + LightBeam.tsx + OceanWaves.tsx
-│   ├── CentralStar.tsx + OrbitRings.tsx + OrbitalRing.tsx + GridLines.tsx
+│   ├── CentralStar.tsx + OrbitRings.tsx + OrbitalRing.tsx
+│   ├── Act2SquareContourTransition.tsx + Act3ContourProjection.tsx
 │   ├── BrandTitle.tsx + .css      品牌标题 DOM 叠加层（BrandIcon + BrandText）
 │   ├── FloatingLabels.tsx + .css  行星标签 DOM 编排容器（PBD 物理驱动）
 │   ├── LighthouseCapture.tsx      灯塔离屏烘焙截图

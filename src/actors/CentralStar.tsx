@@ -3,7 +3,7 @@ import { useFrame } from '@react-three/fiber'
 import { CanvasTexture, SpriteMaterial, MeshBasicMaterial, AdditiveBlending, LinearFilter, type Mesh, type Group } from 'three'
 import { SCENE_CENTER_Z, clamped, smoothstep } from '../r3f/ScrollRig'
 import { useScrollStore } from '../stores/scrollStore'
-import { WC_ANCHOR_Y, WC_DROP_START, WC_DROP_END, WC_RETRACT_END, getWindChimeCenterPhysicalPoint, getWindChimeProgress } from '../behaviors/useWindChime'
+import { getAct3VisualAlpha } from '../behaviors/act3TerminalLayout'
 import { TIMELINE } from '../composition/timeline'
 import { getWebglLayer } from '../composition/layerRegistry'
 import { touchActorFrame, useActorRuntime } from '../composition/actorRuntime'
@@ -103,6 +103,7 @@ export default function CentralStar() {
   const farHaloTex = useMemo(() => makeHaloTexture(FAR_HALO_COLOR_STOPS), [])
 
   const groupRef = useRef<Group>(null)
+  const coreMatRef = useRef<MeshBasicMaterial | null>(null)
   const spriteMatRef = useRef<SpriteMaterial | null>(null)
   const farSpriteMatRef = useRef<SpriteMaterial | null>(null)
   const glowMeshRef = useRef<Mesh | null>(null)
@@ -112,23 +113,15 @@ export default function CentralStar() {
     const time = state.clock.elapsedTime
     touchActorFrame('centralStar', Math.round(time * 60), sp >= TIMELINE.planetVisible.start)
 
-    // 0.68 出现，从锚点开始下落避免闪�?
+    // Publish the fixed terminal composition from 58%; fade it in at 80-85%.
     const VISIBLE_START = TIMELINE.planetVisible.start
     const visible = sp >= VISIBLE_START
-    const wc = getWindChimeProgress(sp)
+    const visualAlpha = getAct3VisualAlpha(sp)
     if (groupRef.current) {
       groupRef.current.visible = visible
-      const windChimePoint = getWindChimeCenterPhysicalPoint(wc.smoothP, time)
-      // Y：从 0.68 开始下�?早于风铃)，到 WC_DROP_END 到位
-      if (sp >= VISIBLE_START && sp < WC_DROP_END) {
-        const dropOnly = clamped(sp, VISIBLE_START, WC_DROP_END)
-        groupRef.current.position.y = WC_ANCHOR_Y + (windChimePoint.y - WC_ANCHOR_Y) * smoothstep(dropOnly)
-      } else if (sp >= WC_DROP_END) {
-        groupRef.current.position.y = windChimePoint.y
-      }
-      groupRef.current.position.x = windChimePoint.x
-      groupRef.current.position.z = windChimePoint.z
+      groupRef.current.position.set(0, GROUP_POSITION_Y, SCENE_CENTER_Z)
     }
+    if (coreMatRef.current) coreMatRef.current.opacity = visualAlpha
 
     const GLOW_START = TIMELINE.orbitGlow.start
     const act3Progress = clamped(sp, GLOW_START, 1.0)
@@ -137,16 +130,16 @@ export default function CentralStar() {
 
     if (glowMeshRef.current) {
       const mat = glowMeshRef.current.material as MeshBasicMaterial
-      mat.opacity = smooth3 * GLOW_OPACITY_COEFF * pulse
+      mat.opacity = visualAlpha * smooth3 * GLOW_OPACITY_COEFF * pulse
       glowMeshRef.current.scale.setScalar(pulse)
     }
 
     if (spriteMatRef.current) {
-      spriteMatRef.current.opacity = smooth3 * SPRITE_OPACITY_COEFF * pulse
+      spriteMatRef.current.opacity = visualAlpha * smooth3 * SPRITE_OPACITY_COEFF * pulse
     }
 
     if (farSpriteMatRef.current) {
-      farSpriteMatRef.current.opacity = smooth3 * FAR_SPRITE_OPACITY_COEFF * pulse
+      farSpriteMatRef.current.opacity = visualAlpha * smooth3 * FAR_SPRITE_OPACITY_COEFF * pulse
     }
   })
 
@@ -155,7 +148,12 @@ export default function CentralStar() {
       {/* 1. 核心：暖白实体球 */}
       <mesh renderOrder={layer.renderOrder}>
         <sphereGeometry args={[CORE_RADIUS, CORE_SEGMENTS, CORE_SEGMENTS]} />
-        <meshBasicMaterial color={CORE_COLOR} />
+        <meshBasicMaterial
+          ref={(mat) => { coreMatRef.current = mat }}
+          color={CORE_COLOR}
+          transparent
+          opacity={0}
+        />
       </mesh>
 
       {/* 2. 内层光晕：透明金色包裹（脉冲呼吸） */}

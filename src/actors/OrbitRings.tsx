@@ -1,7 +1,7 @@
 import { useMemo, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import { type BufferGeometry, type LineBasicMaterial } from 'three'
-import { SCENE_CENTER_Z, ORBIT_RADII, ORBIT_COUNT, clamped, smoothstep } from '../r3f/ScrollRig'
+import { SCENE_CENTER_Z, ORBIT_RADII, ORBIT_COUNT } from '../r3f/ScrollRig'
 import { useScrollStore } from '../stores/scrollStore'
 import { themeColor } from '../theme/colors'
 import { TIMELINE } from '../composition/timeline'
@@ -9,6 +9,7 @@ import { getWebglLayer } from '../composition/layerRegistry'
 import { touchActorFrame, useActorRuntime } from '../composition/actorRuntime'
 import OrbitalRing from './OrbitalRing'
 import type { OrbitalRingConfig } from '../types'
+import { getAct3VisualAlpha } from '../behaviors/act3TerminalLayout'
 
 /**
  * 行星轨道系统 �?3 条静态轨道参考线 + N 条陀螺仪装饰环�?
@@ -55,11 +56,10 @@ export default function OrbitRings({ speedScale = 1.0 }: OrbitRingsProps) {
 
   useFrame(() => {
     const sp = useScrollStore.getState().scrollProgress
-    touchActorFrame('orbits', Math.round(performance.now()), sp >= TIMELINE.orbitLineReveal.start)
+    touchActorFrame('orbits', Math.round(performance.now()), sp >= TIMELINE.squareAct3Crossfade.start)
+    const reveal = getAct3VisualAlpha(sp)
 
     orbitMatRefs.current.forEach((mat, index) => {
-      const revealStart = TIMELINE.orbitLineReveal.start + index * 0.012
-      const reveal = smoothstep(clamped(sp, revealStart, TIMELINE.orbitLineReveal.end))
       const geometry = orbitGeometryRefs.current[index]
       const pointCount = geometry?.getAttribute('position').count ?? 0
       geometry?.setDrawRange(0, Math.ceil(pointCount * reveal))
