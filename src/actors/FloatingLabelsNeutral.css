@@ -1,0 +1,30 @@
+/* Expanded planet terminals are deliberately neutral and never inherit the
+   per-planet accent color used by their collapsed labels. */
+.floating-label-pill.expanded {
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
+}
+
+.floating-label-pill.expanded .terminal-bar-inner,
+[data-theme="day"] .floating-label-pill.expanded .terminal-bar-inner {
+  --tw-echo: rgba(226, 232, 240, 0.82);
+  --tw-prefix: rgba(203, 213, 225, 0.78);
+  --tw-prompt: rgba(203, 213, 225, 0.82);
+  --tw-input: rgba(226, 232, 240, 0.88);
+  --tw-placeholder: rgba(203, 213, 225, 0.48);
+  --tw-cursor-dim: rgba(203, 213, 225, 0.72);
+  --tw-cursor-bright: rgba(226, 232, 240, 0.86);
+  background: rgba(148, 163, 184, 0.2);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.floating-label-pill.expanded .terminal-bar-inner:hover,
+.floating-label-pill.expanded .terminal-bar-inner.active {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.floating-label-pill.expanded .terminal-placeholder,
+[data-theme="day"] .floating-label-pill.expanded .terminal-placeholder {
+  color: var(--tw-placeholder);
+}
