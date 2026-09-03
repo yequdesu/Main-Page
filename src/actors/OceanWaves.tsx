@@ -250,7 +250,12 @@ export default function OceanWaves() {
     material.uniforms.uOpacity.value = sceneOpacity
     volumeMaterial.uniforms.uTime.value = state.clock.elapsedTime
     volumeMaterial.uniforms.uOpacity.value = sceneOpacity * volumeReveal
-    if (volumeRef.current) volumeRef.current.visible = volumeReveal > 0.001
+    // Keep the volume in the depth pass as soon as the miniature wireframe
+    // starts drawing. Its color can still fade in later, but submerged/back
+    // cube edges must never flash through the transparent water body.
+    if (volumeRef.current) {
+      volumeRef.current.visible = sp >= TIMELINE.miniatureShrink.start
+    }
 
     const beamOrigin = readBeamWorldOrigin()
     const beamDirection = readBeamWorldDirection()
