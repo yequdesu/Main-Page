@@ -59,6 +59,25 @@ export interface MotionTrailFrame {
   trail: TrailCircle[]
 }
 
+export function scaleMotionTrailRadii(
+  frame: MotionTrailFrame,
+  scale: number,
+): MotionTrailFrame {
+  const safeScale = Math.max(0, scale)
+  return {
+    ...frame,
+    main: {
+      point: frame.main.point,
+      radius: frame.main.radius * safeScale,
+    },
+    trail: frame.trail.map((circle) => ({
+      ...circle,
+      radius: circle.radius * safeScale,
+      emittedRadius: circle.emittedRadius * safeScale,
+    })),
+  }
+}
+
 const TAU = Math.PI * 2
 
 function clamp(value: number, min: number, max: number): number {

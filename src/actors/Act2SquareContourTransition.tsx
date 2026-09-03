@@ -21,7 +21,7 @@ import {
   PLANET_FLIGHT_TIMINGS,
   buildPlanetFlightPlans,
   buildSquareContourLayout,
-  getPlanetFlightFrame,
+  getPlanetFlightRenderFrame,
   getSquareContourTransform,
   getSquareContourTransitionFrame,
   getSquareWaveCanvasTransform,
@@ -141,6 +141,7 @@ function drawPlanetFlights(
   focusX: number,
   focusY: number,
   zoom: number,
+  terminalZoom: number,
   clipRadius: number,
   opacity: number,
   viewportWidth: number,
@@ -159,7 +160,10 @@ function drawPlanetFlights(
   for (const plan of plans) {
     const timing = PLANET_FLIGHT_TIMINGS[plan.trackIdx] ?? PLANET_FLIGHT_TIMINGS[0]
     if (scrollProgress < timing.start) continue
-    drawSmoothFlight(ctx, getPlanetFlightFrame(plan, scrollProgress))
+    drawSmoothFlight(
+      ctx,
+      getPlanetFlightRenderFrame(plan, scrollProgress, zoom, terminalZoom),
+    )
   }
   ctx.restore()
   ctx.globalAlpha = 1
@@ -303,6 +307,7 @@ export default function Act2SquareContourTransition() {
         transform.focusX,
         transform.focusY,
         transform.zoom,
+        layout.terminalZoom,
         Math.max(0, layout.logicalCentralRadius - layout.logicalSquareSize),
         frame.contourAlpha,
         width,

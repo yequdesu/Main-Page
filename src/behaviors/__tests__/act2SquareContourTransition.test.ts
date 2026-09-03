@@ -10,6 +10,7 @@ import {
   buildSquareContourLayout,
   getPlanetFlightElapsed,
   getPlanetFlightFrame,
+  getPlanetFlightRenderFrame,
   getSquareContourTransform,
   getSquareContourTransitionFrame,
   getSquareWaveExpansionProgress,
@@ -171,7 +172,46 @@ describe('Act 2 square contour transition', () => {
     plans.forEach((plan) => {
       const orbitPoint = plan.path.controlPoints[Math.round(plan.path.controlPoints.length * 0.45)]
       expect(Math.hypot(orbitPoint.x, orbitPoint.y)).toBeGreaterThan(layout.logicalCentralRadius)
+      expect(plan.config.trailSpacing * layout.handoffZoom).toBeLessThanOrEqual(3.001)
+
+      let sharpestTurn = 0
+      for (let index = 1; index < plan.path.controlPoints.length - 1; index += 1) {
+        const previous = plan.path.controlPoints[index - 1]
+        const current = plan.path.controlPoints[index]
+        const next = plan.path.controlPoints[index + 1]
+        const incoming = { x: current.x - previous.x, y: current.y - previous.y }
+        const outgoing = { x: next.x - current.x, y: next.y - current.y }
+        const incomingLength = Math.hypot(incoming.x, incoming.y)
+        const outgoingLength = Math.hypot(outgoing.x, outgoing.y)
+        if (incomingLength <= 0.000001 || outgoingLength <= 0.000001) continue
+        const cosine = Math.max(-1, Math.min(1,
+          (incoming.x * outgoing.x + incoming.y * outgoing.y) /
+          (incomingLength * outgoingLength),
+        ))
+        sharpestTurn = Math.max(sharpestTurn, Math.acos(cosine))
+      }
+      expect(sharpestTurn).toBeLessThan(0.2)
     })
+  })
+
+  it('keeps flight radii authored in terminal screen space during the canvas zoom', () => {
+    const layout = buildSquareContourLayout(TARGET, FROZEN, 500, 350, 22, 20, 0.5)
+    const plan = buildPlanetFlightPlans(layout)[0]
+    const timing = PLANET_FLIGHT_TIMINGS[0]
+    const scrollProgress = (timing.start + timing.end) * 0.5
+    const currentZoom = Math.sqrt(layout.handoffZoom * layout.terminalZoom)
+    const logicalFrame = getPlanetFlightFrame(plan, scrollProgress)
+    const renderFrame = getPlanetFlightRenderFrame(
+      plan,
+      scrollProgress,
+      currentZoom,
+      layout.terminalZoom,
+    )
+
+    expect(renderFrame.main.radius * currentZoom).toBeCloseTo(
+      logicalFrame.main.radius * layout.terminalZoom,
+      6,
+    )
   })
 
   it('matches every Act 3 planet projection at the terminal zoom', () => {

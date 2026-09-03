@@ -4,6 +4,7 @@ import { SQUARE_WAVE_SPACING, type SquareWaveSprite } from './squareWaveTransiti
 import {
   createSampledMotionPath,
   getMotionTrailFrame,
+  scaleMotionTrailRadii,
   type MotionPath,
   type MotionTrailConfig,
   type MotionTrailFrame,
@@ -24,6 +25,7 @@ export const PLANET_FLIGHT_LAUNCH_ANGLES = [
   -Math.PI * 0.5 + Math.PI * 4 / 3,
 ] as const
 const PLANET_FLIGHT_ORBIT_ARC = Math.PI * 1.35
+const PLANET_FLIGHT_ORBIT_FRACTION = 0.52
 const PLANET_FLIGHT_PATH_SAMPLES = 384
 
 export interface ContourPoint {
@@ -92,6 +94,28 @@ function lerp(a: number, b: number, t: number): number {
 
 function expLerp(a: number, b: number, t: number): number {
   return a * Math.pow(b / Math.max(0.0001, a), t)
+}
+
+function cubicBezier(
+  start: { x: number; y: number },
+  control1: { x: number; y: number },
+  control2: { x: number; y: number },
+  end: { x: number; y: number },
+  t: number,
+): { x: number; y: number } {
+  const inverse = 1 - t
+  const inverse2 = inverse * inverse
+  const t2 = t * t
+  return {
+    x: inverse2 * inverse * start.x +
+      3 * inverse2 * t * control1.x +
+      3 * inverse * t2 * control2.x +
+      t2 * t * end.x,
+    y: inverse2 * inverse * start.y +
+      3 * inverse2 * t * control1.y +
+      3 * inverse * t2 * control2.y +
+      t2 * t * end.y,
+  }
 }
 
 export function smootherstep01(value: number): number {
@@ -227,26 +251,64 @@ export function buildPlanetFlightPlans(layout: SquareContourLayout): PlanetFligh
     const timing = PLANET_FLIGHT_TIMINGS[target.trackIdx] ?? PLANET_FLIGHT_TIMINGS[0]
     const launchAngle = PLANET_FLIGHT_LAUNCH_ANGLES[target.trackIdx] ?? PLANET_FLIGHT_LAUNCH_ANGLES[0]
     const launchRadius = layout.logicalCentralRadius
+    const exitAngle = launchAngle + PLANET_FLIGHT_ORBIT_ARC
+    const exitRadius = launchRadius * 1.65
+    const exitPoint = {
+      x: Math.cos(exitAngle) * exitRadius,
+      y: Math.sin(exitAngle) * exitRadius,
+    }
+    const targetDistance = Math.max(1, Math.hypot(target.x - exitPoint.x, target.y - exitPoint.y))
+    const exitTangent = { x: -Math.sin(exitAngle), y: Math.cos(exitAngle) }
+    const targetRadialLength = Math.max(1, Math.hypot(target.x, target.y))
+    const targetRadial = {
+      x: target.x / targetRadialLength,
+      y: target.y / targetRadialLength,
+    }
+    const exitHandleLength = targetDistance * 0.36
+    const arrivalHandleLength = targetDistance * 0.28
+    const exitControl = {
+      x: exitPoint.x + exitTangent.x * exitHandleLength,
+      y: exitPoint.y + exitTangent.y * exitHandleLength,
+    }
+    const arrivalControl = {
+      x: target.x - targetRadial.x * arrivalHandleLength,
+      y: target.y - targetRadial.y * arrivalHandleLength,
+    }
     const points = Array.from({ length: PLANET_FLIGHT_PATH_SAMPLES + 1 }, (_, index) => {
       const u = index / PLANET_FLIGHT_PATH_SAMPLES
-      const orbitProgress = smootherstep01(u)
-      const centrifugalProgress = smootherstep01(clamp01((u - 0.12) / 0.88))
-      const settleProgress = smootherstep01(clamp01((u - 0.58) / 0.42))
-      const angle = launchAngle + PLANET_FLIGHT_ORBIT_ARC * orbitProgress
-      const orbitRadius = launchRadius * (1 + 1.15 * centrifugalProgress)
-      const orbitX = Math.cos(angle) * orbitRadius
-      const orbitY = Math.sin(angle) * orbitRadius
-      return {
-        x: lerp(orbitX, target.x, settleProgress),
-        y: lerp(orbitY, target.y, settleProgress),
+      if (u <= PLANET_FLIGHT_ORBIT_FRACTION) {
+        const orbitProgress = u / PLANET_FLIGHT_ORBIT_FRACTION
+        const angle = launchAngle + PLANET_FLIGHT_ORBIT_ARC * orbitProgress
+        const radius = lerp(
+          launchRadius,
+          exitRadius,
+          smootherstep01(orbitProgress),
+        )
+        return {
+          x: Math.cos(angle) * radius,
+          y: Math.sin(angle) * radius,
+        }
       }
+
+      const settleProgress = (u - PLANET_FLIGHT_ORBIT_FRACTION) /
+        (1 - PLANET_FLIGHT_ORBIT_FRACTION)
+      return cubicBezier(
+        exitPoint,
+        exitControl,
+        arrivalControl,
+        target,
+        settleProgress,
+      )
     })
     const config: MotionTrailConfig = {
       width: layout.centralX * 2,
       height: layout.centralY * 2,
       duration: 1,
       finalRadius: target.radius,
-      trailSpacing: Math.max(0.5, target.radius * (8 / 36)),
+      // Keep samples at most three CSS pixels apart at the widest transition
+      // view. As the canvas pulls back they only become denser, so the
+      // variable-radius connectors cannot collapse into visible chords.
+      trailSpacing: Math.max(0.5, 3 / Math.max(0.000001, layout.handoffZoom)),
       shrinkRate: target.radius * (8 / 3),
       waypointCount: 0,
       randomness: 0,
@@ -272,6 +334,23 @@ export function getPlanetFlightFrame(
     plan.path,
     plan.config,
     getPlanetFlightElapsed(scrollProgress, plan.trackIdx),
+  )
+}
+
+/**
+ * Planet radii are authored for the terminal Act 3 projection. Compensating
+ * them by the current canvas zoom prevents them from ballooning while the
+ * logical viewport is still much closer to the central contour.
+ */
+export function getPlanetFlightRenderFrame(
+  plan: PlanetFlightPlan,
+  scrollProgress: number,
+  currentZoom: number,
+  terminalZoom: number,
+): MotionTrailFrame {
+  return scaleMotionTrailRadii(
+    getPlanetFlightFrame(plan, scrollProgress),
+    terminalZoom / Math.max(0.000001, currentZoom),
   )
 }
 
