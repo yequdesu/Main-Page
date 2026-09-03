@@ -4,7 +4,7 @@ import { SQUARE_WAVE_SPACING, type SquareWaveSprite } from './squareWaveTransiti
 
 export const SQUARE_TITLE = 'Ēarendel'
 export const SQUARE_WAVE_HANDOFF_RADIUS_RATIO = 0.38
-export const SQUARE_WAVE_HANDOFF_RADIUS_CELLS = 1000
+export const SQUARE_WAVE_HANDOFF_RADIUS_CELLS = 100
 
 export interface ContourPoint {
   /** Position in the fixed square-wave logical coordinate system. */
@@ -97,7 +97,7 @@ export function getSquareWaveHandoffGeneration(): number {
 
 /**
  * Squares and their 1.1-cell spacing stay fixed in logical coordinates. Only
- * the view zoom changes while the front grows from radius 0 to radius 1000.
+ * the view zoom changes while the front grows from radius 0 to radius 100.
  */
 export function getSquareWaveCanvasTransform(
   waveProgress: number,
@@ -115,7 +115,7 @@ export function getSquareWaveCanvasTransform(
   const handoffZoom = Math.min(1, targetScreenRadius / Math.max(1, handoffLogicalRadius))
 
   // Reciprocal interpolation keeps the visible radius monotonic while the view
-  // continuously pulls back, landing exactly on handoffZoom at generation 1000.
+  // continuously pulls back, landing exactly on handoffZoom at generation 100.
   const zoom = 1 / lerp(1, 1 / Math.max(0.000001, handoffZoom), t)
   const logicalRadius = generation * logicalSpacing + logicalSquareSize * 0.5
   return {

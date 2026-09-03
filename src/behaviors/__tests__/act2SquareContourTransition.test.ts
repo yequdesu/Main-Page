@@ -49,13 +49,13 @@ describe('Act 2 square contour transition', () => {
     expect(gone.titleAlpha).toBe(0)
   })
 
-  it('expands to radius 1000 while only the logical canvas zoom changes', () => {
+  it('expands to radius 100 while only the logical canvas zoom changes', () => {
     const start = getSquareWaveCanvasTransform(0, 1000, 800, 20)
     const middle = getSquareWaveCanvasTransform(0.5, 1000, 800, 20)
     const handoff = getSquareWaveCanvasTransform(1, 1000, 800, 20)
 
     expect(getSquareWaveHandoffGeneration()).toBe(SQUARE_WAVE_HANDOFF_RADIUS_CELLS)
-    expect(handoff.generation).toBe(1000)
+    expect(handoff.generation).toBe(100)
     expect(start.logicalSquareSize).toBe(20)
     expect(middle.logicalSquareSize).toBe(20)
     expect(handoff.logicalSquareSize).toBe(20)
@@ -98,7 +98,7 @@ describe('Act 2 square contour transition', () => {
   })
 
   it('crossfades only after the full planetary framing is reached', () => {
-    expect(getSquareContourTransitionFrame(0.60, 1000, 800).zoomProgress).toBe(0)
+    expect(getSquareContourTransitionFrame(0.70, 1000, 800).zoomProgress).toBe(0)
     expect(getSquareContourTransitionFrame(0.80, 1000, 800).zoomProgress).toBe(1)
     expect(getSquareContourTransitionFrame(0.80, 1000, 800).contourAlpha).toBe(1)
     expect(getSquareContourTransitionFrame(0.85, 1000, 800).contourAlpha).toBe(0)
