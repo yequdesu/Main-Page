@@ -65,6 +65,15 @@ export function smootherstep01(value: number): number {
   return t * t * t * (t * (t * 6 - 15) + 10)
 }
 
+/**
+ * Integral of a sin² velocity profile. Velocity is zero at both ends, peaks
+ * once at the midpoint, then converges continuously to the handoff radius.
+ */
+export function getSquareWaveExpansionProgress(value: number): number {
+  const t = clamp01(value)
+  return t - Math.sin(Math.PI * 2 * t) / (Math.PI * 2)
+}
+
 export function getSquareTypedText(scrollProgress: number): string {
   const p = progress('squareTitleTyping', scrollProgress)
   if (p <= 0) return '*'
@@ -105,7 +114,7 @@ export function getSquareWaveCanvasTransform(
   viewportHeight: number,
   logicalSquareSize: number,
 ): SquareWaveCanvasTransform {
-  const t = smootherstep01(waveProgress)
+  const t = getSquareWaveExpansionProgress(waveProgress)
   const generation = SQUARE_WAVE_HANDOFF_RADIUS_CELLS * t
   const logicalSpacing = logicalSquareSize * SQUARE_WAVE_SPACING
   const handoffLogicalRadius =

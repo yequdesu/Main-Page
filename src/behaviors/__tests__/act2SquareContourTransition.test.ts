@@ -6,6 +6,7 @@ import {
   buildSquareContourLayout,
   getSquareContourTransform,
   getSquareContourTransitionFrame,
+  getSquareWaveExpansionProgress,
   getSquareWaveCanvasTransform,
   getSquareWaveHandoffGeneration,
   getSquareTypedText,
@@ -66,6 +67,21 @@ describe('Act 2 square contour transition', () => {
     expect(middle.zoom).toBeLessThan(start.zoom)
     expect(handoff.zoom).toBeLessThan(middle.zoom)
     expect(handoff.screenRadius).toBeCloseTo(800 * 0.38)
+  })
+
+  it('converges into the freeze with a slow-fast-slow expansion speed', () => {
+    const earlyDistance = getSquareWaveExpansionProgress(0.2) -
+      getSquareWaveExpansionProgress(0)
+    const middleDistance = getSquareWaveExpansionProgress(0.6) -
+      getSquareWaveExpansionProgress(0.4)
+    const lateDistance = getSquareWaveExpansionProgress(1) -
+      getSquareWaveExpansionProgress(0.8)
+
+    expect(getSquareWaveExpansionProgress(0)).toBe(0)
+    expect(getSquareWaveExpansionProgress(1)).toBe(1)
+    expect(middleDistance).toBeGreaterThan(earlyDistance)
+    expect(lateDistance).toBeCloseTo(earlyDistance)
+    expect(getSquareWaveExpansionProgress(0.9)).toBeGreaterThan(0.99)
   })
 
   it('continues pulling back from the handoff and lands on the terminal target', () => {
