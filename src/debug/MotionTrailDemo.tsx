@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   createMotionPath,
+  getCircleConnector,
   getMotionTrailFrame,
   type MotionPoint,
   type MotionTrailConfig,
@@ -70,6 +71,25 @@ function drawCircle(ctx: CanvasRenderingContext2D, point: MotionPoint, radius: n
   ctx.beginPath()
   ctx.arc(point.x, point.y, radius, 0, Math.PI * 2)
   ctx.fill()
+}
+
+function drawSmoothTrail(
+  ctx: CanvasRenderingContext2D,
+  circles: Array<{ point: MotionPoint; radius: number }>,
+): void {
+  for (let index = 1; index < circles.length; index += 1) {
+    const connector = getCircleConnector(circles[index - 1], circles[index])
+    if (!connector) continue
+    ctx.beginPath()
+    ctx.moveTo(connector.firstPositive.x, connector.firstPositive.y)
+    ctx.lineTo(connector.secondPositive.x, connector.secondPositive.y)
+    ctx.lineTo(connector.secondNegative.x, connector.secondNegative.y)
+    ctx.lineTo(connector.firstNegative.x, connector.firstNegative.y)
+    ctx.closePath()
+    ctx.fill()
+  }
+
+  for (const circle of circles) drawCircle(ctx, circle.point, circle.radius)
 }
 
 export default function MotionTrailDemo() {
@@ -176,8 +196,7 @@ export default function MotionTrailDemo() {
     const frame = getMotionTrailFrame(path, config, elapsed)
     ctx.save()
     ctx.fillStyle = '#f8fafc'
-    for (const circle of frame.trail) drawCircle(ctx, circle.point, circle.radius)
-    drawCircle(ctx, frame.main.point, frame.main.radius)
+    drawSmoothTrail(ctx, [...frame.trail, frame.main])
     ctx.restore()
   }, [config, elapsed, endPx, path, showGuides, size, startPx])
 

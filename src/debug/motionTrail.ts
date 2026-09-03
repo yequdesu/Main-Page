@@ -35,6 +35,13 @@ export interface TrailCircle {
   birthTime: number
 }
 
+export interface CircleConnector {
+  firstPositive: MotionPoint
+  secondPositive: MotionPoint
+  secondNegative: MotionPoint
+  firstNegative: MotionPoint
+}
+
 export interface MotionTrailFrame {
   progress: number
   distanceProgress: number
@@ -192,6 +199,57 @@ export function pointAtPathProgress(path: MotionPath, progress: number): MotionP
   return {
     x: lerp(lower.point.x, upper.point.x, t),
     y: lerp(lower.point.y, upper.point.y, t),
+  }
+}
+
+/**
+ * Returns the quadrilateral bounded by the two external common tangents of a
+ * pair of circles. Filling it together with both circles produces a continuous
+ * variable-radius capsule whose silhouette is tangent at every join.
+ */
+export function getCircleConnector(
+  first: { point: MotionPoint; radius: number },
+  second: { point: MotionPoint; radius: number },
+): CircleConnector | null {
+  const dx = second.point.x - first.point.x
+  const dy = second.point.y - first.point.y
+  const distance = Math.hypot(dx, dy)
+  const radiusDelta = first.radius - second.radius
+
+  if (distance <= Math.abs(radiusDelta) || distance <= 0.000001) return null
+
+  const directionX = dx / distance
+  const directionY = dy / distance
+  const perpendicularX = -directionY
+  const perpendicularY = directionX
+  const alongNormal = radiusDelta / distance
+  const acrossNormal = Math.sqrt(Math.max(0, 1 - alongNormal * alongNormal))
+  const positiveNormal = {
+    x: directionX * alongNormal + perpendicularX * acrossNormal,
+    y: directionY * alongNormal + perpendicularY * acrossNormal,
+  }
+  const negativeNormal = {
+    x: directionX * alongNormal - perpendicularX * acrossNormal,
+    y: directionY * alongNormal - perpendicularY * acrossNormal,
+  }
+
+  return {
+    firstPositive: {
+      x: first.point.x + positiveNormal.x * first.radius,
+      y: first.point.y + positiveNormal.y * first.radius,
+    },
+    secondPositive: {
+      x: second.point.x + positiveNormal.x * second.radius,
+      y: second.point.y + positiveNormal.y * second.radius,
+    },
+    secondNegative: {
+      x: second.point.x + negativeNormal.x * second.radius,
+      y: second.point.y + negativeNormal.y * second.radius,
+    },
+    firstNegative: {
+      x: first.point.x + negativeNormal.x * first.radius,
+      y: first.point.y + negativeNormal.y * first.radius,
+    },
   }
 }
 

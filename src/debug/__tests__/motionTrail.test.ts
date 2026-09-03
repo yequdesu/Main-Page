@@ -3,6 +3,7 @@ import {
   bellDistanceProgress,
   bellSpeed,
   createMotionPath,
+  getCircleConnector,
   getMotionTrailFrame,
   pointAtPathProgress,
   smootherstep,
@@ -104,5 +105,30 @@ describe('motion trail model', () => {
     for (let i = 1; i < direct.trail.length; i += 1) {
       expect(direct.trail[i].id).toBeGreaterThan(direct.trail[i - 1].id)
     }
+  })
+
+  it('connects adjacent circles along their external common tangents', () => {
+    const equal = getCircleConnector(
+      { point: { x: 0, y: 0 }, radius: 3 },
+      { point: { x: 10, y: 0 }, radius: 3 },
+    )
+    expect(equal).toEqual({
+      firstPositive: { x: 0, y: 3 },
+      secondPositive: { x: 10, y: 3 },
+      secondNegative: { x: 10, y: -3 },
+      firstNegative: { x: 0, y: -3 },
+    })
+
+    const tapered = getCircleConnector(
+      { point: { x: 0, y: 0 }, radius: 5 },
+      { point: { x: 12, y: 0 }, radius: 2 },
+    )!
+    expect(Math.hypot(tapered.firstPositive.x, tapered.firstPositive.y)).toBeCloseTo(5)
+    expect(Math.hypot(tapered.secondPositive.x - 12, tapered.secondPositive.y)).toBeCloseTo(2)
+
+    expect(getCircleConnector(
+      { point: { x: 0, y: 0 }, radius: 8 },
+      { point: { x: 2, y: 0 }, radius: 2 },
+    )).toBeNull()
   })
 })
