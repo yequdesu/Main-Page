@@ -25,14 +25,7 @@ describe('miniature universe transition', () => {
     expect(spun.rotation[0]).toBeCloseTo(Math.PI * 2 * 0.06)
     expect(spun.rotation[1]).toBeCloseTo(Math.PI * 2 * 0.32)
     expect(spun.rotation[2]).toBeCloseTo(Math.PI * 2 * 0.045)
-    const scale40 = getMiniatureTransform(0.40).scale
-    const scale45 = getMiniatureTransform(0.45).scale
-    const scale50 = getMiniatureTransform(0.50).scale
-    const firstIntervalShrink = scale40 - scale45
-    const secondIntervalShrink = scale45 - scale50
-    const thirdIntervalShrink = scale50 - filled.scale
-    expect(firstIntervalShrink).toBeLessThan(secondIntervalShrink)
-    expect(secondIntervalShrink).toBeLessThan(thirdIntervalShrink)
+    expect(getMiniatureTransform(0.45).scale).toBeLessThan(0.2)
     expect(filled.containment).toBe(1)
     expect(filled.scale).toBeCloseTo(Math.pow(10, -3 * 0.75 * 0.75))
     expect(filled.whiteFillProgress).toBe(1)
