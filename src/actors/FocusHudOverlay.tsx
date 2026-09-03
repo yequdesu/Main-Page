@@ -477,11 +477,7 @@ function drawStarRadiantGeometry(
     outerRingWidth,
     outerRingRadius,
     secondRadiantLength,
-    thirdRingRadius,
-    thirdRingWidth,
     fourthRingRadius,
-    fifthRingRadius,
-    sixthRingRadius,
   } = ringGeometry
   const rotation = Math.max(0, focusAge) * STAR_RADIANT_ROTATION_SPEED
   const ringStartAngle = -Math.PI / 2 + rotation
@@ -533,61 +529,6 @@ function drawStarRadiantGeometry(
     alpha * ringProgresses[1] * 0.82,
     inversionCircles,
   )
-  drawNoisyRadiantRing(
-    ctx,
-    width,
-    height,
-    star.x,
-    star.y,
-    expandRadius(thirdRingRadius + thirdRingWidth * 0.5, ringProgresses[2]),
-    Math.max(0.5, expandRadius(thirdRingRadius - thirdRingWidth * 0.5, ringProgresses[2])),
-    ringStartAngle,
-    ringStartAngle + Math.PI * 2,
-    alpha * ringProgresses[2] * 0.52,
-    palette.tangentStroke,
-    inversionCircles,
-  )
-  drawSolidRadiantRing(
-    ctx,
-    width,
-    height,
-    star.x,
-    star.y,
-    expandRadius(fourthRingRadius + outerRingWidth * 0.5, ringProgresses[3]),
-    Math.max(0.5, expandRadius(fourthRingRadius - outerRingWidth * 0.5, ringProgresses[3])),
-    ringStartAngle,
-    ringStartAngle + Math.PI * 2,
-    alpha * ringProgresses[3] * 0.82,
-    inversionCircles,
-  )
-  drawNoisyRadiantRing(
-    ctx,
-    width,
-    height,
-    star.x,
-    star.y,
-    expandRadius(fifthRingRadius + ringWidth * 0.5, ringProgresses[4]),
-    Math.max(0.5, expandRadius(fifthRingRadius - ringWidth * 0.5, ringProgresses[4])),
-    ringStartAngle,
-    ringStartAngle + Math.PI * 2,
-    alpha * ringProgresses[4] * 0.36,
-    palette.tangentStroke,
-    inversionCircles,
-  )
-  drawSolidRadiantRing(
-    ctx,
-    width,
-    height,
-    star.x,
-    star.y,
-    expandRadius(sixthRingRadius + outerRingWidth * 0.5, ringProgresses[5]),
-    Math.max(0.5, expandRadius(sixthRingRadius - outerRingWidth * 0.5, ringProgresses[5])),
-    ringStartAngle,
-    ringStartAngle + Math.PI * 2,
-    alpha * ringProgresses[5] * 0.82,
-    inversionCircles,
-  )
-
   const ringDefinitions = [
     {
       startRadius: radius + 14,
