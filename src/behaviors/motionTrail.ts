@@ -186,6 +186,27 @@ export function createMotionPath(
   return { seed, controlPoints, samples, totalLength }
 }
 
+export function createSampledMotionPath(
+  points: readonly MotionPoint[],
+  seed = 0,
+): MotionPath {
+  const controlPoints = points.map((point) => ({ ...point }))
+  if (controlPoints.length === 0) {
+    controlPoints.push({ x: 0, y: 0 })
+  }
+
+  const samples: MotionPathSample[] = [{ point: { ...controlPoints[0] }, distance: 0 }]
+  let totalLength = 0
+  for (let index = 1; index < controlPoints.length; index += 1) {
+    const previous = controlPoints[index - 1]
+    const point = controlPoints[index]
+    totalLength += Math.hypot(point.x - previous.x, point.y - previous.y)
+    samples.push({ point: { ...point }, distance: totalLength })
+  }
+
+  return { seed, controlPoints, samples, totalLength }
+}
+
 export function pointAtPathProgress(path: MotionPath, progress: number): MotionPoint {
   if (path.samples.length === 0 || path.totalLength <= 0) {
     return path.controlPoints[0] ?? { x: 0, y: 0 }

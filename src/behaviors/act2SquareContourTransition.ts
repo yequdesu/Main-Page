@@ -2,7 +2,7 @@ import type { Act3ContourTarget } from '../composition/coreAnchors'
 import { TIMELINE, clamp01, progress, smoothProgress } from '../composition/timeline'
 import { SQUARE_WAVE_SPACING, type SquareWaveSprite } from './squareWaveTransition'
 import {
-  createMotionPath,
+  createSampledMotionPath,
   getMotionTrailFrame,
   type MotionPath,
   type MotionTrailConfig,
@@ -18,6 +18,13 @@ export const PLANET_FLIGHT_TIMINGS = [
   { start: 0.708, end: 0.792, seed: 0xea7e1002 },
   { start: 0.716, end: 0.800, seed: 0xea7e1003 },
 ] as const
+export const PLANET_FLIGHT_LAUNCH_ANGLES = [
+  -Math.PI * 0.5,
+  -Math.PI * 0.5 + Math.PI * 2 / 3,
+  -Math.PI * 0.5 + Math.PI * 4 / 3,
+] as const
+const PLANET_FLIGHT_ORBIT_ARC = Math.PI * 1.35
+const PLANET_FLIGHT_PATH_SAMPLES = 384
 
 export interface ContourPoint {
   /** Position in the fixed square-wave logical coordinate system. */
@@ -216,32 +223,37 @@ export function buildSquareContourLayout(
 }
 
 export function buildPlanetFlightPlans(layout: SquareContourLayout): PlanetFlightPlan[] {
-  const padding = layout.logicalCentralRadius * 0.8
-  const allX = [0, ...layout.planetTargets.map((target) => target.x)]
-  const allY = [0, ...layout.planetTargets.map((target) => target.y)]
-  const bounds = {
-    minX: Math.min(...allX) - padding,
-    maxX: Math.max(...allX) + padding,
-    minY: Math.min(...allY) - padding,
-    maxY: Math.max(...allY) + padding,
-  }
-
   return layout.planetTargets.map((target) => {
     const timing = PLANET_FLIGHT_TIMINGS[target.trackIdx] ?? PLANET_FLIGHT_TIMINGS[0]
+    const launchAngle = PLANET_FLIGHT_LAUNCH_ANGLES[target.trackIdx] ?? PLANET_FLIGHT_LAUNCH_ANGLES[0]
+    const launchRadius = layout.logicalCentralRadius
+    const points = Array.from({ length: PLANET_FLIGHT_PATH_SAMPLES + 1 }, (_, index) => {
+      const u = index / PLANET_FLIGHT_PATH_SAMPLES
+      const orbitProgress = smootherstep01(u)
+      const centrifugalProgress = smootherstep01(clamp01((u - 0.12) / 0.88))
+      const settleProgress = smootherstep01(clamp01((u - 0.58) / 0.42))
+      const angle = launchAngle + PLANET_FLIGHT_ORBIT_ARC * orbitProgress
+      const orbitRadius = launchRadius * (1 + 1.15 * centrifugalProgress)
+      const orbitX = Math.cos(angle) * orbitRadius
+      const orbitY = Math.sin(angle) * orbitRadius
+      return {
+        x: lerp(orbitX, target.x, settleProgress),
+        y: lerp(orbitY, target.y, settleProgress),
+      }
+    })
     const config: MotionTrailConfig = {
-      width: bounds.maxX - bounds.minX,
-      height: bounds.maxY - bounds.minY,
+      width: layout.centralX * 2,
+      height: layout.centralY * 2,
       duration: 1,
       finalRadius: target.radius,
       trailSpacing: Math.max(0.5, target.radius * (8 / 36)),
       shrinkRate: target.radius * (8 / 3),
-      waypointCount: 4,
-      randomness: 0.52,
-      bounds,
+      waypointCount: 0,
+      randomness: 0,
     }
     return {
       trackIdx: target.trackIdx,
-      path: createMotionPath({ x: 0, y: 0 }, { x: target.x, y: target.y }, config, timing.seed),
+      path: createSampledMotionPath(points, timing.seed),
       config,
     }
   })

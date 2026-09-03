@@ -4,6 +4,7 @@ import {
   SQUARE_TITLE,
   SQUARE_TITLE_FONT_SCALE,
   SQUARE_WAVE_HANDOFF_RADIUS_CELLS,
+  PLANET_FLIGHT_LAUNCH_ANGLES,
   PLANET_FLIGHT_TIMINGS,
   buildPlanetFlightPlans,
   buildSquareContourLayout,
@@ -140,11 +141,36 @@ describe('Act 2 square contour transition', () => {
       const startFrame = getPlanetFlightFrame(plans[trackIdx], timing.start)
       const endFrame = getPlanetFlightFrame(plans[trackIdx], timing.end)
       const target = layout.planetTargets[trackIdx]
-      expect(startFrame.main.point).toEqual({ x: 0, y: 0 })
+      expect(startFrame.main.point.x).toBeCloseTo(
+        Math.cos(PLANET_FLIGHT_LAUNCH_ANGLES[trackIdx]) * layout.logicalCentralRadius,
+        6,
+      )
+      expect(startFrame.main.point.y).toBeCloseTo(
+        Math.sin(PLANET_FLIGHT_LAUNCH_ANGLES[trackIdx]) * layout.logicalCentralRadius,
+        6,
+      )
       expect(startFrame.main.radius).toBe(0)
       expect(endFrame.main.point.x).toBeCloseTo(target.x, 6)
       expect(endFrame.main.point.y).toBeCloseTo(target.y, 6)
       expect(endFrame.main.radius).toBeCloseTo(target.radius, 6)
+    })
+  })
+
+  it('launches from three 120-degree arc positions and slingshots outward', () => {
+    const layout = buildSquareContourLayout(TARGET, FROZEN, 500, 350, 22, 20, 0.5)
+    const plans = buildPlanetFlightPlans(layout)
+    const starts = plans.map((plan) => plan.path.controlPoints[0])
+    const angles = starts.map((point) => Math.atan2(point.y, point.x))
+
+    starts.forEach((point) => {
+      expect(Math.hypot(point.x, point.y)).toBeCloseTo(layout.logicalCentralRadius, 6)
+    })
+    expect(angles[1] - angles[0]).toBeCloseTo(Math.PI * 2 / 3, 6)
+    expect(angles[2] - angles[1]).toBeCloseTo(Math.PI * 2 / 3, 6)
+
+    plans.forEach((plan) => {
+      const orbitPoint = plan.path.controlPoints[Math.round(plan.path.controlPoints.length * 0.45)]
+      expect(Math.hypot(orbitPoint.x, orbitPoint.y)).toBeGreaterThan(layout.logicalCentralRadius)
     })
   })
 
