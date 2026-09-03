@@ -1,5 +1,6 @@
 export const SQUARE_WAVE_LIFETIME = 6
 export const SQUARE_WAVE_FADE_GENERATIONS = 3
+export const SQUARE_WAVE_FADE_START = SQUARE_WAVE_LIFETIME - SQUARE_WAVE_FADE_GENERATIONS
 export const SQUARE_WAVE_SPACING = 1.1
 export const SQUARE_WAVE_SEED_SCALE = 0.88
 
@@ -31,6 +32,11 @@ export interface SquareWaveSprite {
   x: number
   y: number
   opacity: number
+}
+
+export interface SquareWaveContourSplit {
+  solidSprites: SquareWaveSprite[]
+  fadingCells: SquareWaveCell[]
 }
 
 function hashCell(x: number, y: number, generation = 0): number {
@@ -98,19 +104,47 @@ export function getSquareWaveFrame(
   const sprites: SquareWaveSprite[] = []
 
   for (const cell of plan) {
-    const age = generationProgress - cell.birthGeneration
-    if (age < 0 || age >= SQUARE_WAVE_LIFETIME) continue
-    const movement = smootherstep(age)
-    const fadeStart = SQUARE_WAVE_LIFETIME - SQUARE_WAVE_FADE_GENERATIONS
-    const fade = age <= fadeStart
-      ? 1
-      : 1 - smootherstep((age - fadeStart) / SQUARE_WAVE_FADE_GENERATIONS)
-    sprites.push({
-      x: cell.parentX + (cell.x - cell.parentX) * movement,
-      y: cell.parentY + (cell.y - cell.parentY) * movement,
-      opacity: fade,
-    })
+    const sprite = getSquareWaveCellSprite(cell, generationProgress)
+    if (sprite) sprites.push(sprite)
   }
 
   return sprites
+}
+
+export function getSquareWaveCellSprite(
+  cell: SquareWaveCell,
+  generationProgress: number,
+): SquareWaveSprite | undefined {
+  const age = generationProgress - cell.birthGeneration
+  if (age < 0 || age >= SQUARE_WAVE_LIFETIME) return undefined
+  const movement = smootherstep(age)
+  const fade = age <= SQUARE_WAVE_FADE_START
+    ? 1
+    : 1 - smootherstep((age - SQUARE_WAVE_FADE_START) / SQUARE_WAVE_FADE_GENERATIONS)
+  return {
+    x: cell.parentX + (cell.x - cell.parentX) * movement,
+    y: cell.parentY + (cell.y - cell.parentY) * movement,
+    opacity: fade,
+  }
+}
+
+export function splitSquareWaveForContour(
+  plan: readonly SquareWaveCell[],
+  generationProgress: number,
+): SquareWaveContourSplit {
+  const solidSprites: SquareWaveSprite[] = []
+  const fadingCells: SquareWaveCell[] = []
+
+  for (const cell of plan) {
+    const age = generationProgress - cell.birthGeneration
+    if (age < 0 || age >= SQUARE_WAVE_LIFETIME) continue
+    if (age >= SQUARE_WAVE_FADE_START) {
+      fadingCells.push(cell)
+      continue
+    }
+    const sprite = getSquareWaveCellSprite(cell, generationProgress)
+    if (sprite) solidSprites.push(sprite)
+  }
+
+  return { solidSprites, fadingCells }
 }

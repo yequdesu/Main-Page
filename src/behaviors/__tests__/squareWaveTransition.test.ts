@@ -4,6 +4,7 @@ import {
   getSquareWaveFrame,
   SQUARE_WAVE_FADE_GENERATIONS,
   SQUARE_WAVE_LIFETIME,
+  splitSquareWaveForContour,
 } from '../squareWaveTransition'
 
 describe('square wave transition', () => {
@@ -48,6 +49,20 @@ describe('square wave transition', () => {
     const halfway = getSquareWaveFrame(plan, 4.5).find((sprite) => sprite.x === 0 && sprite.y === 0)
     expect(atFadeStart?.opacity).toBe(1)
     expect(halfway?.opacity).toBeCloseTo(0.5)
+  })
+
+  it('freezes only solid cells and lets the fading tail expire', () => {
+    const plan = buildSquareWavePlan(12)
+    const splitGeneration = 10
+    const { solidSprites, fadingCells } = splitSquareWaveForContour(plan, splitGeneration)
+    expect(solidSprites.length).toBeGreaterThan(0)
+    expect(solidSprites.every((sprite) => sprite.opacity === 1)).toBe(true)
+    expect(fadingCells.length).toBeGreaterThan(0)
+    expect(getSquareWaveFrame(fadingCells, splitGeneration).some((sprite) => sprite.opacity < 1)).toBe(true)
+    expect(getSquareWaveFrame(
+      fadingCells,
+      splitGeneration + SQUARE_WAVE_FADE_GENERATIONS,
+    )).toHaveLength(0)
   })
 
   it('uses Euclidean radius so axis and diagonal fronts stay circular', () => {

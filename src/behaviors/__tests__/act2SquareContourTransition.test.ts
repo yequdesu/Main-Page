@@ -3,9 +3,11 @@ import type { Act3ContourTarget } from '../../composition/coreAnchors'
 import {
   SQUARE_TITLE,
   buildSquareContourLayout,
+  getContourSquareFreezeSize,
+  getSquareContourFreezeProgress,
   getSquareContourTransform,
   getSquareContourTransitionFrame,
-  getSquareWaveFreezeGeneration,
+  getSquareWaveHandoffGeneration,
   getSquareTypedText,
   projectContourPoint,
 } from '../act2SquareContourTransition'
@@ -25,10 +27,10 @@ const TARGET: Act3ContourTarget = {
 }
 
 const FROZEN = [
-  { x: 4, y: 0, opacity: 1 },
-  { x: 0, y: 4, opacity: 0.8 },
-  { x: -4, y: 0, opacity: 0.5 },
-  { x: 0, y: -4, opacity: 0.25 },
+  { x: 10, y: 0, opacity: 1 },
+  { x: 0, y: 10, opacity: 0.8 },
+  { x: -10, y: 0, opacity: 0.5 },
+  { x: 0, y: -10, opacity: 0.25 },
 ]
 
 describe('Act 2 square contour transition', () => {
@@ -48,9 +50,9 @@ describe('Act 2 square contour transition', () => {
     expect(beforeFade.titleFontPx).toBeGreaterThanOrEqual(72)
   })
 
-  it('freezes the circular wave at 60% and crossfades only after the full framing is visible', () => {
-    const freezeGeneration = getSquareWaveFreezeGeneration(1000, 800, 20)
-    expect(freezeGeneration).toBeCloseTo((800 * 0.38) / 22)
+  it('hands the circular wave to the shrinking canvas at 60% and crossfades after full framing', () => {
+    const handoffGeneration = getSquareWaveHandoffGeneration(1000, 800, 20)
+    expect(handoffGeneration).toBeCloseTo((800 * 0.38) / 22)
     expect(getSquareContourTransitionFrame(0.60, 1000, 800).zoomProgress).toBe(0)
     expect(getSquareContourTransitionFrame(0.80, 1000, 800).zoomProgress).toBe(1)
     expect(getSquareContourTransitionFrame(0.80, 1000, 800).contourAlpha).toBe(1)
@@ -75,6 +77,18 @@ describe('Act 2 square contour transition', () => {
     expect(terminal.zoom).toBeCloseTo(1)
     expect(terminal.focusX).toBe(TARGET.central.x)
     expect(terminal.focusY).toBe(TARGET.central.y)
+  })
+
+  it('does not freeze the contour until its squares reach the small responsive threshold', () => {
+    const layout = buildSquareContourLayout(TARGET, FROZEN, 500, 350, 22, 20)
+    const freezeProgress = getSquareContourFreezeProgress(layout, 1000, 700)
+    const threshold = getContourSquareFreezeSize(1000, 700)
+    const atFreeze = getSquareContourTransform(layout, freezeProgress)
+    const justBefore = getSquareContourTransform(layout, Math.max(0, freezeProgress - 0.001))
+    expect(freezeProgress).toBeGreaterThan(0)
+    expect(freezeProgress).toBeLessThan(1)
+    expect(atFreeze.squareSize).toBeLessThanOrEqual(threshold + 0.001)
+    expect(justBefore.squareSize).toBeGreaterThan(threshold)
   })
 
   it('deterministically samples only square outlines for planets and orbits', () => {
