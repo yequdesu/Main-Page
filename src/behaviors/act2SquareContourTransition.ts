@@ -4,9 +4,7 @@ import { SQUARE_WAVE_SPACING, type SquareWaveSprite } from './squareWaveTransiti
 
 export const SQUARE_TITLE = 'Ēarendel'
 export const SQUARE_WAVE_HANDOFF_RADIUS_RATIO = 0.38
-export const SQUARE_CONTOUR_SETTLE_GENERATIONS = 2
-export const SQUARE_CONTOUR_MIN_FREEZE_PX = 3.5
-export const SQUARE_CONTOUR_MAX_FREEZE_PX = 6
+export const SQUARE_WAVE_HANDOFF_RADIUS_CELLS = 1000
 
 export interface ContourPoint {
   x: number
@@ -42,6 +40,13 @@ export interface SquareContourTransitionFrame {
   titleAlpha: number
   contourAlpha: number
   zoomProgress: number
+}
+
+export interface SquareWaveDisplayMetrics {
+  generation: number
+  radiusPx: number
+  spacing: number
+  squareSize: number
 }
 
 function lerp(a: number, b: number, t: number): number {
@@ -83,24 +88,28 @@ export function getSquareContourTransitionFrame(
   }
 }
 
-export function getSquareWaveHandoffGeneration(
-  viewportWidth: number,
-  viewportHeight: number,
-  squareSize: number,
-): number {
-  const spacing = Math.max(1, squareSize * SQUARE_WAVE_SPACING)
-  const radiusPx = Math.min(viewportWidth, viewportHeight) * SQUARE_WAVE_HANDOFF_RADIUS_RATIO
-  return Math.max(8, radiusPx / spacing)
+export function getSquareWaveHandoffGeneration(): number {
+  return SQUARE_WAVE_HANDOFF_RADIUS_CELLS
 }
 
-export function getContourSquareFreezeSize(
+export function getSquareWaveDisplayMetrics(
+  waveProgress: number,
   viewportWidth: number,
   viewportHeight: number,
-): number {
-  return Math.max(
-    SQUARE_CONTOUR_MIN_FREEZE_PX,
-    Math.min(SQUARE_CONTOUR_MAX_FREEZE_PX, Math.min(viewportWidth, viewportHeight) * 0.005),
-  )
+  seedSquareSize: number,
+): SquareWaveDisplayMetrics {
+  const t = smootherstep01(waveProgress)
+  const generation = SQUARE_WAVE_HANDOFF_RADIUS_CELLS * t
+  const targetRadius = Math.min(viewportWidth, viewportHeight) * SQUARE_WAVE_HANDOFF_RADIUS_RATIO
+  const radiusPx = lerp(seedSquareSize * 0.5, targetRadius, t)
+  const seedRadiusCells = radiusPx / Math.max(0.001, seedSquareSize * SQUARE_WAVE_SPACING)
+  const spacing = radiusPx / Math.max(generation, seedRadiusCells)
+  return {
+    generation,
+    radiusPx,
+    spacing,
+    squareSize: spacing / SQUARE_WAVE_SPACING,
+  }
 }
 
 function sampleCircle(
@@ -221,28 +230,6 @@ export function getSquareContourTransform(
     squareSize: layout.localSquareSize * zoom,
     titleScale: zoom / layout.zoomStart,
   }
-}
-
-export function getSquareContourFreezeProgress(
-  layout: SquareContourLayout,
-  viewportWidth: number,
-  viewportHeight: number,
-): number {
-  const threshold = Math.max(
-    layout.localSquareSize,
-    getContourSquareFreezeSize(viewportWidth, viewportHeight),
-  )
-  if (getSquareContourTransform(layout, 0).squareSize <= threshold) return 0
-  if (getSquareContourTransform(layout, 1).squareSize >= threshold) return 1
-
-  let low = 0
-  let high = 1
-  for (let iteration = 0; iteration < 24; iteration++) {
-    const mid = (low + high) * 0.5
-    if (getSquareContourTransform(layout, mid).squareSize > threshold) low = mid
-    else high = mid
-  }
-  return high
 }
 
 export function projectContourPoint(

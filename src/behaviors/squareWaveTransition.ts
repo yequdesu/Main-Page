@@ -20,6 +20,8 @@ const DIRECTIONS: readonly Direction[] = [
   { dx: 1, dy: -1 },
 ]
 
+const SQUARE_WAVE_JITTER_RADIUS = 0.18
+
 export interface SquareWaveCell {
   x: number
   y: number
@@ -67,6 +69,23 @@ function chooseInwardParent(x: number, y: number): Direction {
   return candidates[offset]
 }
 
+function createSquareWaveCell(x: number, y: number): SquareWaveCell {
+  if (x === 0 && y === 0) {
+    return { x, y, birthGeneration: 0, parentX: 0, parentY: 0 }
+  }
+  const distance = radialDistance(x, y)
+  const jitter = ((hashCell(x, y, 1) % 1001) / 1000 - 0.5) *
+    (SQUARE_WAVE_JITTER_RADIUS * 2)
+  const parentDirection = chooseInwardParent(x, y)
+  return {
+    x,
+    y,
+    birthGeneration: Math.max(0.001, distance + jitter),
+    parentX: x - parentDirection.dx,
+    parentY: y - parentDirection.dy,
+  }
+}
+
 export function buildSquareWavePlan(maxGeneration: number): SquareWaveCell[] {
   const radiusLimit = Math.max(0, maxGeneration)
   const gridRadius = Math.ceil(radiusLimit)
@@ -76,25 +95,49 @@ export function buildSquareWavePlan(maxGeneration: number): SquareWaveCell[] {
     for (let x = -gridRadius; x <= gridRadius; x++) {
       const distance = radialDistance(x, y)
       if (distance > radiusLimit) continue
-      if (x === 0 && y === 0) {
-        cells.push({ x, y, birthGeneration: 0, parentX: 0, parentY: 0 })
-        continue
-      }
-
-      const jitter = ((hashCell(x, y, 1) % 1001) / 1000 - 0.5) * 0.36
-      const parentDirection = chooseInwardParent(x, y)
-      cells.push({
-        x,
-        y,
-        birthGeneration: Math.max(0.001, distance + jitter),
-        parentX: x - parentDirection.dx,
-        parentY: y - parentDirection.dy,
-      })
+      cells.push(createSquareWaveCell(x, y))
     }
   }
 
   cells.sort((a, b) => a.birthGeneration - b.birthGeneration || a.y - b.y || a.x - b.x)
   return cells
+}
+
+/** Build only the live annulus around the current wave front. */
+export function buildSquareWaveBand(generationProgress: number): SquareWaveCell[] {
+  const outerRadius = Math.max(0, generationProgress + SQUARE_WAVE_JITTER_RADIUS)
+  const innerRadius = Math.max(
+    0,
+    generationProgress - SQUARE_WAVE_LIFETIME - SQUARE_WAVE_JITTER_RADIUS,
+  )
+  const gridRadius = Math.ceil(outerRadius)
+  const cells: SquareWaveCell[] = []
+
+  const appendRange = (y: number, startX: number, endX: number) => {
+    for (let x = startX; x <= endX; x++) {
+      if (radialDistance(x, y) <= outerRadius) cells.push(createSquareWaveCell(x, y))
+    }
+  }
+
+  for (let y = -gridRadius; y <= gridRadius; y++) {
+    const outerSquared = outerRadius * outerRadius - y * y
+    if (outerSquared < 0) continue
+    const outerX = Math.floor(Math.sqrt(outerSquared))
+    if (innerRadius <= 0 || Math.abs(y) >= innerRadius) {
+      appendRange(y, -outerX, outerX)
+      continue
+    }
+    const innerX = Math.ceil(Math.sqrt(Math.max(0, innerRadius * innerRadius - y * y)))
+    appendRange(y, -outerX, -innerX)
+    appendRange(y, innerX, outerX)
+  }
+
+  cells.sort((a, b) => a.birthGeneration - b.birthGeneration || a.y - b.y || a.x - b.x)
+  return cells
+}
+
+export function getSquareWaveBandFrame(generationProgress: number): SquareWaveSprite[] {
+  return getSquareWaveFrame(buildSquareWaveBand(generationProgress), generationProgress)
 }
 
 export function getSquareWaveFrame(
@@ -147,4 +190,10 @@ export function splitSquareWaveForContour(
   }
 
   return { solidSprites, fadingCells }
+}
+
+export function splitSquareWaveBandForContour(
+  generationProgress: number,
+): SquareWaveContourSplit {
+  return splitSquareWaveForContour(buildSquareWaveBand(generationProgress), generationProgress)
 }
