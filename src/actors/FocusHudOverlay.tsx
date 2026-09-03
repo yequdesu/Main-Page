@@ -62,6 +62,7 @@ interface HudPalette {
   dotFill: string
   cornerStroke: string
   panelFill: string
+  panelStroke: string
   panelText: string
   panelMutedText: string
 }
@@ -73,6 +74,7 @@ const HUD_PALETTES: Record<DayNight, HudPalette> = {
     dotFill: '#e8f1ff',
     cornerStroke: '#dbeafe',
     panelFill: 'rgba(7, 13, 27, 0.72)',
+    panelStroke: 'rgba(203, 213, 225, 0.62)',
     panelText: '#e2e8f0',
     panelMutedText: 'rgba(203, 213, 225, 0.76)',
   },
@@ -82,6 +84,7 @@ const HUD_PALETTES: Record<DayNight, HudPalette> = {
     dotFill: '#334155',
     cornerStroke: '#475569',
     panelFill: 'rgba(248, 250, 252, 0.76)',
+    panelStroke: 'rgba(100, 116, 139, 0.54)',
     panelText: '#1e293b',
     panelMutedText: 'rgba(51, 65, 85, 0.72)',
   },
@@ -930,7 +933,7 @@ function drawLaunchPanel(
   ctx.rect(0, 0, x + panelW * lineProgress, height)
   ctx.clip()
   ctx.globalAlpha = alpha
-  ctx.strokeStyle = `${link.accent}aa`
+  ctx.strokeStyle = palette.panelStroke
   ctx.lineWidth = 1
   ctx.beginPath()
   ctx.roundRect(x, y, panelW, panelH, 4)
