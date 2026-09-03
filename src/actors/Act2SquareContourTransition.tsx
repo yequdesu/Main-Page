@@ -9,22 +9,21 @@ import {
 import type { LayoutBox } from '../composition/coordinate'
 import { getDomLayer } from '../composition/layerRegistry'
 import {
-  buildSquareWavePlan,
+  getSquareWaveBandFrame,
   getSquareWaveFrame,
   SQUARE_WAVE_FADE_GENERATIONS,
   SQUARE_WAVE_SEED_SCALE,
-  SQUARE_WAVE_SPACING,
-  splitSquareWaveForContour,
+  splitSquareWaveBandForContour,
   type SquareWaveCell,
+  type SquareWaveSprite,
 } from '../behaviors/squareWaveTransition'
 import {
   buildSquareContourLayout,
-  getSquareContourFreezeProgress,
   getSquareContourTransform,
   getSquareContourTransitionFrame,
+  getSquareWaveCanvasTransform,
   getSquareWaveHandoffGeneration,
-  projectContourPoint,
-  SQUARE_CONTOUR_SETTLE_GENERATIONS,
+  type ContourPoint,
   type SquareContourLayout,
 } from '../behaviors/act2SquareContourTransition'
 import { TIMELINE, progress, smoothstep01 } from '../composition/timeline'
@@ -32,7 +31,7 @@ import { useActorRuntime } from '../composition/actorRuntime'
 
 const FONT_STACK = "'Cascadia Mono','SF Mono','Fira Code','Consolas',monospace"
 
-function drawSquare(
+function drawScreenSquare(
   ctx: CanvasRenderingContext2D,
   centerX: number,
   centerY: number,
@@ -48,15 +47,72 @@ function drawSquare(
   ctx.fillRect(x, y, snappedSize, snappedSize)
 }
 
-interface PlanCache {
-  maxGeneration: number
-  plan: SquareWaveCell[]
+function drawLogicalWave(
+  ctx: CanvasRenderingContext2D,
+  sprites: readonly SquareWaveSprite[],
+  focusX: number,
+  focusY: number,
+  zoom: number,
+  logicalSpacing: number,
+  logicalSquareSize: number,
+  opacityMultiplier = 1,
+): void {
+  const half = logicalSquareSize * 0.5
+  ctx.save()
+  ctx.translate(focusX, focusY)
+  ctx.scale(zoom, zoom)
+  for (const sprite of sprites) {
+    const opacity = sprite.opacity * opacityMultiplier
+    if (opacity <= 0) continue
+    ctx.globalAlpha = opacity
+    ctx.fillRect(
+      sprite.x * logicalSpacing - half,
+      sprite.y * logicalSpacing - half,
+      logicalSquareSize,
+      logicalSquareSize,
+    )
+  }
+  ctx.restore()
+  ctx.globalAlpha = 1
+}
+
+function drawLogicalContour(
+  ctx: CanvasRenderingContext2D,
+  squares: readonly ContourPoint[],
+  focusX: number,
+  focusY: number,
+  zoom: number,
+  logicalSquareSize: number,
+  opacityMultiplier: number,
+): void {
+  const half = logicalSquareSize * 0.5
+  ctx.save()
+  ctx.translate(focusX, focusY)
+  ctx.scale(zoom, zoom)
+  for (const square of squares) {
+    const opacity = square.opacity * opacityMultiplier
+    if (opacity <= 0) continue
+    ctx.globalAlpha = opacity
+    ctx.fillRect(
+      square.x - half,
+      square.y - half,
+      logicalSquareSize,
+      logicalSquareSize,
+    )
+  }
+  ctx.restore()
+  ctx.globalAlpha = 1
+}
+
+interface HandoffCache {
+  solidSprites: SquareWaveSprite[]
+  fadingCells: SquareWaveCell[]
 }
 
 interface LayoutCache {
   target: Act3ContourTarget
-  squareSize: number
-  contourGeneration: number
+  logicalSquareSize: number
+  handoffZoom: number
   centerX: number
   centerY: number
   layout: SquareContourLayout
@@ -64,7 +120,7 @@ interface LayoutCache {
 
 export default function Act2SquareContourTransition() {
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
-  const planCacheRef = useRef<PlanCache | null>(null)
+  const handoffCacheRef = useRef<HandoffCache | null>(null)
   const layoutCacheRef = useRef<LayoutCache | null>(null)
   const scrollProgress = useScrollStore((state) => state.scrollProgress)
   const faceRectAnchor = useAnchorStore(
@@ -110,44 +166,41 @@ export default function Act2SquareContourTransition() {
     ctx.fillStyle = '#ffffff'
     const initialCenterX = faceRect.x + faceRect.width * 0.5
     const initialCenterY = faceRect.y + faceRect.height * 0.5
-    const initialSquareSize = faceRect.width * SQUARE_WAVE_SEED_SCALE
+    const logicalSquareSize = faceRect.width * SQUARE_WAVE_SEED_SCALE
 
     if (scrollProgress <= TIMELINE.squareSeedShrink.end) {
       const shrink = smoothstep01(progress('squareSeedShrink', scrollProgress))
       const scale = 1 + (SQUARE_WAVE_SEED_SCALE - 1) * shrink
-      drawSquare(ctx, initialCenterX, initialCenterY, faceRect.width * scale, 1, dpr)
+      drawScreenSquare(ctx, initialCenterX, initialCenterY, faceRect.width * scale, 1, dpr)
       ctx.globalAlpha = 1
       return
     }
 
-    const waveEndGeneration = getSquareWaveHandoffGeneration(width, height, initialSquareSize)
-    const contourGeneration = waveEndGeneration + SQUARE_CONTOUR_SETTLE_GENERATIONS
-    const maxGeneration = Math.ceil(contourGeneration) + 1
-    if (planCacheRef.current?.maxGeneration !== maxGeneration) {
-      planCacheRef.current = { maxGeneration, plan: buildSquareWavePlan(maxGeneration) }
-      layoutCacheRef.current = null
-    }
-    const plan = planCacheRef.current.plan
-    const initialSpacing = initialSquareSize * SQUARE_WAVE_SPACING
-    const waveProgress = progress('squareBfsWave', scrollProgress) * waveEndGeneration
-
-    const { solidSprites: persistentWave, fadingCells } = splitSquareWaveForContour(
-      plan,
-      contourGeneration,
+    const wavePhase = progress('squareBfsWave', scrollProgress)
+    const waveView = getSquareWaveCanvasTransform(
+      wavePhase,
+      width,
+      height,
+      logicalSquareSize,
     )
+    const handoffView = getSquareWaveCanvasTransform(1, width, height, logicalSquareSize)
+    const handoffGeneration = getSquareWaveHandoffGeneration()
+
+    if (!handoffCacheRef.current) {
+      handoffCacheRef.current = splitSquareWaveBandForContour(handoffGeneration)
+    }
+    const { solidSprites, fadingCells } = handoffCacheRef.current
 
     if (scrollProgress <= TIMELINE.squareBfsWave.end) {
-      const sprites = getSquareWaveFrame(plan, waveProgress)
-      for (const sprite of sprites) {
-        drawSquare(
-          ctx,
-          initialCenterX + sprite.x * initialSpacing,
-          initialCenterY + sprite.y * initialSpacing,
-          initialSquareSize,
-          sprite.opacity,
-          dpr,
-        )
-      }
+      drawLogicalWave(
+        ctx,
+        getSquareWaveBandFrame(waveView.generation),
+        initialCenterX,
+        initialCenterY,
+        waveView.zoom,
+        waveView.logicalSpacing,
+        waveView.logicalSquareSize,
+      )
     }
 
     const target = targetAnchor?.value
@@ -155,86 +208,72 @@ export default function Act2SquareContourTransition() {
     if (scrollProgress > TIMELINE.squareBfsWave.end && target) {
       const cached = layoutCacheRef.current
       if (
-        !cached || cached.target !== target || cached.squareSize !== initialSquareSize ||
-        cached.contourGeneration !== contourGeneration || cached.centerX !== initialCenterX ||
-        cached.centerY !== initialCenterY
+        !cached || cached.target !== target ||
+        cached.logicalSquareSize !== logicalSquareSize ||
+        cached.handoffZoom !== handoffView.zoom ||
+        cached.centerX !== initialCenterX || cached.centerY !== initialCenterY
       ) {
         layoutCacheRef.current = {
           target,
-          squareSize: initialSquareSize,
-          contourGeneration,
+          logicalSquareSize,
+          handoffZoom: handoffView.zoom,
           centerX: initialCenterX,
           centerY: initialCenterY,
           layout: buildSquareContourLayout(
             target,
-            persistentWave,
+            solidSprites,
             initialCenterX,
             initialCenterY,
-            initialSpacing,
-            initialSquareSize,
+            handoffView.logicalSpacing,
+            logicalSquareSize,
+            handoffView.zoom,
           ),
         }
       }
-      layout = layoutCacheRef.current?.layout
-      if (layout) {
-        const transform = getSquareContourTransform(layout, frame.zoomProgress)
-        const contourFreezeProgress = getSquareContourFreezeProgress(layout, width, height)
-        const drawMappedWave = (sprite: { x: number; y: number; opacity: number }) => {
-          const point = projectContourPoint({
-            x: layout!.centralX + (sprite.x * initialSpacing) / layout!.zoomStart,
-            y: layout!.centralY + (sprite.y * initialSpacing) / layout!.zoomStart,
-          }, layout!, transform)
-          drawSquare(
-            ctx,
-            point.x,
-            point.y,
-            transform.squareSize,
-            sprite.opacity * frame.contourAlpha,
-            dpr,
-          )
-        }
+      layout = layoutCacheRef.current!.layout
+      const transform = getSquareContourTransform(layout, frame.zoomProgress)
+      drawLogicalContour(
+        ctx,
+        layout.peripheralSquares,
+        transform.focusX,
+        transform.focusY,
+        transform.zoom,
+        layout.logicalSquareSize,
+        frame.contourAlpha,
+      )
+      drawLogicalContour(
+        ctx,
+        layout.centralSquares,
+        transform.focusX,
+        transform.focusY,
+        transform.zoom,
+        layout.logicalSquareSize,
+        frame.contourAlpha,
+      )
 
-        if (frame.zoomProgress < contourFreezeProgress) {
-          const settleProgress = contourFreezeProgress <= 0
-            ? 1
-            : Math.max(0, Math.min(1, frame.zoomProgress / contourFreezeProgress))
-          const evolvingGeneration = waveEndGeneration +
-            SQUARE_CONTOUR_SETTLE_GENERATIONS * settleProgress
-          for (const sprite of getSquareWaveFrame(plan, evolvingGeneration)) drawMappedWave(sprite)
-        } else {
-          for (const square of [...layout.peripheralSquares, ...layout.centralSquares]) {
-            const point = projectContourPoint(square, layout, transform)
-            drawSquare(
-              ctx,
-              point.x,
-              point.y,
-              transform.squareSize,
-              square.opacity * frame.contourAlpha,
-              dpr,
-            )
-          }
-
-          const fadeProgress = contourFreezeProgress >= 1
-            ? 1
-            : Math.max(0, Math.min(
-                1,
-                (frame.zoomProgress - contourFreezeProgress) / (1 - contourFreezeProgress),
-              ))
-          const fadingGeneration = contourGeneration + SQUARE_WAVE_FADE_GENERATIONS * fadeProgress
-          for (const sprite of getSquareWaveFrame(fadingCells, fadingGeneration)) drawMappedWave(sprite)
-        }
-      }
+      const fadingGeneration = handoffGeneration +
+        SQUARE_WAVE_FADE_GENERATIONS * frame.zoomProgress
+      drawLogicalWave(
+        ctx,
+        getSquareWaveFrame(fadingCells, fadingGeneration),
+        transform.focusX,
+        transform.focusY,
+        transform.zoom,
+        layout.logicalSpacing,
+        layout.logicalSquareSize,
+        frame.contourAlpha,
+      )
     } else if (scrollProgress > TIMELINE.squareBfsWave.end) {
-      for (const sprite of getSquareWaveFrame(plan, waveEndGeneration)) {
-        drawSquare(
-          ctx,
-          initialCenterX + sprite.x * initialSpacing,
-          initialCenterY + sprite.y * initialSpacing,
-          initialSquareSize,
-          sprite.opacity * frame.contourAlpha,
-          dpr,
-        )
-      }
+      drawLogicalWave(
+        ctx,
+        getSquareWaveBandFrame(handoffGeneration),
+        initialCenterX,
+        initialCenterY,
+        handoffView.zoom,
+        handoffView.logicalSpacing,
+        handoffView.logicalSquareSize,
+        frame.contourAlpha,
+      )
     }
 
     if (frame.titleAlpha > 0 && scrollProgress >= TIMELINE.squareTitleTyping.start) {

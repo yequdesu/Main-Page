@@ -2,11 +2,11 @@ import { describe, expect, it } from 'vitest'
 import type { Act3ContourTarget } from '../../composition/coreAnchors'
 import {
   SQUARE_TITLE,
+  SQUARE_WAVE_HANDOFF_RADIUS_CELLS,
   buildSquareContourLayout,
-  getContourSquareFreezeSize,
-  getSquareContourFreezeProgress,
   getSquareContourTransform,
   getSquareContourTransitionFrame,
+  getSquareWaveCanvasTransform,
   getSquareWaveHandoffGeneration,
   getSquareTypedText,
   projectContourPoint,
@@ -22,15 +22,15 @@ const TARGET: Act3ContourTarget = {
     { x: 560, y: 250, r: 22, visible: true },
   ],
   orbits: [
-    { points: [{ x: 300, y: 350 }, { x: 500, y: 260 }, { x: 700, y: 350 }, { x: 500, y: 440 }, { x: 300, y: 350 }] },
+    { points: [{ x: 300, y: 350 }, { x: 500, y: 260 }, { x: 700, y: 350 }] },
   ],
 }
 
 const FROZEN = [
   { x: 10, y: 0, opacity: 1 },
-  { x: 0, y: 10, opacity: 0.8 },
-  { x: -10, y: 0, opacity: 0.5 },
-  { x: 0, y: -10, opacity: 0.25 },
+  { x: 0, y: 10, opacity: 1 },
+  { x: -10, y: 0, opacity: 1 },
+  { x: 0, y: -10, opacity: 1 },
 ]
 
 describe('Act 2 square contour transition', () => {
@@ -47,56 +47,60 @@ describe('Act 2 square contour transition', () => {
     expect(beforeFade.titleAlpha).toBe(1)
     expect(halfway.titleAlpha).toBeCloseTo(0.5)
     expect(gone.titleAlpha).toBe(0)
-    expect(beforeFade.titleFontPx).toBeGreaterThanOrEqual(72)
   })
 
-  it('hands the circular wave to the shrinking canvas at 60% and crossfades after full framing', () => {
-    const handoffGeneration = getSquareWaveHandoffGeneration(1000, 800, 20)
-    expect(handoffGeneration).toBeCloseTo((800 * 0.38) / 22)
-    expect(getSquareContourTransitionFrame(0.60, 1000, 800).zoomProgress).toBe(0)
-    expect(getSquareContourTransitionFrame(0.80, 1000, 800).zoomProgress).toBe(1)
-    expect(getSquareContourTransitionFrame(0.80, 1000, 800).contourAlpha).toBe(1)
-    expect(getSquareContourTransitionFrame(0.85, 1000, 800).contourAlpha).toBe(0)
+  it('expands to radius 1000 while only the logical canvas zoom changes', () => {
+    const start = getSquareWaveCanvasTransform(0, 1000, 800, 20)
+    const middle = getSquareWaveCanvasTransform(0.5, 1000, 800, 20)
+    const handoff = getSquareWaveCanvasTransform(1, 1000, 800, 20)
+
+    expect(getSquareWaveHandoffGeneration()).toBe(SQUARE_WAVE_HANDOFF_RADIUS_CELLS)
+    expect(handoff.generation).toBe(1000)
+    expect(start.logicalSquareSize).toBe(20)
+    expect(middle.logicalSquareSize).toBe(20)
+    expect(handoff.logicalSquareSize).toBe(20)
+    expect(start.logicalSpacing).toBe(22)
+    expect(middle.logicalSpacing).toBe(22)
+    expect(handoff.logicalSpacing).toBe(22)
+    expect(start.zoom).toBe(1)
+    expect(middle.zoom).toBeLessThan(start.zoom)
+    expect(handoff.zoom).toBeLessThan(middle.zoom)
+    expect(handoff.screenRadius).toBeCloseTo(800 * 0.38)
   })
 
-  it('preserves frozen wave identity at the close-up and lands on the terminal target', () => {
-    const layout = buildSquareContourLayout(TARGET, FROZEN, 500, 350, 22, 20)
+  it('continues pulling back from the handoff and lands on the terminal target', () => {
+    const layout = buildSquareContourLayout(TARGET, FROZEN, 500, 350, 22, 20, 0.5)
     const close = getSquareContourTransform(layout, 0)
     const terminal = getSquareContourTransform(layout, 1)
 
+    expect(close.zoom).toBeCloseTo(0.5)
+    expect(terminal.zoom).toBeLessThan(close.zoom)
     layout.centralSquares.forEach((square, index) => {
       const closePoint = projectContourPoint(square, layout, close)
-      expect(closePoint.x).toBeCloseTo(500 + FROZEN[index].x * 22)
-      expect(closePoint.y).toBeCloseTo(350 + FROZEN[index].y * 22)
-      expect(square.opacity).toBe(FROZEN[index].opacity)
-
-      const terminalPoint = projectContourPoint(square, layout, terminal)
-      expect(terminalPoint.x).toBeCloseTo(square.x)
-      expect(terminalPoint.y).toBeCloseTo(square.y)
+      expect(closePoint.x).toBeCloseTo(500 + FROZEN[index].x * 22 * 0.5)
+      expect(closePoint.y).toBeCloseTo(350 + FROZEN[index].y * 22 * 0.5)
     })
-    expect(terminal.zoom).toBeCloseTo(1)
+
+    const rightmost = layout.centralSquares[0]
+    const terminalPoint = projectContourPoint(rightmost, layout, terminal)
+    expect(terminalPoint.x + terminal.squareSize * 0.5)
+      .toBeCloseTo(TARGET.central.x + TARGET.central.r)
     expect(terminal.focusX).toBe(TARGET.central.x)
     expect(terminal.focusY).toBe(TARGET.central.y)
   })
 
-  it('does not freeze the contour until its squares reach the small responsive threshold', () => {
-    const layout = buildSquareContourLayout(TARGET, FROZEN, 500, 350, 22, 20)
-    const freezeProgress = getSquareContourFreezeProgress(layout, 1000, 700)
-    const threshold = getContourSquareFreezeSize(1000, 700)
-    const atFreeze = getSquareContourTransform(layout, freezeProgress)
-    const justBefore = getSquareContourTransform(layout, Math.max(0, freezeProgress - 0.001))
-    expect(freezeProgress).toBeGreaterThan(0)
-    expect(freezeProgress).toBeLessThan(1)
-    expect(atFreeze.squareSize).toBeLessThanOrEqual(threshold + 0.001)
-    expect(justBefore.squareSize).toBeGreaterThan(threshold)
-  })
-
-  it('deterministically samples only square outlines for planets and orbits', () => {
-    const first = buildSquareContourLayout(TARGET, FROZEN, 500, 350, 22, 20)
-    const second = buildSquareContourLayout(TARGET, FROZEN, 500, 350, 22, 20)
+  it('deterministically samples planet outlines but excludes every orbit', () => {
+    const first = buildSquareContourLayout(TARGET, FROZEN, 500, 350, 22, 20, 0.5)
+    const second = buildSquareContourLayout(TARGET, FROZEN, 500, 350, 22, 20, 0.5)
     expect(second).toEqual(first)
     expect(first.peripheralSquares.length).toBeGreaterThan(0)
-    expect(first.peripheralSquares.some((square) => square.source === 'planet')).toBe(true)
-    expect(first.peripheralSquares.some((square) => square.source === 'orbit')).toBe(true)
+    expect(first.peripheralSquares.every((square) => square.source === 'planet')).toBe(true)
+  })
+
+  it('crossfades only after the full planetary framing is reached', () => {
+    expect(getSquareContourTransitionFrame(0.60, 1000, 800).zoomProgress).toBe(0)
+    expect(getSquareContourTransitionFrame(0.80, 1000, 800).zoomProgress).toBe(1)
+    expect(getSquareContourTransitionFrame(0.80, 1000, 800).contourAlpha).toBe(1)
+    expect(getSquareContourTransitionFrame(0.85, 1000, 800).contourAlpha).toBe(0)
   })
 })

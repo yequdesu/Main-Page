@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import {
+  buildSquareWaveBand,
   buildSquareWavePlan,
+  getSquareWaveBandFrame,
   getSquareWaveFrame,
   SQUARE_WAVE_FADE_GENERATIONS,
   SQUARE_WAVE_LIFETIME,
@@ -63,6 +65,15 @@ describe('square wave transition', () => {
       fadingCells,
       splitGeneration + SQUARE_WAVE_FADE_GENERATIONS,
     )).toHaveLength(0)
+  })
+
+  it('supports a 1000-cell radius by constructing only the live annulus', () => {
+    const band = buildSquareWaveBand(1000)
+    const frame = getSquareWaveBandFrame(1000)
+    expect(band.length).toBeGreaterThan(10000)
+    expect(band.length).toBeLessThan(100000)
+    expect(frame.length).toBeGreaterThan(10000)
+    expect(frame.every((sprite) => Math.hypot(sprite.x, sprite.y) > 990)).toBe(true)
   })
 
   it('uses Euclidean radius so axis and diagonal fronts stay circular', () => {

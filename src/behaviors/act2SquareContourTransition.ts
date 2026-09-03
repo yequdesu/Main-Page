@@ -1,18 +1,25 @@
-import type { Act3ContourTarget, ScreenPolyline } from '../composition/coreAnchors'
+import type { Act3ContourTarget } from '../composition/coreAnchors'
 import { TIMELINE, clamp01, progress, smoothProgress } from '../composition/timeline'
 import { SQUARE_WAVE_SPACING, type SquareWaveSprite } from './squareWaveTransition'
 
 export const SQUARE_TITLE = 'Ēarendel'
 export const SQUARE_WAVE_HANDOFF_RADIUS_RATIO = 0.38
-export const SQUARE_CONTOUR_SETTLE_GENERATIONS = 2
-export const SQUARE_CONTOUR_MIN_FREEZE_PX = 3.5
-export const SQUARE_CONTOUR_MAX_FREEZE_PX = 6
+export const SQUARE_WAVE_HANDOFF_RADIUS_CELLS = 1000
 
 export interface ContourPoint {
+  /** Position in the fixed square-wave logical coordinate system. */
   x: number
   y: number
   opacity: number
-  source: 'central' | 'planet' | 'orbit'
+  source: 'central' | 'planet'
+}
+
+export interface SquareWaveCanvasTransform {
+  generation: number
+  zoom: number
+  logicalSquareSize: number
+  logicalSpacing: number
+  screenRadius: number
 }
 
 export interface SquareContourLayout {
@@ -20,9 +27,10 @@ export interface SquareContourLayout {
   centralY: number
   initialCenterX: number
   initialCenterY: number
-  zoomStart: number
-  localSquareSize: number
-  terminalPitch: number
+  handoffZoom: number
+  terminalZoom: number
+  logicalSquareSize: number
+  logicalSpacing: number
   centralSquares: ContourPoint[]
   peripheralSquares: ContourPoint[]
 }
@@ -83,24 +91,40 @@ export function getSquareContourTransitionFrame(
   }
 }
 
-export function getSquareWaveHandoffGeneration(
-  viewportWidth: number,
-  viewportHeight: number,
-  squareSize: number,
-): number {
-  const spacing = Math.max(1, squareSize * SQUARE_WAVE_SPACING)
-  const radiusPx = Math.min(viewportWidth, viewportHeight) * SQUARE_WAVE_HANDOFF_RADIUS_RATIO
-  return Math.max(8, radiusPx / spacing)
+export function getSquareWaveHandoffGeneration(): number {
+  return SQUARE_WAVE_HANDOFF_RADIUS_CELLS
 }
 
-export function getContourSquareFreezeSize(
+/**
+ * Squares and their 1.1-cell spacing stay fixed in logical coordinates. Only
+ * the view zoom changes while the front grows from radius 0 to radius 1000.
+ */
+export function getSquareWaveCanvasTransform(
+  waveProgress: number,
   viewportWidth: number,
   viewportHeight: number,
-): number {
-  return Math.max(
-    SQUARE_CONTOUR_MIN_FREEZE_PX,
-    Math.min(SQUARE_CONTOUR_MAX_FREEZE_PX, Math.min(viewportWidth, viewportHeight) * 0.005),
-  )
+  logicalSquareSize: number,
+): SquareWaveCanvasTransform {
+  const t = smootherstep01(waveProgress)
+  const generation = SQUARE_WAVE_HANDOFF_RADIUS_CELLS * t
+  const logicalSpacing = logicalSquareSize * SQUARE_WAVE_SPACING
+  const handoffLogicalRadius =
+    SQUARE_WAVE_HANDOFF_RADIUS_CELLS * logicalSpacing + logicalSquareSize * 0.5
+  const targetScreenRadius =
+    Math.min(viewportWidth, viewportHeight) * SQUARE_WAVE_HANDOFF_RADIUS_RATIO
+  const handoffZoom = Math.min(1, targetScreenRadius / Math.max(1, handoffLogicalRadius))
+
+  // Reciprocal interpolation keeps the visible radius monotonic while the view
+  // continuously pulls back, landing exactly on handoffZoom at generation 1000.
+  const zoom = 1 / lerp(1, 1 / Math.max(0.000001, handoffZoom), t)
+  const logicalRadius = generation * logicalSpacing + logicalSquareSize * 0.5
+  return {
+    generation,
+    zoom,
+    logicalSquareSize,
+    logicalSpacing,
+    screenRadius: logicalRadius * zoom,
+  }
 }
 
 function sampleCircle(
@@ -117,37 +141,6 @@ function sampleCircle(
   })
 }
 
-function samplePolyline(polyline: ScreenPolyline, pitch: number): Array<{ x: number; y: number }> {
-  if (polyline.points.length < 2) return []
-  const lengths: number[] = []
-  let totalLength = 0
-  for (let index = 1; index < polyline.points.length; index++) {
-    const a = polyline.points[index - 1]
-    const b = polyline.points[index]
-    const length = Math.hypot(b.x - a.x, b.y - a.y)
-    lengths.push(length)
-    totalLength += length
-  }
-  if (totalLength <= 0) return []
-
-  const count = Math.max(2, Math.ceil(totalLength / Math.max(0.25, pitch)))
-  const samples: Array<{ x: number; y: number }> = []
-  let segment = 0
-  let segmentStart = 0
-  for (let index = 0; index < count; index++) {
-    const distance = (index / count) * totalLength
-    while (segment < lengths.length - 1 && distance > segmentStart + lengths[segment]) {
-      segmentStart += lengths[segment]
-      segment++
-    }
-    const a = polyline.points[segment]
-    const b = polyline.points[segment + 1]
-    const local = lengths[segment] <= 0 ? 0 : (distance - segmentStart) / lengths[segment]
-    samples.push({ x: lerp(a.x, b.x, local), y: lerp(a.y, b.y, local) })
-  }
-  return samples
-}
-
 function occupancyKey(x: number, y: number, pitch: number): string {
   const bucket = Math.max(0.5, pitch * 0.72)
   return `${Math.round(x / bucket)}:${Math.round(y / bucket)}`
@@ -158,41 +151,46 @@ export function buildSquareContourLayout(
   frozenWave: readonly SquareWaveSprite[],
   initialCenterX: number,
   initialCenterY: number,
-  initialSpacing: number,
-  initialSquareSize: number,
+  logicalSpacing: number,
+  logicalSquareSize: number,
+  handoffZoom: number,
 ): SquareContourLayout {
-  const freezeRadius = frozenWave.reduce(
-    (max, sprite) => Math.max(max, Math.hypot(sprite.x, sprite.y) * initialSpacing + initialSquareSize * 0.5),
-    initialSquareSize,
+  const logicalCentralRadius = frozenWave.reduce(
+    (max, sprite) => Math.max(
+      max,
+      Math.hypot(sprite.x, sprite.y) * logicalSpacing + logicalSquareSize * 0.5,
+    ),
+    logicalSquareSize,
   )
-  const zoomStart = Math.max(1.001, freezeRadius / Math.max(1, target.central.r))
-  const localSquareSize = initialSquareSize / zoomStart
-  const terminalPitch = initialSpacing / zoomStart
+  const terminalZoom = Math.max(0.000001, target.central.r / logicalCentralRadius)
 
   const centralSquares: ContourPoint[] = frozenWave.map((sprite) => ({
-    x: target.central.x + (sprite.x * initialSpacing) / zoomStart,
-    y: target.central.y + (sprite.y * initialSpacing) / zoomStart,
+    x: sprite.x * logicalSpacing,
+    y: sprite.y * logicalSpacing,
     opacity: sprite.opacity,
     source: 'central',
   }))
 
   const occupied = new Set<string>()
   for (const square of centralSquares) {
-    occupied.add(occupancyKey(square.x, square.y, terminalPitch))
+    occupied.add(occupancyKey(square.x, square.y, logicalSpacing))
   }
   const peripheralSquares: ContourPoint[] = []
-  const append = (point: { x: number; y: number }, source: 'planet' | 'orbit') => {
-    const key = occupancyKey(point.x, point.y, terminalPitch)
+  const append = (point: { x: number; y: number }) => {
+    const key = occupancyKey(point.x, point.y, logicalSpacing)
     if (occupied.has(key)) return
     occupied.add(key)
-    peripheralSquares.push({ ...point, opacity: 1, source })
+    peripheralSquares.push({ ...point, opacity: 1, source: 'planet' })
   }
 
   for (const planet of target.planets) {
-    for (const point of sampleCircle(planet.x, planet.y, planet.r, terminalPitch)) append(point, 'planet')
-  }
-  for (const orbit of target.orbits) {
-    for (const point of samplePolyline(orbit, terminalPitch)) append(point, 'orbit')
+    if (!planet.visible) continue
+    const logicalX = (planet.x - target.central.x) / terminalZoom
+    const logicalY = (planet.y - target.central.y) / terminalZoom
+    const logicalRadius = planet.r / terminalZoom
+    for (const point of sampleCircle(logicalX, logicalY, logicalRadius, logicalSpacing)) {
+      append(point)
+    }
   }
 
   return {
@@ -200,9 +198,10 @@ export function buildSquareContourLayout(
     centralY: target.central.y,
     initialCenterX,
     initialCenterY,
-    zoomStart,
-    localSquareSize,
-    terminalPitch,
+    handoffZoom,
+    terminalZoom,
+    logicalSquareSize,
+    logicalSpacing,
     centralSquares,
     peripheralSquares,
   }
@@ -213,45 +212,23 @@ export function getSquareContourTransform(
   zoomProgress: number,
 ): SquareContourTransform {
   const t = smootherstep01(zoomProgress)
-  const zoom = expLerp(layout.zoomStart, 1, t)
+  const zoom = expLerp(layout.handoffZoom, layout.terminalZoom, t)
   return {
     focusX: lerp(layout.initialCenterX, layout.centralX, t),
     focusY: lerp(layout.initialCenterY, layout.centralY, t),
     zoom,
-    squareSize: layout.localSquareSize * zoom,
-    titleScale: zoom / layout.zoomStart,
+    squareSize: layout.logicalSquareSize * zoom,
+    titleScale: zoom / layout.handoffZoom,
   }
-}
-
-export function getSquareContourFreezeProgress(
-  layout: SquareContourLayout,
-  viewportWidth: number,
-  viewportHeight: number,
-): number {
-  const threshold = Math.max(
-    layout.localSquareSize,
-    getContourSquareFreezeSize(viewportWidth, viewportHeight),
-  )
-  if (getSquareContourTransform(layout, 0).squareSize <= threshold) return 0
-  if (getSquareContourTransform(layout, 1).squareSize >= threshold) return 1
-
-  let low = 0
-  let high = 1
-  for (let iteration = 0; iteration < 24; iteration++) {
-    const mid = (low + high) * 0.5
-    if (getSquareContourTransform(layout, mid).squareSize > threshold) low = mid
-    else high = mid
-  }
-  return high
 }
 
 export function projectContourPoint(
   point: Pick<ContourPoint, 'x' | 'y'>,
-  layout: SquareContourLayout,
+  _layout: SquareContourLayout,
   transform: SquareContourTransform,
 ): { x: number; y: number } {
   return {
-    x: transform.focusX + (point.x - layout.centralX) * transform.zoom,
-    y: transform.focusY + (point.y - layout.centralY) * transform.zoom,
+    x: transform.focusX + point.x * transform.zoom,
+    y: transform.focusY + point.y * transform.zoom,
   }
 }
