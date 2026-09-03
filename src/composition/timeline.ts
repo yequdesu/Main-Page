@@ -36,7 +36,7 @@ export const TIMELINE = {
   cubeDrawAndTumble: defineRange('cubeDrawAndTumble', 0.40, 0.50, 'Cube edges draw while the miniature tumbles on three axes'),
   cubeWhiteFill: defineRange('cubeWhiteFill', 0.50, 0.55, 'Cube settles face-on and fills to pure white'),
   squareSeedShrink: defineRange('squareSeedShrink', 0.55, 0.56, 'Screen-space square takes over and shrinks slightly'),
-  squareBfsWave: defineRange('squareBfsWave', 0.56, 0.70, 'Deterministic square wave expands to its 100-cell handoff radius'),
+  squareBfsWave: defineRange('squareBfsWave', 0.56, 0.70, 'Deterministic square wave expands to its 400-cell handoff radius'),
   squareTitleTyping: defineRange('squareTitleTyping', 0.58, 0.64, 'Centered bracket title types Earendel'),
   squareContourZoom: defineRange('squareContourZoom', 0.70, 0.80, 'Frozen square contour canvas zooms out to the Act 3 terminal framing'),
   squareTitleFade: defineRange('squareTitleFade', 0.64, 0.72, 'Earendel title shrinks with the logical canvas and fades out'),
