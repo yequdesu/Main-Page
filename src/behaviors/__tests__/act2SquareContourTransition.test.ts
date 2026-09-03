@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { Act3ContourTarget } from '../../composition/coreAnchors'
 import {
   SQUARE_TITLE,
+  SQUARE_TITLE_FONT_SCALE,
   SQUARE_WAVE_HANDOFF_RADIUS_CELLS,
   buildSquareContourLayout,
   getSquareContourTransform,
@@ -48,6 +49,7 @@ describe('Act 2 square contour transition', () => {
     expect(beforeFade.titleAlpha).toBe(1)
     expect(halfway.titleAlpha).toBeCloseTo(0.5)
     expect(gone.titleAlpha).toBe(0)
+    expect(beforeFade.titleFontPx).toBeCloseTo(220 * SQUARE_TITLE_FONT_SCALE)
   })
 
   it('expands to radius 400 while only the logical canvas zoom changes', () => {

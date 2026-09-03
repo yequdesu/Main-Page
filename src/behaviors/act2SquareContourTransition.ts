@@ -3,6 +3,7 @@ import { TIMELINE, clamp01, progress, smoothProgress } from '../composition/time
 import { SQUARE_WAVE_SPACING, type SquareWaveSprite } from './squareWaveTransition'
 
 export const SQUARE_TITLE = 'Ēarendel'
+export const SQUARE_TITLE_FONT_SCALE = 0.85
 export const SQUARE_WAVE_HANDOFF_RADIUS_RATIO = 0.38
 export const SQUARE_WAVE_HANDOFF_RADIUS_CELLS = 400
 
@@ -86,7 +87,8 @@ export function getSquareContourTransitionFrame(
   viewportWidth: number,
   viewportHeight: number,
 ): SquareContourTransitionFrame {
-  const initialFont = Math.max(72, Math.min(240, viewportWidth * 0.16, viewportHeight * 0.22))
+  const initialFont = Math.max(72, Math.min(240, viewportWidth * 0.16, viewportHeight * 0.22)) *
+    SQUARE_TITLE_FONT_SCALE
   const titleVisible = scrollProgress >= TIMELINE.squareTitleTyping.start &&
     scrollProgress < TIMELINE.squareTitleFade.end
   return {
