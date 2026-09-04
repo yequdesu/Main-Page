@@ -4,6 +4,7 @@ import {
   ABSORPTION_TRAIL_START,
   buildAbsorptionTrailSpecs,
   buildRandomAbsorptionTrailBatch,
+  getAbsorptionSpawnDensity,
   getAbsorptionTrailFrame,
 } from '../miniatureAbsorptionTrails'
 
@@ -25,8 +26,8 @@ describe('miniature absorption trails', () => {
 
   it('randomizes batch count and properties while constraining the final arrival', () => {
     const batch = buildRandomAbsorptionTrailBatch(0x1234abcd)
-    expect(batch.specs.length).toBeGreaterThanOrEqual(48)
-    expect(batch.specs.length).toBeLessThanOrEqual(80)
+    expect(batch.specs.length).toBeGreaterThanOrEqual(128)
+    expect(batch.specs.length).toBeLessThanOrEqual(192)
     expect(batch.finalArrival).toBeGreaterThanOrEqual(0.56)
     expect(batch.finalArrival).toBeLessThan(0.57)
     expect(Math.max(...batch.specs.map((track) => track.end))).toBe(batch.finalArrival)
@@ -34,7 +35,19 @@ describe('miniature absorption trails', () => {
     expect(buildRandomAbsorptionTrailBatch(0x76543210)).not.toEqual(batch)
   })
 
-  it('starts outside the viewport and lands on the visible cube boundary', () => {
+  it('uses a sparse-dense-sparse bell function for arrival counts', () => {
+    expect(getAbsorptionSpawnDensity(0)).toBeCloseTo(0)
+    expect(getAbsorptionSpawnDensity(0.5)).toBeCloseTo(1)
+    expect(getAbsorptionSpawnDensity(1)).toBeCloseTo(0)
+
+    const specs = buildAbsorptionTrailSpecs(160, 0x10203040, 0.568)
+    const phases = specs.map((spec) => (spec.end - 0.472) / (0.568 - 0.472))
+    const edgeCount = phases.filter((phase) => phase < 0.2 || phase > 0.8).length
+    const centerCount = phases.filter((phase) => phase >= 0.4 && phase <= 0.6).length
+    expect(centerCount).toBeGreaterThan(edgeCount)
+  })
+
+  it('starts outside the viewport and converges on one exact center point', () => {
     for (const spec of buildAbsorptionTrailSpecs()) {
       const sp = (spec.start + spec.end) * 0.5
       const frame = getAbsorptionTrailFrame(
@@ -48,11 +61,8 @@ describe('miniature absorption trails', () => {
       const outside = frame.start.x < 0 || frame.start.x > viewport.width ||
         frame.start.y < 0 || frame.start.y > viewport.height
       expect(outside).toBe(true)
-      const onVerticalEdge = Math.abs(frame.target.x - cubeBounds.x) < 0.001 ||
-        Math.abs(frame.target.x - (cubeBounds.x + cubeBounds.width)) < 0.001
-      const onHorizontalEdge = Math.abs(frame.target.y - cubeBounds.y) < 0.001 ||
-        Math.abs(frame.target.y - (cubeBounds.y + cubeBounds.height)) < 0.001
-      expect(onVerticalEdge || onHorizontalEdge).toBe(true)
+      expect(frame.target.x).toBeCloseTo(cubeBounds.x + cubeBounds.width * 0.5)
+      expect(frame.target.y).toBeCloseTo(cubeBounds.y + cubeBounds.height * 0.5)
     }
   })
 

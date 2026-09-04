@@ -1,5 +1,8 @@
 import type { LayoutBox, Point2 } from '../composition/coordinate'
-import { bellDistanceProgress, smootherstep } from './motionTrail'
+import {
+  bellDistanceProgress,
+  smootherstep,
+} from './motionTrail'
 
 export type ScreenEdge = 'top' | 'right' | 'bottom' | 'left'
 
@@ -7,8 +10,6 @@ export interface AbsorptionTrailSpec {
   id: number
   side: ScreenEdge
   edgePosition: number
-  targetOffsetX: number
-  targetOffsetY: number
   start: number
   end: number
   radius: number
@@ -37,7 +38,7 @@ export interface AbsorptionTrailBatch {
 
 export const ABSORPTION_TRAIL_START = 0.46
 export const ABSORPTION_TRAIL_END = 0.57
-export const ABSORPTION_TRAIL_COUNT = 64
+export const ABSORPTION_TRAIL_COUNT = 160
 export const ABSORPTION_FINAL_ARRIVAL_MIN = 0.56
 export const ABSORPTION_FINAL_ARRIVAL_MAX = 0.57
 
@@ -58,6 +59,13 @@ function nextRandom(state: { value: number }): number {
   return (x >>> 0) / 0x1_0000_0000
 }
 
+/** Normalized event density: sparse at both ends and densest at the midpoint. */
+export function getAbsorptionSpawnDensity(phase: number): number {
+  const t = clamp(phase, 0, 1)
+  const wave = Math.sin(Math.PI * t)
+  return wave * wave
+}
+
 /**
  * A supplied seed keeps one generated batch reversible. The runtime chooses a
  * fresh seed on each page load, while tests and replay can inject a known seed.
@@ -76,19 +84,31 @@ export function buildAbsorptionTrailSpecs(
     ABSORPTION_FINAL_ARRIVAL_MIN,
     ABSORPTION_FINAL_ARRIVAL_MAX - 0.000001,
   )
+  const arrivalPhases: number[] = []
+  if (safeCount === 1) {
+    arrivalPhases.push(1)
+  } else {
+    // Rejection sampling makes this function the literal spawn-count envelope:
+    // few accepted events near 0/1, many around 0.5.
+    arrivalPhases.push(0)
+    while (arrivalPhases.length < safeCount - 1) {
+      const candidate = nextRandom(random)
+      if (nextRandom(random) <= getAbsorptionSpawnDensity(candidate)) {
+        arrivalPhases.push(candidate)
+      }
+    }
+    arrivalPhases.sort((a, b) => a - b)
+    arrivalPhases.push(1)
+  }
 
   return Array.from({ length: safeCount }, (_, id) => {
-    const arrivalT = id === safeCount - 1
-      ? 1
-      : (id + 0.15 + nextRandom(random) * 0.7) / Math.max(1, safeCount - 1)
+    const arrivalT = arrivalPhases[id]
     const end = lerp(firstArrival, lastArrival, arrivalT)
     const duration = 0.0055 + nextRandom(random) * 0.0115
     return {
       id,
       side: sides[Math.floor(nextRandom(random) * sides.length)],
       edgePosition: 0.035 + nextRandom(random) * 0.93,
-      targetOffsetX: nextRandom(random) * 1.3 - 0.65,
-      targetOffsetY: nextRandom(random) * 1.3 - 0.65,
       start: Math.max(ABSORPTION_TRAIL_START, end - duration),
       end,
       radius: 1.15 + nextRandom(random) * 4.1,
@@ -100,7 +120,7 @@ export function buildAbsorptionTrailSpecs(
 
 export function buildRandomAbsorptionTrailBatch(seed: number): AbsorptionTrailBatch {
   const random = { value: seed || 0x51a7c3e1 }
-  const count = 48 + Math.floor(nextRandom(random) * 33)
+  const count = 128 + Math.floor(nextRandom(random) * 65)
   const finalArrival = ABSORPTION_FINAL_ARRIVAL_MIN +
     nextRandom(random) * (ABSORPTION_FINAL_ARRIVAL_MAX - ABSORPTION_FINAL_ARRIVAL_MIN)
   return {
@@ -136,24 +156,11 @@ function getVisibleTargetBox(box: LayoutBox, width: number, height: number): Lay
 }
 
 function getTargetPoint(
-  spec: AbsorptionTrailSpec,
-  spawn: Point2,
   box: LayoutBox,
 ): Point2 {
-  const aim = {
-    x: box.x + box.width * (0.5 + spec.targetOffsetX * 0.5),
-    y: box.y + box.height * (0.5 + spec.targetOffsetY * 0.5),
-  }
-  const dx = aim.x - spawn.x
-  const dy = aim.y - spawn.y
-  let t = 1
-  if (spec.side === 'left') t = dx !== 0 ? (box.x - spawn.x) / dx : 1
-  else if (spec.side === 'right') t = dx !== 0 ? (box.x + box.width - spawn.x) / dx : 1
-  else if (spec.side === 'top') t = dy !== 0 ? (box.y - spawn.y) / dy : 1
-  else t = dy !== 0 ? (box.y + box.height - spawn.y) / dy : 1
   return {
-    x: lerp(spawn.x, aim.x, clamp(t, 0, 1)),
-    y: lerp(spawn.y, aim.y, clamp(t, 0, 1)),
+    x: box.x + box.width * 0.5,
+    y: box.y + box.height * 0.5,
   }
 }
 
@@ -166,7 +173,7 @@ export function getAbsorptionTrailFrame(
 ): AbsorptionTrailFrame {
   const start = getSpawnPoint(spec, width, height)
   const targetBox = getVisibleTargetBox(cubeBounds, width, height)
-  const target = getTargetPoint(spec, start, targetBox)
+  const target = getTargetPoint(targetBox)
   const duration = Math.max(0.000001, spec.end - spec.start)
   const local = clamp((scrollProgress - spec.start) / duration, 0, 1)
 

@@ -119,7 +119,7 @@ export const LAYERS = {
   },
   'dom.miniatureAbsorptionTrails': {
     id: 'dom.miniatureAbsorptionTrails',
-    contract: { kind: 'dom', zIndex: 6, position: 'fixed', pointerEvents: 'none' },
+    contract: { kind: 'dom', zIndex: 8, position: 'fixed', pointerEvents: 'none' },
     description: 'Screen-edge circle trails absorbed by the Act 1 miniature cube.',
   },
   'dom.act2SquareContourTransition': {
