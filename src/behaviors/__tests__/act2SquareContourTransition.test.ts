@@ -6,11 +6,15 @@ import {
   SQUARE_WAVE_HANDOFF_RADIUS_CELLS,
   PLANET_FLIGHT_LAUNCH_ANGLES,
   PLANET_FLIGHT_TIMINGS,
+  ORBIT_TRACE_TIMINGS,
+  buildOrbitTracePlans,
   buildPlanetFlightPlans,
   buildSquareContourLayout,
   getPlanetFlightElapsed,
   getPlanetFlightFrame,
   getPlanetFlightRenderFrame,
+  getOrbitTraceElapsed,
+  getOrbitTraceRenderFrames,
   getSquareContourTransform,
   getSquareContourTransitionFrame,
   getSquareWaveExpansionProgress,
@@ -120,8 +124,58 @@ describe('Act 2 square contour transition', () => {
     expect(second).toEqual(first)
     expect(first.planetTargets).toHaveLength(3)
     expect(first.planetTargets.map((target) => target.trackIdx)).toEqual([0, 1, 2])
+    expect(first.orbitTargets).toHaveLength(TARGET.orbits.length)
     expect('peripheralSquares' in first).toBe(false)
     expect('orbits' in first).toBe(false)
+  })
+
+  it('launches six staggered orbit tracers and completes every closed contour', () => {
+    const sixOrbitTarget: Act3ContourTarget = {
+      ...TARGET,
+      orbits: Array.from({ length: 6 }, (_, orbitIdx) => {
+        const radiusX = 120 + orbitIdx * 24
+        const radiusY = 44 + orbitIdx * 8
+        return {
+          points: Array.from({ length: 65 }, (_, index) => {
+            const angle = index / 64 * Math.PI * 2
+            return {
+              x: TARGET.central.x + Math.cos(angle) * radiusX,
+              y: TARGET.central.y + Math.sin(angle) * radiusY,
+            }
+          }),
+        }
+      }),
+    }
+    const layout = buildSquareContourLayout(sixOrbitTarget, FROZEN, 500, 350, 22, 20, 0.5)
+    const plans = buildOrbitTracePlans(layout)
+    expect(plans).toHaveLength(6)
+
+    plans.forEach((plan, orbitIdx) => {
+      const timing = ORBIT_TRACE_TIMINGS[orbitIdx]
+      expect(getOrbitTraceElapsed(timing.start, orbitIdx)).toBe(0)
+      expect(getOrbitTraceElapsed(timing.end, orbitIdx)).toBeCloseTo(1)
+      if (orbitIdx > 0) {
+        expect(timing.start - ORBIT_TRACE_TIMINGS[orbitIdx - 1].start).toBeCloseTo(0.007)
+      }
+      const launch = getOrbitTraceRenderFrames(
+        plan,
+        timing.start,
+        layout.handoffZoom,
+        layout.terminalZoom,
+      )
+      const complete = getOrbitTraceRenderFrames(
+        plan,
+        timing.end,
+        layout.terminalZoom,
+        layout.terminalZoom,
+      )
+      expect(Math.hypot(launch.flight.main.point.x, launch.flight.main.point.y))
+        .toBeCloseTo(layout.logicalCentralRadius, 5)
+      expect(complete.ink?.progress).toBe(1)
+      expect(complete.ink?.trail.length).toBeGreaterThan(60)
+      expect(complete.ink?.main.point.x).toBeCloseTo(complete.ink?.trail[0].point.x ?? 0, 5)
+      expect(complete.ink?.main.point.y).toBeCloseTo(complete.ink?.trail[0].point.y ?? 0, 5)
+    })
   })
 
   it('crossfades only after the full planetary framing is reached', () => {

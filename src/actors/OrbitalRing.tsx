@@ -1,12 +1,11 @@
 import { useMemo, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
-import { type BufferGeometry, type Group, type LineBasicMaterial } from 'three'
-import { SCENE_CENTER_Z, clamped, smoothstep } from '../r3f/ScrollRig'
+import { type Group, type LineBasicMaterial } from 'three'
+import { SCENE_CENTER_Z } from '../r3f/ScrollRig'
 import { useScrollStore } from '../stores/scrollStore'
 import { getWebglLayer } from '../composition/layerRegistry'
-import { TIMELINE } from '../composition/timeline'
 import type { OrbitalRingConfig } from '../types'
-import { getAct3OrbitMotionScale } from '../behaviors/act3TerminalLayout'
+import { getAct3OrbitMotionScale, getAct3VisualAlpha } from '../behaviors/act3TerminalLayout'
 
 /**
  * 单条轨道�?�?行星轨道面力学模拟�?
@@ -41,10 +40,9 @@ interface OrbitalRingProps {
   speedScale?: number
   /** 覆盖 config.color，用�?day/night 主题切换 */
   color?: string
-  revealDelay?: number
 }
 
-export default function OrbitalRing({ config, speedScale = 1.0, color: colorOverride, revealDelay = 0 }: OrbitalRingProps) {
+export default function OrbitalRing({ config, speedScale = 1.0, color: colorOverride }: OrbitalRingProps) {
   const layer = getWebglLayer('webgl.grid')
   const {
     radius,
@@ -71,15 +69,9 @@ export default function OrbitalRing({ config, speedScale = 1.0, color: colorOver
   const outerGroupRef = useRef<Group>(null)
   // 环材�?�?透明度由 scroll 驱动
   const matRef = useRef<LineBasicMaterial>(null)
-  const geometryRef = useRef<BufferGeometry>(null)
-
   useFrame((_state, delta) => {
     const sp = useScrollStore.getState().scrollProgress
-    const revealStart = TIMELINE.orbitLineReveal.start + revealDelay
-    const reveal = smoothstep(clamped(sp, revealStart, TIMELINE.orbitLineReveal.end))
-
-    const pointCount = geometryRef.current?.getAttribute('position').count ?? 0
-    geometryRef.current?.setDrawRange(0, Math.ceil(pointCount * reveal))
+    const reveal = getAct3VisualAlpha(sp)
     if (matRef.current) {
       matRef.current.opacity = reveal * maxOpacity
     }
@@ -102,7 +94,7 @@ export default function OrbitalRing({ config, speedScale = 1.0, color: colorOver
         scale={[stretchX, 1, 1]}
       >
         <lineLoop renderOrder={layer.renderOrder}>
-          <bufferGeometry ref={geometryRef}>
+          <bufferGeometry>
             <bufferAttribute
               attach="attributes-position"
               args={[new Float32Array(ringPoints.flat()), 3]}

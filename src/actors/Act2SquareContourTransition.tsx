@@ -17,13 +17,17 @@ import {
 } from '../behaviors/squareWaveTransition'
 import {
   PLANET_FLIGHT_TIMINGS,
+  ORBIT_TRACE_TIMINGS,
+  buildOrbitTracePlans,
   buildPlanetFlightPlans,
   buildSquareContourLayout,
   getPlanetFlightRenderFrame,
+  getOrbitTraceRenderFrames,
   getSquareContourTransform,
   getSquareContourTransitionFrame,
   getSquareWaveCanvasTransform,
   getSquareWaveHandoffGeneration,
+  type OrbitTracePlan,
   type PlanetFlightPlan,
   type SquareContourLayout,
 } from '../behaviors/act2SquareContourTransition'
@@ -215,6 +219,45 @@ function drawPlanetFlights(
   ctx.globalAlpha = 1
 }
 
+function drawOrbitTraces(
+  ctx: CanvasRenderingContext2D,
+  plans: readonly OrbitTracePlan[],
+  scrollProgress: number,
+  focusX: number,
+  focusY: number,
+  zoom: number,
+  terminalZoom: number,
+  clipRadius: number,
+  opacity: number,
+  viewportWidth: number,
+  viewportHeight: number,
+): void {
+  if (opacity <= 0 || scrollProgress < ORBIT_TRACE_TIMINGS[0].start) return
+  ctx.save()
+  ctx.beginPath()
+  ctx.rect(0, 0, viewportWidth, viewportHeight)
+  ctx.arc(focusX, focusY, Math.max(0, clipRadius * zoom), 0, Math.PI * 2)
+  ctx.clip('evenodd')
+  ctx.translate(focusX, focusY)
+  ctx.scale(zoom, zoom)
+  ctx.globalAlpha = opacity
+
+  for (const plan of plans) {
+    const timing = ORBIT_TRACE_TIMINGS[plan.orbitIdx] ?? ORBIT_TRACE_TIMINGS[0]
+    if (scrollProgress < timing.start) continue
+    const frames = getOrbitTraceRenderFrames(
+      plan,
+      scrollProgress,
+      zoom,
+      terminalZoom,
+    )
+    if (frames.ink) drawSmoothFlight(ctx, frames.ink, opacity === 1)
+    drawSmoothFlight(ctx, frames.flight, opacity === 1)
+  }
+  ctx.restore()
+  ctx.globalAlpha = 1
+}
+
 interface LayoutCache {
   target: Act3ContourTarget
   logicalSquareSize: number
@@ -223,6 +266,7 @@ interface LayoutCache {
   centerY: number
   layout: SquareContourLayout
   flightPlans: PlanetFlightPlan[]
+  orbitTracePlans: OrbitTracePlan[]
 }
 
 export default function Act2SquareContourTransition() {
@@ -355,6 +399,7 @@ export default function Act2SquareContourTransition() {
           centerY: initialCenterY,
           layout,
           flightPlans: buildPlanetFlightPlans(layout),
+          orbitTracePlans: buildOrbitTracePlans(layout),
         }
       }
       layout = layoutCacheRef.current!.layout
@@ -362,6 +407,19 @@ export default function Act2SquareContourTransition() {
       drawPlanetFlights(
         ctx,
         layoutCacheRef.current!.flightPlans,
+        scrollProgress,
+        transform.focusX,
+        transform.focusY,
+        transform.zoom,
+        layout.terminalZoom,
+        Math.max(0, layout.logicalCentralRadius - layout.logicalSquareSize),
+        frame.contourAlpha,
+        width,
+        height,
+      )
+      drawOrbitTraces(
+        ctx,
+        layoutCacheRef.current!.orbitTracePlans,
         scrollProgress,
         transform.focusX,
         transform.focusY,

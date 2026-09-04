@@ -4,6 +4,7 @@ import { SQUARE_WAVE_SPACING, type SquareWaveSprite } from './squareWaveTransiti
 import {
   createSampledMotionPath,
   getMotionTrailFrame,
+  pointAtPathProgress,
   type MotionPath,
   type MotionTrailConfig,
   type MotionTrailFrame,
@@ -23,6 +24,11 @@ export const PLANET_FLIGHT_LAUNCH_ANGLES = [
   -Math.PI * 0.5 + Math.PI * 2 / 3,
   -Math.PI * 0.5 + Math.PI * 4 / 3,
 ] as const
+export const ORBIT_TRACE_TIMINGS = Array.from({ length: 6 }, (_, index) => ({
+  start: 0.725 + index * 0.007,
+  end: 0.765 + index * 0.007,
+  seed: 0xea7e2001 + index,
+}))
 const PLANET_FLIGHT_ORBIT_ARC = Math.PI * 1.35
 const PLANET_FLIGHT_ORBIT_FRACTION = 0.52
 const PLANET_FLIGHT_PATH_SAMPLES = 384
@@ -48,6 +54,14 @@ export interface PlanetFlightPlan {
   config: MotionTrailConfig
 }
 
+export interface OrbitTracePlan {
+  orbitIdx: number
+  path: MotionPath
+  orbitPath: MotionPath
+  orbitStartDistance: number
+  config: MotionTrailConfig
+}
+
 export interface SquareWaveCanvasTransform {
   generation: number
   zoom: number
@@ -68,6 +82,7 @@ export interface SquareContourLayout {
   logicalCentralRadius: number
   centralSquares: ContourPoint[]
   planetTargets: PlanetFlightTarget[]
+  orbitTargets: Array<Array<{ x: number; y: number }>>
 }
 
 export interface SquareContourTransform {
@@ -229,6 +244,10 @@ export function buildSquareContourLayout(
       radius: planet.r / terminalZoom,
     }]
   })
+  const orbitTargets = target.orbits.map((orbit) => orbit.points.map((point) => ({
+    x: (point.x - target.central.x) / terminalZoom,
+    y: (point.y - target.central.y) / terminalZoom,
+  })))
 
   return {
     centralX: target.central.x,
@@ -242,6 +261,158 @@ export function buildSquareContourLayout(
     logicalCentralRadius,
     centralSquares,
     planetTargets,
+    orbitTargets,
+  }
+}
+
+function rotateClosedPathToIndex(
+  points: readonly { x: number; y: number }[],
+  startIndex: number,
+): Array<{ x: number; y: number }> {
+  if (points.length === 0) return []
+  const unique = [...points]
+  if (unique.length > 1) {
+    const first = unique[0]
+    const last = unique[unique.length - 1]
+    if (Math.hypot(first.x - last.x, first.y - last.y) < 0.000001) unique.pop()
+  }
+  const offset = Math.max(0, Math.min(unique.length - 1, startIndex))
+  const rotated = [...unique.slice(offset), ...unique.slice(0, offset)]
+  if (rotated.length > 0) rotated.push({ ...rotated[0] })
+  return rotated
+}
+
+export function buildOrbitTracePlans(layout: SquareContourLayout): OrbitTracePlan[] {
+  return layout.orbitTargets.map((orbit, orbitIdx) => {
+    const timing = ORBIT_TRACE_TIMINGS[orbitIdx] ?? ORBIT_TRACE_TIMINGS[0]
+    const launchAngle = -Math.PI * 0.5 + orbitIdx * Math.PI * 2 / 6
+    const direction = { x: Math.cos(launchAngle), y: Math.sin(launchAngle) }
+    let startIndex = 0
+    let greatestProjection = Number.NEGATIVE_INFINITY
+    orbit.forEach((point, index) => {
+      const projection = point.x * direction.x + point.y * direction.y
+      if (projection > greatestProjection) {
+        greatestProjection = projection
+        startIndex = index
+      }
+    })
+    const orderedOrbit = rotateClosedPathToIndex(orbit, startIndex)
+    const orbitStart = orderedOrbit[0] ?? {
+      x: direction.x * layout.logicalCentralRadius * 2,
+      y: direction.y * layout.logicalCentralRadius * 2,
+    }
+    const orbitNext = orderedOrbit[1] ?? orbitStart
+    const tangentLength = Math.max(0.000001, Math.hypot(
+      orbitNext.x - orbitStart.x,
+      orbitNext.y - orbitStart.y,
+    ))
+    const tangent = {
+      x: (orbitNext.x - orbitStart.x) / tangentLength,
+      y: (orbitNext.y - orbitStart.y) / tangentLength,
+    }
+    const launchPoint = {
+      x: direction.x * layout.logicalCentralRadius,
+      y: direction.y * layout.logicalCentralRadius,
+    }
+    const approachDistance = Math.max(1, Math.hypot(
+      orbitStart.x - launchPoint.x,
+      orbitStart.y - launchPoint.y,
+    ))
+    const control1 = {
+      x: launchPoint.x + direction.x * approachDistance * 0.32,
+      y: launchPoint.y + direction.y * approachDistance * 0.32,
+    }
+    const control2 = {
+      x: orbitStart.x - tangent.x * approachDistance * 0.28,
+      y: orbitStart.y - tangent.y * approachDistance * 0.28,
+    }
+    const approachSampleCount = 64
+    const approach = Array.from({ length: approachSampleCount + 1 }, (_, index) =>
+      cubicBezier(
+        launchPoint,
+        control1,
+        control2,
+        orbitStart,
+        index / approachSampleCount,
+      ))
+    const path = createSampledMotionPath([
+      ...approach,
+      ...orderedOrbit.slice(1),
+    ], timing.seed)
+    const orbitPath = createSampledMotionPath(orderedOrbit, timing.seed)
+    const finalRadius = 0.72 / Math.max(0.000001, layout.terminalZoom)
+    const config: MotionTrailConfig = {
+      width: layout.centralX * 2,
+      height: layout.centralY * 2,
+      duration: 1,
+      finalRadius,
+      trailSpacing: Math.max(0.5, 1.4 / Math.max(0.000001, layout.handoffZoom)),
+      shrinkRate: finalRadius * 3.2,
+      waypointCount: 0,
+      randomness: 0,
+    }
+    return {
+      orbitIdx,
+      path,
+      orbitPath,
+      orbitStartDistance: path.samples[approachSampleCount]?.distance ?? 0,
+      config,
+    }
+  })
+}
+
+export function getOrbitTraceElapsed(scrollProgress: number, orbitIdx: number): number {
+  const timing = ORBIT_TRACE_TIMINGS[orbitIdx] ?? ORBIT_TRACE_TIMINGS[0]
+  return Math.max(0, (scrollProgress - timing.start) / (timing.end - timing.start))
+}
+
+export function getOrbitTraceRenderFrames(
+  plan: OrbitTracePlan,
+  scrollProgress: number,
+  currentZoom: number,
+  terminalZoom: number,
+): { flight: MotionTrailFrame; ink: MotionTrailFrame | null } {
+  const elapsed = getOrbitTraceElapsed(scrollProgress, plan.orbitIdx)
+  const flight = getMotionTrailFrame(plan.path, plan.config, elapsed)
+  const radiusScale = terminalZoom / Math.max(0.000001, currentZoom)
+  flight.main.radius *= radiusScale
+  for (const circle of flight.trail) {
+    circle.radius *= radiusScale
+    circle.emittedRadius *= radiusScale
+  }
+
+  const travelledDistance = plan.path.totalLength * flight.distanceProgress
+  if (travelledDistance <= plan.orbitStartDistance || plan.orbitPath.totalLength <= 0) {
+    return { flight, ink: null }
+  }
+  const inkProgress = clamp01(
+    (travelledDistance - plan.orbitStartDistance) /
+    Math.max(0.000001, plan.path.totalLength - plan.orbitStartDistance),
+  )
+  const samples = plan.orbitPath.samples
+  const targetDistance = plan.orbitPath.totalLength * inkProgress
+  let lastIndex = 0
+  while (lastIndex + 1 < samples.length && samples[lastIndex + 1].distance <= targetDistance) {
+    lastIndex += 1
+  }
+  const radius = plan.config.finalRadius * radiusScale
+  const trail = samples.slice(0, lastIndex + 1).map((sample, index) => ({
+    id: index,
+    point: sample.point,
+    radius,
+    emittedRadius: radius,
+    birthTime: 0,
+  }))
+  const mainPoint = pointAtPathProgress(plan.orbitPath, inkProgress)
+  return {
+    flight,
+    ink: {
+      progress: inkProgress,
+      distanceProgress: inkProgress,
+      speed: 0,
+      main: { point: mainPoint, radius },
+      trail,
+    },
   }
 }
 

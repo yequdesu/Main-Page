@@ -8,8 +8,8 @@ import { TIMELINE } from '../composition/timeline'
 import { getWebglLayer } from '../composition/layerRegistry'
 import { touchActorFrame, useActorRuntime } from '../composition/actorRuntime'
 import OrbitalRing from './OrbitalRing'
-import type { OrbitalRingConfig } from '../types'
 import { getAct3VisualAlpha } from '../behaviors/act3TerminalLayout'
+import { GYRO_RINGS } from '../behaviors/orbitGeometry'
 
 /**
  * 行星轨道系统 �?3 条静态轨道参考线 + N 条陀螺仪装饰环�?
@@ -23,12 +23,6 @@ import { getAct3VisualAlpha } from '../behaviors/act3TerminalLayout'
 // 陀螺仪环配置（方案 A：类 Kuiper 带）
 // 遵循 Ngo & Lissauer (2016) ē �?(1�?)·ī 统计关系
 // ============================================================
-const GYRO_RINGS: OrbitalRingConfig[] = [
-  { radius: 7.8,  inclination: 0.12, eccentricity: 0.15, speed: 0.02, phase: 0 },
-  { radius: 9.4,  inclination: 0.22, eccentricity: 0.30, speed: 0.04, phase: Math.PI / 3 },
-  { radius: 11.0, inclination: 0.38, eccentricity: 0.50, speed: 0.06, phase: 2 * Math.PI / 3 },
-]
-
 interface OrbitRingsProps {
   /** 全局进动速度缩放，默�?1.0；设�?0 可冻结全部环 */
   speedScale?: number
@@ -62,7 +56,7 @@ export default function OrbitRings({ speedScale = 1.0 }: OrbitRingsProps) {
     orbitMatRefs.current.forEach((mat, index) => {
       const geometry = orbitGeometryRefs.current[index]
       const pointCount = geometry?.getAttribute('position').count ?? 0
-      geometry?.setDrawRange(0, Math.ceil(pointCount * reveal))
+      geometry?.setDrawRange(0, pointCount)
       if (mat) mat.opacity = reveal * 0.35
     })
   })
@@ -96,7 +90,6 @@ export default function OrbitRings({ speedScale = 1.0 }: OrbitRingsProps) {
           config={cfg}
           speedScale={speedScale}
           color={orbitColor}
-          revealDelay={i * 0.012}
         />
       ))}
     </>

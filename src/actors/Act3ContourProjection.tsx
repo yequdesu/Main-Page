@@ -16,6 +16,7 @@ import {
 } from '../composition/coreAnchors'
 import { useAnchorStore } from '../composition/anchorStore'
 import { ACT3_TERMINAL_CENTER, ACT3_TERMINAL_LAYOUT } from '../behaviors/act3TerminalLayout'
+import { getGyroOrbitWorldPoint, GYRO_RINGS } from '../behaviors/orbitGeometry'
 import { useActorRuntime } from '../composition/actorRuntime'
 
 const ORBIT_SEGMENTS = 96
@@ -76,12 +77,27 @@ export default function Act3ContourProjection() {
       return { points }
     })
 
+    const gyroOrbits = GYRO_RINGS.map((config) => {
+      const points: Array<{ x: number; y: number }> = []
+      const segments = config.segments ?? 192
+      for (let segment = 0; segment <= segments; segment++) {
+        const angle = (segment / segments) * Math.PI * 2
+        const worldPoint = getGyroOrbitWorldPoint(config, angle, ACT3_TERMINAL_CENTER)
+        const projected = new Vector3(worldPoint.x, worldPoint.y, worldPoint.z).project(camera)
+        points.push({
+          x: (projected.x * 0.5 + 0.5) * width,
+          y: (-projected.y * 0.5 + 0.5) * height,
+        })
+      }
+      return { points }
+    })
+
     const target: Act3ContourTarget = {
       width,
       height,
       central,
       planets,
-      orbits: [...orbits],
+      orbits: [...orbits, ...gyroOrbits],
     }
     setCoreAnchor(act3ContourTargetAnchorId, target, 'cssPx', 'act3ContourProjection')
   }, -15)
