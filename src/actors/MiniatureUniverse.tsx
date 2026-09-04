@@ -14,6 +14,7 @@ import {
 } from 'three'
 import { useScrollStore } from '../stores/scrollStore'
 import {
+  getDirectedFaceAlignmentRotation,
   getMiniatureTransform,
   MINIATURE_CUBE_HALF_SIZE,
   MINIATURE_CUBE_SIZE,
@@ -102,7 +103,7 @@ export default function MiniatureUniverse({ children }: MiniatureUniverseProps) 
     toneMapped: false,
   }), [])
   const spinEuler = useMemo(() => new Euler(0, 0, 0, 'XYZ'), [])
-  const spinQuaternion = useMemo(() => new Quaternion(), [])
+  const faceEuler = useMemo(() => new Euler(0, 0, 0, 'XYZ'), [])
   const faceQuaternion = useMemo(() => new Quaternion(), [])
   const lookMatrix = useMemo(() => new Matrix4(), [])
   const centerWorld = useMemo(() => new Vector3(), [])
@@ -124,14 +125,19 @@ export default function MiniatureUniverse({ children }: MiniatureUniverseProps) 
 
     universe.scale.setScalar(transform.scale)
     spinEuler.set(...transform.rotation)
-    spinQuaternion.setFromEuler(spinEuler)
-    universe.quaternion.copy(spinQuaternion)
+    universe.quaternion.setFromEuler(spinEuler)
 
     if (transform.faceAlignProgress > 0) {
       universe.getWorldPosition(centerWorld)
       lookMatrix.lookAt(state.camera.position, centerWorld, state.camera.up)
       faceQuaternion.setFromRotationMatrix(lookMatrix)
-      universe.quaternion.slerp(faceQuaternion, transform.faceAlignProgress)
+      faceEuler.setFromQuaternion(faceQuaternion, 'XYZ')
+      spinEuler.set(...getDirectedFaceAlignmentRotation(
+        transform.rotation,
+        [faceEuler.x, faceEuler.y, faceEuler.z],
+        transform.faceAlignProgress,
+      ))
+      universe.quaternion.setFromEuler(spinEuler)
     }
 
     wireMaterial.uniforms.uDrawProgress.value = transform.wireDrawProgress
@@ -142,10 +148,10 @@ export default function MiniatureUniverse({ children }: MiniatureUniverseProps) 
     if (sp < 0.50 || sp > 0.56) return
     const half = MINIATURE_CUBE_HALF_SIZE
     const localFaceCorners: readonly [number, number, number][] = [
-      [-half, -half, half],
-      [half, -half, half],
-      [half, half, half],
-      [-half, half, half],
+      [half, -half, -half],
+      [-half, -half, -half],
+      [-half, half, -half],
+      [half, half, -half],
     ]
     const canvasRect = state.gl.domElement.getBoundingClientRect()
     let minX = Number.POSITIVE_INFINITY

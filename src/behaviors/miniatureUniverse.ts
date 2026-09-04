@@ -28,6 +28,38 @@ function rangeProgress(value: number, start: number, end: number): number {
   return clamp01((value - start) / (end - start))
 }
 
+function lerp(a: number, b: number, t: number): number {
+  return a + (b - a) * t
+}
+
+function nearestEquivalentAngle(angle: number, reference: number): number {
+  const tau = Math.PI * 2
+  return angle + Math.round((reference - angle) / tau) * tau
+}
+
+/**
+ * Aligns the opposite cube face to the camera while keeping the dominant
+ * vertical-axis rotation moving in the same positive direction as the tumble.
+ */
+export function getDirectedFaceAlignmentRotation(
+  startRotation: readonly [number, number, number],
+  cameraFacingRotation: readonly [number, number, number],
+  alignmentProgress: number,
+): readonly [number, number, number] {
+  const t = clamp01(alignmentProgress)
+  const tau = Math.PI * 2
+  const targetX = nearestEquivalentAngle(cameraFacingRotation[0], startRotation[0])
+  const targetZ = nearestEquivalentAngle(cameraFacingRotation[2], startRotation[2])
+  let targetY = cameraFacingRotation[1] + Math.PI
+  while (targetY <= startRotation[1]) targetY += tau
+
+  return [
+    lerp(startRotation[0], targetX, t),
+    lerp(startRotation[1], targetY, t),
+    lerp(startRotation[2], targetZ, t),
+  ]
+}
+
 export interface MiniatureTransform {
   progress: number
   containment: number

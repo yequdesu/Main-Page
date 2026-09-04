@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   containOceanX,
+  getDirectedFaceAlignmentRotation,
   getContainedBeamDepthScale,
   getMiniatureTransform,
 } from '../miniatureUniverse'
@@ -47,5 +48,18 @@ describe('miniature universe transition', () => {
   it('shortens the beam only as containment enters', () => {
     expect(getContainedBeamDepthScale(0)).toBe(1)
     expect(getContainedBeamDepthScale(1)).toBeCloseTo(0.42)
+  })
+
+  it('keeps face alignment rotating forward around the vertical axis', () => {
+    const start = getMiniatureTransform(0.50).rotation
+    const cameraFacing = [-0.027, 0, 0] as const
+    const halfway = getDirectedFaceAlignmentRotation(start, cameraFacing, 0.5)
+    const aligned = getDirectedFaceAlignmentRotation(start, cameraFacing, 1)
+
+    expect(halfway[1]).toBeGreaterThan(start[1])
+    expect(aligned[1]).toBeGreaterThan(halfway[1])
+    expect(aligned[1]).toBeCloseTo(Math.PI)
+    expect(aligned[0]).toBeCloseTo(cameraFacing[0])
+    expect(aligned[2]).toBeCloseTo(cameraFacing[2])
   })
 })
