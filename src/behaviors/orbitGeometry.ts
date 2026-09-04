@@ -16,6 +16,7 @@ export function getGyroOrbitWorldPoint(
   config: OrbitalRingConfig,
   angle: number,
   center: OrbitWorldPoint,
+  phase = config.phase,
 ): OrbitWorldPoint {
   const innerRadius = config.innerRadius ?? config.radius - 0.04
   const lineRadius = (innerRadius + config.radius) * 0.5
@@ -25,8 +26,8 @@ export function getGyroOrbitWorldPoint(
   const tilt = Math.PI / 2 - config.inclination
   const tiltedY = localY * Math.cos(tilt)
   const tiltedZ = localY * Math.sin(tilt)
-  const cosPhase = Math.cos(config.phase)
-  const sinPhase = Math.sin(config.phase)
+  const cosPhase = Math.cos(phase)
+  const sinPhase = Math.sin(phase)
 
   return {
     x: center.x + localX * cosPhase + tiltedZ * sinPhase,

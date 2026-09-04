@@ -88,6 +88,7 @@ export const CORE_ACTORS: ActorSpec[] = [
     timing: { clocks: ['scroll', 'delta'], ranges: ['squareAct3Crossfade', 'orbitLineReveal', 'act3OrbitResume'] },
     frame: { phase: 'webgl.mutate', after: ['centralStar'], skipWhenUnchanged: ['scroll'] },
     consumes: ['scroll.sp', 'clock.delta', 'theme.orbitColor'],
+    produces: ['realtime.orbitAngles'],
   },
   {
     id: 'projection',
@@ -103,7 +104,7 @@ export const CORE_ACTORS: ActorSpec[] = [
     lifecycle: { mount: 'always', activeWhen: 'timeline.squareTitleTyping.progress > 0 && timeline.squareAct3Crossfade.progress < 1', dispose: 'none' },
     timing: { clocks: ['scroll'], ranges: ['squareTitleTyping', 'squareAct3Crossfade'] },
     frame: { phase: 'projection', after: ['projection'], before: ['act2SquareContourTransition'] },
-    consumes: ['anchor.planet.*.screen', 'anchor.planet.*.screenRadius', 'anchor.centralStar.screen', 'camera.projection'],
+    consumes: ['anchor.planet.*.screen', 'anchor.planet.*.screenRadius', 'anchor.centralStar.screen', 'camera.projection', 'realtime.orbitAngles'],
     produces: ['anchor.act3Contour.target'],
   },
   {

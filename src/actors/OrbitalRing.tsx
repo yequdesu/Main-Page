@@ -5,7 +5,9 @@ import { SCENE_CENTER_Z } from '../r3f/ScrollRig'
 import { useScrollStore } from '../stores/scrollStore'
 import { getWebglLayer } from '../composition/layerRegistry'
 import type { OrbitalRingConfig } from '../types'
-import { getAct3OrbitMotionScale, getAct3VisualAlpha } from '../behaviors/act3TerminalLayout'
+import { getAct3VisualAlpha } from '../behaviors/act3TerminalLayout'
+import { useRealtimeStore } from '../stores/realtimeStore'
+import { R3F_FRAME_PRIORITY } from '../composition/frameScheduler'
 
 /**
  * 单条轨道�?�?行星轨道面力学模拟�?
@@ -25,8 +27,6 @@ import { getAct3OrbitMotionScale, getAct3VisualAlpha } from '../behaviors/act3Te
  * ## Props
  *
  * - `config` �?轨道参数（半径、倾角、偏心率、速度、相位等�?
- * - `speedScale` �?全局进动速度缩放，默�?1.0
- *
  * ## 复用
  *
  * 要新增轨道环，只需在父级的配置数组中添加一�?`OrbitalRingConfig` 对象�?
@@ -35,21 +35,19 @@ import { getAct3OrbitMotionScale, getAct3VisualAlpha } from '../behaviors/act3Te
  */
 
 interface OrbitalRingProps {
+  orbitIdx: number
   config: OrbitalRingConfig
-  /** 全局进动速度缩放，默�?1.0；设�?0 冻结 */
-  speedScale?: number
   /** 覆盖 config.color，用�?day/night 主题切换 */
   color?: string
 }
 
-export default function OrbitalRing({ config, speedScale = 1.0, color: colorOverride }: OrbitalRingProps) {
+export default function OrbitalRing({ orbitIdx, config, color: colorOverride }: OrbitalRingProps) {
   const layer = getWebglLayer('webgl.grid')
   const {
     radius,
     innerRadius = radius - 0.04,
     inclination,
     eccentricity,
-    speed,
     phase,
     color: configColor = '#cbd5e1',
     maxOpacity = 0.28,
@@ -69,18 +67,20 @@ export default function OrbitalRing({ config, speedScale = 1.0, color: colorOver
   const outerGroupRef = useRef<Group>(null)
   // 环材�?�?透明度由 scroll 驱动
   const matRef = useRef<LineBasicMaterial>(null)
-  useFrame((_state, delta) => {
+  useFrame(() => {
     const sp = useScrollStore.getState().scrollProgress
     const reveal = getAct3VisualAlpha(sp)
     if (matRef.current) {
       matRef.current.opacity = reveal * maxOpacity
     }
 
-    // 进动（时间驱动）
+    // Apply the shared live phase so Canvas projection and WebGL always use
+    // the same orbit, including when scroll reversal freezes the composition.
     if (outerGroupRef.current) {
-      outerGroupRef.current.rotation.y += delta * speed * speedScale * getAct3OrbitMotionScale(sp)
+      const liveOffset = useRealtimeStore.getState().orbitAngles[orbitIdx] ?? 0
+      outerGroupRef.current.rotation.y = phase + liveOffset
     }
-  })
+  }, R3F_FRAME_PRIORITY.orbitTransformApply)
 
   return (
     <group

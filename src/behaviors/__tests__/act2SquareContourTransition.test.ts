@@ -161,20 +161,28 @@ describe('Act 2 square contour transition', () => {
         plan,
         timing.start,
         layout.handoffZoom,
-        layout.terminalZoom,
       )
       const complete = getOrbitTraceRenderFrames(
         plan,
         timing.end,
         layout.terminalZoom,
+      )
+      const drawing = getOrbitTraceRenderFrames(
+        plan,
+        timing.start + (timing.end - timing.start) * 0.72,
         layout.terminalZoom,
       )
-      expect(Math.hypot(launch.flight.main.point.x, launch.flight.main.point.y))
+      expect(Math.hypot(launch.tracer.main.point.x, launch.tracer.main.point.y))
         .toBeCloseTo(layout.logicalCentralRadius, 5)
-      expect(complete.ink?.progress).toBe(1)
-      expect(complete.ink?.trail.length).toBeGreaterThan(60)
-      expect(complete.ink?.main.point.x).toBeCloseTo(complete.ink?.trail[0].point.x ?? 0, 5)
-      expect(complete.ink?.main.point.y).toBeCloseTo(complete.ink?.trail[0].point.y ?? 0, 5)
+      expect(complete.stroke?.progress).toBe(1)
+      expect(complete.stroke?.path.samples.length).toBeGreaterThan(60)
+      expect(complete.tracer.trail.length).toBeLessThanOrEqual(12)
+      expect(complete.tracer.main.point.x).toBeCloseTo(complete.stroke?.endPoint.x ?? 0, 5)
+      expect(complete.tracer.main.point.y).toBeCloseTo(complete.stroke?.endPoint.y ?? 0, 5)
+      expect((complete.stroke?.lineRadius ?? 0) * layout.terminalZoom).toBeCloseTo(0.65, 5)
+      expect(drawing.stroke).not.toBeNull()
+      expect(drawing.tracer.main.point.x).toBeCloseTo(drawing.stroke?.endPoint.x ?? 0, 5)
+      expect(drawing.tracer.main.point.y).toBeCloseTo(drawing.stroke?.endPoint.y ?? 0, 5)
     })
   })
 

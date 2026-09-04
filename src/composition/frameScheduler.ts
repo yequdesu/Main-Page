@@ -17,6 +17,9 @@ export const FRAME_PHASES: FramePhase[] = [
 
 export const R3F_FRAME_PRIORITY = {
   planetsProduce: -20,
+  orbitStateProduce: -18,
+  orbitTransformApply: -17,
+  contourProjection: -15,
 } as const
 
 export function sortActorsByFramePhase(actors: ActorSpec[]): ActorSpec[] {

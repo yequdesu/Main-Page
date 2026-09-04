@@ -41,9 +41,8 @@ interface RealtimeActions {
     coords: [PlanetCoords, PlanetCoords, PlanetCoords],
     angles: [number, number, number],
     speeds: [number, number, number],
-    orbitSpeeds: [number, number, number],
-    orbitAngles: [number, number, number],
   ) => void
+  setOrbitAngles: (angles: [number, number, number]) => void
   setCameraData: (camera: CameraData) => void
   setDebrisCount: (count: number) => void
 }
@@ -63,8 +62,9 @@ export const useRealtimeStore = create<RealtimeStore>()((set) => ({
   camera: { pos: { x: 0, y: 0, z: 0 }, look: { x: 0, y: 0, z: 0 }, fov: 50 },
   debrisCount: 0,
 
-  setPlanetData: (coords, angles, speeds, orbitSpeeds, orbitAngles) =>
-    set({ planetCoords: coords, planetAngles: angles, planetSpeeds: speeds, orbitSpeeds, orbitAngles }),
+  setPlanetData: (coords, angles, speeds) =>
+    set({ planetCoords: coords, planetAngles: angles, planetSpeeds: speeds }),
+  setOrbitAngles: (orbitAngles) => set({ orbitAngles }),
   setCameraData: (camera) => set({ camera }),
   setDebrisCount: (count) => set({ debrisCount: count }),
 }))

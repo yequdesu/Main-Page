@@ -28,6 +28,7 @@ import {
   getSquareWaveCanvasTransform,
   getSquareWaveHandoffGeneration,
   type OrbitTracePlan,
+  type OrbitStrokeFrame,
   type PlanetFlightPlan,
   type SquareContourLayout,
 } from '../behaviors/act2SquareContourTransition'
@@ -220,7 +221,6 @@ function drawOrbitTraces(
   focusX: number,
   focusY: number,
   zoom: number,
-  terminalZoom: number,
   clipRadius: number,
   opacity: number,
   viewportWidth: number,
@@ -243,13 +243,40 @@ function drawOrbitTraces(
       plan,
       scrollProgress,
       zoom,
-      terminalZoom,
     )
-    if (frames.ink) drawSmoothFlight(ctx, frames.ink)
-    drawSmoothFlight(ctx, frames.flight)
+    if (frames.stroke) drawOrbitStroke(ctx, frames.stroke)
+    drawSmoothFlight(ctx, frames.tracer)
   }
   ctx.restore()
   ctx.globalAlpha = 1
+}
+
+function drawOrbitStroke(
+  ctx: CanvasRenderingContext2D,
+  stroke: OrbitStrokeFrame,
+): void {
+  const samples = stroke.path.samples
+  if (samples.length === 0 || stroke.progress <= 0) return
+
+  ctx.save()
+  ctx.strokeStyle = '#ffffff'
+  ctx.lineWidth = Math.max(0.0001, stroke.lineRadius * 2)
+  ctx.lineCap = 'round'
+  ctx.lineJoin = 'round'
+  ctx.beginPath()
+  ctx.moveTo(samples[0].point.x, samples[0].point.y)
+  for (let index = 1; index <= stroke.endSampleIndex; index += 1) {
+    ctx.lineTo(samples[index].point.x, samples[index].point.y)
+  }
+  const lastPoint = samples[stroke.endSampleIndex]?.point
+  if (!lastPoint || Math.hypot(
+    lastPoint.x - stroke.endPoint.x,
+    lastPoint.y - stroke.endPoint.y,
+  ) > 0.000001) {
+    ctx.lineTo(stroke.endPoint.x, stroke.endPoint.y)
+  }
+  ctx.stroke()
+  ctx.restore()
 }
 
 interface LayoutCache {
@@ -418,7 +445,6 @@ export default function Act2SquareContourTransition() {
         transform.focusX,
         transform.focusY,
         transform.zoom,
-        layout.terminalZoom,
         Math.max(0, layout.logicalCentralRadius - layout.logicalSquareSize),
         frame.contourAlpha,
         width,

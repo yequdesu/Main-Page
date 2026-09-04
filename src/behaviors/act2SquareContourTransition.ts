@@ -2,10 +2,13 @@ import type { Act3ContourTarget } from '../composition/coreAnchors'
 import { TIMELINE, clamp01, progress, smoothProgress } from '../composition/timeline'
 import { SQUARE_WAVE_SPACING, type SquareWaveSprite } from './squareWaveTransition'
 import {
+  bellDistanceProgress,
+  bellSpeed,
   createSampledMotionPath,
   getMotionTrailFrame,
   pointAtPathProgress,
   type MotionPath,
+  type MotionPoint,
   type MotionTrailConfig,
   type MotionTrailFrame,
 } from './motionTrail'
@@ -59,7 +62,19 @@ export interface OrbitTracePlan {
   path: MotionPath
   orbitPath: MotionPath
   orbitStartDistance: number
-  config: MotionTrailConfig
+}
+
+export interface OrbitStrokeFrame {
+  path: MotionPath
+  progress: number
+  endSampleIndex: number
+  endPoint: MotionPoint
+  lineRadius: number
+}
+
+export interface OrbitTraceRenderFrames {
+  tracer: MotionTrailFrame
+  stroke: OrbitStrokeFrame | null
 }
 
 export interface SquareWaveCanvasTransform {
@@ -340,23 +355,11 @@ export function buildOrbitTracePlans(layout: SquareContourLayout): OrbitTracePla
       ...orderedOrbit.slice(1),
     ], timing.seed)
     const orbitPath = createSampledMotionPath(orderedOrbit, timing.seed)
-    const finalRadius = 0.72 / Math.max(0.000001, layout.terminalZoom)
-    const config: MotionTrailConfig = {
-      width: layout.centralX * 2,
-      height: layout.centralY * 2,
-      duration: 1,
-      finalRadius,
-      trailSpacing: Math.max(0.5, 1.4 / Math.max(0.000001, layout.handoffZoom)),
-      shrinkRate: finalRadius * 3.2,
-      waypointCount: 0,
-      randomness: 0,
-    }
     return {
       orbitIdx,
       path,
       orbitPath,
       orbitStartDistance: path.samples[approachSampleCount]?.distance ?? 0,
-      config,
     }
   })
 }
@@ -366,59 +369,86 @@ export function getOrbitTraceElapsed(scrollProgress: number, orbitIdx: number): 
   return Math.max(0, (scrollProgress - timing.start) / (timing.end - timing.start))
 }
 
+function findSampleAtOrBeforeDistance(path: MotionPath, distance: number): number {
+  let low = 0
+  let high = path.samples.length - 1
+  while (low < high) {
+    const mid = Math.ceil((low + high) * 0.5)
+    if (path.samples[mid].distance <= distance) low = mid
+    else high = mid - 1
+  }
+  return low
+}
+
+function buildOrbitTracerFrame(
+  plan: OrbitTracePlan,
+  elapsed: number,
+  currentZoom: number,
+): MotionTrailFrame {
+  const progress = clamp01(elapsed)
+  const distanceProgress = bellDistanceProgress(progress)
+  const travelledDistance = plan.path.totalLength * distanceProgress
+  const safeZoom = Math.max(0.000001, currentZoom)
+  const grow = smootherstep01(clamp01(progress / 0.08))
+  const headRadius = 2.4 * grow / safeZoom
+  const tailLength = 30 / safeZoom
+  const tailStart = Math.max(0, travelledDistance - tailLength)
+  const availableTail = travelledDistance - tailStart
+  const trail = []
+  const sampleCount = 12
+
+  if (availableTail > 0.000001 && headRadius > 0) {
+    for (let index = 0; index < sampleCount; index += 1) {
+      const along = (index + 1) / (sampleCount + 1)
+      const distance = tailStart + availableTail * along
+      const radius = headRadius * 0.72 * smootherstep01(along)
+      trail.push({
+        id: index,
+        point: pointAtPathProgress(plan.path, distance / plan.path.totalLength),
+        radius,
+        emittedRadius: radius,
+        birthTime: 0,
+      })
+    }
+  }
+
+  return {
+    progress,
+    distanceProgress,
+    speed: plan.path.totalLength * bellSpeed(progress),
+    main: {
+      point: pointAtPathProgress(plan.path, distanceProgress),
+      radius: headRadius,
+    },
+    trail,
+  }
+}
+
 export function getOrbitTraceRenderFrames(
   plan: OrbitTracePlan,
   scrollProgress: number,
   currentZoom: number,
-  terminalZoom: number,
-): { flight: MotionTrailFrame; ink: MotionTrailFrame | null } {
+): OrbitTraceRenderFrames {
   const elapsed = getOrbitTraceElapsed(scrollProgress, plan.orbitIdx)
-  // Persistent orbit ink covers the same path with circles at least as large
-  // as the ephemeral flight trail. Keep only the visible approach history.
-  const flight = getMotionTrailFrame(
-    plan.path,
-    plan.config,
-    elapsed,
-    plan.orbitStartDistance,
-  )
-  const radiusScale = terminalZoom / Math.max(0.000001, currentZoom)
-  flight.main.radius *= radiusScale
-  for (const circle of flight.trail) {
-    circle.radius *= radiusScale
-    circle.emittedRadius *= radiusScale
-  }
+  const tracer = buildOrbitTracerFrame(plan, elapsed, currentZoom)
 
-  const travelledDistance = plan.path.totalLength * flight.distanceProgress
+  const travelledDistance = plan.path.totalLength * tracer.distanceProgress
   if (travelledDistance <= plan.orbitStartDistance || plan.orbitPath.totalLength <= 0) {
-    return { flight, ink: null }
+    return { tracer, stroke: null }
   }
-  const inkProgress = clamp01(
+  const strokeProgress = clamp01(
     (travelledDistance - plan.orbitStartDistance) /
     Math.max(0.000001, plan.path.totalLength - plan.orbitStartDistance),
   )
-  const samples = plan.orbitPath.samples
-  const targetDistance = plan.orbitPath.totalLength * inkProgress
-  let lastIndex = 0
-  while (lastIndex + 1 < samples.length && samples[lastIndex + 1].distance <= targetDistance) {
-    lastIndex += 1
-  }
-  const radius = plan.config.finalRadius * radiusScale
-  const trail = samples.slice(0, lastIndex + 1).map((sample, index) => ({
-    id: index,
-    point: sample.point,
-    radius,
-    emittedRadius: radius,
-    birthTime: 0,
-  }))
-  const mainPoint = pointAtPathProgress(plan.orbitPath, inkProgress)
+  const targetDistance = plan.orbitPath.totalLength * strokeProgress
   return {
-    flight,
-    ink: {
-      progress: inkProgress,
-      distanceProgress: inkProgress,
-      speed: 0,
-      main: { point: mainPoint, radius },
-      trail,
+    tracer,
+    stroke: {
+      path: plan.orbitPath,
+      progress: strokeProgress,
+      endSampleIndex: findSampleAtOrBeforeDistance(plan.orbitPath, targetDistance),
+      endPoint: pointAtPathProgress(plan.orbitPath, strokeProgress),
+      lineRadius: 0.65 / Math.max(0.000001, currentZoom),
     },
   }
 }

@@ -16,4 +16,13 @@ describe('gyro orbit geometry', () => {
       expect(end.z).toBeCloseTo(start.z, 10)
     })
   })
+
+  it('accepts the live WebGL precession phase used during reverse handoff', () => {
+    const center = { x: 0, y: -1, z: -24 }
+    const config = GYRO_RINGS[1]
+    const initial = getGyroOrbitWorldPoint(config, 0, center)
+    const live = getGyroOrbitWorldPoint(config, 0, center, config.phase + 0.7)
+    expect(live.x).not.toBeCloseTo(initial.x, 5)
+    expect(live.z).not.toBeCloseTo(initial.z, 5)
+  })
 })

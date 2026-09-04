@@ -310,8 +310,7 @@ export default function Planets() {
     const realtimeCoords = [...realtimeStore.planetCoords] as [PlanetCoords, PlanetCoords, PlanetCoords]
     const realtimeAngles = [...realtimeStore.planetAngles] as [number, number, number]
     const realtimeSpeeds = [...realtimeStore.planetSpeeds] as [number, number, number]
-    const realtimeOrbitAngles = [...realtimeStore.orbitAngles] as [number, number, number]
-    let realtimeUpdatePasses = 0
+    let hasRealtimeUpdates = false
 
     const miniatureProgress = clamped(sp, TIMELINE.miniatureShrink.start, TIMELINE.miniatureShrink.end)
     const act3Progress = clamped(sp, TIMELINE.act3Shift.start, 1.0)
@@ -414,7 +413,7 @@ export default function Planets() {
         realtimeAngles[trackIdx] = d.orbitAngle
         realtimeSpeeds[trackIdx] = d._baseSpeed ?? d.orbitSpeed
       }
-      realtimeUpdatePasses += 1
+      hasRealtimeUpdates = true
 
       // Opacity with occlusion
       const basicMat = planetBasicMats[trackIdx]
@@ -504,20 +503,11 @@ export default function Planets() {
       }
     }
 
-    if (realtimeUpdatePasses > 0) {
-      for (let pass = 0; pass < realtimeUpdatePasses; pass += 1) {
-        for (let orbitIndex = 0; orbitIndex < 3; orbitIndex += 1) {
-          realtimeOrbitAngles[orbitIndex] = (
-            realtimeOrbitAngles[orbitIndex] + delta * realtimeStore.orbitSpeeds[orbitIndex]
-          ) % (Math.PI * 2)
-        }
-      }
+    if (hasRealtimeUpdates) {
       realtimeStore.setPlanetData(
         realtimeCoords,
         realtimeAngles,
         realtimeSpeeds,
-        realtimeStore.orbitSpeeds,
-        realtimeOrbitAngles,
       )
     }
 

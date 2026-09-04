@@ -8,8 +8,10 @@ import { TIMELINE } from '../composition/timeline'
 import { getWebglLayer } from '../composition/layerRegistry'
 import { touchActorFrame, useActorRuntime } from '../composition/actorRuntime'
 import OrbitalRing from './OrbitalRing'
-import { getAct3VisualAlpha } from '../behaviors/act3TerminalLayout'
+import { getAct3OrbitMotionScale, getAct3VisualAlpha } from '../behaviors/act3TerminalLayout'
 import { GYRO_RINGS } from '../behaviors/orbitGeometry'
+import { useRealtimeStore } from '../stores/realtimeStore'
+import { R3F_FRAME_PRIORITY } from '../composition/frameScheduler'
 
 /**
  * 行星轨道系统 �?3 条静态轨道参考线 + N 条陀螺仪装饰环�?
@@ -48,10 +50,19 @@ export default function OrbitRings({ speedScale = 1.0 }: OrbitRingsProps) {
   const orbitMatRefs = useRef<(LineBasicMaterial | null)[]>([null, null, null])
   const orbitGeometryRefs = useRef<(BufferGeometry | null)[]>([null, null, null])
 
-  useFrame(() => {
+  useFrame((_state, delta) => {
     const sp = useScrollStore.getState().scrollProgress
     touchActorFrame('orbits', Math.round(performance.now()), sp >= TIMELINE.squareAct3Crossfade.start)
     const reveal = getAct3VisualAlpha(sp)
+    const motionScale = getAct3OrbitMotionScale(sp)
+
+    if (motionScale > 0 && delta > 0) {
+      const realtime = useRealtimeStore.getState()
+      const angles = realtime.orbitAngles.map((angle, index) => (
+        angle + delta * realtime.orbitSpeeds[index] * speedScale * motionScale
+      ) % (Math.PI * 2)) as [number, number, number]
+      realtime.setOrbitAngles(angles)
+    }
 
     orbitMatRefs.current.forEach((mat, index) => {
       const geometry = orbitGeometryRefs.current[index]
@@ -59,7 +70,7 @@ export default function OrbitRings({ speedScale = 1.0 }: OrbitRingsProps) {
       geometry?.setDrawRange(0, pointCount)
       if (mat) mat.opacity = reveal * 0.35
     })
-  })
+  }, R3F_FRAME_PRIORITY.orbitStateProduce)
 
   return (
     <>
@@ -87,8 +98,8 @@ export default function OrbitRings({ speedScale = 1.0 }: OrbitRingsProps) {
       {GYRO_RINGS.map((cfg, i) => (
         <OrbitalRing
           key={`gyro-${i}`}
+          orbitIdx={i}
           config={cfg}
-          speedScale={speedScale}
           color={orbitColor}
         />
       ))}

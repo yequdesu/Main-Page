@@ -18,6 +18,8 @@ import { useAnchorStore } from '../composition/anchorStore'
 import { ACT3_TERMINAL_CENTER, ACT3_TERMINAL_LAYOUT } from '../behaviors/act3TerminalLayout'
 import { getGyroOrbitWorldPoint, GYRO_RINGS } from '../behaviors/orbitGeometry'
 import { useActorRuntime } from '../composition/actorRuntime'
+import { useRealtimeStore } from '../stores/realtimeStore'
+import { R3F_FRAME_PRIORITY } from '../composition/frameScheduler'
 
 const ORBIT_SEGMENTS = 96
 
@@ -49,6 +51,7 @@ export default function Act3ContourProjection() {
       }
     }
     if (planets.length < 3) return
+    const orbitAngles = useRealtimeStore.getState().orbitAngles
 
     const signature = [
       width,
@@ -56,6 +59,7 @@ export default function Act3ContourProjection() {
       ...camera.matrixWorld.elements.map((value) => value.toFixed(4)),
       central.x.toFixed(1), central.y.toFixed(1), central.r.toFixed(1),
       ...planets.flatMap((body) => [body.x.toFixed(1), body.y.toFixed(1), body.r.toFixed(1)]),
+      ...orbitAngles.map((angle) => angle.toFixed(4)),
     ].join('|')
     if (signature === lastSignatureRef.current) return
     lastSignatureRef.current = signature
@@ -77,12 +81,17 @@ export default function Act3ContourProjection() {
       return { points }
     })
 
-    const gyroOrbits = GYRO_RINGS.map((config) => {
+    const gyroOrbits = GYRO_RINGS.map((config, orbitIdx) => {
       const points: Array<{ x: number; y: number }> = []
       const segments = config.segments ?? 192
       for (let segment = 0; segment <= segments; segment++) {
         const angle = (segment / segments) * Math.PI * 2
-        const worldPoint = getGyroOrbitWorldPoint(config, angle, ACT3_TERMINAL_CENTER)
+        const worldPoint = getGyroOrbitWorldPoint(
+          config,
+          angle,
+          ACT3_TERMINAL_CENTER,
+          config.phase + (orbitAngles[orbitIdx] ?? 0),
+        )
         const projected = new Vector3(worldPoint.x, worldPoint.y, worldPoint.z).project(camera)
         points.push({
           x: (projected.x * 0.5 + 0.5) * width,
@@ -100,7 +109,7 @@ export default function Act3ContourProjection() {
       orbits: [...orbits, ...gyroOrbits],
     }
     setCoreAnchor(act3ContourTargetAnchorId, target, 'cssPx', 'act3ContourProjection')
-  }, -15)
+  }, R3F_FRAME_PRIORITY.contourProjection)
 
   useEffect(() => () => {
     useAnchorStore.getState().clearProducer('act3ContourProjection')
