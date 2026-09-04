@@ -323,11 +323,11 @@ export default function App() {
     <>
       <SceneCanvas>
         <Act1OceanVoyage visible={needsAct1(sp)} />
+        <MiniatureAbsorptionTrails />
         <Act3ContentPhase visible={needsAct3Visual(sp)} />
       </SceneCanvas>
 
       <LusionAtmosphereOverlay />
-      <MiniatureAbsorptionTrails />
       <Act2SquareContourTransition />
 
       <MainTerminal

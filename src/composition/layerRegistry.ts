@@ -47,6 +47,18 @@ export const LAYERS = {
       blending: 'additive',
     },
   },
+  'webgl.miniatureAbsorptionTrails': {
+    id: 'webgl.miniatureAbsorptionTrails',
+    contract: {
+      kind: 'webgl',
+      renderOrder: 10,
+      depthTest: true,
+      depthWrite: false,
+      transparent: true,
+      blending: 'normal',
+    },
+    description: 'Camera-facing circle trails rendered behind the miniature cube contents.',
+  },
   'webgl.planets': {
     id: 'webgl.planets',
     contract: { kind: 'webgl', renderOrder: 1, depthTest: true, depthWrite: true, transparent: true },
@@ -116,11 +128,6 @@ export const LAYERS = {
     id: 'dom.lusionAtmosphere',
     contract: { kind: 'dom', zIndex: 4, position: 'fixed', pointerEvents: 'none' },
     description: 'Independent Act 3 atmosphere overlay for Lusion particles and Tyndall light shafts.',
-  },
-  'dom.miniatureAbsorptionTrails': {
-    id: 'dom.miniatureAbsorptionTrails',
-    contract: { kind: 'dom', zIndex: 6, position: 'fixed', pointerEvents: 'none' },
-    description: 'Screen-edge circle trails composited behind the miniature cube handoff.',
   },
   'dom.act2SquareContourTransition': {
     id: 'dom.act2SquareContourTransition',
