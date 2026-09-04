@@ -107,6 +107,21 @@ describe('motion trail model', () => {
     }
   })
 
+  it('caps emitted trail history without changing the moving head', () => {
+    const path = createMotionPath(start, end, config, 2027)
+    const unrestricted = getMotionTrailFrame(path, config, 2.25)
+    const distanceLimit = path.totalLength * 0.25
+    const capped = getMotionTrailFrame(path, config, 2.25, distanceLimit)
+
+    expect(capped.main).toEqual(unrestricted.main)
+    expect(capped.progress).toBe(unrestricted.progress)
+    expect(capped.distanceProgress).toBe(unrestricted.distanceProgress)
+    expect(capped.trail.length).toBeLessThanOrEqual(unrestricted.trail.length)
+    capped.trail.forEach((circle) => {
+      expect(circle.id * config.trailSpacing).toBeLessThanOrEqual(distanceLimit)
+    })
+  })
+
   it('connects adjacent circles along their external common tangents', () => {
     const equal = getCircleConnector(
       { point: { x: 0, y: 0 }, radius: 3 },

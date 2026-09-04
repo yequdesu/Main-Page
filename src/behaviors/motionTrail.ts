@@ -375,6 +375,7 @@ export function getMotionTrailFrame(
   path: MotionPath,
   config: MotionTrailConfig,
   elapsedTime: number,
+  trailDistanceLimit = Number.POSITIVE_INFINITY,
 ): MotionTrailFrame {
   const duration = Math.max(0.001, config.duration)
   const time = Math.max(0, elapsedTime)
@@ -385,7 +386,11 @@ export function getMotionTrailFrame(
   const trail: TrailCircle[] = []
   const spacing = Math.max(0.5, config.trailSpacing)
   const travelledDistance = path.totalLength * distanceProgress
-  const stampCount = Math.floor(travelledDistance / spacing)
+  const trailTravelledDistance = Math.min(
+    travelledDistance,
+    Math.max(0, trailDistanceLimit),
+  )
+  const stampCount = Math.floor(trailTravelledDistance / spacing)
 
   const shrinkRate = Math.max(0, config.shrinkRate)
   const emissions = getTrailEmissions(path, config, stampCount)

@@ -373,7 +373,14 @@ export function getOrbitTraceRenderFrames(
   terminalZoom: number,
 ): { flight: MotionTrailFrame; ink: MotionTrailFrame | null } {
   const elapsed = getOrbitTraceElapsed(scrollProgress, plan.orbitIdx)
-  const flight = getMotionTrailFrame(plan.path, plan.config, elapsed)
+  // Persistent orbit ink covers the same path with circles at least as large
+  // as the ephemeral flight trail. Keep only the visible approach history.
+  const flight = getMotionTrailFrame(
+    plan.path,
+    plan.config,
+    elapsed,
+    plan.orbitStartDistance,
+  )
   const radiusScale = terminalZoom / Math.max(0.000001, currentZoom)
   flight.main.radius *= radiusScale
   for (const circle of flight.trail) {
