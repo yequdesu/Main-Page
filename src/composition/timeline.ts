@@ -34,7 +34,7 @@ export const TIMELINE = {
     'Act 1 scene continuously shrinks into a framed miniature universe',
   ),
   cubeDrawAndTumble: defineRange('cubeDrawAndTumble', 0.40, 0.50, 'Cube edges draw while the miniature tumbles on three axes'),
-  cubeAbsorptionTrails: defineRange('cubeAbsorptionTrails', 0.46, 0.50, 'Small screen-edge trails rush into the cube before its white fill'),
+  cubeAbsorptionTrails: defineRange('cubeAbsorptionTrails', 0.46, 0.57, 'Random screen-edge trails rush into the cube through the square handoff'),
   cubeWhiteFill: defineRange('cubeWhiteFill', 0.50, 0.55, 'Cube settles face-on and fills to pure white'),
   squareSeedShrink: defineRange('squareSeedShrink', 0.55, 0.56, 'Screen-space square takes over and shrinks slightly'),
   squareBfsWave: defineRange('squareBfsWave', 0.56, 0.70, 'Deterministic square wave expands to its 400-cell handoff radius'),

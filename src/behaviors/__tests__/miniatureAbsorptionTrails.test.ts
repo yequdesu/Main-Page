@@ -3,6 +3,7 @@ import {
   ABSORPTION_TRAIL_END,
   ABSORPTION_TRAIL_START,
   buildAbsorptionTrailSpecs,
+  buildRandomAbsorptionTrailBatch,
   getAbsorptionTrailFrame,
 } from '../miniatureAbsorptionTrails'
 
@@ -10,7 +11,7 @@ const viewport = { width: 1200, height: 800 }
 const cubeBounds = { x: 430, y: 240, width: 340, height: 320 }
 
 describe('miniature absorption trails', () => {
-  it('builds deterministic staggered tracks that finish before white fill', () => {
+  it('builds deterministic staggered tracks inside the absorption window', () => {
     const first = buildAbsorptionTrailSpecs()
     const second = buildAbsorptionTrailSpecs()
     expect(first).toEqual(second)
@@ -20,6 +21,17 @@ describe('miniature absorption trails', () => {
     for (let index = 1; index < first.length; index += 1) {
       expect(first[index].end).toBeGreaterThan(first[index - 1].end)
     }
+  })
+
+  it('randomizes batch count and properties while constraining the final arrival', () => {
+    const batch = buildRandomAbsorptionTrailBatch(0x1234abcd)
+    expect(batch.specs.length).toBeGreaterThanOrEqual(48)
+    expect(batch.specs.length).toBeLessThanOrEqual(80)
+    expect(batch.finalArrival).toBeGreaterThanOrEqual(0.56)
+    expect(batch.finalArrival).toBeLessThan(0.57)
+    expect(Math.max(...batch.specs.map((track) => track.end))).toBe(batch.finalArrival)
+    expect(buildRandomAbsorptionTrailBatch(0x1234abcd)).toEqual(batch)
+    expect(buildRandomAbsorptionTrailBatch(0x76543210)).not.toEqual(batch)
   })
 
   it('starts outside the viewport and lands on the visible cube boundary', () => {

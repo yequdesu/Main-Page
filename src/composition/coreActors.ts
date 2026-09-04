@@ -114,7 +114,7 @@ export const CORE_ACTORS: ActorSpec[] = [
     lifecycle: { mount: 'always', activeWhen: 'timeline.cubeAbsorptionTrails.active', dispose: 'auto' },
     timing: { clocks: ['scroll'], ranges: ['cubeAbsorptionTrails'] },
     frame: { phase: 'dom.apply', after: ['waves'], before: ['act2SquareContourTransition'], skipWhenUnchanged: ['scroll', 'anchor'] },
-    consumes: ['scroll.sp', 'anchor.miniature.screenBounds'],
+    consumes: ['scroll.sp', 'anchor.miniature.screenBounds', 'anchor.miniature.faceRect'],
     interaction: { pointer: 'none' },
   },
   {

@@ -1,17 +1,30 @@
 import { useCallback, useEffect, useMemo, useRef } from 'react'
 import { getCircleConnector } from '../behaviors/motionTrail'
 import {
-  buildAbsorptionTrailSpecs,
+  buildRandomAbsorptionTrailBatch,
   getAbsorptionTrailFrame,
   type AbsorptionCircle,
 } from '../behaviors/miniatureAbsorptionTrails'
+import { SQUARE_WAVE_SEED_SCALE } from '../behaviors/squareWaveTransition'
 import { useAnchorStore, type Anchor } from '../composition/anchorStore'
 import { useActorRuntime } from '../composition/actorRuntime'
-import { miniatureScreenBoundsAnchorId } from '../composition/coreAnchors'
+import {
+  miniatureFaceRectAnchorId,
+  miniatureScreenBoundsAnchorId,
+} from '../composition/coreAnchors'
 import type { LayoutBox } from '../composition/coordinate'
 import { getDomLayer } from '../composition/layerRegistry'
-import { TIMELINE } from '../composition/timeline'
+import { TIMELINE, progress, smoothstep01 } from '../composition/timeline'
 import { useScrollStore } from '../stores/scrollStore'
+
+function createRuntimeSeed(): number {
+  if (typeof crypto !== 'undefined' && typeof crypto.getRandomValues === 'function') {
+    const values = new Uint32Array(1)
+    crypto.getRandomValues(values)
+    if (values[0] !== 0) return values[0]
+  }
+  return Math.max(1, Math.floor(Math.random() * 0xffff_ffff))
+}
 
 function drawConnectedCircles(
   ctx: CanvasRenderingContext2D,
@@ -57,10 +70,14 @@ function drawConnectedCircles(
 export default function MiniatureAbsorptionTrails() {
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const drawRef = useRef<() => void>(() => {})
-  const specs = useMemo(() => buildAbsorptionTrailSpecs(), [])
+  const batch = useMemo(() => buildRandomAbsorptionTrailBatch(createRuntimeSeed()), [])
+  const specs = batch.specs
   const scrollProgress = useScrollStore((state) => state.scrollProgress)
   const boundsAnchor = useAnchorStore(
     (state) => state.anchors[miniatureScreenBoundsAnchorId],
+  ) as Anchor<LayoutBox> | undefined
+  const faceRectAnchor = useAnchorStore(
+    (state) => state.anchors[miniatureFaceRectAnchorId],
   ) as Anchor<LayoutBox> | undefined
   const layer = getDomLayer('dom.miniatureAbsorptionTrails')
   const active = scrollProgress >= TIMELINE.cubeAbsorptionTrails.start &&
@@ -86,7 +103,20 @@ export default function MiniatureAbsorptionTrails() {
     context.setTransform(dpr, 0, 0, dpr, 0, 0)
     context.clearRect(0, 0, width, height)
 
-    const bounds = boundsAnchor?.value
+    let bounds = boundsAnchor?.value
+    if (scrollProgress > TIMELINE.cubeWhiteFill.end && faceRectAnchor?.value) {
+      const faceRect = faceRectAnchor.value
+      const seedShrink = smoothstep01(progress('squareSeedShrink', scrollProgress))
+      const scale = 1 + (SQUARE_WAVE_SEED_SCALE - 1) * seedShrink
+      const centerX = faceRect.x + faceRect.width * 0.5
+      const centerY = faceRect.y + faceRect.height * 0.5
+      bounds = {
+        x: centerX - faceRect.width * scale * 0.5,
+        y: centerY - faceRect.height * scale * 0.5,
+        width: faceRect.width * scale,
+        height: faceRect.height * scale,
+      }
+    }
     if (!active || !bounds || bounds.width <= 0 || bounds.height <= 0) {
       canvas.style.opacity = '0'
       return
@@ -99,7 +129,7 @@ export default function MiniatureAbsorptionTrails() {
       if (!frame.active) continue
       drawConnectedCircles(context, frame.circles)
     }
-  }, [active, boundsAnchor, scrollProgress, specs])
+  }, [active, boundsAnchor, faceRectAnchor, scrollProgress, specs])
 
   drawRef.current = draw
 

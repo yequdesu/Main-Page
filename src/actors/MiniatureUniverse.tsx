@@ -155,7 +155,7 @@ export default function MiniatureUniverse({ children }: MiniatureUniverseProps) 
     universe.updateWorldMatrix(true, false)
     const canvasRect = state.gl.domElement.getBoundingClientRect()
 
-    if (sp >= 0.455 && sp < 0.50) {
+    if (sp >= 0.455 && sp <= 0.55) {
       let minX = Number.POSITIVE_INFINITY
       let minY = Number.POSITIVE_INFINITY
       let maxX = Number.NEGATIVE_INFINITY

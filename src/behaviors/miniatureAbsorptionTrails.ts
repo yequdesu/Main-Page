@@ -29,9 +29,17 @@ export interface AbsorptionTrailFrame {
   circles: AbsorptionCircle[]
 }
 
+export interface AbsorptionTrailBatch {
+  seed: number
+  finalArrival: number
+  specs: AbsorptionTrailSpec[]
+}
+
 export const ABSORPTION_TRAIL_START = 0.46
-export const ABSORPTION_TRAIL_END = 0.50
-export const ABSORPTION_TRAIL_COUNT = 14
+export const ABSORPTION_TRAIL_END = 0.57
+export const ABSORPTION_TRAIL_COUNT = 64
+export const ABSORPTION_FINAL_ARRIVAL_MIN = 0.56
+export const ABSORPTION_FINAL_ARRIVAL_MAX = 0.57
 
 function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value))
@@ -50,34 +58,56 @@ function nextRandom(state: { value: number }): number {
   return (x >>> 0) / 0x1_0000_0000
 }
 
-/** Fixed-seed randomness keeps the screen-edge arrivals reversible while scrolling. */
+/**
+ * A supplied seed keeps one generated batch reversible. The runtime chooses a
+ * fresh seed on each page load, while tests and replay can inject a known seed.
+ */
 export function buildAbsorptionTrailSpecs(
   count = ABSORPTION_TRAIL_COUNT,
   seed = 0x51a7c3e1,
+  finalArrival = 0.568,
 ): AbsorptionTrailSpec[] {
   const safeCount = Math.max(1, Math.round(count))
   const random = { value: seed || 0x51a7c3e1 }
   const sides: ScreenEdge[] = ['top', 'right', 'bottom', 'left']
-  const firstArrival = 0.473
-  const lastArrival = ABSORPTION_TRAIL_END - 0.00035
+  const firstArrival = 0.472
+  const lastArrival = clamp(
+    finalArrival,
+    ABSORPTION_FINAL_ARRIVAL_MIN,
+    ABSORPTION_FINAL_ARRIVAL_MAX - 0.000001,
+  )
 
   return Array.from({ length: safeCount }, (_, id) => {
-    const arrivalT = safeCount === 1 ? 1 : id / (safeCount - 1)
+    const arrivalT = id === safeCount - 1
+      ? 1
+      : (id + 0.15 + nextRandom(random) * 0.7) / Math.max(1, safeCount - 1)
     const end = lerp(firstArrival, lastArrival, arrivalT)
-    const duration = 0.0095 + nextRandom(random) * 0.0035
+    const duration = 0.0055 + nextRandom(random) * 0.0115
     return {
       id,
-      side: sides[(id + Math.floor(nextRandom(random) * sides.length)) % sides.length],
-      edgePosition: 0.07 + nextRandom(random) * 0.86,
-      targetOffsetX: nextRandom(random) * 1.1 - 0.55,
-      targetOffsetY: nextRandom(random) * 1.1 - 0.55,
+      side: sides[Math.floor(nextRandom(random) * sides.length)],
+      edgePosition: 0.035 + nextRandom(random) * 0.93,
+      targetOffsetX: nextRandom(random) * 1.3 - 0.65,
+      targetOffsetY: nextRandom(random) * 1.3 - 0.65,
       start: Math.max(ABSORPTION_TRAIL_START, end - duration),
       end,
-      radius: 1.8 + nextRandom(random) * 2.2,
-      tailLength: 0.075 + nextRandom(random) * 0.055,
-      tailSamples: 8 + Math.floor(nextRandom(random) * 5),
+      radius: 1.15 + nextRandom(random) * 4.1,
+      tailLength: 0.045 + nextRandom(random) * 0.105,
+      tailSamples: 7 + Math.floor(nextRandom(random) * 7),
     }
   })
+}
+
+export function buildRandomAbsorptionTrailBatch(seed: number): AbsorptionTrailBatch {
+  const random = { value: seed || 0x51a7c3e1 }
+  const count = 48 + Math.floor(nextRandom(random) * 33)
+  const finalArrival = ABSORPTION_FINAL_ARRIVAL_MIN +
+    nextRandom(random) * (ABSORPTION_FINAL_ARRIVAL_MAX - ABSORPTION_FINAL_ARRIVAL_MIN)
+  return {
+    seed,
+    finalArrival,
+    specs: buildAbsorptionTrailSpecs(count, random.value, finalArrival),
+  }
 }
 
 function getSpawnPoint(
