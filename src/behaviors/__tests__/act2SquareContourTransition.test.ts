@@ -130,6 +130,28 @@ describe('Act 2 square contour transition', () => {
     expect('orbits' in first).toBe(false)
   })
 
+  it('retains off-screen planet targets for portrait transition paths', () => {
+    const portraitTarget: Act3ContourTarget = {
+      ...TARGET,
+      planets: TARGET.planets.map((planet, index) => ({
+        ...planet,
+        visible: index !== 2,
+      })),
+    }
+    const layout = buildSquareContourLayout(
+      portraitTarget,
+      FROZEN,
+      500,
+      350,
+      22,
+      20,
+      0.5,
+    )
+
+    expect(layout.planetTargets).toHaveLength(3)
+    expect(layout.planetTargets[2].trackIdx).toBe(2)
+  })
+
   it('launches six staggered orbit tracers and completes every closed contour', () => {
     const sixOrbitTarget: Act3ContourTarget = {
       ...TARGET,

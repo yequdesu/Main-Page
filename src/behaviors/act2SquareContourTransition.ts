@@ -245,7 +245,6 @@ export function buildSquareContourLayout(
   }))
 
   const planetTargets = target.planets.flatMap((planet, trackIdx) => {
-    if (!planet.visible) return []
     return [{
       trackIdx,
       x: (planet.x - target.central.x) / terminalZoom,

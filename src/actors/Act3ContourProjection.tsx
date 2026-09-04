@@ -46,8 +46,8 @@ export default function Act3ContourProjection() {
     for (let index = 0; index < 3; index++) {
       const point = readAnchorValue<ScreenPoint>(planetScreenAnchorId(index))
       const radius = readAnchorValue<number>(planetScreenRadiusAnchorId(index))
-      if (point?.visible && radius && radius > 0) {
-        planets.push({ x: point.x, y: point.y, r: radius, visible: true })
+      if (point && radius && radius > 0) {
+        planets.push({ x: point.x, y: point.y, r: radius, visible: point.visible })
       }
     }
     if (planets.length < 3) return

@@ -7,6 +7,7 @@ import { readPlanetAtmosphereWorldRadius, readPlanetParticleIndex } from '../com
 import { FOCUS_EFFECT_EXIT_DURATION, focusExitDuration, inverseProportionalEase } from '../composition/focusCorridorGeometry'
 import { renderFocusHudFrame } from '../actors/focusHudBridge'
 import type { ScreenCircle, ScreenPoint } from '../types'
+import { getAct3ResponsiveFov } from './act3TerminalLayout'
 
 // Pre-allocated objects (from LighthouseScene.vue camera focus system)
 const _defaultCamPos = new Vector3(0, 0.25, 8)
@@ -72,7 +73,6 @@ const FOCUS_ORBIT_SPEED = 0.014
 const FOCUS_TARGET_FOLLOW = 0.06
 const FOCUS_CAMERA_FOLLOW = 0.055
 const FOCUS_LOOK_FOLLOW = 0.06
-const DEFAULT_CAMERA_FOV = 40
 const FOCUS_DOLLY_MAX_FOV = 72
 const HUD_EFFECT_EXIT_DURATION = FOCUS_EFFECT_EXIT_DURATION
 const FOCUS_FOV_FOLLOW = 0.12
@@ -96,6 +96,7 @@ export function updateCameraFocus(
   const isAct3 = sp >= TIMELINE.act3Shift.start
   touchActorFrame('cameraFocus', Math.round(time * 60), isAct3)
   const store = useScrollStore.getState()
+  const defaultCameraFov = getAct3ResponsiveFov(camera.aspect)
 
   if (!isAct3) {
     if (store.focusedPlanetIdx >= 0) {
@@ -110,7 +111,7 @@ export function updateCameraFocus(
     _targetLookAt.lerp(_defaultLookAt, 0.04)
     _currentLookAt.lerp(_targetLookAt, 0.06)
     camera.position.lerp(_targetCamPos, 0.06)
-    updateCameraFov(camera, DEFAULT_CAMERA_FOV, FOCUS_FOV_RETURN)
+    updateCameraFov(camera, defaultCameraFov, FOCUS_FOV_RETURN)
     camera.lookAt(_currentLookAt)
     return
   }
@@ -217,7 +218,7 @@ export function updateCameraFocus(
       FOCUS_FOV_FOLLOW,
     )
   } else {
-    updateCameraFov(camera, DEFAULT_CAMERA_FOV, FOCUS_FOV_RETURN)
+    updateCameraFov(camera, defaultCameraFov, FOCUS_FOV_RETURN)
   }
   camera.lookAt(_currentLookAt)
 

@@ -3,6 +3,8 @@ import { TIMELINE, progress, smoothstep01 } from '../composition/timeline'
 
 export const ACT3_LAYOUT_SEED = 0xea7e2026
 export const ACT3_TERMINAL_CENTER = { x: 0, y: -1, z: SCENE_CENTER_Z } as const
+export const ACT3_MIN_FRAMING_ASPECT = 0.8
+export const ACT3_BASE_FOV = 40
 
 export interface Act3TerminalPlanet {
   orbitRadius: number
@@ -43,6 +45,24 @@ export const ACT3_TERMINAL_LAYOUT: Act3TerminalLayout = {
 
 export function createAct3Random(seed = ACT3_LAYOUT_SEED): () => number {
   return mulberry32(seed)
+}
+
+/**
+ * Preserve a minimum horizontal field of view on portrait screens. The Act 3
+ * terminal layout is wider than it is tall, so retaining the desktop vertical
+ * FOV on a narrow viewport would push the outer planet off-screen.
+ */
+export function getAct3ResponsiveFov(
+  aspect: number,
+  baseFov = ACT3_BASE_FOV,
+): number {
+  const safeAspect = Math.max(0.25, aspect)
+  const tangentScale = Math.min(
+    2,
+    Math.max(1, ACT3_MIN_FRAMING_ASPECT / safeAspect),
+  )
+  const baseHalfFov = baseFov * Math.PI / 360
+  return Math.atan(Math.tan(baseHalfFov) * tangentScale) * 360 / Math.PI
 }
 
 export function getAct3TerminalPlanetPosition(trackIdx: number, angleOffset = 0) {

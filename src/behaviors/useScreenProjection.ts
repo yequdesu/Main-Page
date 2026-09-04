@@ -62,12 +62,13 @@ export function useScreenProjection() {
         _ndc.z < 1 &&
         _ndc.x > -1.2 && _ndc.x < 1.2 &&
         _ndc.y > -1.2 && _ndc.y < 1.2
-      if (visible) {
-        coords[i] = {
-          x: ((_ndc.x + 1) / 2) * w,
-          y: ((-_ndc.y + 1) / 2) * h,
-          visible: true,
-        }
+      // Keep the real projection even while it is temporarily off-screen.
+      // Transition actors need a stable target for all three planets; labels
+      // and interactions still obey the separate visible flag.
+      coords[i] = {
+        x: ((_ndc.x + 1) / 2) * w,
+        y: ((-_ndc.y + 1) / 2) * h,
+        visible,
       }
       anchorWrites.push(makeCoreAnchor(planetScreenAnchorId(i), coords[i], 'screenPx', 'projection', coords[i].visible))
     }
