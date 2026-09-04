@@ -177,6 +177,8 @@ describe('Act 2 square contour transition', () => {
       expect(complete.stroke?.progress).toBe(1)
       expect(complete.stroke?.path.samples.length).toBeGreaterThan(60)
       expect(complete.tracer.trail.length).toBeLessThanOrEqual(12)
+      expect(complete.tracer.trail).toHaveLength(0)
+      expect(complete.tracer.main.radius).toBe(0)
       expect(complete.tracer.main.point.x).toBeCloseTo(complete.stroke?.endPoint.x ?? 0, 5)
       expect(complete.tracer.main.point.y).toBeCloseTo(complete.stroke?.endPoint.y ?? 0, 5)
       expect((complete.stroke?.lineRadius ?? 0) * layout.terminalZoom).toBeCloseTo(0.65, 5)

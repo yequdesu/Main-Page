@@ -32,6 +32,7 @@ export const ORBIT_TRACE_TIMINGS = Array.from({ length: 6 }, (_, index) => ({
   end: 0.765 + index * 0.007,
   seed: 0xea7e2001 + index,
 }))
+export const ORBIT_TRACER_CLOSURE_START = 0.86
 const PLANET_FLIGHT_ORBIT_ARC = Math.PI * 1.35
 const PLANET_FLIGHT_ORBIT_FRACTION = 0.52
 const PLANET_FLIGHT_PATH_SAMPLES = 384
@@ -368,6 +369,13 @@ export function getOrbitTraceElapsed(scrollProgress: number, orbitIdx: number): 
   return Math.max(0, (scrollProgress - timing.start) / (timing.end - timing.start))
 }
 
+export function getOrbitTracerClosureProgress(orbitProgress: number): number {
+  return smootherstep01(
+    (orbitProgress - ORBIT_TRACER_CLOSURE_START) /
+    (1 - ORBIT_TRACER_CLOSURE_START),
+  )
+}
+
 function buildOrbitTracerFrame(
   plan: OrbitTracePlan,
   elapsed: number,
@@ -378,8 +386,14 @@ function buildOrbitTracerFrame(
   const travelledDistance = plan.path.totalLength * distanceProgress
   const safeZoom = Math.max(0.000001, currentZoom)
   const grow = smootherstep01(clamp01(progress / 0.08))
-  const headRadius = 2.4 * grow / safeZoom
-  const tailLength = 30 / safeZoom
+  const orbitProgress = clamp01(
+    (travelledDistance - plan.orbitStartDistance) /
+    Math.max(0.000001, plan.path.totalLength - plan.orbitStartDistance),
+  )
+  const closureProgress = getOrbitTracerClosureProgress(orbitProgress)
+  const closureScale = 1 - closureProgress
+  const headRadius = 2.4 * grow * closureScale / safeZoom
+  const tailLength = 30 * closureScale / safeZoom
   const tailStart = Math.max(0, travelledDistance - tailLength)
   const availableTail = travelledDistance - tailStart
   const trail = []
