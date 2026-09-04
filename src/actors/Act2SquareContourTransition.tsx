@@ -157,26 +157,50 @@ function drawStrictCircleRing(
 function drawSmoothFlight(
   ctx: CanvasRenderingContext2D,
   frame: MotionTrailFrame,
+  batchOpaque: boolean,
 ): void {
   const circles = [...frame.trail, frame.main]
+  if (batchOpaque) ctx.beginPath()
   for (let index = 1; index < circles.length; index += 1) {
     const connector = getCircleConnector(circles[index - 1], circles[index])
     if (!connector) continue
-    ctx.beginPath()
-    ctx.moveTo(connector.firstPositive.x, connector.firstPositive.y)
-    ctx.lineTo(connector.secondPositive.x, connector.secondPositive.y)
-    ctx.lineTo(connector.secondNegative.x, connector.secondNegative.y)
-    ctx.lineTo(connector.firstNegative.x, connector.firstNegative.y)
+    const a = connector.firstPositive
+    const b = connector.secondPositive
+    const c = connector.secondNegative
+    const d = connector.firstNegative
+    const signedArea =
+      a.x * b.y - b.x * a.y +
+      b.x * c.y - c.x * b.y +
+      c.x * d.y - d.x * c.y +
+      d.x * a.y - a.x * d.y
+    if (!batchOpaque) ctx.beginPath()
+    if (signedArea >= 0) {
+      ctx.moveTo(a.x, a.y)
+      ctx.lineTo(b.x, b.y)
+      ctx.lineTo(c.x, c.y)
+      ctx.lineTo(d.x, d.y)
+    } else {
+      ctx.moveTo(d.x, d.y)
+      ctx.lineTo(c.x, c.y)
+      ctx.lineTo(b.x, b.y)
+      ctx.lineTo(a.x, a.y)
+    }
     ctx.closePath()
-    ctx.fill()
+    if (!batchOpaque) ctx.fill()
   }
+  if (batchOpaque) ctx.fill()
 
+  if (batchOpaque) ctx.beginPath()
   for (const circle of circles) {
     if (circle.radius <= 0.01) continue
-    ctx.beginPath()
+    if (!batchOpaque) ctx.beginPath()
+    // A moveTo is required before every arc in a compound path. Without it,
+    // Canvas joins consecutive circles with long chords (the lancet artifact).
+    if (batchOpaque) ctx.moveTo(circle.point.x + circle.radius, circle.point.y)
     ctx.arc(circle.point.x, circle.point.y, circle.radius, 0, Math.PI * 2)
-    ctx.fill()
+    if (!batchOpaque) ctx.fill()
   }
+  if (batchOpaque) ctx.fill()
 }
 
 function drawPlanetFlights(
@@ -208,6 +232,7 @@ function drawPlanetFlights(
     drawSmoothFlight(
       ctx,
       getPlanetFlightRenderFrame(plan, scrollProgress, zoom, terminalZoom),
+      opacity === 1,
     )
   }
   ctx.restore()
@@ -245,7 +270,7 @@ function drawOrbitTraces(
       zoom,
     )
     if (frames.stroke) drawOrbitStroke(ctx, frames.stroke)
-    drawSmoothFlight(ctx, frames.tracer)
+    drawSmoothFlight(ctx, frames.tracer, opacity === 1)
   }
   ctx.restore()
   ctx.globalAlpha = 1
@@ -263,20 +288,28 @@ function drawOrbitStroke(
   ctx.lineWidth = Math.max(0.0001, stroke.lineRadius * 2)
   ctx.lineCap = 'round'
   ctx.lineJoin = 'round'
-  ctx.beginPath()
-  ctx.moveTo(samples[0].point.x, samples[0].point.y)
-  for (let index = 1; index <= stroke.endSampleIndex; index += 1) {
-    ctx.lineTo(samples[index].point.x, samples[index].point.y)
-  }
-  const lastPoint = samples[stroke.endSampleIndex]?.point
-  if (!lastPoint || Math.hypot(
-    lastPoint.x - stroke.endPoint.x,
-    lastPoint.y - stroke.endPoint.y,
-  ) > 0.000001) {
-    ctx.lineTo(stroke.endPoint.x, stroke.endPoint.y)
-  }
-  ctx.stroke()
+  const path = getCachedOrbitPath(stroke)
+  const visibleLength = stroke.path.totalLength * stroke.progress
+  ctx.setLineDash([visibleLength, stroke.path.totalLength + 1])
+  ctx.stroke(path)
   ctx.restore()
+}
+
+const orbitPathCache = new WeakMap<OrbitStrokeFrame['path'], Path2D>()
+
+function getCachedOrbitPath(stroke: OrbitStrokeFrame): Path2D {
+  const cached = orbitPathCache.get(stroke.path)
+  if (cached) return cached
+  const path = new Path2D()
+  const samples = stroke.path.samples
+  if (samples.length > 0) {
+    path.moveTo(samples[0].point.x, samples[0].point.y)
+    for (let index = 1; index < samples.length; index += 1) {
+      path.lineTo(samples[index].point.x, samples[index].point.y)
+    }
+  }
+  orbitPathCache.set(stroke.path, path)
+  return path
 }
 
 interface LayoutCache {

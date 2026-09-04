@@ -236,7 +236,6 @@ export default function AsteroidBelts({ variant = 'act3' }: AsteroidBeltsProps) 
       pointsRef.current.visible = false
       return
     }
-    pointsRef.current.visible = true
     const innerAlpha = isAct1 ? 0 : smoothstep(clamped(sp, TIMELINE.act3Shift.start, 1.0))
     const material = pointsRef.current.material as ShaderMaterial
     const geometry = pointsRef.current.geometry
@@ -294,6 +293,10 @@ export default function AsteroidBelts({ variant = 'act3' }: AsteroidBeltsProps) 
       outerAlpha = outerFadeRef.current
       outerRevealTime = outerRevealElapsedRef.current
     }
+
+    const hasVisibleBelt = innerAlpha > 0 || outerAlpha > 0
+    pointsRef.current.visible = hasVisibleBelt
+    if (!hasVisibleBelt) return
 
     material.uniforms.uPixelRatio.value = Math.min(2, gl.getPixelRatio())
     material.uniforms.uProjectionScale.value = gl.domElement.clientHeight / (2 * Math.tan(fov / 2))

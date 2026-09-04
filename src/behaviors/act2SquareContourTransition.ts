@@ -67,7 +67,6 @@ export interface OrbitTracePlan {
 export interface OrbitStrokeFrame {
   path: MotionPath
   progress: number
-  endSampleIndex: number
   endPoint: MotionPoint
   lineRadius: number
 }
@@ -369,17 +368,6 @@ export function getOrbitTraceElapsed(scrollProgress: number, orbitIdx: number): 
   return Math.max(0, (scrollProgress - timing.start) / (timing.end - timing.start))
 }
 
-function findSampleAtOrBeforeDistance(path: MotionPath, distance: number): number {
-  let low = 0
-  let high = path.samples.length - 1
-  while (low < high) {
-    const mid = Math.ceil((low + high) * 0.5)
-    if (path.samples[mid].distance <= distance) low = mid
-    else high = mid - 1
-  }
-  return low
-}
-
 function buildOrbitTracerFrame(
   plan: OrbitTracePlan,
   elapsed: number,
@@ -440,14 +428,12 @@ export function getOrbitTraceRenderFrames(
     (travelledDistance - plan.orbitStartDistance) /
     Math.max(0.000001, plan.path.totalLength - plan.orbitStartDistance),
   )
-  const targetDistance = plan.orbitPath.totalLength * strokeProgress
   return {
     tracer,
     stroke: {
       path: plan.orbitPath,
       progress: strokeProgress,
-      endSampleIndex: findSampleAtOrBeforeDistance(plan.orbitPath, targetDistance),
-      endPoint: pointAtPathProgress(plan.orbitPath, strokeProgress),
+      endPoint: tracer.main.point,
       lineRadius: 0.65 / Math.max(0.000001, currentZoom),
     },
   }
