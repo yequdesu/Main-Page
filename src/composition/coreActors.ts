@@ -111,7 +111,7 @@ export const CORE_ACTORS: ActorSpec[] = [
     domain: 'dom',
     layer: 'dom.act2SquareContourTransition',
     lifecycle: { mount: 'always', activeWhen: 'timeline.act2SquareTransition.active', dispose: 'auto' },
-    timing: { clocks: ['scroll'], ranges: ['squareSeedShrink', 'squareBfsWave', 'squareTitleTyping', 'squareContourZoom', 'squarePlanetFlights', 'squareTitleFade', 'squareAct3Crossfade'] },
+    timing: { clocks: ['scroll'], ranges: ['squareSeedShrink', 'squareBfsWave', 'squareCircleMorph', 'squareTitleTyping', 'squareContourZoom', 'squarePlanetFlights', 'squareTitleFade', 'squareAct3Crossfade'] },
     frame: { phase: 'dom.apply', after: ['act3ContourProjection'], skipWhenUnchanged: ['scroll', 'anchor'] },
     consumes: ['scroll.sp', 'anchor.miniature.faceRect', 'anchor.act3Contour.target'],
     interaction: { pointer: 'none' },

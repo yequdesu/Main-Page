@@ -10,11 +10,9 @@ import type { LayoutBox } from '../composition/coordinate'
 import { getDomLayer } from '../composition/layerRegistry'
 import {
   getSquareWaveBandFrame,
-  getSquareWaveFrame,
   SQUARE_WAVE_FADE_GENERATIONS,
+  SQUARE_WAVE_FADE_START,
   SQUARE_WAVE_SEED_SCALE,
-  splitSquareWaveBandForContour,
-  type SquareWaveCell,
   type SquareWaveSprite,
 } from '../behaviors/squareWaveTransition'
 import {
@@ -26,7 +24,6 @@ import {
   getSquareContourTransitionFrame,
   getSquareWaveCanvasTransform,
   getSquareWaveHandoffGeneration,
-  type ContourPoint,
   type PlanetFlightPlan,
   type SquareContourLayout,
 } from '../behaviors/act2SquareContourTransition'
@@ -103,50 +100,51 @@ function drawLogicalWave(
   ctx.globalAlpha = 1
 }
 
-function drawLogicalContour(
+function drawStrictCircleRing(
   ctx: CanvasRenderingContext2D,
-  squares: readonly ContourPoint[],
   focusX: number,
   focusY: number,
   zoom: number,
+  logicalOuterRadius: number,
+  logicalSpacing: number,
   logicalSquareSize: number,
-  opacityMultiplier: number,
+  fadingGenerations: number,
+  opacity: number,
 ): void {
-  const half = logicalSquareSize * 0.5
+  if (opacity <= 0 || zoom <= 0 || logicalOuterRadius <= 0) return
+  const fadeWidth = Math.max(0, fadingGenerations) * logicalSpacing
+  const solidWidth = SQUARE_WAVE_FADE_START * logicalSpacing + logicalSquareSize
+  const outerRadius = logicalOuterRadius * zoom
+  const bandWidth = Math.min(
+    outerRadius,
+    (solidWidth + fadeWidth) * zoom,
+  )
+  const innerRadius = Math.max(0, outerRadius - bandWidth)
+  const centerRadius = (outerRadius + innerRadius) * 0.5
+  const fadeRatio = bandWidth > 0 ? Math.min(1, fadeWidth * zoom / bandWidth) : 0
+
   ctx.save()
-  ctx.translate(focusX, focusY)
-  ctx.scale(zoom, zoom)
-  let hasBatchedSquares = false
-  const flushBatchedSquares = () => {
-    if (!hasBatchedSquares) return
-    ctx.globalAlpha = 1
-    ctx.fill()
-    hasBatchedSquares = false
-  }
-  for (const square of squares) {
-    const opacity = square.opacity * opacityMultiplier
-    if (opacity <= 0) continue
-    if (opacity === 1) {
-      if (!hasBatchedSquares) ctx.beginPath()
-      ctx.rect(
-        square.x - half,
-        square.y - half,
-        logicalSquareSize,
-        logicalSquareSize,
-      )
-      hasBatchedSquares = true
-      continue
-    }
-    flushBatchedSquares()
-    ctx.globalAlpha = opacity
-    ctx.fillRect(
-      square.x - half,
-      square.y - half,
-      logicalSquareSize,
-      logicalSquareSize,
+  ctx.globalAlpha = opacity
+  ctx.lineWidth = Math.max(0.0001, bandWidth)
+  if (fadeRatio > 0.0001) {
+    const gradient = ctx.createRadialGradient(
+      focusX,
+      focusY,
+      innerRadius,
+      focusX,
+      focusY,
+      outerRadius,
     )
+    gradient.addColorStop(0, 'rgba(255,255,255,0)')
+    gradient.addColorStop(fadeRatio, 'rgba(255,255,255,1)')
+    gradient.addColorStop(1, 'rgba(255,255,255,1)')
+    ctx.strokeStyle = gradient
+  } else {
+    ctx.strokeStyle = '#ffffff'
   }
-  flushBatchedSquares()
+  ctx.beginPath()
+  ctx.arc(focusX, focusY, centerRadius, 0, Math.PI * 2)
+  ctx.stroke()
   ctx.restore()
   ctx.globalAlpha = 1
 }
@@ -217,11 +215,6 @@ function drawPlanetFlights(
   ctx.globalAlpha = 1
 }
 
-interface HandoffCache {
-  solidSprites: SquareWaveSprite[]
-  fadingCells: SquareWaveCell[]
-}
-
 interface LayoutCache {
   target: Act3ContourTarget
   logicalSquareSize: number
@@ -235,7 +228,6 @@ interface LayoutCache {
 export default function Act2SquareContourTransition() {
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const drawRef = useRef<() => void>(() => {})
-  const handoffCacheRef = useRef<HandoffCache | null>(null)
   const layoutCacheRef = useRef<LayoutCache | null>(null)
   const scrollProgress = useScrollStore((state) => state.scrollProgress)
   const faceRectAnchor = useAnchorStore(
@@ -300,22 +292,35 @@ export default function Act2SquareContourTransition() {
     )
     const handoffView = getSquareWaveCanvasTransform(1, width, height, logicalSquareSize)
     const handoffGeneration = getSquareWaveHandoffGeneration()
-
-    if (!handoffCacheRef.current) {
-      handoffCacheRef.current = splitSquareWaveBandForContour(handoffGeneration)
-    }
-    const { solidSprites, fadingCells } = handoffCacheRef.current
+    const circleMorph = smoothstep01(progress('squareCircleMorph', scrollProgress))
 
     if (scrollProgress <= TIMELINE.squareBfsWave.end) {
-      drawLogicalWave(
-        ctx,
-        getSquareWaveBandFrame(waveView.generation),
-        initialCenterX,
-        initialCenterY,
-        waveView.zoom,
-        waveView.logicalSpacing,
-        waveView.logicalSquareSize,
-      )
+      if (circleMorph < 1) {
+        drawLogicalWave(
+          ctx,
+          getSquareWaveBandFrame(waveView.generation),
+          initialCenterX,
+          initialCenterY,
+          waveView.zoom,
+          waveView.logicalSpacing,
+          waveView.logicalSquareSize,
+          1 - circleMorph,
+        )
+      }
+      if (circleMorph > 0) {
+        const logicalOuterRadius = waveView.screenRadius / Math.max(0.000001, waveView.zoom)
+        drawStrictCircleRing(
+          ctx,
+          initialCenterX,
+          initialCenterY,
+          waveView.zoom,
+          logicalOuterRadius,
+          waveView.logicalSpacing,
+          waveView.logicalSquareSize,
+          SQUARE_WAVE_FADE_GENERATIONS,
+          circleMorph,
+        )
+      }
     }
 
     const target = targetAnchor?.value
@@ -328,9 +333,14 @@ export default function Act2SquareContourTransition() {
         cached.handoffZoom !== handoffView.zoom ||
         cached.centerX !== initialCenterX || cached.centerY !== initialCenterY
       ) {
+        const strictRadiusProbe: SquareWaveSprite[] = [{
+          x: handoffGeneration,
+          y: 0,
+          opacity: 1,
+        }]
         const layout = buildSquareContourLayout(
           target,
-          solidSprites,
+          strictRadiusProbe,
           initialCenterX,
           initialCenterY,
           handoffView.logicalSpacing,
@@ -362,37 +372,28 @@ export default function Act2SquareContourTransition() {
         width,
         height,
       )
-      drawLogicalContour(
+      drawStrictCircleRing(
         ctx,
-        layout.centralSquares,
         transform.focusX,
         transform.focusY,
         transform.zoom,
-        layout.logicalSquareSize,
-        frame.contourAlpha,
-      )
-
-      const fadingGeneration = handoffGeneration +
-        SQUARE_WAVE_FADE_GENERATIONS * frame.zoomProgress
-      drawLogicalWave(
-        ctx,
-        getSquareWaveFrame(fadingCells, fadingGeneration),
-        transform.focusX,
-        transform.focusY,
-        transform.zoom,
+        layout.logicalCentralRadius,
         layout.logicalSpacing,
         layout.logicalSquareSize,
+        SQUARE_WAVE_FADE_GENERATIONS * (1 - frame.zoomProgress),
         frame.contourAlpha,
       )
     } else if (scrollProgress > TIMELINE.squareBfsWave.end) {
-      drawLogicalWave(
+      const logicalOuterRadius = handoffView.screenRadius / Math.max(0.000001, handoffView.zoom)
+      drawStrictCircleRing(
         ctx,
-        getSquareWaveBandFrame(handoffGeneration),
         initialCenterX,
         initialCenterY,
         handoffView.zoom,
+        logicalOuterRadius,
         handoffView.logicalSpacing,
         handoffView.logicalSquareSize,
+        SQUARE_WAVE_FADE_GENERATIONS,
         frame.contourAlpha,
       )
     }
