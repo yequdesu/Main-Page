@@ -38,6 +38,7 @@ const FRICTION = 0.955
 const MAX_VELOCITY = 0.025
 const SCROLL_PROGRESS_EPSILON = 0.000001
 const SCROLL_Y_EPSILON = 0.5
+const SHOW_COMPLETION_BRAND = false
 
 const RAW_ACT1_END = 0.30
 const RAW_ACT2_END = 0.70
@@ -365,12 +366,14 @@ export default function App() {
         />
       )}
 
-      {/* 品牌标题（Act 2-3�?*/}
-      <BrandTitle
-        scrollProgress={sp}
-        lighthouseImage={lighthouseImage}
-        isClickPlaying={isClickPlaying}
-      />
+      {/* 100% completion brand is retained behind a flag for later development. */}
+      {SHOW_COMPLETION_BRAND && (
+        <BrandTitle
+          scrollProgress={sp}
+          lighthouseImage={lighthouseImage}
+          isClickPlaying={isClickPlaying}
+        />
+      )}
 
       {/* 聚焦 HUD 叠加�?*/}
       <FocusHudOverlay />
