@@ -117,6 +117,11 @@ export const LAYERS = {
     contract: { kind: 'dom', zIndex: 4, position: 'fixed', pointerEvents: 'none' },
     description: 'Independent Act 3 atmosphere overlay for Lusion particles and Tyndall light shafts.',
   },
+  'dom.miniatureAbsorptionTrails': {
+    id: 'dom.miniatureAbsorptionTrails',
+    contract: { kind: 'dom', zIndex: 6, position: 'fixed', pointerEvents: 'none' },
+    description: 'Screen-edge circle trails absorbed by the Act 1 miniature cube.',
+  },
   'dom.act2SquareContourTransition': {
     id: 'dom.act2SquareContourTransition',
     contract: { kind: 'dom', zIndex: 7, position: 'fixed', pointerEvents: 'none' },

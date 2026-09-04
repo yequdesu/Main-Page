@@ -108,6 +108,16 @@ export const CORE_ACTORS: ActorSpec[] = [
     produces: ['anchor.act3Contour.target'],
   },
   {
+    id: 'miniatureAbsorptionTrails',
+    domain: 'dom',
+    layer: 'dom.miniatureAbsorptionTrails',
+    lifecycle: { mount: 'always', activeWhen: 'timeline.cubeAbsorptionTrails.active', dispose: 'auto' },
+    timing: { clocks: ['scroll'], ranges: ['cubeAbsorptionTrails'] },
+    frame: { phase: 'dom.apply', after: ['waves'], before: ['act2SquareContourTransition'], skipWhenUnchanged: ['scroll', 'anchor'] },
+    consumes: ['scroll.sp', 'anchor.miniature.screenBounds'],
+    interaction: { pointer: 'none' },
+  },
+  {
     id: 'act2SquareContourTransition',
     domain: 'dom',
     layer: 'dom.act2SquareContourTransition',

@@ -20,7 +20,11 @@ import {
   MINIATURE_CUBE_SIZE,
   MINIATURE_PIVOT,
 } from '../behaviors/miniatureUniverse'
-import { miniatureFaceRectAnchorId, setCoreAnchor } from '../composition/coreAnchors'
+import {
+  miniatureFaceRectAnchorId,
+  miniatureScreenBoundsAnchorId,
+  setCoreAnchor,
+} from '../composition/coreAnchors'
 import { useAnchorStore } from '../composition/anchorStore'
 
 interface MiniatureUniverseProps {
@@ -110,6 +114,10 @@ export default function MiniatureUniverse({ children }: MiniatureUniverseProps) 
   const projectedCorners = useMemo(() => [
     new Vector3(), new Vector3(), new Vector3(), new Vector3(),
   ], [])
+  const projectedBoundsCorners = useMemo(() => Array.from(
+    { length: 8 },
+    () => new Vector3(),
+  ), [])
 
   useEffect(() => () => {
     wireGeometry.dispose()
@@ -145,6 +153,32 @@ export default function MiniatureUniverse({ children }: MiniatureUniverseProps) 
     if (whiteMaterialRef.current) whiteMaterialRef.current.opacity = transform.whiteFillProgress
 
     universe.updateWorldMatrix(true, false)
+    const canvasRect = state.gl.domElement.getBoundingClientRect()
+
+    if (sp >= 0.455 && sp < 0.50) {
+      let minX = Number.POSITIVE_INFINITY
+      let minY = Number.POSITIVE_INFINITY
+      let maxX = Number.NEGATIVE_INFINITY
+      let maxY = Number.NEGATIVE_INFINITY
+      for (let index = 0; index < projectedBoundsCorners.length; index++) {
+        const projected = projectedBoundsCorners[index]
+        projected.set(...cornerPosition(index)).applyMatrix4(universe.matrixWorld).project(state.camera)
+        const x = canvasRect.left + (projected.x * 0.5 + 0.5) * canvasRect.width
+        const y = canvasRect.top + (-projected.y * 0.5 + 0.5) * canvasRect.height
+        minX = Math.min(minX, x)
+        minY = Math.min(minY, y)
+        maxX = Math.max(maxX, x)
+        maxY = Math.max(maxY, y)
+      }
+      setCoreAnchor(
+        miniatureScreenBoundsAnchorId,
+        { x: minX, y: minY, width: maxX - minX, height: maxY - minY },
+        'cssPx',
+        'miniature',
+        true,
+      )
+    }
+
     if (sp < 0.50 || sp > 0.56) return
     const half = MINIATURE_CUBE_HALF_SIZE
     const localFaceCorners: readonly [number, number, number][] = [
@@ -153,7 +187,6 @@ export default function MiniatureUniverse({ children }: MiniatureUniverseProps) 
       [-half, half, -half],
       [half, half, -half],
     ]
-    const canvasRect = state.gl.domElement.getBoundingClientRect()
     let minX = Number.POSITIVE_INFINITY
     let minY = Number.POSITIVE_INFINITY
     let maxX = Number.NEGATIVE_INFINITY

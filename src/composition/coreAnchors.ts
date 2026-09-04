@@ -62,6 +62,7 @@ export const centralStarScreenAnchorId = 'anchor.centralStar.screen'
 export const beamWorldOriginAnchorId = 'anchor.beam.worldOrigin'
 export const beamWorldDirectionAnchorId = 'anchor.beam.worldDirection'
 export const miniatureFaceRectAnchorId = 'anchor.miniature.faceRect'
+export const miniatureScreenBoundsAnchorId = 'anchor.miniature.screenBounds'
 export const act3ContourTargetAnchorId = 'anchor.act3Contour.target'
 
 export function pointFromVector3(v: Vector3): WorldPoint {
@@ -146,6 +147,10 @@ export function readBeamWorldDirection(): WorldPoint | undefined {
 
 export function readMiniatureFaceRect(): LayoutBox | undefined {
   return readAnchorValue<LayoutBox>(miniatureFaceRectAnchorId)
+}
+
+export function readMiniatureScreenBounds(): LayoutBox | undefined {
+  return readAnchorValue<LayoutBox>(miniatureScreenBoundsAnchorId)
 }
 
 export function readAct3ContourTarget(): Act3ContourTarget | undefined {

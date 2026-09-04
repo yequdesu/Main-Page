@@ -8,6 +8,7 @@ describe('composition timeline', () => {
     expect(TIMELINE.act3ContentPhase).toMatchObject({ start: 0.85, end: 1.0, reversible: true })
     expect(TIMELINE.miniatureShrink).toMatchObject({ start: 0.40, end: 0.55, reversible: true })
     expect(TIMELINE.cubeDrawAndTumble).toMatchObject({ start: 0.40, end: 0.50, reversible: true })
+    expect(TIMELINE.cubeAbsorptionTrails).toMatchObject({ start: 0.46, end: 0.50, reversible: true })
     expect(TIMELINE.cubeWhiteFill).toMatchObject({ start: 0.50, end: 0.55, reversible: true })
     expect(TIMELINE.squareSeedShrink).toMatchObject({ start: 0.55, end: 0.56, reversible: true })
     expect(TIMELINE.squareBfsWave).toMatchObject({ start: 0.56, end: 0.70, reversible: true })

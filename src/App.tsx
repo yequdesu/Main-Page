@@ -20,6 +20,7 @@ import FocusInversionBlocks from './actors/FocusInversionBlocks'
 import FocusInversionDebugPanel from './composition/debug/FocusInversionDebugPanel'
 import LusionAtmosphereOverlay from './actors/LusionAtmosphereOverlay'
 import Act2SquareContourTransition from './actors/Act2SquareContourTransition'
+import MiniatureAbsorptionTrails from './actors/MiniatureAbsorptionTrails'
 import { registerCoreActors } from './composition/coreActors'
 import { registerCoreSequences } from './composition/coreSequences'
 import { resetSequence, useSignal } from './composition/sequenceStore'
@@ -326,6 +327,7 @@ export default function App() {
       </SceneCanvas>
 
       <LusionAtmosphereOverlay />
+      <MiniatureAbsorptionTrails />
       <Act2SquareContourTransition />
 
       <MainTerminal
