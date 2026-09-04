@@ -26,6 +26,7 @@ import {
   setCoreAnchor,
 } from '../composition/coreAnchors'
 import { useAnchorStore } from '../composition/anchorStore'
+import { TIMELINE } from '../composition/timeline'
 
 interface MiniatureUniverseProps {
   children: ReactNode
@@ -155,7 +156,7 @@ export default function MiniatureUniverse({ children }: MiniatureUniverseProps) 
     universe.updateWorldMatrix(true, false)
     const canvasRect = state.gl.domElement.getBoundingClientRect()
 
-    if (sp >= 0.455 && sp <= 0.55) {
+    if (sp >= TIMELINE.cubeAbsorptionTrails.start - 0.005 && sp <= TIMELINE.cubeWhiteFill.end) {
       let minX = Number.POSITIVE_INFINITY
       let minY = Number.POSITIVE_INFINITY
       let maxX = Number.NEGATIVE_INFINITY
@@ -179,7 +180,7 @@ export default function MiniatureUniverse({ children }: MiniatureUniverseProps) 
       )
     }
 
-    if (sp < 0.50 || sp > 0.56) return
+    if (sp < TIMELINE.cubeWhiteFill.start || sp > TIMELINE.squareSeedShrink.end) return
     const half = MINIATURE_CUBE_HALF_SIZE
     const localFaceCorners: readonly [number, number, number][] = [
       [half, -half, -half],

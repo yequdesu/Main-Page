@@ -6,10 +6,10 @@ describe('composition timeline', () => {
     expect(TIMELINE.act1OceanVoyage).toMatchObject({ start: 0, end: 0.55, reversible: true })
     expect(TIMELINE.act2SquareTransition).toMatchObject({ start: 0.55, end: 0.85, reversible: true })
     expect(TIMELINE.act3ContentPhase).toMatchObject({ start: 0.85, end: 1.0, reversible: true })
-    expect(TIMELINE.miniatureShrink).toMatchObject({ start: 0.40, end: 0.55, reversible: true })
-    expect(TIMELINE.cubeDrawAndTumble).toMatchObject({ start: 0.40, end: 0.50, reversible: true })
+    expect(TIMELINE.miniatureShrink).toMatchObject({ start: 0.25, end: 0.55, reversible: true })
+    expect(TIMELINE.cubeDrawAndTumble).toMatchObject({ start: 0.25, end: 0.45, reversible: true })
     expect(TIMELINE.cubeAbsorptionTrails).toMatchObject({ start: 0.46, end: 0.57, reversible: true })
-    expect(TIMELINE.cubeWhiteFill).toMatchObject({ start: 0.50, end: 0.55, reversible: true })
+    expect(TIMELINE.cubeWhiteFill).toMatchObject({ start: 0.45, end: 0.55, reversible: true })
     expect(TIMELINE.squareSeedShrink).toMatchObject({ start: 0.55, end: 0.56, reversible: true })
     expect(TIMELINE.squareBfsWave).toMatchObject({ start: 0.56, end: 0.70, reversible: true })
     expect(TIMELINE.squareCircleMorph).toMatchObject({ start: 0.65, end: 0.665, reversible: true })
@@ -27,11 +27,11 @@ describe('composition timeline', () => {
 
   it('computes clamped progress without side effects', () => {
     expect(progress('miniatureShrink', 0.20)).toBe(0)
-    expect(progress('miniatureShrink', 0.40)).toBe(0)
-    expect(progress('miniatureShrink', 0.475)).toBeCloseTo(0.5)
+    expect(progress('miniatureShrink', 0.25)).toBe(0)
+    expect(progress('miniatureShrink', 0.40)).toBeCloseTo(0.5)
     expect(progress('miniatureShrink', 0.55)).toBe(1)
     expect(progress('miniatureShrink', 0.80)).toBe(1)
-    expect(smoothProgress('miniatureShrink', 0.475)).toBeCloseTo(0.5)
+    expect(smoothProgress('miniatureShrink', 0.40)).toBeCloseTo(0.5)
   })
 
   it('reports containment and scroll direction', () => {
