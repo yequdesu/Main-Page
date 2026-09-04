@@ -156,31 +156,26 @@ function drawStrictCircleRing(
 function drawSmoothFlight(
   ctx: CanvasRenderingContext2D,
   frame: MotionTrailFrame,
-  batchOpaque: boolean,
 ): void {
   const circles = [...frame.trail, frame.main]
-  if (batchOpaque) ctx.beginPath()
   for (let index = 1; index < circles.length; index += 1) {
     const connector = getCircleConnector(circles[index - 1], circles[index])
     if (!connector) continue
-    if (!batchOpaque) ctx.beginPath()
+    ctx.beginPath()
     ctx.moveTo(connector.firstPositive.x, connector.firstPositive.y)
     ctx.lineTo(connector.secondPositive.x, connector.secondPositive.y)
     ctx.lineTo(connector.secondNegative.x, connector.secondNegative.y)
     ctx.lineTo(connector.firstNegative.x, connector.firstNegative.y)
     ctx.closePath()
-    if (!batchOpaque) ctx.fill()
+    ctx.fill()
   }
-  if (batchOpaque) ctx.fill()
 
-  if (batchOpaque) ctx.beginPath()
   for (const circle of circles) {
     if (circle.radius <= 0.01) continue
-    if (!batchOpaque) ctx.beginPath()
+    ctx.beginPath()
     ctx.arc(circle.point.x, circle.point.y, circle.radius, 0, Math.PI * 2)
-    if (!batchOpaque) ctx.fill()
+    ctx.fill()
   }
-  if (batchOpaque) ctx.fill()
 }
 
 function drawPlanetFlights(
@@ -212,7 +207,6 @@ function drawPlanetFlights(
     drawSmoothFlight(
       ctx,
       getPlanetFlightRenderFrame(plan, scrollProgress, zoom, terminalZoom),
-      opacity === 1,
     )
   }
   ctx.restore()
@@ -251,8 +245,8 @@ function drawOrbitTraces(
       zoom,
       terminalZoom,
     )
-    if (frames.ink) drawSmoothFlight(ctx, frames.ink, opacity === 1)
-    drawSmoothFlight(ctx, frames.flight, opacity === 1)
+    if (frames.ink) drawSmoothFlight(ctx, frames.ink)
+    drawSmoothFlight(ctx, frames.flight)
   }
   ctx.restore()
   ctx.globalAlpha = 1
