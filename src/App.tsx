@@ -29,6 +29,7 @@ import type { LabelConfig, SequenceStrategy } from './behaviors/useFloatingLabel
 import { PLANET_LINKS } from './types'
 import { useDayNight } from './theme/useDayNight'
 import './theme/theme.css'
+import './fonts.css'
 import './App.css'
 
 gsap.registerPlugin(ScrollTrigger)

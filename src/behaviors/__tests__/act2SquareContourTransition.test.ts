@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { Act3ContourTarget } from '../../composition/coreAnchors'
 import {
   SQUARE_TITLE,
+  SQUARE_TITLE_TEXT,
   SQUARE_TITLE_FONT_SCALE,
   SQUARE_WAVE_HANDOFF_RADIUS_CELLS,
   PLANET_FLIGHT_LAUNCH_ANGLES,
@@ -20,7 +21,6 @@ import {
   getSquareWaveExpansionProgress,
   getSquareWaveCanvasTransform,
   getSquareWaveHandoffGeneration,
-  getSquareTypedText,
   projectContourPoint,
   projectPlanetFlightCircle,
 } from '../act2SquareContourTransition'
@@ -47,10 +47,11 @@ const FROZEN = [
 ]
 
 describe('Act 2 square contour transition', () => {
-  it('replaces the seed star with the macron E before typing the rest', () => {
-    expect(getSquareTypedText(0.58)).toBe('*')
-    expect(getSquareTypedText(0.581)).toBe('Ē')
-    expect(getSquareTypedText(0.64)).toBe(SQUARE_TITLE)
+  it('writes the complete bracketed Allura title over a reversible interval', () => {
+    expect(SQUARE_TITLE_TEXT).toBe(`[ ${SQUARE_TITLE} ]`)
+    expect(getSquareContourTransitionFrame(0.58, 1600, 1000).titleWriteProgress).toBe(0)
+    expect(getSquareContourTransitionFrame(0.61, 1600, 1000).titleWriteProgress).toBeCloseTo(0.5)
+    expect(getSquareContourTransitionFrame(0.64, 1600, 1000).titleWriteProgress).toBe(1)
   })
 
   it('shrinks and fades the title with the logical canvas', () => {

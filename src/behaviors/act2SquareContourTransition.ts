@@ -14,6 +14,7 @@ import {
 } from './motionTrail'
 
 export const SQUARE_TITLE = 'Ēarendel'
+export const SQUARE_TITLE_TEXT = `[ ${SQUARE_TITLE} ]`
 export const SQUARE_TITLE_FONT_SCALE = 0.85
 export const SQUARE_WAVE_HANDOFF_RADIUS_RATIO = 0.38
 export const SQUARE_WAVE_HANDOFF_RADIUS_CELLS = 400
@@ -110,7 +111,7 @@ export interface SquareContourTransform {
 
 export interface SquareContourTransitionFrame {
   active: boolean
-  typedText: string
+  titleWriteProgress: number
   titleFontPx: number
   titleAlpha: number
   contourAlpha: number
@@ -161,13 +162,6 @@ export function getSquareWaveExpansionProgress(value: number): number {
   return t - Math.sin(Math.PI * 2 * t) / (Math.PI * 2)
 }
 
-export function getSquareTypedText(scrollProgress: number): string {
-  const p = progress('squareTitleTyping', scrollProgress)
-  if (p <= 0) return '*'
-  const count = Math.min(SQUARE_TITLE.length, Math.max(1, Math.ceil(p * SQUARE_TITLE.length)))
-  return SQUARE_TITLE.slice(0, count)
-}
-
 export function getSquareContourTransitionFrame(
   scrollProgress: number,
   viewportWidth: number,
@@ -181,7 +175,7 @@ export function getSquareContourTransitionFrame(
   return {
     active: scrollProgress >= TIMELINE.act2SquareTransition.start &&
       scrollProgress < TIMELINE.act2SquareTransition.end,
-    typedText: getSquareTypedText(scrollProgress),
+    titleWriteProgress: progress('squareTitleTyping', scrollProgress),
     titleFontPx: initialFont,
     titleAlpha: titleVisible ? 1 - smoothProgress('squareTitleFade', scrollProgress) : 0,
     contourAlpha,

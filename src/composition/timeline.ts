@@ -39,7 +39,7 @@ export const TIMELINE = {
   squareSeedShrink: defineRange('squareSeedShrink', 0.55, 0.56, 'Screen-space square takes over and shrinks slightly'),
   squareBfsWave: defineRange('squareBfsWave', 0.56, 0.70, 'Deterministic square wave expands to its 400-cell handoff radius'),
   squareCircleMorph: defineRange('squareCircleMorph', 0.65, 0.665, 'Dense square wave morphs into a strict circular ring'),
-  squareTitleTyping: defineRange('squareTitleTyping', 0.58, 0.64, 'Centered bracket title types Earendel'),
+  squareTitleTyping: defineRange('squareTitleTyping', 0.58, 0.64, 'Allura bracket title is handwritten by raster DFS trails'),
   squareContourZoom: defineRange('squareContourZoom', 0.70, 0.80, 'Frozen square contour canvas zooms out to the Act 3 terminal framing'),
   squarePlanetFlights: defineRange('squarePlanetFlights', 0.70, 0.80, 'Three circular trails fly from the central frame into the Act 3 planet targets'),
   squareOrbitFlights: defineRange('squareOrbitFlights', 0.725, 0.80, 'Six staggered circular trails draw the Act 3 orbit system'),

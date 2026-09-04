@@ -18,6 +18,7 @@ import {
 import {
   PLANET_FLIGHT_TIMINGS,
   ORBIT_TRACE_TIMINGS,
+  SQUARE_TITLE_TEXT,
   buildOrbitTracePlans,
   buildPlanetFlightPlans,
   buildSquareContourLayout,
@@ -33,10 +34,18 @@ import {
   type SquareContourLayout,
 } from '../behaviors/act2SquareContourTransition'
 import { getCircleConnector, type MotionTrailFrame } from '../behaviors/motionTrail'
+import {
+  buildGlyphDfsPlan,
+  getGlyphDfsFrame,
+  type GlyphDfsPlan,
+  type RasterCell,
+} from '../behaviors/handwrittenTitle'
 import { TIMELINE, progress, smoothstep01 } from '../composition/timeline'
 import { useActorRuntime } from '../composition/actorRuntime'
 
-const FONT_STACK = "'Cascadia Mono','SF Mono','Fira Code','Consolas',monospace"
+const TITLE_FONT_FAMILY = "'Allura',cursive"
+const TITLE_RASTER_CELL_SIZE = 2
+const TITLE_REVEAL_CHUNK_SIZE = 96
 
 function drawScreenSquare(
   ctx: CanvasRenderingContext2D,
@@ -203,6 +212,156 @@ function drawSmoothFlight(
   if (batchOpaque) ctx.fill()
 }
 
+interface HandwrittenGlyphRenderPlan {
+  dfs: GlyphDfsPlan
+  revealChunks: Path2D[]
+}
+
+interface HandwrittenTitleRenderPlan {
+  fontPx: number
+  width: number
+  height: number
+  cellSize: number
+  glyphs: HandwrittenGlyphRenderPlan[]
+}
+
+function buildHandwrittenTitleRenderPlan(fontPx: number): HandwrittenTitleRenderPlan | null {
+  const probe = document.createElement('canvas')
+  const probeContext = probe.getContext('2d')
+  if (!probeContext) return null
+
+  const safeFontPx = Math.max(1, fontPx)
+  const font = `400 ${safeFontPx}px ${TITLE_FONT_FAMILY}`
+  probeContext.font = font
+  const probeMetrics = probeContext.measureText(SQUARE_TITLE_TEXT)
+  const ascent = Math.ceil(probeMetrics.actualBoundingBoxAscent || safeFontPx)
+  const descent = Math.ceil(probeMetrics.actualBoundingBoxDescent || safeFontPx * 0.32)
+  const padding = Math.max(4, Math.ceil(safeFontPx * 0.1))
+  const width = Math.max(1, Math.ceil(probeMetrics.width) + padding * 2)
+  const height = Math.max(1, ascent + descent + padding * 2)
+
+  probe.width = width
+  probe.height = height
+  probeContext.font = font
+  probeContext.textAlign = 'left'
+  probeContext.textBaseline = 'alphabetic'
+  probeContext.fillStyle = '#ffffff'
+  probeContext.fillText(SQUARE_TITLE_TEXT, padding, padding + ascent)
+
+  const glyphBands: Array<{ index: number; center: number }> = []
+  let prefix = ''
+  for (const character of Array.from(SQUARE_TITLE_TEXT)) {
+    const start = probeContext.measureText(prefix).width
+    prefix += character
+    const end = probeContext.measureText(prefix).width
+    if (character.trim().length > 0) {
+      glyphBands.push({ index: glyphBands.length, center: padding + (start + end) * 0.5 })
+    }
+  }
+  const glyphCells = glyphBands.map(() => [] as RasterCell[])
+  const pixels = probeContext.getImageData(0, 0, width, height).data
+  const cellSize = TITLE_RASTER_CELL_SIZE
+  const columns = Math.ceil(width / cellSize)
+  const rows = Math.ceil(height / cellSize)
+
+  for (let cellY = 0; cellY < rows; cellY += 1) {
+    for (let cellX = 0; cellX < columns; cellX += 1) {
+      let coverage = 0
+      const startX = cellX * cellSize
+      const startY = cellY * cellSize
+      for (let y = startY; y < Math.min(height, startY + cellSize); y += 1) {
+        for (let x = startX; x < Math.min(width, startX + cellSize); x += 1) {
+          coverage = Math.max(coverage, pixels[(y * width + x) * 4 + 3])
+        }
+      }
+      if (coverage < 24 || glyphBands.length === 0) continue
+
+      const sampleX = startX + cellSize * 0.5
+      let nearestBand = 0
+      let nearestDistance = Number.POSITIVE_INFINITY
+      for (let bandIndex = 0; bandIndex < glyphBands.length; bandIndex += 1) {
+        const distance = Math.abs(sampleX - glyphBands[bandIndex].center)
+        if (distance < nearestDistance) {
+          nearestBand = bandIndex
+          nearestDistance = distance
+        }
+      }
+      glyphCells[nearestBand].push({ x: cellX, y: cellY })
+    }
+  }
+
+  const glyphs = glyphCells.map((cells) => {
+    const dfs = buildGlyphDfsPlan(cells)
+    const revealChunks: Path2D[] = []
+    for (let offset = 0; offset < dfs.cellsByVisit.length; offset += TITLE_REVEAL_CHUNK_SIZE) {
+      const path = new Path2D()
+      const end = Math.min(dfs.cellsByVisit.length, offset + TITLE_REVEAL_CHUNK_SIZE)
+      for (let index = offset; index < end; index += 1) {
+        const cell = dfs.cellsByVisit[index].cell
+        path.rect(cell.x * cellSize, cell.y * cellSize, cellSize, cellSize)
+      }
+      revealChunks.push(path)
+    }
+    return { dfs, revealChunks }
+  })
+
+  return { fontPx: safeFontPx, width, height, cellSize, glyphs }
+}
+
+function drawHandwrittenTitle(
+  ctx: CanvasRenderingContext2D,
+  plan: HandwrittenTitleRenderPlan,
+  writeProgress: number,
+  centerX: number,
+  centerY: number,
+  scale: number,
+  opacity: number,
+): void {
+  if (opacity <= 0 || scale <= 0) return
+  ctx.save()
+  ctx.translate(centerX, centerY)
+  ctx.scale(scale, scale)
+  ctx.translate(-plan.width * 0.5, -plan.height * 0.5)
+  ctx.fillStyle = '#ffffff'
+  ctx.globalAlpha = opacity
+
+  for (const glyph of plan.glyphs) {
+    const frame = getGlyphDfsFrame(glyph.dfs, writeProgress, plan.cellSize)
+    const completeChunks = Math.floor(frame.visibleCellCount / TITLE_REVEAL_CHUNK_SIZE)
+    for (let index = 0; index < completeChunks; index += 1) {
+      ctx.fill(glyph.revealChunks[index])
+    }
+    const partialStart = completeChunks * TITLE_REVEAL_CHUNK_SIZE
+    for (let index = partialStart; index < frame.visibleCellCount; index += 1) {
+      const cell = glyph.dfs.cellsByVisit[index].cell
+      ctx.fillRect(
+        cell.x * plan.cellSize,
+        cell.y * plan.cellSize,
+        plan.cellSize,
+        plan.cellSize,
+      )
+    }
+
+    if (frame.main) {
+      drawSmoothFlight(ctx, {
+        progress: writeProgress,
+        distanceProgress: writeProgress,
+        speed: 0,
+        main: frame.main,
+        trail: frame.trail.map((circle, index) => ({
+          id: index,
+          point: circle.point,
+          radius: circle.radius,
+          emittedRadius: circle.radius,
+          birthTime: 0,
+        })),
+      }, opacity === 1)
+    }
+  }
+  ctx.restore()
+  ctx.globalAlpha = 1
+}
+
 function drawPlanetFlights(
   ctx: CanvasRenderingContext2D,
   plans: readonly PlanetFlightPlan[],
@@ -327,6 +486,8 @@ export default function Act2SquareContourTransition() {
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const drawRef = useRef<() => void>(() => {})
   const layoutCacheRef = useRef<LayoutCache | null>(null)
+  const titleRenderPlanRef = useRef<HandwrittenTitleRenderPlan | null>(null)
+  const titleFontReadyRef = useRef(false)
   const scrollProgress = useScrollStore((state) => state.scrollProgress)
   const faceRectAnchor = useAnchorStore(
     (state) => state.anchors[miniatureFaceRectAnchorId],
@@ -509,7 +670,11 @@ export default function Act2SquareContourTransition() {
       )
     }
 
-    if (frame.titleAlpha > 0 && scrollProgress >= TIMELINE.squareTitleTyping.start) {
+    if (
+      frame.titleAlpha > 0 &&
+      scrollProgress >= TIMELINE.squareTitleTyping.start &&
+      titleFontReadyRef.current
+    ) {
       let titleX = initialCenterX
       let titleY = initialCenterY
       let titleScale = 1
@@ -519,11 +684,21 @@ export default function Act2SquareContourTransition() {
         titleY = transform.focusY
         titleScale = transform.titleScale
       }
-      ctx.globalAlpha = frame.titleAlpha
-      ctx.font = `800 ${Math.max(1, frame.titleFontPx * titleScale)}px ${FONT_STACK}`
-      ctx.textAlign = 'center'
-      ctx.textBaseline = 'middle'
-      ctx.fillText(`[ ${frame.typedText} ]`, titleX, titleY)
+      const fontPx = Math.max(1, Math.round(frame.titleFontPx * 2) / 2)
+      if (!titleRenderPlanRef.current || titleRenderPlanRef.current.fontPx !== fontPx) {
+        titleRenderPlanRef.current = buildHandwrittenTitleRenderPlan(fontPx)
+      }
+      if (titleRenderPlanRef.current) {
+        drawHandwrittenTitle(
+          ctx,
+          titleRenderPlanRef.current,
+          frame.titleWriteProgress,
+          titleX,
+          titleY,
+          titleScale,
+          frame.titleAlpha,
+        )
+      }
     }
     ctx.globalAlpha = 1
   }, [active, faceRectAnchor, scrollProgress, targetAnchor])
@@ -533,6 +708,23 @@ export default function Act2SquareContourTransition() {
   useEffect(() => {
     draw()
   }, [draw])
+
+  useEffect(() => {
+    let cancelled = false
+    const load = document.fonts?.load(
+      `400 96px ${TITLE_FONT_FAMILY}`,
+      SQUARE_TITLE_TEXT,
+    ) ?? Promise.resolve([])
+    void load.then(() => {
+      if (cancelled) return
+      titleFontReadyRef.current = true
+      titleRenderPlanRef.current = null
+      drawRef.current()
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   useEffect(() => {
     const handleResize = () => drawRef.current()
