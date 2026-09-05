@@ -2,8 +2,22 @@ import { useEffect, useRef, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import './debug/GeometricDemo.css'
 
-const DURATION = 0.7
 const MOTION_DURATION = 0.5
+const COUNT = 20
+const INTERVAL = 0.085
+const DURATION = (COUNT - 1) * INTERVAL + MOTION_DURATION + 0.35
+const EMITTERS = Array.from({ length: COUNT }, (_, index) => {
+  const u = index / (COUNT - 1)
+  // Logarithmic rise: steep near the viewer, flattening toward the distance.
+  // Compress spacing along with size, like perspective foreshortening.
+  const x = (1 - Math.exp(-1.6 * u)) / (1 - Math.exp(-1.6))
+  return {
+    x: -260 + 550 * x,
+    y: 230 - 440 * Math.log1p(12 * x) / Math.log(13),
+    radius: 85 * Math.exp(-2.8 * u),
+    start: index * INTERVAL,
+  }
+})
 const clamp = (x: number) => Math.max(0, Math.min(1, x))
 const smooth = (x: number) => { const t = clamp(x); return t * t * (3 - 2 * t) }
 const mix = (a: number, b: number, t: number) => a + (b - a) * t
@@ -22,26 +36,34 @@ function starPath(morph: number) {
 }
 
 function Demo() {
-  const path = useRef<SVGPathElement>(null)
-  const group = useRef<SVGGElement>(null)
+  const paths = useRef<(SVGPathElement | null)[]>([])
+  const groups = useRef<(SVGGElement | null)[]>([])
   const bar = useRef<HTMLDivElement>(null)
   const phase = useRef<HTMLSpanElement>(null)
   const runtime = useRef({ time: 0, playing: true, loop: true })
   const [playing, setPlaying] = useState(true)
   const [loop, setLoop] = useState(true)
   const render = (t: number) => {
-    const p = clamp(t / MOTION_DURATION)
+    EMITTERS.forEach((emitter, index) => {
+    const age = t - emitter.start
+    const group = groups.current[index]
+    if (!group) return
+    const active = age >= 0 && age < MOTION_DURATION
+    group.setAttribute('visibility', active ? 'visible' : 'hidden')
+    if (!active) return
+    const p = clamp(age / MOTION_DURATION)
     // Separate continuous envelopes: restrained rotation and a tighter collapse.
     const rotationProgress = Math.expm1(3 * p) / Math.expm1(3)
     const collapseProgress = Math.expm1(8 * p) / Math.expm1(8)
-    const size = 190 * (1 - collapseProgress)
-    const rotation = 10 * Math.min(t, MOTION_DURATION) + 100 * rotationProgress
-    const morph = smooth((t - 0.018) / 0.063)
-    path.current?.setAttribute('d', starPath(morph))
-    group.current?.setAttribute('transform', `rotate(${rotation}) scale(${size})`)
+    const size = emitter.radius * (1 - collapseProgress)
+    const rotation = 10 * age + 100 * rotationProgress
+    const morph = smooth((age - 0.018) / 0.063)
+    paths.current[index]?.setAttribute('d', starPath(morph))
+    group.setAttribute('transform', `translate(${emitter.x} ${emitter.y}) rotate(${rotation}) scale(${size})`)
+    })
     if (bar.current) bar.current.style.transform = `scaleX(${clamp(t / DURATION)})`
-    if (phase.current) phase.current.textContent = t < 0.018 ? '01 / 圆形出现' :
-      t < 0.081 ? '02 / 内凹形变' : t < MOTION_DURATION ? '03 / 指数加速收束' : '04 / 完成'
+    if (phase.current) phase.current.textContent = t < EMITTERS[COUNT - 1].start + MOTION_DURATION
+      ? 'LOG CURVE / 近 → 远' : '完成'
   }
   useEffect(() => {
     render(0)
@@ -64,9 +86,12 @@ function Demo() {
     return () => cancelAnimationFrame(raf)
   }, [])
   return <main className="geometry-demo">
-    <header><span>GEOMETRY STUDY / 001</span><span ref={phase} /></header>
-    <svg viewBox="-400 -400 800 800" aria-label="圆形内凹为四芒星并旋转缩小">
-      <g ref={group}><path ref={path} fill="#f6f7fa" /></g>
+    <header><span>GEOMETRY STUDY / 002</span><span ref={phase} /></header>
+    <svg viewBox="-400 -400 800 800" aria-label="四芒星沿对数曲线从近到远依次出现消失">
+      {EMITTERS.map((_, index) => <g key={index} visibility="hidden"
+        ref={node => { groups.current[index] = node }}>
+        <path ref={node => { paths.current[index] = node }} fill="#f6f7fa" />
+      </g>)}
     </svg>
     <footer>
       <div className="geometry-progress"><div ref={bar} /></div>
@@ -74,7 +99,7 @@ function Demo() {
         <button onClick={() => { runtime.current.time = 0; runtime.current.playing = true; setPlaying(true) }}>重播</button>
         <button onClick={() => { runtime.current.playing = !runtime.current.playing; setPlaying(runtime.current.playing) }}>{playing ? '暂停' : '播放'}</button>
         <label><input type="checkbox" checked={loop} onChange={e => { runtime.current.loop = e.target.checked; setLoop(e.target.checked) }} />循环</label>
-        <span>动画 0.5s · 循环间隔 0.2s</span>
+        <span>20枚 · 单枚0.5s</span>
       </nav>
     </footer>
   </main>
