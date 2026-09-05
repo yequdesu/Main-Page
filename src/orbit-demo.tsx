@@ -102,8 +102,10 @@ function Demo() {
       items.sort((a, b) => a.z - b.z)
       for (const item of items) {
         if (!item.b) {
-          ctx.fillStyle = '#f2f3f5'
-          ctx.beginPath(); ctx.arc(0, 0, CORE, 0, Math.PI * 2); ctx.fill()
+          ctx.fillStyle = '#0b1528'
+          ctx.strokeStyle = '#f2f3f5'
+          ctx.lineWidth = 1.35 / Math.max(.65, scale)
+          ctx.beginPath(); ctx.arc(0, 0, CORE, 0, Math.PI * 2); ctx.fill(); ctx.stroke()
           continue
         }
         const b = item.b
