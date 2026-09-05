@@ -1,3 +1,4 @@
+import { act1Progress } from '../composition/transitionTiming'
 import { useFrame } from '@react-three/fiber'
 import { useRef } from 'react'
 import { Euler, Quaternion, Vector3, type PerspectiveCamera } from 'three'
@@ -16,7 +17,7 @@ const _motionEuler = new Euler(0, 0, 0, 'YXZ')
 
 function seaBobStrength(sp: number): number {
   if (sp >= TIMELINE.act1OceanVoyage.end) return 0
-  return 1 - smoothstep(clamped(sp, 0.28, TIMELINE.act1OceanVoyage.end))
+  return 1 - smoothstep(clamped(sp, act1Progress(0.28), TIMELINE.act1OceanVoyage.end))
 }
 
 function layeredWave(time: number, a: number, b: number, c: number): number {

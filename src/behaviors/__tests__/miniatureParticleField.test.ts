@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { buildParticleField, getFieldParticleState, buildFieldScans, selectScanMembers,
   CUBE_BOUND_RADIUS, FIELD_END, FIELD_SCAN_END, FIELD_CLEAR_RADIUS } from '../miniatureParticleField'
 import { getMiniatureTransform } from '../miniatureUniverse'
-import { afterMiniature, miniatureSourceProgress } from '../../composition/transitionTiming'
+import { afterMiniature, miniatureSourceProgress, act1Progress } from '../../composition/transitionTiming'
 
 describe('miniature particle field', () => {
   it('keeps 420 deterministic, unique world-space particles outside the cube', () => {
@@ -58,15 +58,15 @@ describe('miniature particle field', () => {
     expect(selectScanMembers(circles, 498, 1000).length).toBeLessThanOrEqual(2)
   })
   it('stretches both miniature phases continuously and remaps downstream milestones once', () => {
-    expect(miniatureSourceProgress(0.25)).toBe(0.25)
-    expect(miniatureSourceProgress(0.5)).toBe(0.45)
-    expect(miniatureSourceProgress(0.70)).toBe(0.55)
-    expect(getMiniatureTransform(0.5 - 1e-8).scale).toBeCloseTo(getMiniatureTransform(0.5 + 1e-8).scale, 6)
-    expect(getMiniatureTransform(0.5).whiteFillProgress).toBe(0)
-    expect(getMiniatureTransform(0.70).whiteFillProgress).toBe(1)
-    expect(afterMiniature(0.55)).toBe(0.70)
-    expect(afterMiniature(0.85)).toBeCloseTo(0.90)
-    expect(afterMiniature(0.90)).toBeCloseTo(0.9333333333)
+    expect(miniatureSourceProgress(act1Progress(0.25))).toBe(0.25)
+    expect(miniatureSourceProgress(act1Progress(0.5))).toBe(0.45)
+    expect(miniatureSourceProgress(act1Progress(0.70))).toBe(0.55)
+    expect(getMiniatureTransform(act1Progress(0.5 - 1e-8)).scale).toBeCloseTo(getMiniatureTransform(act1Progress(0.5 + 1e-8)).scale, 6)
+    expect(getMiniatureTransform(act1Progress(0.5)).whiteFillProgress).toBe(0)
+    expect(getMiniatureTransform(act1Progress(0.70)).whiteFillProgress).toBe(1)
+    expect(afterMiniature(0.55)).toBe(act1Progress(0.70))
+    expect(afterMiniature(0.85)).toBeCloseTo(0.8461538462)
+    expect(afterMiniature(0.90)).toBeCloseTo(0.8974358974)
     expect(afterMiniature(1)).toBe(1)
   })
 })

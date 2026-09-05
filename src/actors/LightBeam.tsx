@@ -1,3 +1,4 @@
+import { previousPageProgress, act1Progress } from '../composition/transitionTiming'
 import { useRef, useMemo } from 'react'
 import { useFrame } from '@react-three/fiber'
 import { Group, Color, Quaternion, ConeGeometry, SphereGeometry, BufferGeometry, Vector3, BufferAttribute, ShaderMaterial, MeshBasicMaterial, SpriteMaterial, CanvasTexture, AdditiveBlending, DoubleSide, LineBasicMaterial, AmbientLight, PointLight, MathUtils, LinearFilter, type Mesh, type Line } from 'three'
@@ -156,7 +157,7 @@ export default function LightBeam({ lighthouseY = LIGHTHOUSE_LAMP_WORLD_Y }: Lig
     _lastBeam.sp = sp
 
     const is = idleState.current
-    const isScrolling = sp > 0.005
+    const isScrolling = sp > act1Progress(0.005)
 
     let targetY = 0
     let targetX = 0.08
@@ -210,7 +211,7 @@ export default function LightBeam({ lighthouseY = LIGHTHOUSE_LAMP_WORLD_Y }: Lig
     pivot.scale.z = getContainedBeamDepthScale(miniature.containment)
 
     // ---- Beam intensity ----
-    const beamBoost = Math.pow(sp, 1.5) * 0.4
+    const beamBoost = Math.pow(previousPageProgress(sp), 1.5) * 0.4
 
     coneMatsRef.current.forEach((mat, i) => {
       const baseOpacity = configs[i]?.opacity ?? 0.1
@@ -219,7 +220,7 @@ export default function LightBeam({ lighthouseY = LIGHTHOUSE_LAMP_WORLD_Y }: Lig
       mat.uniforms.uTime.value = time
     })
     rayMatsRef.current.forEach((mat) => {
-      mat.opacity = 0.45 + sp * 0.34
+      mat.opacity = 0.45 + previousPageProgress(sp) * 0.34
     })
     const lampPulse = 1 + Math.sin(time * 1.7) * 0.06 + Math.sin(time * 0.63) * 0.035
     if (sourceCoreMatRef.current) {

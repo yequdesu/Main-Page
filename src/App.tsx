@@ -1,3 +1,4 @@
+import { PAGE_HEIGHT_VH } from './composition/transitionTiming'
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { gsap } from 'gsap'
 import { ScrollTrigger } from 'gsap/ScrollTrigger'
@@ -33,7 +34,7 @@ import './App.css'
 
 gsap.registerPlugin(ScrollTrigger)
 
-const SCROLL_VH = 80
+const SCROLL_VH = PAGE_HEIGHT_VH
 const FRICTION = 0.955
 const MAX_VELOCITY = 0.025
 const SCROLL_PROGRESS_EPSILON = 0.000001
@@ -180,7 +181,7 @@ export default function App() {
       p.velocity = 0
       return
     }
-    const step = e.deltaY / (window.innerHeight * SCROLL_VH) * 0.65
+    const step = e.deltaY / (window.innerHeight * (SCROLL_VH - 1)) * (0.65 * 79 / 80)
     p.velocity += step
     p.velocity = Math.max(-MAX_VELOCITY, Math.min(MAX_VELOCITY, p.velocity))
   }, [isTerminalActive, isClickPlaying, scrollEffectScope])

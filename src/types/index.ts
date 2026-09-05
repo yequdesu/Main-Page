@@ -1,4 +1,4 @@
-import { afterMiniature } from '../composition/transitionTiming'
+import { afterMiniature, act1Progress } from '../composition/transitionTiming'
 import type { Mesh, InstancedMesh, Sprite, Group } from 'three'
 
 // ============================================================
@@ -7,8 +7,8 @@ import type { Mesh, InstancedMesh, Sprite, Group } from 'three'
 // ============================================================
 export const SCROLL_RIG = {
   SCENE_CENTER_Z: -16.0,
-  MINIATURE_START: 0.25,
-  MINIATURE_END: 0.70,
+  MINIATURE_START: act1Progress(0.25),
+  MINIATURE_END: act1Progress(0.70),
   SQUARE_TRANSITION_END: afterMiniature(0.60),
   TEXT_START: afterMiniature(0.70),
   ACT3_START: afterMiniature(0.85),

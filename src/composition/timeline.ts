@@ -1,4 +1,4 @@
-import { afterMiniature } from './transitionTiming'
+import { afterMiniature, act1Progress } from './transitionTiming'
 import { SCROLL_RIG } from '../types'
 
 export type TimelineDirection = 'forward' | 'backward' | 'still'
@@ -34,10 +34,10 @@ export const TIMELINE = {
     SCROLL_RIG.MINIATURE_END,
     'Act 1 scene continuously shrinks into a framed miniature universe',
   ),
-  cubeDrawAndTumble: defineRange('cubeDrawAndTumble', SCROLL_RIG.MINIATURE_START, 0.50, 'Cube edges draw while the miniature tumbles on three axes'),
-  cubeAbsorptionTrails: defineRange('cubeAbsorptionTrails', 0.25, 0.70, 'Spatial particle field, screen scans and inward collapse'),
-  cubeParticleScan: defineRange('cubeParticleScan', 0.40, 0.658, 'Scan remaining stationary particles until the last collapse starts'),
-  cubeWhiteFill: defineRange('cubeWhiteFill', 0.50, SCROLL_RIG.MINIATURE_END, 'Cube settles face-on and fills to pure white'),
+  cubeDrawAndTumble: defineRange('cubeDrawAndTumble', SCROLL_RIG.MINIATURE_START, act1Progress(0.50), 'Cube edges draw while the miniature tumbles on three axes'),
+  cubeAbsorptionTrails: defineRange('cubeAbsorptionTrails', act1Progress(0.25), act1Progress(0.70), 'Spatial particle field, screen scans and inward collapse'),
+  cubeParticleScan: defineRange('cubeParticleScan', act1Progress(0.40), act1Progress(0.658), 'Scan remaining stationary particles until the last collapse starts'),
+  cubeWhiteFill: defineRange('cubeWhiteFill', act1Progress(0.50), SCROLL_RIG.MINIATURE_END, 'Cube settles face-on and fills to pure white'),
   squareSeedShrink: defineRange('squareSeedShrink', afterMiniature(0.55), afterMiniature(0.56), 'Screen-space square takes over and shrinks slightly'),
   squareBfsWave: defineRange('squareBfsWave', afterMiniature(0.56), afterMiniature(0.70), 'Deterministic square wave expands to its 400-cell handoff radius'),
   squareCircleMorph: defineRange('squareCircleMorph', afterMiniature(0.65), afterMiniature(0.665), 'Dense square wave morphs into a strict circular ring'),

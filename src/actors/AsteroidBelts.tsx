@@ -1,3 +1,4 @@
+import { act1Progress } from '../composition/transitionTiming'
 import { useMemo, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import { BufferAttribute, BufferGeometry, Color, Points, ShaderMaterial } from 'three'
@@ -49,7 +50,7 @@ function smoothRange(edge0: number, edge1: number, value: number): number {
 const OUTER_BELT_FADE_IN_SECONDS = 0.08
 const OUTER_BELT_FADE_OUT_HOLD_SECONDS = 0.12
 const OUTER_BELT_FADE_OUT_SECONDS = 0.42
-const ACT1_ASTEROID_FADE_END = 0.70
+const ACT1_ASTEROID_FADE_END = act1Progress(0.70)
 
 interface AsteroidParticle {
   radius: number
@@ -256,7 +257,7 @@ export default function AsteroidBelts({ variant = 'act3' }: AsteroidBeltsProps) 
     let outerRevealTime: number | null
 
     if (isAct1) {
-      const fadeOut = smoothstep(clamped(sp, 0.24, ACT1_ASTEROID_FADE_END))
+      const fadeOut = smoothstep(clamped(sp, act1Progress(0.24), ACT1_ASTEROID_FADE_END))
       outerAlpha = 0.78 * (1 - fadeOut)
       outerRevealTime = null
     } else {

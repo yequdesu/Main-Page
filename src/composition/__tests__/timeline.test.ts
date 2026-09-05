@@ -1,16 +1,16 @@
-import { afterMiniature } from '../transitionTiming'
+import { afterMiniature, act1Progress } from '../transitionTiming'
 import { describe, expect, it } from 'vitest'
 import { TIMELINE, contains, direction, progress, smoothProgress } from '../timeline'
 
 describe('composition timeline', () => {
   it('keeps core scroll ranges explicit and reversible', () => {
-    expect(TIMELINE.act1OceanVoyage).toMatchObject({ start: 0, end: 0.70, reversible: true })
+    expect(TIMELINE.act1OceanVoyage).toMatchObject({ start: 0, end: act1Progress(0.70), reversible: true })
     expect(TIMELINE.act2SquareTransition).toMatchObject({ start: afterMiniature(0.55), end: afterMiniature(0.85), reversible: true })
     expect(TIMELINE.act3ContentPhase).toMatchObject({ start: afterMiniature(0.85), end: 1.0, reversible: true })
-    expect(TIMELINE.miniatureShrink).toMatchObject({ start: 0.25, end: 0.70, reversible: true })
-    expect(TIMELINE.cubeDrawAndTumble).toMatchObject({ start: 0.25, end: 0.50, reversible: true })
-    expect(TIMELINE.cubeAbsorptionTrails).toMatchObject({ start: 0.25, end: 0.70, reversible: true })
-    expect(TIMELINE.cubeWhiteFill).toMatchObject({ start: 0.50, end: 0.70, reversible: true })
+    expect(TIMELINE.miniatureShrink).toMatchObject({ start: act1Progress(0.25), end: act1Progress(0.70), reversible: true })
+    expect(TIMELINE.cubeDrawAndTumble).toMatchObject({ start: act1Progress(0.25), end: act1Progress(0.50), reversible: true })
+    expect(TIMELINE.cubeAbsorptionTrails).toMatchObject({ start: act1Progress(0.25), end: act1Progress(0.70), reversible: true })
+    expect(TIMELINE.cubeWhiteFill).toMatchObject({ start: act1Progress(0.50), end: act1Progress(0.70), reversible: true })
     expect(TIMELINE.squareSeedShrink).toMatchObject({ start: afterMiniature(0.55), end: afterMiniature(0.56), reversible: true })
     expect(TIMELINE.squareBfsWave).toMatchObject({ start: afterMiniature(0.56), end: afterMiniature(0.70), reversible: true })
     expect(TIMELINE.squareCircleMorph).toMatchObject({ start: afterMiniature(0.65), end: afterMiniature(0.665), reversible: true })
@@ -27,12 +27,12 @@ describe('composition timeline', () => {
   })
 
   it('computes clamped progress without side effects', () => {
-    expect(progress('miniatureShrink', 0.20)).toBe(0)
-    expect(progress('miniatureShrink', 0.25)).toBe(0)
-    expect(progress('miniatureShrink', 0.475)).toBeCloseTo(0.5)
-    expect(progress('miniatureShrink', 0.70)).toBe(1)
-    expect(progress('miniatureShrink', 0.80)).toBe(1)
-    expect(smoothProgress('miniatureShrink', 0.475)).toBeCloseTo(0.5)
+    expect(progress('miniatureShrink', act1Progress(0.20))).toBe(0)
+    expect(progress('miniatureShrink', act1Progress(0.25))).toBe(0)
+    expect(progress('miniatureShrink', act1Progress(0.475))).toBeCloseTo(0.5)
+    expect(progress('miniatureShrink', act1Progress(0.70))).toBe(1)
+    expect(progress('miniatureShrink', act1Progress(0.80))).toBe(1)
+    expect(smoothProgress('miniatureShrink', act1Progress(0.475))).toBeCloseTo(0.5)
   })
 
   it('reports containment and scroll direction', () => {
