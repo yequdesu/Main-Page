@@ -19,14 +19,14 @@ describe('miniature universe transition', () => {
   })
 
   it('draws a full three-axis turn, fills white and freezes for handoff', () => {
-    const spun = getMiniatureTransform(0.45)
-    const filled = getMiniatureTransform(0.55)
-    const handedOff = getMiniatureTransform(0.60)
+    const spun = getMiniatureTransform(0.50)
+    const filled = getMiniatureTransform(0.65)
+    const handedOff = getMiniatureTransform(0.70)
     expect(spun.wireDrawProgress).toBe(1)
     expect(spun.rotation[0]).toBeCloseTo(Math.PI * 2 * 0.06)
     expect(spun.rotation[1]).toBeCloseTo(Math.PI * 2 * 0.32)
     expect(spun.rotation[2]).toBeCloseTo(Math.PI * 2 * 0.045)
-    expect(getMiniatureTransform(0.35).scale).toBeLessThan(0.2)
+    expect(getMiniatureTransform(0.375).scale).toBeLessThan(0.2)
     expect(filled.containment).toBe(1)
     expect(filled.scale).toBeCloseTo(Math.pow(10, -3 * 0.75 * 0.75))
     expect(filled.whiteFillProgress).toBe(1)
@@ -51,7 +51,7 @@ describe('miniature universe transition', () => {
   })
 
   it('keeps face alignment rotating forward around the vertical axis', () => {
-    const start = getMiniatureTransform(0.45).rotation
+    const start = getMiniatureTransform(0.50).rotation
     const cameraFacing = [-0.027, 0, 0] as const
     const halfway = getDirectedFaceAlignmentRotation(start, cameraFacing, 0.5)
     const aligned = getDirectedFaceAlignmentRotation(start, cameraFacing, 1)

@@ -1,3 +1,4 @@
+import { afterMiniature } from '../composition/transitionTiming'
 import type { Act3ContourTarget } from '../composition/coreAnchors'
 import { TIMELINE, clamp01, progress, smoothProgress } from '../composition/timeline'
 import { SQUARE_WAVE_SPACING, type SquareWaveSprite } from './squareWaveTransition'
@@ -19,9 +20,9 @@ export const SQUARE_TITLE_FONT_SCALE = 0.85
 export const SQUARE_WAVE_HANDOFF_RADIUS_RATIO = 0.38
 export const SQUARE_WAVE_HANDOFF_RADIUS_CELLS = 400
 export const PLANET_FLIGHT_TIMINGS = [
-  { start: 0.700, end: 0.784, seed: 0xea7e1001 },
-  { start: 0.708, end: 0.792, seed: 0xea7e1002 },
-  { start: 0.716, end: 0.800, seed: 0xea7e1003 },
+  { start: afterMiniature(0.700), end: afterMiniature(0.784), seed: 0xea7e1001 },
+  { start: afterMiniature(0.708), end: afterMiniature(0.792), seed: 0xea7e1002 },
+  { start: afterMiniature(0.716), end: afterMiniature(0.800), seed: 0xea7e1003 },
 ] as const
 export const PLANET_FLIGHT_LAUNCH_ANGLES = [
   -Math.PI * 0.5,
@@ -29,8 +30,8 @@ export const PLANET_FLIGHT_LAUNCH_ANGLES = [
   -Math.PI * 0.5 + Math.PI * 4 / 3,
 ] as const
 export const ORBIT_TRACE_TIMINGS = Array.from({ length: 6 }, (_, index) => ({
-  start: 0.725 + index * 0.007,
-  end: 0.765 + index * 0.007,
+  start: afterMiniature(0.725 + index * 0.007),
+  end: afterMiniature(0.765 + index * 0.007),
   seed: 0xea7e2001 + index,
 }))
 export const ORBIT_TRACER_CLOSURE_START = 0.86

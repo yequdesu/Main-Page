@@ -49,7 +49,7 @@ function smoothRange(edge0: number, edge1: number, value: number): number {
 const OUTER_BELT_FADE_IN_SECONDS = 0.08
 const OUTER_BELT_FADE_OUT_HOLD_SECONDS = 0.12
 const OUTER_BELT_FADE_OUT_SECONDS = 0.42
-const ACT1_ASTEROID_FADE_END = 0.55
+const ACT1_ASTEROID_FADE_END = 0.65
 
 interface AsteroidParticle {
   radius: number

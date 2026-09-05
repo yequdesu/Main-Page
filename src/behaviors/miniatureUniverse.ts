@@ -1,3 +1,4 @@
+import { miniatureSourceProgress } from '../composition/transitionTiming'
 import { SCROLL_RIG } from '../types'
 import { TIMELINE } from '../composition/timeline'
 
@@ -75,16 +76,16 @@ export interface MiniatureTransform {
 
 export function getMiniatureTransform(scrollProgress: number): MiniatureTransform {
   const miniatureScroll = Math.min(scrollProgress, SCROLL_RIG.MINIATURE_END)
-  const containmentEnd = SCROLL_RIG.MINIATURE_START +
-    (SCROLL_RIG.MINIATURE_END - SCROLL_RIG.MINIATURE_START) * 0.6
+  const sourceScroll = miniatureSourceProgress(scrollProgress)
+  const containmentEnd = 0.25 + (0.55 - 0.25) * 0.6
   const progress = rangeProgress(
-    miniatureScroll,
-    SCROLL_RIG.MINIATURE_START,
-    SCROLL_RIG.SQUARE_TRANSITION_END,
+    sourceScroll,
+    0.25,
+    0.60,
   )
   const containment = smoothstep01(rangeProgress(
-    miniatureScroll,
-    TIMELINE.miniatureShrink.start,
+    sourceScroll,
+    0.25,
     containmentEnd,
   ))
   const tumbleProgress = smootherstep01(rangeProgress(
@@ -103,9 +104,9 @@ export function getMiniatureTransform(scrollProgress: number): MiniatureTransfor
     TIMELINE.squareSeedShrink.end,
   ))
   const acceleratedShrink = Math.pow(rangeProgress(
-    miniatureScroll,
-    TIMELINE.miniatureShrink.start,
-    TIMELINE.miniatureShrink.end,
+    sourceScroll,
+    0.25,
+    0.55,
   ), 0.68)
   const finalScaleExponent = -3 * 0.75 * 0.75
   const tau = Math.PI * 2

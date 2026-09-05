@@ -1,3 +1,4 @@
+import { afterMiniature } from '../../composition/transitionTiming'
 import { describe, expect, it } from 'vitest'
 import {
   ACT3_BASE_FOV,
@@ -29,9 +30,9 @@ describe('Act 3 terminal layout', () => {
   })
 
   it('crossfades at 80-85 and resumes orbit motion at 85-90', () => {
-    expect(getAct3VisualAlpha(0.80)).toBe(0)
-    expect(getAct3VisualAlpha(0.85)).toBe(1)
-    expect(getAct3OrbitMotionScale(0.85)).toBe(0)
-    expect(getAct3OrbitMotionScale(0.90)).toBe(1)
+    expect(getAct3VisualAlpha(afterMiniature(0.80))).toBe(0)
+    expect(getAct3VisualAlpha(afterMiniature(0.85))).toBe(1)
+    expect(getAct3OrbitMotionScale(afterMiniature(0.85))).toBe(0)
+    expect(getAct3OrbitMotionScale(afterMiniature(0.90))).toBe(1)
   })
 })

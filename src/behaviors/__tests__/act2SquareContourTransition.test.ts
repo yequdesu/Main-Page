@@ -1,3 +1,4 @@
+import { afterMiniature } from '../../composition/transitionTiming'
 import { describe, expect, it } from 'vitest'
 import type { Act3ContourTarget } from '../../composition/coreAnchors'
 import {
@@ -49,15 +50,15 @@ const FROZEN = [
 describe('Act 2 square contour transition', () => {
   it('writes the complete bracketed Allura title over a reversible interval', () => {
     expect(SQUARE_TITLE_TEXT).toBe(`[ ${SQUARE_TITLE} ]`)
-    expect(getSquareContourTransitionFrame(0.58, 1600, 1000).titleWriteProgress).toBe(0)
-    expect(getSquareContourTransitionFrame(0.61, 1600, 1000).titleWriteProgress).toBeCloseTo(0.5)
-    expect(getSquareContourTransitionFrame(0.64, 1600, 1000).titleWriteProgress).toBe(1)
+    expect(getSquareContourTransitionFrame(afterMiniature(0.58), 1600, 1000).titleWriteProgress).toBe(0)
+    expect(getSquareContourTransitionFrame(afterMiniature(0.61), 1600, 1000).titleWriteProgress).toBeCloseTo(0.5)
+    expect(getSquareContourTransitionFrame(afterMiniature(0.64), 1600, 1000).titleWriteProgress).toBe(1)
   })
 
   it('shrinks and fades the title with the logical canvas', () => {
-    const beforeFade = getSquareContourTransitionFrame(0.64, 1600, 1000)
-    const halfway = getSquareContourTransitionFrame(0.68, 1600, 1000)
-    const gone = getSquareContourTransitionFrame(0.72, 1600, 1000)
+    const beforeFade = getSquareContourTransitionFrame(afterMiniature(0.64), 1600, 1000)
+    const halfway = getSquareContourTransitionFrame(afterMiniature(0.68), 1600, 1000)
+    const gone = getSquareContourTransitionFrame(afterMiniature(0.72), 1600, 1000)
     expect(beforeFade.titleAlpha).toBe(1)
     expect(halfway.titleAlpha).toBeCloseTo(0.5)
     expect(gone.titleAlpha).toBe(0)
@@ -212,10 +213,10 @@ describe('Act 2 square contour transition', () => {
   })
 
   it('crossfades only after the full planetary framing is reached', () => {
-    expect(getSquareContourTransitionFrame(0.70, 1000, 800).zoomProgress).toBe(0)
-    expect(getSquareContourTransitionFrame(0.80, 1000, 800).zoomProgress).toBe(1)
-    expect(getSquareContourTransitionFrame(0.80, 1000, 800).contourAlpha).toBe(1)
-    expect(getSquareContourTransitionFrame(0.85, 1000, 800).contourAlpha).toBe(0)
+    expect(getSquareContourTransitionFrame(afterMiniature(0.70), 1000, 800).zoomProgress).toBe(0)
+    expect(getSquareContourTransitionFrame(afterMiniature(0.80), 1000, 800).zoomProgress).toBe(1)
+    expect(getSquareContourTransitionFrame(afterMiniature(0.80), 1000, 800).contourAlpha).toBe(1)
+    expect(getSquareContourTransitionFrame(afterMiniature(0.85), 1000, 800).contourAlpha).toBe(0)
   })
 
   it('launches three planets with the specified stagger and exact arrivals', () => {

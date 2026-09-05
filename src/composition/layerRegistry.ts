@@ -91,6 +91,11 @@ export const LAYERS = {
     id: 'dom.scrollHint',
     contract: { kind: 'dom', zIndex: 5, position: 'fixed', pointerEvents: 'none' },
   },
+  'dom.miniatureParticleScan': {
+    id: 'dom.miniatureParticleScan',
+    contract: { kind: 'dom', zIndex: 4, position: 'fixed', pointerEvents: 'none' },
+    description: 'Screen-space particle recognition rectangles.',
+  },
   'svg.focusOverlay': {
     id: 'svg.focusOverlay',
     contract: { kind: 'svg', zIndex: 5, position: 'fixed', pointerEvents: 'none' },

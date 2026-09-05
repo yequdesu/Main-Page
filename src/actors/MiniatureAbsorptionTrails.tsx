@@ -1,225 +1,195 @@
-import { useEffect, useMemo, useRef } from 'react'
-import { useFrame } from '@react-three/fiber'
-import {
-  BufferAttribute,
-  BufferGeometry,
-  DoubleSide,
-  DynamicDrawUsage,
-  MeshBasicMaterial,
-  Vector3,
-  type Mesh,
-  type PerspectiveCamera,
-} from 'three'
-import { getCircleConnector } from '../behaviors/motionTrail'
-import {
-  buildRandomAbsorptionTrailBatch,
-  getAbsorptionTrailFrame,
-  type AbsorptionCircle,
-} from '../behaviors/miniatureAbsorptionTrails'
-import {
-  getMiniatureTransform,
-  MINIATURE_CUBE_HALF_SIZE,
-  MINIATURE_PIVOT,
-} from '../behaviors/miniatureUniverse'
-import { SQUARE_WAVE_SEED_SCALE } from '../behaviors/squareWaveTransition'
-import { useAnchorStore, type Anchor } from '../composition/anchorStore'
-import { touchActorFrame, useActorRuntime } from '../composition/actorRuntime'
-import {
-  miniatureFaceRectAnchorId,
-  miniatureScreenBoundsAnchorId,
-} from '../composition/coreAnchors'
-import type { LayoutBox, Point2 } from '../composition/coordinate'
-import { getWebglLayer } from '../composition/layerRegistry'
-import { TIMELINE, progress, smoothstep01 } from '../composition/timeline'
+import { useEffect, useMemo } from 'react'
+import { useFrame, useThree } from '@react-three/fiber'
+import { BufferAttribute, BufferGeometry, DynamicDrawUsage, DoubleSide, MeshBasicMaterial, Vector3, type Camera } from 'three'
+import { getCircleConnector, smootherstep } from '../behaviors/motionTrail'
+import { buildParticleField, buildFieldScans, getFieldParticleState, selectScanMembers, CUBE_BOUND_RADIUS,
+  type ProjectedFieldCircle } from '../behaviors/miniatureParticleField'
+import { getMiniatureTransform, MINIATURE_PIVOT } from '../behaviors/miniatureUniverse'
 import { useScrollStore } from '../stores/scrollStore'
+import { getWebglLayer } from '../composition/layerRegistry'
+import { touchActorFrame, useActorRuntime } from '../composition/actorRuntime'
+import { getParticleScanCanvas } from './MiniatureParticleScan'
 
-const CIRCLE_SEGMENTS = 12
-const MAX_TRACKS = 192
-const MAX_CIRCLES_PER_TRACK = 14
-const MAX_VERTICES_PER_TRACK = MAX_CIRCLES_PER_TRACK * CIRCLE_SEGMENTS * 3 +
-  (MAX_CIRCLES_PER_TRACK - 1) * 6
-const MAX_VERTICES = MAX_TRACKS * MAX_VERTICES_PER_TRACK
-
-function createRuntimeSeed(): number {
-  if (typeof crypto !== 'undefined' && typeof crypto.getRandomValues === 'function') {
-    const values = new Uint32Array(1)
-    crypto.getRandomValues(values)
-    if (values[0] !== 0) return values[0]
-  }
-  return Math.max(1, Math.floor(Math.random() * 0xffff_ffff))
-}
-
-function getTargetBounds(
-  scrollProgress: number,
-  boundsAnchor: Anchor<LayoutBox> | undefined,
-  faceRectAnchor: Anchor<LayoutBox> | undefined,
-): LayoutBox | undefined {
-  let bounds = boundsAnchor?.value
-  if (scrollProgress > TIMELINE.cubeWhiteFill.end && faceRectAnchor?.value) {
-    const faceRect = faceRectAnchor.value
-    const seedShrink = smoothstep01(progress('squareSeedShrink', scrollProgress))
-    const scale = 1 + (SQUARE_WAVE_SEED_SCALE - 1) * seedShrink
-    const centerX = faceRect.x + faceRect.width * 0.5
-    const centerY = faceRect.y + faceRect.height * 0.5
-    bounds = {
-      x: centerX - faceRect.width * scale * 0.5,
-      y: centerY - faceRect.height * scale * 0.5,
-      width: faceRect.width * scale,
-      height: faceRect.height * scale,
-    }
-  }
-  return bounds
-}
+const SEGMENTS = 24, SAMPLES = 12
+const CAPACITY = 240 * SAMPLES * (SEGMENTS * 3 + 6)
+const pivot = new Vector3(...MINIATURE_PIVOT)
+const directions = Array.from({ length: SEGMENTS + 1 }, (_, i) =>
+  [Math.cos(i * Math.PI * 2 / SEGMENTS), Math.sin(i * Math.PI * 2 / SEGMENTS)])
 
 export default function MiniatureAbsorptionTrails() {
-  const meshRef = useRef<Mesh>(null)
-  const batch = useMemo(() => buildRandomAbsorptionTrailBatch(createRuntimeSeed()), [])
+  const sceneCamera = useThree(state => state.camera)
+  const selectionCamera = useMemo(() => {
+    const camera = sceneCamera.clone()
+    camera.position.set(0, 0.25, 8)
+    camera.lookAt(pivot)
+    camera.updateMatrixWorld(true)
+    return camera
+  }, [sceneCamera])
+  const selections = useMemo(() => new Map<number, number[]>(), [])
+  const selectionViewport = useMemo(() => ({ width: 0, height: 0, projection: '' }), [])
+  const field = useMemo(() => {
+    const seed = crypto.getRandomValues(new Uint32Array(1))[0] || 1
+    return { particles: buildParticleField(seed), scans: buildFieldScans(seed) }
+  }, [])
   const layer = getWebglLayer('webgl.miniatureAbsorptionTrails')
-  const positionArray = useMemo(() => new Float32Array(MAX_VERTICES * 3), [])
-  const geometry = useMemo(() => {
-    const next = new BufferGeometry()
-    const position = new BufferAttribute(positionArray, 3)
+  const resources = useMemo(() => {
+    const geometry = new BufferGeometry()
+    const position = new BufferAttribute(new Float32Array(CAPACITY * 3), 3)
     position.setUsage(DynamicDrawUsage)
-    next.setAttribute('position', position)
-    next.setDrawRange(0, 0)
-    return next
-  }, [positionArray])
-  const material = useMemo(() => new MeshBasicMaterial({
-    color: '#f2f6ff',
-    transparent: layer.transparent,
-    opacity: 1,
-    depthTest: layer.depthTest,
-    depthWrite: layer.depthWrite,
-    side: DoubleSide,
-    toneMapped: false,
-    fog: false,
-  }), [layer.depthTest, layer.depthWrite, layer.transparent])
-  const cameraForward = useMemo(() => new Vector3(), [])
-  const cameraRight = useMemo(() => new Vector3(), [])
-  const cameraUp = useMemo(() => new Vector3(), [])
-  const planeCenter = useMemo(() => new Vector3(), [])
-  const cubeCenter = useMemo(() => new Vector3(...MINIATURE_PIVOT), [])
-  const centerOffset = useMemo(() => new Vector3(), [])
-  useActorRuntime('miniatureAbsorptionTrails', false)
+    geometry.setAttribute('position', position)
+    geometry.setDrawRange(0, 0)
+    const material = new MeshBasicMaterial({ color: '#f2f6ff', side: DoubleSide,
+      transparent: true, depthTest: true, depthWrite: false, toneMapped: false, fog: false })
+    return { geometry, position, material }
+  }, [])
+  const scratch = useMemo(() => ({
+    right: new Vector3(), up: new Vector3(), forward: new Vector3(), point: new Vector3(),
+    projected: new Vector3(), radiusPoint: new Vector3(), center: new Vector3(),
+    relative: new Vector3(), ray: new Vector3(), projectForward: new Vector3(), projectRight: new Vector3(),
+    samples: Array.from({ length: 2 }, () => ({
+      point: { x: 0, y: 0 }, radius: 0, world: new Vector3(),
+    })),
+  }), [])
+  useActorRuntime('miniatureAbsorptionTrails', true)
+  useEffect(() => () => { resources.geometry.dispose(); resources.material.dispose() }, [resources])
 
-  useEffect(() => () => {
-    geometry.dispose()
-    material.dispose()
-  }, [geometry, material])
-
-  useFrame(({ camera, gl, clock }) => {
-    const mesh = meshRef.current
-    if (!mesh) return
-    const scrollProgress = useScrollStore.getState().scrollProgress
-    const active = scrollProgress >= TIMELINE.cubeAbsorptionTrails.start &&
-      scrollProgress < TIMELINE.cubeAbsorptionTrails.end
-    if (!active) {
-      mesh.visible = false
-      geometry.setDrawRange(0, 0)
+  useFrame(({ camera, clock, gl }) => {
+    const sp = useScrollStore.getState().scrollProgress
+    const canvas = getParticleScanCanvas()
+    const ctx = canvas?.getContext('2d')
+    const rect = gl.domElement.getBoundingClientRect()
+    const width = Math.max(1, rect.width), height = Math.max(1, rect.height)
+    const projectionKey = camera.projectionMatrix.elements.join(',')
+    if (selectionViewport.width !== width || selectionViewport.height !== height || selectionViewport.projection !== projectionKey) {
+      selections.clear()
+      Object.assign(selectionViewport, { width, height, projection: projectionKey })
+      selectionCamera.projectionMatrix.copy(camera.projectionMatrix)
+      selectionCamera.projectionMatrixInverse.copy(camera.projectionMatrixInverse)
+    }
+    if (canvas && ctx) {
+      const dpr = Math.min(window.devicePixelRatio || 1, 2)
+      const w = Math.round(window.innerWidth * dpr), h = Math.round(window.innerHeight * dpr)
+      if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h }
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
+      ctx.clearRect(0, 0, window.innerWidth, window.innerHeight)
+    }
+    if (sp < 0.25 || sp >= 0.648) {
+      resources.geometry.setDrawRange(0, 0)
       touchActorFrame('miniatureAbsorptionTrails', Math.round(clock.elapsedTime * 60), false)
       return
     }
-
-    const anchors = useAnchorStore.getState().anchors
-    const bounds = getTargetBounds(
-      scrollProgress,
-      anchors[miniatureScreenBoundsAnchorId] as Anchor<LayoutBox> | undefined,
-      anchors[miniatureFaceRectAnchorId] as Anchor<LayoutBox> | undefined,
-    )
-    if (!bounds || bounds.width <= 0 || bounds.height <= 0) {
-      mesh.visible = false
-      geometry.setDrawRange(0, 0)
-      return
+    const { right, up, forward, point, projected, radiusPoint, center, relative, ray } = scratch
+    right.setFromMatrixColumn(camera.matrixWorld, 0)
+    up.setFromMatrixColumn(camera.matrixWorld, 1)
+    camera.getWorldDirection(forward)
+    const scale = getMiniatureTransform(sp).scale
+    let count = 0
+    const emit = (x: number, y: number, z: number) => {
+      resources.position.setXYZ(count++, x, y, z)
     }
-
-    const canvasRect = gl.domElement.getBoundingClientRect()
-    const width = Math.max(1, canvasRect.width)
-    const height = Math.max(1, canvasRect.height)
-    const pcam = camera as PerspectiveCamera
-    camera.getWorldDirection(cameraForward).normalize()
-    cameraRight.setFromMatrixColumn(camera.matrixWorld, 0).normalize()
-    cameraUp.setFromMatrixColumn(camera.matrixWorld, 1).normalize()
-    const centerDepth = centerOffset.copy(cubeCenter).sub(camera.position).dot(cameraForward)
-    const miniature = getMiniatureTransform(scrollProgress)
-    const cubeRadius = MINIATURE_CUBE_HALF_SIZE * Math.sqrt(3) * miniature.scale
-    const planeDepth = Math.max(pcam.near + 0.1, centerDepth + cubeRadius + 0.35)
-    planeCenter.copy(camera.position).addScaledVector(cameraForward, planeDepth)
-    const worldUnitsPerPixel = 2 * planeDepth * Math.tan((pcam.fov * Math.PI) / 360) / height
-    let vertexCount = 0
-
-    const pushVertex = (point: Point2) => {
-      if (vertexCount >= MAX_VERTICES) return
-      const xOffset = (point.x - canvasRect.left - width * 0.5) * worldUnitsPerPixel
-      const yOffset = -(point.y - canvasRect.top - height * 0.5) * worldUnitsPerPixel
-      const offset = vertexCount * 3
-      positionArray[offset] = planeCenter.x + cameraRight.x * xOffset + cameraUp.x * yOffset
-      positionArray[offset + 1] = planeCenter.y + cameraRight.y * xOffset + cameraUp.y * yOffset
-      positionArray[offset + 2] = planeCenter.z + cameraRight.z * xOffset + cameraUp.z * yOffset
-      vertexCount += 1
+    const circleVertex = (c: Vector3, x: number, y: number) =>
+      emit(c.x + right.x * x + up.x * y, c.y + right.y * x + up.y * y, c.z + right.z * x + up.z * y)
+    const projectField = (at: number, targetCamera: Camera): ProjectedFieldCircle[] => {
+      const result: ProjectedFieldCircle[] = []
+      const atScale = getMiniatureTransform(at).scale
+      targetCamera.getWorldDirection(scratch.projectForward)
+      scratch.projectRight.setFromMatrixColumn(targetCamera.matrixWorld, 0)
+      for (const p of field.particles) {
+        point.set(...p.offset).multiplyScalar(atScale).add(pivot)
+        relative.copy(point).sub(targetCamera.position)
+        if (relative.dot(scratch.projectForward) <= 0) continue
+        // Conservative cube occlusion prevents selecting hidden particles.
+        ray.copy(relative).normalize()
+        center.copy(pivot).sub(targetCamera.position)
+        const along = center.dot(ray)
+        const hidden = along > 0 && along < relative.length() &&
+          center.lengthSq() - along * along < (CUBE_BOUND_RADIUS * atScale) ** 2
+        if (hidden) continue
+        projected.copy(point).project(targetCamera)
+        radiusPoint.copy(point).addScaledVector(scratch.projectRight, p.radius * atScale).project(targetCamera)
+        const radius = Math.abs(radiusPoint.x - projected.x) * width / 2
+        const x = rect.left + (projected.x + 1) * width / 2
+        const y = rect.top + (1 - projected.y) * height / 2
+        if (x - radius < rect.left || x + radius > rect.right ||
+          y - radius < rect.top || y + radius > rect.bottom) continue
+        result.push({ id: p.id, x, y, radius })
+      }
+      return result
     }
-    const pushTriangle = (a: Point2, b: Point2, c: Point2) => {
-      pushVertex(a)
-      pushVertex(b)
-      pushVertex(c)
-    }
-    const pushCircle = (circle: AbsorptionCircle) => {
-      if (circle.radius <= 0.01) return
-      for (let segment = 0; segment < CIRCLE_SEGMENTS; segment += 1) {
-        const angleA = segment / CIRCLE_SEGMENTS * Math.PI * 2
-        const angleB = (segment + 1) / CIRCLE_SEGMENTS * Math.PI * 2
-        pushTriangle(
-          circle.point,
-          {
-            x: circle.point.x + Math.cos(angleA) * circle.radius,
-            y: circle.point.y + Math.sin(angleA) * circle.radius,
-          },
-          {
-            x: circle.point.x + Math.cos(angleB) * circle.radius,
-            y: circle.point.y + Math.sin(angleB) * circle.radius,
-          },
-        )
+    for (const p of field.particles) {
+      const head = getFieldParticleState(p, sp)
+      if (head.radius <= 0) continue
+      const samples = sp <= p.start ? 1 : SAMPLES
+      let previous: { point: { x: number; y: number }; radius: number; world: Vector3 } | null = null
+      // Short history in logical space; parent scale applies to the whole history.
+      for (let i = 0; i < samples; i++) {
+        const lag = samples === 1 ? 0 : (samples - 1 - i) / (samples - 1)
+        const sampleSp = Math.max(p.start, sp - lag * 0.004)
+        const state = getFieldParticleState(p, sampleSp)
+        const radius = Math.min(state.radius, head.radius) * scale * (1 - lag)
+        if (radius <= 0.00001) continue
+        point.set(...p.offset).multiplyScalar(scale * (1 - state.travel)).add(pivot)
+        // Camera-facing disks at their true world depth.
+        const current = scratch.samples[i % 2]
+        current.point.x = point.dot(right)
+        current.point.y = point.dot(up)
+        current.radius = radius
+        current.world.copy(point)
+        if (previous) {
+          const connector = getCircleConnector(previous, current)
+          if (connector) {
+            const corner = (q: { x: number; y: number }, base: typeof current) =>
+              circleVertex(base.world, q.x - base.point.x, q.y - base.point.y)
+            corner(connector.firstPositive, previous); corner(connector.secondPositive, current); corner(connector.secondNegative, current)
+            corner(connector.firstPositive, previous); corner(connector.secondNegative, current); corner(connector.firstNegative, previous)
+          }
+        }
+        for (let j = 0; j < SEGMENTS; j++) {
+          circleVertex(point, 0, 0)
+          circleVertex(point, directions[j][0] * radius, directions[j][1] * radius)
+          circleVertex(point, directions[j + 1][0] * radius, directions[j + 1][1] * radius)
+        }
+        previous = current
       }
     }
-    const pushTrack = (circles: readonly AbsorptionCircle[]) => {
-      for (let index = 1; index < circles.length; index += 1) {
-        const connector = getCircleConnector(circles[index - 1], circles[index])
-        if (!connector) continue
-        const a = connector.firstPositive
-        const b = connector.secondPositive
-        const c = connector.secondNegative
-        const d = connector.firstNegative
-        pushTriangle(a, b, c)
-        pushTriangle(a, c, d)
+    resources.geometry.setDrawRange(0, count)
+    resources.position.needsUpdate = count > 0
+    touchActorFrame('miniatureAbsorptionTrails', Math.round(clock.elapsedTime * 60), count > 0)
+    if (ctx && sp >= 0.4 && sp < 0.5) {
+      const visible = projectField(sp, camera)
+      const cube = center.copy(pivot).project(camera)
+      const cx = rect.left + (cube.x + 1) * width / 2, cy = rect.top + (1 - cube.y) * height / 2
+      let concurrent = 0
+      for (const event of field.scans) {
+        if (sp < event.start || sp >= event.end || concurrent >= 4) continue
+        let ids = selections.get(event.id)
+        if (!ids) {
+          ids = selectScanMembers(projectField(event.start, selectionCamera), event.selection)
+          selections.set(event.id, ids)
+        }
+        const members = visible.filter(p => ids.includes(p.id))
+        if (members.length < 3) continue
+        concurrent++
+        const x = Math.min(...members.map(p => p.x - p.radius)) - 6
+        const y = Math.min(...members.map(p => p.y - p.radius)) - 6
+        const w = Math.max(...members.map(p => p.x + p.radius)) + 6 - x
+        const h = Math.max(...members.map(p => p.y + p.radius)) + 6 - y
+        const actual = visible.filter(p => p.x - p.radius >= x && p.x + p.radius <= x + w &&
+          p.y - p.radius >= y && p.y + p.radius <= y + h)
+        const t = (sp - event.start) / (event.end - event.start)
+        ctx.globalAlpha = smootherstep(Math.min(1, t / 0.12)) * (1 - smootherstep(Math.max(0, (t - 0.78) / 0.22)))
+        ctx.strokeStyle = '#cbd5e1'; ctx.fillStyle = '#cbd5e1'; ctx.lineWidth = 0.8
+        ctx.strokeRect(x, y, w, h)
+        ctx.beginPath(); ctx.moveTo(x + w / 2, y + h / 2); ctx.lineTo(cx, cy); ctx.stroke()
+        ctx.font = '10px ui-monospace, Consolas, monospace'
+        const label = 'REGION ' + String(event.id + 1).padStart(2, '0') + ' | N=' + actual.length +
+          ' | AVG=' + (actual.reduce((sum, p) => sum + p.radius * 2, 0) / actual.length).toFixed(1) + 'px'
+        ctx.fillText(label, Math.max(8, Math.min(window.innerWidth - ctx.measureText(label).width - 8, x)),
+          Math.max(12, y - 7))
       }
-      for (const circle of circles) pushCircle(circle)
+      ctx.globalAlpha = 1
     }
-
-    for (const spec of batch.specs) {
-      const frame = getAbsorptionTrailFrame(
-        spec,
-        scrollProgress,
-        window.innerWidth,
-        window.innerHeight,
-        bounds,
-      )
-      if (frame.active) pushTrack(frame.circles)
-    }
-
-    const position = geometry.getAttribute('position') as BufferAttribute
-    position.needsUpdate = true
-    geometry.setDrawRange(0, vertexCount)
-    mesh.visible = vertexCount > 0
-    touchActorFrame('miniatureAbsorptionTrails', Math.round(clock.elapsedTime * 60), vertexCount > 0)
   })
-
-  return (
-    <mesh
-      ref={meshRef}
-      geometry={geometry}
-      material={material}
-      renderOrder={layer.renderOrder}
-      frustumCulled={false}
-      visible={false}
-    />
-  )
+  return <mesh geometry={resources.geometry} material={resources.material} renderOrder={layer.renderOrder}
+    frustumCulled={false} raycast={() => {}} />
 }

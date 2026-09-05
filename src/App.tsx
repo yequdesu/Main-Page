@@ -16,6 +16,7 @@ import BrandTitle from './actors/BrandTitle'
 import CompositionPanel from './composition/debug/CompositionPanel'
 import FpsMeter from './composition/debug/FpsMeter'
 import FocusHudOverlay from './actors/FocusHudOverlay'
+import MiniatureParticleScan from './actors/MiniatureParticleScan'
 import LusionAtmosphereOverlay from './actors/LusionAtmosphereOverlay'
 import Act2SquareContourTransition from './actors/Act2SquareContourTransition'
 import MiniatureAbsorptionTrails from './actors/MiniatureAbsorptionTrails'
@@ -376,6 +377,7 @@ export default function App() {
 
       {/* 聚焦 HUD 叠加�?*/}
       <FocusHudOverlay />
+      <MiniatureParticleScan />
 
       {/* 页脚 */}
       <footer className="app-footer">
