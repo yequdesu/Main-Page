@@ -2,15 +2,15 @@ import { useEffect, useRef, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import './debug/GeometricDemo.css'
 
-const DURATION = 1.15
-const MOTION_DURATION = 0.95
+const DURATION = 0.7
+const MOTION_DURATION = 0.5
 const clamp = (x: number) => Math.max(0, Math.min(1, x))
 const smooth = (x: number) => { const t = clamp(x); return t * t * (3 - 2 * t) }
 const mix = (a: number, b: number, t: number) => a + (b - a) * t
 
 function starPath(morph: number) {
-  const a = mix(0.55228475, 0.04, morph)
-  const b = mix(1, 0.12, morph)
+  const a = mix(0.55228475, 0.008, morph)
+  const b = mix(1, 0.035, morph)
   const rotate = (x: number, y: number, quadrant: number) => {
     const angle = quadrant * Math.PI / 2
     return `${x * Math.cos(angle) - y * Math.sin(angle)},${x * Math.sin(angle) + y * Math.cos(angle)}`
@@ -36,12 +36,12 @@ function Demo() {
     const collapseProgress = Math.expm1(8 * p) / Math.expm1(8)
     const size = 190 * (1 - collapseProgress)
     const rotation = 10 * Math.min(t, MOTION_DURATION) + 100 * rotationProgress
-    const morph = smooth((t - 0.035) / 0.12)
+    const morph = smooth((t - 0.018) / 0.063)
     path.current?.setAttribute('d', starPath(morph))
     group.current?.setAttribute('transform', `rotate(${rotation}) scale(${size})`)
     if (bar.current) bar.current.style.transform = `scaleX(${clamp(t / DURATION)})`
-    if (phase.current) phase.current.textContent = t < 0.035 ? '01 / 圆形出现' :
-      t < 0.155 ? '02 / 内凹形变' : t < MOTION_DURATION ? '03 / 指数加速收束' : '04 / 完成'
+    if (phase.current) phase.current.textContent = t < 0.018 ? '01 / 圆形出现' :
+      t < 0.081 ? '02 / 内凹形变' : t < MOTION_DURATION ? '03 / 指数加速收束' : '04 / 完成'
   }
   useEffect(() => {
     render(0)
@@ -74,7 +74,7 @@ function Demo() {
         <button onClick={() => { runtime.current.time = 0; runtime.current.playing = true; setPlaying(true) }}>重播</button>
         <button onClick={() => { runtime.current.playing = !runtime.current.playing; setPlaying(runtime.current.playing) }}>{playing ? '暂停' : '播放'}</button>
         <label><input type="checkbox" checked={loop} onChange={e => { runtime.current.loop = e.target.checked; setLoop(e.target.checked) }} />循环</label>
-        <span>SVG · 指数加速 · 1.15s</span>
+        <span>动画 0.5s · 循环间隔 0.2s</span>
       </nav>
     </footer>
   </main>
