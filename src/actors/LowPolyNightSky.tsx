@@ -10,9 +10,10 @@ export const NIGHT_SKY = {
   cellDensity: 24,
   contrast: 0.85,
   darkestColor: '#050811',
-  centerBrightness: 0.64,
-  outerBrightness: 0.90,
-  darkRegionAxes: [1.1, 0.72],
+  centerBrightness: 0.36,
+  outerBrightness: 1.0,
+  // Angular radii in radians, sized for the visible FOV rather than the sphere.
+  darkRegionAxes: [0.55, 0.36],
   rotationRadians: 0.0015,
   deformationAmplitude: 0.018,
 } as const
@@ -115,11 +116,14 @@ export default function LowPolyNightSky() {
           uniform vec2 uAxes, uBrightness;
           void main() {
             vec3 direction = normalize(vWorldDirection);
-            // Broad ellipse anchored to the initial forward world direction.
-            vec2 offset = vec2(direction.x, direction.y + 0.028) / uAxes;
-            float distanceSquared = dot(offset, offset) + max(0.0, direction.z) * 2.0;
+            // Angular coordinates make the falloff span the actual visible sky.
+            // Keep the broad horizontal dark region anchored in world space.
+            vec2 angle = vec2(atan(direction.x, -direction.z),
+              asin(clamp(direction.y, -1.0, 1.0)) + 0.028);
+            vec2 offset = angle / uAxes;
+            float distanceSquared = dot(offset, offset);
             float brightness = mix(uBrightness.x, uBrightness.y,
-              1.0 - exp(-distanceSquared * 0.65));
+              1.0 - exp(-distanceSquared));
             // A soft color floor retains facet differences instead of clipping them.
             gl_FragColor = vec4(mix(uDarkest, vSkyColor, brightness), 1.0);
             #include <colorspace_fragment>
