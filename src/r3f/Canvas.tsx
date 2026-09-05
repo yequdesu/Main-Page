@@ -5,6 +5,7 @@ import { SCENE_CENTER_Z } from './ScrollRig'
 import ScrollInvalidator from './ScrollInvalidator'
 import PlanetClickHandler from './PlanetClickHandler'
 import SceneLights from '../actors/SceneLights'
+import LowPolyNightSky from '../actors/LowPolyNightSky'
 import Planets from '../actors/Planets'
 import CentralStar from '../actors/CentralStar'
 import Act3ContourProjection from '../actors/Act3ContourProjection'
@@ -48,6 +49,7 @@ export default function SceneCanvas({ children }: CanvasProps) {
       <SeaCameraBob />
       <PlanetClickHandler />
       <SceneLights />
+      <LowPolyNightSky />
       <Planets />
       <CentralStar />
       <Act3ContourProjection />

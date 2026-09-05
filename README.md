@@ -185,5 +185,7 @@ pnpm clean && pnpm mirror        # 辅助脚本
 
 ## 附属服务
 
+全阶段背景使用独立的 `LowPolyNightSky`：固定种子生成蓝灰三角切面，按视口短边保持密度；天空使用屏幕坐标、关闭深度写入，不随微缩场景或相机移动。配色与密度集中在 `NIGHT_SKY` 中，本版不随日夜主题变化。颜色在线性空间插值后转换至输出色彩空间，沿用 Three.js ShaderMaterial 的颜色管理机制。
+
 - `stats_server.py` — 独立 Python 后端，`/api/stats`
 - `mainpage.nginx.dev.conf` / `mainpage.nginx.prod.conf` — Nginx 配置
