@@ -1,0 +1,11 @@
+* { box-sizing: border-box; }
+html, body, #root { margin: 0; width: 100%; height: 100%; overflow: hidden; }
+.orbit-demo { height: 100%; background: #0b1528; color: #a7b4ca; font: 11px/1.6 ui-monospace, Consolas, monospace; }
+.orbit-demo canvas { position: absolute; width: 100%; height: 100%; }
+.orbit-demo header { position: absolute; inset: 26px 30px auto; display: flex; justify-content: space-between; gap: 16px; letter-spacing: .1em; pointer-events: none; }
+.orbit-demo footer { position: absolute; bottom: 26px; left: 50%; transform: translateX(-50%); width: min(520px, calc(100% - 40px)); }
+.orbit-demo footer > div { padding-bottom: 14px; border-bottom: 1px solid #ffffff20; margin-bottom: 14px; }
+.orbit-demo nav { display: flex; align-items: center; gap: 12px; }
+.orbit-demo nav span { margin-left: auto; font-size: 9px; }
+.orbit-demo button { padding: 7px 12px; border: 1px solid #ffffff30; border-radius: 4px; color: #dfe6f1; background: #0b1528; cursor: pointer; }
+@media(max-width: 480px) { .orbit-demo header { inset: 20px 16px auto; font-size: 9px; } }
