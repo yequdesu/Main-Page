@@ -2,7 +2,8 @@ import { useEffect, useRef, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import './debug/GeometricDemo.css'
 
-const DURATION = 3.25
+const DURATION = 1.9
+const MOTION_DURATION = 1.65
 const clamp = (x: number) => Math.max(0, Math.min(1, x))
 const smooth = (x: number) => { const t = clamp(x); return t * t * (3 - 2 * t) }
 const mix = (a: number, b: number, t: number) => a + (b - a) * t
@@ -29,28 +30,19 @@ function Demo() {
   const [playing, setPlaying] = useState(true)
   const [loop, setLoop] = useState(true)
   const render = (t: number) => {
-    let size: number, rotation: number
-    const morph = smooth((t - 0.22) / 0.32)
-    if (t < 0.26) {
-      size = mix(0.001, 190, 1 - (1 - clamp(t / 0.26)) ** 3)
-      rotation = 0
-    } else if (t < 0.58) {
-      size = 190
-      rotation = 0
-    } else if (t < 2.25) {
-      const p = (t - 0.58) / 1.67
-      size = mix(190, 154, smooth(p))
-      rotation = 30 * p
-    } else {
-      const p = clamp((t - 2.25) / 0.65)
-      size = 154 * (1 - p ** 2) ** 2
-      rotation = 30 + 11.68 * p + 450 * p ** 2
-    }
+    const p = clamp(t / MOTION_DURATION)
+    // One exponential curve runs from birth to disappearance, without a
+    // slow/fast phase switch. Rotation is already active during circle growth.
+    const acceleration = Math.expm1(5 * p) / Math.expm1(5)
+    const growth = 1 - (1 - clamp(t / 0.18)) ** 3
+    const size = mix(0.001, 190, growth) * (1 - acceleration)
+    const rotation = 22 * Math.min(t, MOTION_DURATION) + 450 * acceleration
+    const morph = smooth((t - 0.12) / 0.24)
     path.current?.setAttribute('d', starPath(morph))
     group.current?.setAttribute('transform', `rotate(${rotation}) scale(${size})`)
     if (bar.current) bar.current.style.transform = `scaleX(${clamp(t / DURATION)})`
-    if (phase.current) phase.current.textContent = t < 0.26 ? '01 / 快速生长' :
-      t < 0.58 ? '02 / 内凹形变' : t < 2.25 ? '03 / 慢转收缩' : t < 2.9 ? '04 / 加速收束' : '05 / 完成'
+    if (phase.current) phase.current.textContent = t < 0.18 ? '01 / 旋转生长' :
+      t < 0.36 ? '02 / 内凹形变' : t < MOTION_DURATION ? '03 / 指数加速收束' : '04 / 完成'
   }
   useEffect(() => {
     let raf = 0, previous = performance.now()
@@ -82,7 +74,7 @@ function Demo() {
         <button onClick={() => { runtime.current.time = 0; runtime.current.playing = true; setPlaying(true) }}>重播</button>
         <button onClick={() => { runtime.current.playing = !runtime.current.playing; setPlaying(runtime.current.playing) }}>{playing ? '暂停' : '播放'}</button>
         <label><input type="checkbox" checked={loop} onChange={e => { runtime.current.loop = e.target.checked; setLoop(e.target.checked) }} />循环</label>
-        <span>SVG · 锐利边缘 · 3.25s</span>
+        <span>SVG · 指数加速 · 1.9s</span>
       </nav>
     </footer>
   </main>
