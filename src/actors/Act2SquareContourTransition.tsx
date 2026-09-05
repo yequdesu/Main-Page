@@ -561,8 +561,6 @@ export default function Act2SquareContourTransition() {
           (scrollProgress - TIMELINE.squareBfsWave.start) /
           (TIMELINE.squareCircleMorph.start - TIMELINE.squareBfsWave.start),
         ))
-        const seedBlend = smoothstep01(revealPhase / .10)
-        if (seedBlend < 1) {
         drawLogicalWave(
           ctx,
           getSquareWaveBandFrame(waveView.generation),
@@ -571,15 +569,15 @@ export default function Act2SquareContourTransition() {
           waveView.zoom,
           waveView.logicalSpacing,
           waveView.logicalSquareSize,
-          (1 - circleMorph) * (1 - seedBlend),
+          1 - circleMorph,
         )
-        }
         pixelOrbitRef.current ??= createPixelOrbitRevealRenderer()
         pixelOrbitRef.current(
           ctx, width, height, initialCenterX, initialCenterY,
           waveView.screenRadius,
-          Math.max(1, (SQUARE_WAVE_FADE_START * waveView.logicalSpacing + waveView.logicalSquareSize) * waveView.zoom),
-          revealPhase, (1 - circleMorph) * seedBlend,
+          waveView.logicalSpacing * waveView.zoom,
+          waveView.logicalSquareSize * waveView.zoom,
+          revealPhase,
         )
       }
       if (circleMorph > 0) {

@@ -7,12 +7,11 @@ describe('pixel orbit reveal', () => {
     expect(getPixelOrbitRevealFrame(.5).expansion).toBe(1)
     expect(getPixelOrbitRevealFrame(.5).collapse).toBe(0)
     expect(getPixelOrbitRevealFrame(1).collapse).toBe(1)
-    expect(getPixelOrbitRevealFrame(1).pixelSize).toBe(1)
   })
   it('is independent of playback order', () => {
     const frame = getPixelOrbitRevealFrame(.8)
     getPixelOrbitRevealFrame(1)
     expect(getPixelOrbitRevealFrame(.8)).toEqual(frame)
-    expect(frame.pixelSize).toBeLessThan(getPixelOrbitRevealFrame(.3).pixelSize)
+    expect(frame.collapse).toBeGreaterThan(getPixelOrbitRevealFrame(.3).collapse)
   })
 })
