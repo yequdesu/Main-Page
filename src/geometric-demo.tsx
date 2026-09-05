@@ -3,9 +3,9 @@ import { createRoot } from 'react-dom/client'
 import './debug/GeometricDemo.css'
 
 const MOTION_DURATION = 0.5
-const MAX_COUNT = 64
+const MAX_COUNT = 256
 function makeSequence() {
-  const count = 28 + Math.floor(Math.random() * 37)
+  const count = MAX_COUNT
   const emitters = Array.from({ length: count }, (_, index) => {
     // One random sample per depth interval avoids deliberate dense/sparse clusters.
     const u = (index + Math.random()) / count
@@ -17,7 +17,7 @@ function makeSequence() {
       y: 210 - 410 * Math.log1p(12 * x) / Math.log(13) + (Math.random() * 2 - 1) * spread,
       radius,
       start: Math.max(0, u * 1.65 + (Math.random() - 0.5) * 0.42),
-      rotation: Math.random() * 90,
+      aspect: Math.exp((Math.random() * 2 - 1) * Math.log(1.9)),
     }
   })
   const first = Math.min(...emitters.map(e => e.start))
@@ -61,14 +61,14 @@ function Demo() {
     group.setAttribute('visibility', active ? 'visible' : 'hidden')
     if (!active) return
     const p = clamp(age / MOTION_DURATION)
-    // Separate continuous envelopes: restrained rotation and a tighter collapse.
-    const rotationProgress = Math.expm1(3 * p) / Math.expm1(3)
+    // Retain the collapse envelope; all stars stay aligned with the screen axes.
     const collapseProgress = Math.expm1(8 * p) / Math.expm1(8)
     const size = emitter.radius * (1 - collapseProgress)
-    const rotation = emitter.rotation + 10 * age + 100 * rotationProgress
     const morph = smooth((age - 0.018) / 0.063)
+    // Start as a true circle and acquire a random aspect ratio while concaving.
+    const aspect = Math.exp(Math.log(emitter.aspect) * morph)
     paths.current[index]?.setAttribute('d', starPath(morph))
-    group.setAttribute('transform', `translate(${emitter.x} ${emitter.y}) rotate(${rotation}) scale(${size})`)
+    group.setAttribute('transform', `translate(${emitter.x} ${emitter.y}) scale(${size * aspect} ${size / aspect})`)
     })
     if (bar.current) bar.current.style.transform = `scaleX(${clamp(t / sequence.current.duration)})`
     if (phase.current) phase.current.textContent = t < sequence.current.duration - 0.35
@@ -108,7 +108,7 @@ function Demo() {
         <button onClick={() => { sequence.current = makeSequence(); runtime.current.time = 0; runtime.current.playing = true; setPlaying(true) }}>随机重播</button>
         <button onClick={() => { runtime.current.playing = !runtime.current.playing; setPlaying(runtime.current.playing) }}>{playing ? '暂停' : '播放'}</button>
         <label><input type="checkbox" checked={loop} onChange={e => { runtime.current.loop = e.target.checked; setLoop(e.target.checked) }} />循环</label>
-        <span>均匀随机 · 单枚0.5s</span>
+        <span>256枚 · 单枚0.5s</span>
       </nav>
     </footer>
   </main>
