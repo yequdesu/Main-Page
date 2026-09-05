@@ -6,8 +6,8 @@ export const CORE_ACTORS: ActorSpec[] = [
     domain: 'webgl',
     layer: 'webgl.nightSky',
     lifecycle: { mount: 'always', dispose: 'auto' },
-    timing: { clocks: [], ranges: [] },
-    consumes: ['viewport.size'],
+    timing: { clocks: ['scroll'], ranges: [] },
+    consumes: ['viewport.size', 'scroll.sp'],
     debug: { label: 'Low-poly Night Sky' },
   },
   {
