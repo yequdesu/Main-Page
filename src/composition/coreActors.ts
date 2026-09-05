@@ -2,15 +2,6 @@ import { defineActor, getActor, type ActorSpec } from './actorRegistry'
 
 export const CORE_ACTORS: ActorSpec[] = [
   {
-    id: 'lowPolyNightSky',
-    domain: 'webgl',
-    layer: 'webgl.nightSky',
-    lifecycle: { mount: 'always', dispose: 'auto' },
-    timing: { clocks: ['elapsedTime'], ranges: [] },
-    consumes: ['clock.elapsedTime', 'camera'],
-    debug: { label: 'Low-poly Night Sky' },
-  },
-  {
     id: 'sceneBackground',
     domain: 'webgl',
     layer: 'webgl.oceanLines',

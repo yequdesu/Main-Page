@@ -31,11 +31,6 @@ export interface RegisteredLayer {
 }
 
 export const LAYERS = {
-  'webgl.nightSky': {
-    id: 'webgl.nightSky',
-    contract: { kind: 'webgl', renderOrder: -10000, depthTest: false, depthWrite: false, transparent: false },
-    description: 'World-direction low-poly sky sphere at infinity, drawn before scene geometry.',
-  },
   'webgl.oceanLines': {
     id: 'webgl.oceanLines',
     contract: { kind: 'webgl', renderOrder: -1, depthTest: true, depthWrite: true, transparent: true, blending: 'normal' },

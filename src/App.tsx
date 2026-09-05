@@ -18,7 +18,6 @@ import FpsMeter from './composition/debug/FpsMeter'
 import FocusHudOverlay from './actors/FocusHudOverlay'
 import FocusInversionBlocks from './actors/FocusInversionBlocks'
 import FocusInversionDebugPanel from './composition/debug/FocusInversionDebugPanel'
-import NightSkyDebugPanel from './composition/debug/NightSkyDebugPanel'
 import LusionAtmosphereOverlay from './actors/LusionAtmosphereOverlay'
 import Act2SquareContourTransition from './actors/Act2SquareContourTransition'
 import MiniatureAbsorptionTrails from './actors/MiniatureAbsorptionTrails'
@@ -394,7 +393,6 @@ export default function App() {
           <FpsMeter />
           <CompositionPanel scrollProgress={sp} />
           <FocusInversionDebugPanel />
-          <NightSkyDebugPanel />
         </>
       )}
     </>
