@@ -3,9 +3,14 @@ import { createRoot } from 'react-dom/client'
 import { Vector3 } from 'three'
 import './debug/OrbitDemo.css'
 
-const CORE = 72
+const CORE = 94
 const COUNT = 48
 const STEP = 1 / 120
+const DURATION = 5.2
+const smooth = (value: number) => {
+  const t = Math.max(0, Math.min(1, value))
+  return t * t * t * (t * (t * 6 - 15) + 10)
+}
 type Body = { p: Vector3; v: Vector3; radius: number; phase: number; orbit: number; tilt: number; speed: number; spin: number; angle: number; kind: number }
 function target(body: Body, time: number) {
   const a = body.phase + time * body.speed
@@ -73,7 +78,9 @@ function Demo() {
   const restart = useRef(() => {})
   useEffect(() => {
     const el = canvas.current!
-    const ctx = el.getContext('2d')!
+    const output = el.getContext('2d')!
+    const raster = document.createElement('canvas')
+    const ctx = raster.getContext('2d')!
     let bodies = createBodies(), time = 0, accumulator = 0, last = 0, frame = 0
     let width = 0, height = 0, dpr = 1
     restart.current = () => { bodies = createBodies(); time = 0; accumulator = 0 }
@@ -87,36 +94,51 @@ function Demo() {
     const draw = (now: number) => {
       const dt = last ? Math.min((now - last) / 1000, .05) : 0
       last = now
-      if (!paused.current) {
+      if (!paused.current && time < DURATION) {
         accumulator += dt
         while (accumulator >= STEP) { time += STEP; step(bodies, time); accumulator -= STEP }
       }
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
+      const growth = smooth((time - .15) / 1.05)
+      const expansion = smooth((time - .55) / 1.5)
+      const collapse = smooth((time - 3.65) / 1.15)
+      const ringScale = expansion * (1 - collapse)
+      const refinement = smooth((time - .15) / 4.75)
+      const pixel = 1 / dpr + 16 * (1 - refinement) ** 2
+      const rw = Math.max(1, Math.ceil(width / pixel))
+      const rh = Math.max(1, Math.ceil(height / pixel))
+      if (raster.width !== rw || raster.height !== rh) { raster.width = rw; raster.height = rh }
+      ctx.setTransform(rw / width, 0, 0, rh / height, 0, 0)
       ctx.fillStyle = '#0b1528'; ctx.fillRect(0, 0, width, height)
       const scale = Math.min(width / 560, height / 480)
       ctx.translate(width / 2, height / 2); ctx.scale(scale, scale)
       // Orthographic projection retains a graphic 2D look; depth determines occlusion.
       const lean = -.24
-      const items: { b: Body | null; z: number }[] = bodies.map(b => ({ b, z: b.p.z }))
-      items.push({ b: null, z: 0 })
+      const items: { b: Body | null; z: number }[] = ringScale > .001 ? bodies.map(b => ({ b, z: b.p.z })) : []
+      if (growth > 0) items.push({ b: null, z: 0 })
       items.sort((a, b) => a.z - b.z)
       for (const item of items) {
         if (!item.b) {
           ctx.fillStyle = '#0b1528'
           ctx.strokeStyle = '#f2f3f5'
-          ctx.lineWidth = 1.35 / Math.max(.65, scale)
-          ctx.beginPath(); ctx.arc(0, 0, CORE, 0, Math.PI * 2); ctx.fill(); ctx.stroke()
+          ctx.lineWidth = Math.max(1.35, pixel * .85) / scale
+          ctx.beginPath(); ctx.arc(0, 0, CORE * growth, 0, Math.PI * 2); ctx.fill(); ctx.stroke()
           continue
         }
         const b = item.b
         ctx.save()
-        ctx.translate(b.p.x * Math.cos(lean) - b.p.y * Math.sin(lean), b.p.x * Math.sin(lean) + b.p.y * Math.cos(lean))
+        // Keep the disk mask continuous throughout the reveal and absorption.
+        {
+          ctx.beginPath(); ctx.rect(-1000, -1000, 2000, 2000)
+          ctx.arc(0, 0, CORE * growth, 0, Math.PI * 2)
+          ctx.clip('evenodd')
+        }
+        ctx.translate((b.p.x * Math.cos(lean) - b.p.y * Math.sin(lean)) * ringScale, (b.p.x * Math.sin(lean) + b.p.y * Math.cos(lean)) * ringScale)
         ctx.rotate(b.angle)
         ctx.strokeStyle = b.p.z < 0 ? '#8796ae' : '#f2f3f5'
-        ctx.lineWidth = 1.35 / Math.max(.65, scale)
+        ctx.lineWidth = Math.max(1.35, pixel * .85) / scale
         ctx.lineJoin = 'round'; ctx.lineCap = 'round'
         ctx.beginPath()
-        const r = b.radius
+        const r = b.radius * Math.min(1, expansion * 2)
         if (b.kind === 0) {
           ctx.moveTo(-r, 0); ctx.lineTo(r, 0); ctx.moveTo(0, -r); ctx.lineTo(0, r)
         } else if (b.kind === 3) ctx.arc(0, 0, r, 0, Math.PI * 2)
@@ -131,6 +153,9 @@ function Demo() {
         }
         ctx.stroke(); ctx.restore()
       }
+      output.setTransform(1, 0, 0, 1, 0, 0)
+      output.imageSmoothingEnabled = false
+      output.drawImage(raster, 0, 0, el.width, el.height)
       frame = requestAnimationFrame(draw)
     }
     frame = requestAnimationFrame(draw)
@@ -143,8 +168,8 @@ function Demo() {
       <div>十字 · 三角形 · 正方形 · 圆 / 三维轨道 · 二维投影</div>
       <nav>
         <button onClick={() => { paused.current = !paused.current; setPlaying(!paused.current) }}>{playing ? '暂停' : '播放'}</button>
-        <button onClick={() => restart.current()}>重新分布</button>
-        <span>48 ELEMENTS / REPULSION</span>
+        <button onClick={() => { restart.current(); paused.current = false; setPlaying(true) }}>重播 / 重新分布</button>
+        <span>PIXEL REVEAL / 5.2s</span>
       </nav>
     </footer>
   </main>
