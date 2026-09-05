@@ -126,10 +126,12 @@ function Demo() {
         }
         const b = item.b
         ctx.save()
-        // Keep the disk mask continuous throughout the reveal and absorption.
-        {
+        // Foreground elements remain visible over the disk. During absorption,
+        // grow an inner mask continuously instead of abruptly clipping its full face.
+        const maskRadius = b.p.z < 0 ? CORE * growth : CORE * growth * collapse
+        if (maskRadius > 0) {
           ctx.beginPath(); ctx.rect(-1000, -1000, 2000, 2000)
-          ctx.arc(0, 0, CORE * growth, 0, Math.PI * 2)
+          ctx.arc(0, 0, maskRadius, 0, Math.PI * 2)
           ctx.clip('evenodd')
         }
         ctx.translate((b.p.x * Math.cos(lean) - b.p.y * Math.sin(lean)) * ringScale, (b.p.x * Math.sin(lean) + b.p.y * Math.cos(lean)) * ringScale)
