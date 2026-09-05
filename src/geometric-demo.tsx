@@ -2,8 +2,8 @@ import { useEffect, useRef, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import './debug/GeometricDemo.css'
 
-const DURATION = 1.9
-const MOTION_DURATION = 1.65
+const DURATION = 1.6
+const MOTION_DURATION = 1.35
 const clamp = (x: number) => Math.max(0, Math.min(1, x))
 const smooth = (x: number) => { const t = clamp(x); return t * t * (3 - 2 * t) }
 const mix = (a: number, b: number, t: number) => a + (b - a) * t
@@ -31,12 +31,12 @@ function Demo() {
   const [loop, setLoop] = useState(true)
   const render = (t: number) => {
     const p = clamp(t / MOTION_DURATION)
-    // One exponential curve runs from birth to disappearance, without a
-    // slow/fast phase switch. Rotation is already active during circle growth.
-    const acceleration = Math.expm1(5 * p) / Math.expm1(5)
+    // Separate continuous envelopes: restrained rotation and a tighter collapse.
+    const rotationProgress = Math.expm1(3 * p) / Math.expm1(3)
+    const collapseProgress = Math.expm1(8 * p) / Math.expm1(8)
     const growth = 1 - (1 - clamp(t / 0.18)) ** 3
-    const size = mix(0.001, 190, growth) * (1 - acceleration)
-    const rotation = 22 * Math.min(t, MOTION_DURATION) + 450 * acceleration
+    const size = mix(0.001, 190, growth) * (1 - collapseProgress)
+    const rotation = 10 * Math.min(t, MOTION_DURATION) + 100 * rotationProgress
     const morph = smooth((t - 0.12) / 0.24)
     path.current?.setAttribute('d', starPath(morph))
     group.current?.setAttribute('transform', `rotate(${rotation}) scale(${size})`)
@@ -74,7 +74,7 @@ function Demo() {
         <button onClick={() => { runtime.current.time = 0; runtime.current.playing = true; setPlaying(true) }}>重播</button>
         <button onClick={() => { runtime.current.playing = !runtime.current.playing; setPlaying(runtime.current.playing) }}>{playing ? '暂停' : '播放'}</button>
         <label><input type="checkbox" checked={loop} onChange={e => { runtime.current.loop = e.target.checked; setLoop(e.target.checked) }} />循环</label>
-        <span>SVG · 指数加速 · 1.9s</span>
+        <span>SVG · 指数加速 · 1.6s</span>
       </nav>
     </footer>
   </main>
