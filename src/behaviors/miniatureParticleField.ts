@@ -80,14 +80,15 @@ export function buildFieldScans(seed: number): ScanEvent[] {
   }))
 }
 
-export function selectScanMembers(circles: ProjectedFieldCircle[], selection: number): number[] {
+export function selectScanMembers(circles: ProjectedFieldCircle[], selection: number, reach = 120): number[] {
   if (!circles.length) return []
   const center = circles[selection % circles.length]
-  // Small local groups alternate with broad neighborhoods.
-  const limit = 1 + Math.floor(Math.pow((selection % 997) / 996, 2) * 23)
+  // Bias toward compact neighborhoods; sparse regions must not create huge boxes.
+  const limit = 1 + Math.floor(Math.pow((selection % 997) / 996, 3) * 9)
   const nearest: { id: number; distance: number }[] = []
   for (const circle of circles) {
     const distance = (circle.x - center.x) ** 2 + (circle.y - center.y) ** 2
+    if (circle.id !== center.id && Math.sqrt(distance) + circle.radius > reach) continue
     let index = 0
     while (index < nearest.length && nearest[index].distance <= distance) index++
     if (index >= limit) continue

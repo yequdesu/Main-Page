@@ -51,7 +51,11 @@ describe('miniature particle field', () => {
     expect(selectScanMembers([], 1)).toEqual([])
     const circles = Array.from({ length: 10 }, (_, id) => ({ id, x: id * 20, y: 0, radius: 2 }))
     expect(selectScanMembers(circles, 0)).toEqual([0])
-    expect(selectScanMembers(circles, 996)).toHaveLength(10)
+    expect(selectScanMembers(circles, 996, 1000)).toHaveLength(10)
+    const compact = selectScanMembers(circles, 996, 45)
+    expect(compact).toHaveLength(5)
+    expect(compact.every(id => Math.abs(id - 6) * 20 + 2 <= 45)).toBe(true)
+    expect(selectScanMembers(circles, 498, 1000).length).toBeLessThanOrEqual(2)
   })
   it('stretches both miniature phases continuously and remaps downstream milestones once', () => {
     expect(miniatureSourceProgress(0.25)).toBe(0.25)

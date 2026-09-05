@@ -165,7 +165,8 @@ export default function MiniatureAbsorptionTrails() {
         if (sp < event.start || sp >= event.end || concurrent >= 9) continue
         let ids = selections.get(event.id)
         if (!ids) {
-          ids = selectScanMembers(projectField(event.start, selectionCamera), event.selection)
+          ids = selectScanMembers(projectField(event.start, selectionCamera), event.selection,
+            Math.min(width, height) * 0.10)
           selections.set(event.id, ids)
         }
         const members = visible.filter(p => ids.includes(p.id))
