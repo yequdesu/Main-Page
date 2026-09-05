@@ -16,8 +16,6 @@ import BrandTitle from './actors/BrandTitle'
 import CompositionPanel from './composition/debug/CompositionPanel'
 import FpsMeter from './composition/debug/FpsMeter'
 import FocusHudOverlay from './actors/FocusHudOverlay'
-import FocusInversionBlocks from './actors/FocusInversionBlocks'
-import FocusInversionDebugPanel from './composition/debug/FocusInversionDebugPanel'
 import LusionAtmosphereOverlay from './actors/LusionAtmosphereOverlay'
 import Act2SquareContourTransition from './actors/Act2SquareContourTransition'
 import MiniatureAbsorptionTrails from './actors/MiniatureAbsorptionTrails'
@@ -378,7 +376,6 @@ export default function App() {
 
       {/* 聚焦 HUD 叠加�?*/}
       <FocusHudOverlay />
-      <FocusInversionBlocks />
 
       {/* 页脚 */}
       <footer className="app-footer">
@@ -392,7 +389,6 @@ export default function App() {
         <>
           <FpsMeter />
           <CompositionPanel scrollProgress={sp} />
-          <FocusInversionDebugPanel />
         </>
       )}
     </>
