@@ -40,36 +40,6 @@ const SCROLL_PROGRESS_EPSILON = 0.000001
 const SCROLL_Y_EPSILON = 0.5
 const SHOW_COMPLETION_BRAND = false
 
-const RAW_ACT1_END = 0.30
-const RAW_ACT2_END = 0.70
-const SCENE_ACT1_END = TIMELINE.act1OceanVoyage.end
-const SCENE_ACT2_END = TIMELINE.act2SquareTransition.end
-
-function lerpRange(value: number, inStart: number, inEnd: number, outStart: number, outEnd: number): number {
-  const t = Math.max(0, Math.min(1, (value - inStart) / (inEnd - inStart)))
-  return outStart + (outEnd - outStart) * t
-}
-
-function rawToSceneProgress(raw: number): number {
-  if (raw <= RAW_ACT1_END) {
-    return lerpRange(raw, 0, RAW_ACT1_END, 0, SCENE_ACT1_END)
-  }
-  if (raw <= RAW_ACT2_END) {
-    return lerpRange(raw, RAW_ACT1_END, RAW_ACT2_END, SCENE_ACT1_END, SCENE_ACT2_END)
-  }
-  return lerpRange(raw, RAW_ACT2_END, 1, SCENE_ACT2_END, 1)
-}
-
-function sceneToRawProgress(scene: number): number {
-  if (scene <= SCENE_ACT1_END) {
-    return lerpRange(scene, 0, SCENE_ACT1_END, 0, RAW_ACT1_END)
-  }
-  if (scene <= SCENE_ACT2_END) {
-    return lerpRange(scene, SCENE_ACT1_END, SCENE_ACT2_END, RAW_ACT1_END, RAW_ACT2_END)
-  }
-  return lerpRange(scene, SCENE_ACT2_END, 1, RAW_ACT2_END, 1)
-}
-
 /**
  * App 根组�?�?GSAP ScrollTrigger + 滚动物理 + DOM 叠加层�?
  *
@@ -113,16 +83,16 @@ export default function App() {
   scrollProgressRef.current = scrollProgress
 
   // ---- Act visibility ----
-  // The screen-space square takes over the face-on miniature at exactly 55%.
+  // The screen-space square takes over the face-on miniature at the white-fill endpoint.
   const needsAct1 = (sp: number) => sp <= TIMELINE.cubeWhiteFill.end + 0.0005
   const needsAct3Visual = (sp: number) => sp >= TIMELINE.squareTitleTyping.start - 0.001
   const needsAct3 = (sp: number) => sp >= TIMELINE.act3Shift.start - 0.001
 
   // ---- syncScrollbar ----
-  const syncScrollbar = useCallback((targetScene = rawToSceneProgress(physRef.current.target)) => {
+  const syncScrollbar = useCallback((targetScene = physRef.current.target) => {
     const h = document.body.scrollHeight - window.innerHeight
     if (h <= 0) return false
-    const y = sceneToRawProgress(targetScene) * h
+    const y = targetScene * h
     if (Math.abs(window.scrollY - y) < SCROLL_Y_EPSILON) return false
     window.scrollTo(0, y)
     return true
@@ -142,7 +112,7 @@ export default function App() {
         physRef.current.lastScrollbar = performance.now()
         physRef.current.velocity = 0
         physRef.current.target = self.progress
-        setScrollProgress(rawToSceneProgress(self.progress))
+        setScrollProgress(self.progress)
       },
     })
 
@@ -175,7 +145,7 @@ export default function App() {
       const targetChanged = Math.abs(p.target - previousTarget) > SCROLL_PROGRESS_EPSILON
       if (!targetChanged && p.velocity === 0) return
 
-      const sceneTarget = rawToSceneProgress(p.target)
+      const sceneTarget = p.target
       setScrollProgress(sceneTarget)
       syncScrollbar(sceneTarget)
     }
@@ -232,7 +202,7 @@ export default function App() {
       ease: 'power2.inOut',
       onUpdate: () => {
         physRef.current.target = tweenObj.val
-        const sceneTarget = rawToSceneProgress(tweenObj.val)
+        const sceneTarget = tweenObj.val
         setScrollProgress(sceneTarget)
         syncScrollbar(sceneTarget)
       },
