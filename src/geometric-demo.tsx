@@ -6,15 +6,12 @@ const MOTION_DURATION = 0.5
 const MAX_COUNT = 64
 function makeSequence() {
   const count = 28 + Math.floor(Math.random() * 37)
-  const centers = Array.from({ length: 5 }, () => Math.random())
-  const emitters = Array.from({ length: count }, () => {
-    // Random clusters around a trend, not equally spaced points on a line.
-    const u = Math.random() < 0.7
-      ? Math.max(0, Math.min(1, centers[Math.floor(Math.random() * centers.length)] + (Math.random() - 0.5) * 0.22))
-      : Math.random()
+  const emitters = Array.from({ length: count }, (_, index) => {
+    // One random sample per depth interval avoids deliberate dense/sparse clusters.
+    const u = (index + Math.random()) / count
     const x = (1 - Math.exp(-1.6 * u)) / (1 - Math.exp(-1.6))
     const spread = 65 * Math.exp(-1.4 * u)
-    const radius = 72 * Math.exp(-2.8 * u) * (0.4 + Math.random() * 1.3)
+    const radius = 108 * Math.exp(-3.2 * u) * (0.65 + Math.random() * 0.7)
     return {
       x: -250 + 530 * x + (Math.random() * 2 - 1) * spread,
       y: 210 - 410 * Math.log1p(12 * x) / Math.log(13) + (Math.random() * 2 - 1) * spread,
@@ -111,7 +108,7 @@ function Demo() {
         <button onClick={() => { sequence.current = makeSequence(); runtime.current.time = 0; runtime.current.playing = true; setPlaying(true) }}>随机重播</button>
         <button onClick={() => { runtime.current.playing = !runtime.current.playing; setPlaying(runtime.current.playing) }}>{playing ? '暂停' : '播放'}</button>
         <label><input type="checkbox" checked={loop} onChange={e => { runtime.current.loop = e.target.checked; setLoop(e.target.checked) }} />循环</label>
-        <span>随机簇 · 单枚0.5s</span>
+        <span>均匀随机 · 单枚0.5s</span>
       </nav>
     </footer>
   </main>
