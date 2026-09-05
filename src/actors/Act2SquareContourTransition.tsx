@@ -42,6 +42,7 @@ import {
 } from '../behaviors/handwrittenTitle'
 import { TIMELINE, progress, smoothstep01 } from '../composition/timeline'
 import { useActorRuntime } from '../composition/actorRuntime'
+import { createPixelOrbitRevealRenderer } from '../behaviors/pixelOrbitReveal'
 
 const TITLE_FONT_FAMILY = "'Allura',cursive"
 const TITLE_RASTER_CELL_SIZE = 2
@@ -484,6 +485,7 @@ interface LayoutCache {
 
 export default function Act2SquareContourTransition() {
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
+  const pixelOrbitRef = useRef<ReturnType<typeof createPixelOrbitRevealRenderer> | null>(null)
   const drawRef = useRef<() => void>(() => {})
   const layoutCacheRef = useRef<LayoutCache | null>(null)
   const titleRenderPlanRef = useRef<HandwrittenTitleRenderPlan | null>(null)
@@ -555,6 +557,12 @@ export default function Act2SquareContourTransition() {
 
     if (scrollProgress <= TIMELINE.squareBfsWave.end) {
       if (circleMorph < 1) {
+        const revealPhase = Math.max(0, Math.min(1,
+          (scrollProgress - TIMELINE.squareBfsWave.start) /
+          (TIMELINE.squareCircleMorph.start - TIMELINE.squareBfsWave.start),
+        ))
+        const seedBlend = smoothstep01(revealPhase / .10)
+        if (seedBlend < 1) {
         drawLogicalWave(
           ctx,
           getSquareWaveBandFrame(waveView.generation),
@@ -563,7 +571,15 @@ export default function Act2SquareContourTransition() {
           waveView.zoom,
           waveView.logicalSpacing,
           waveView.logicalSquareSize,
-          1 - circleMorph,
+          (1 - circleMorph) * (1 - seedBlend),
+        )
+        }
+        pixelOrbitRef.current ??= createPixelOrbitRevealRenderer()
+        pixelOrbitRef.current(
+          ctx, width, height, initialCenterX, initialCenterY,
+          waveView.screenRadius,
+          Math.max(1, (SQUARE_WAVE_FADE_START * waveView.logicalSpacing + waveView.logicalSquareSize) * waveView.zoom),
+          revealPhase, (1 - circleMorph) * seedBlend,
         )
       }
       if (circleMorph > 0) {
