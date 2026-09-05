@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { buildParticleField, getFieldParticleState, buildFieldScans, selectScanMembers,
-  CUBE_BOUND_RADIUS, FIELD_END } from '../miniatureParticleField'
+  CUBE_BOUND_RADIUS, FIELD_END, FIELD_SCAN_END, FIELD_CLEAR_RADIUS } from '../miniatureParticleField'
 import { getMiniatureTransform } from '../miniatureUniverse'
 import { afterMiniature, miniatureSourceProgress } from '../../composition/transitionTiming'
 
@@ -12,7 +12,7 @@ describe('miniature particle field', () => {
     expect(new Set(field.map(p => p.id)).size).toBe(240)
     for (const p of field) {
       expect(Math.hypot(...p.offset)).toBeCloseTo(p.distance)
-      expect(p.distance).toBeGreaterThanOrEqual(CUBE_BOUND_RADIUS * 1.3)
+      expect(p.distance).toBeGreaterThanOrEqual(CUBE_BOUND_RADIUS * FIELD_CLEAR_RADIUS)
       expect(p.distance).toBeLessThanOrEqual(CUBE_BOUND_RADIUS * 8)
       expect(getFieldParticleState(p, 0.5).travel).toBe(0)
     }
@@ -34,20 +34,22 @@ describe('miniature particle field', () => {
     }
     expect(field[field.length - 1].end).toBe(FIELD_END)
   })
-  it('schedules 16 bounded scans and deterministic local membership', () => {
+  it('scans until the last launch with varied neighborhood sizes', () => {
     const events = buildFieldScans(123)
-    expect(events).toHaveLength(16)
+    expect(events).toHaveLength(100)
     for (const event of events) {
       expect(event.start).toBeGreaterThanOrEqual(0.4)
-      expect(event.end).toBeLessThanOrEqual(0.5)
-      expect(event.end - event.start).toBeGreaterThanOrEqual(0.014 - 1e-10)
+      expect(event.end).toBeLessThanOrEqual(FIELD_SCAN_END)
+      expect(event.end - event.start).toBeGreaterThan(0)
       expect(event.end - event.start).toBeLessThanOrEqual(0.02)
     }
-    for (let sp = 0.4; sp < 0.5; sp += 0.0001)
-      expect(events.filter(e => sp >= e.start && sp < e.end).length).toBeLessThanOrEqual(4)
+    expect(events[events.length - 1].end).toBe(FIELD_SCAN_END)
+    for (let sp = 0.4; sp < FIELD_SCAN_END; sp += 0.0001)
+      expect(events.filter(e => sp >= e.start && sp < e.end).length).toBeLessThanOrEqual(9)
     expect(selectScanMembers([], 1)).toEqual([])
     const circles = Array.from({ length: 10 }, (_, id) => ({ id, x: id * 20, y: 0, radius: 2 }))
-    expect(selectScanMembers(circles, 0)).toEqual([0, 1, 2])
+    expect(selectScanMembers(circles, 0)).toEqual([0])
+    expect(selectScanMembers(circles, 996)).toHaveLength(10)
   })
   it('stretches both miniature phases continuously and remaps downstream milestones once', () => {
     expect(miniatureSourceProgress(0.25)).toBe(0.25)

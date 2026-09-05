@@ -10,6 +10,8 @@ export interface FieldParticle {
 }
 export const FIELD_COUNT = 240
 export const FIELD_END = 0.648
+export const FIELD_SCAN_END = FIELD_END - 0.03
+export const FIELD_CLEAR_RADIUS = 2.4
 export const CUBE_BOUND_RADIUS = 32 * Math.sqrt(3)
 
 export function buildParticleField(seed: number): FieldParticle[] {
@@ -18,15 +20,25 @@ export function buildParticleField(seed: number): FieldParticle[] {
     state ^= state << 13; state ^= state >>> 17; state ^= state << 5
     return (state >>> 0) / 4294967296
   }
+  const clusters = Array.from({ length: 7 }, () => ({
+    y: random() * 1.8 - 0.9, angle: random() * Math.PI * 2,
+    radius: 4 + random() * 3.5, spread: 0.05 + random() * 0.22,
+  }))
   const particles = Array.from({ length: FIELD_COUNT }, (_, id): FieldParticle => {
-    // Uniform volume density yields more objects in the outer radial shells.
-    const distance = CUBE_BOUND_RADIUS * Math.cbrt(1.3 ** 3 + random() * (8 ** 3 - 1.3 ** 3))
-    const y = random() * 2 - 1, angle = random() * Math.PI * 2
+    const cluster = clusters[Math.floor(random() * clusters.length)]
+    const clustered = random() < 0.78
+    const radial = clustered ? Math.max(FIELD_CLEAR_RADIUS, Math.min(8,
+      cluster.radius + (random() + random() - 1) * 1.4))
+      : Math.cbrt(FIELD_CLEAR_RADIUS ** 3 + random() * (8 ** 3 - FIELD_CLEAR_RADIUS ** 3))
+    const distance = CUBE_BOUND_RADIUS * radial
+    const y = clustered ? Math.max(-0.99, Math.min(0.99,
+      cluster.y + (random() + random() - 1) * cluster.spread)) : random() * 2 - 1
+    const angle = clustered ? cluster.angle + (random() + random() - 1) * cluster.spread * 2 : random() * Math.PI * 2
     const horizontal = Math.sqrt(1 - y * y)
     return { id, distance,
       offset: [Math.cos(angle) * horizontal * distance, y * distance,
         Math.sin(angle) * horizontal * distance],
-      radius: (0.7 + distance / CUBE_BOUND_RADIUS * 0.5) * (0.65 + random() * 0.7),
+      radius: (0.7 + radial * 0.5) * (0.16 + Math.pow(random(), 2.5) * 3.5),
       start: 0, end: 0 }
   }).sort((a, b) => a.distance - b.distance)
   // Invert the integrated bell curve: arrivals are sparse/dense/sparse.
@@ -56,17 +68,19 @@ export function getFieldParticleState(particle: FieldParticle, sp: number) {
 export interface ProjectedFieldCircle { id: number; x: number; y: number; radius: number }
 export interface ScanEvent { id: number; start: number; end: number; selection: number }
 export function buildFieldScans(seed: number): ScanEvent[] {
-  return Array.from({ length: 16 }, (_, id) => ({
-    id, start: 0.4 + id * 0.0053,
-    end: 0.4 + id * 0.0053 + 0.014 + ((seed ^ (id * 7919)) >>> 0) % 600 / 100000,
+  return Array.from({ length: 100 }, (_, id) => ({
+    id, start: 0.4 + id * (FIELD_SCAN_END - 0.4) / 100,
+    end: Math.min(FIELD_SCAN_END, 0.4 + id * (FIELD_SCAN_END - 0.4) / 100 +
+      0.012 + ((seed ^ (id * 7919)) >>> 0) % 600 / 100000),
     selection: ((seed ^ (id * 104729)) >>> 0),
   }))
 }
 
 export function selectScanMembers(circles: ProjectedFieldCircle[], selection: number): number[] {
-  if (circles.length < 3) return []
+  if (!circles.length) return []
   const center = circles[selection % circles.length]
-  const limit = 3 + selection % 4
+  // Small local groups alternate with broad neighborhoods.
+  const limit = 1 + Math.floor(Math.pow((selection % 997) / 996, 2) * 23)
   const nearest: { id: number; distance: number }[] = []
   for (const circle of circles) {
     const distance = (circle.x - center.x) ** 2 + (circle.y - center.y) ** 2

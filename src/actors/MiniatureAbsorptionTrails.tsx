@@ -2,7 +2,7 @@ import { useEffect, useMemo } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
 import { BufferAttribute, BufferGeometry, DynamicDrawUsage, DoubleSide, MeshBasicMaterial, Vector3, type Camera } from 'three'
 import { getCircleConnector, smootherstep } from '../behaviors/motionTrail'
-import { buildParticleField, buildFieldScans, getFieldParticleState, selectScanMembers, CUBE_BOUND_RADIUS,
+import { buildParticleField, buildFieldScans, getFieldParticleState, selectScanMembers, CUBE_BOUND_RADIUS, FIELD_SCAN_END,
   type ProjectedFieldCircle } from '../behaviors/miniatureParticleField'
 import { getMiniatureTransform, MINIATURE_PIVOT } from '../behaviors/miniatureUniverse'
 import { useScrollStore } from '../stores/scrollStore'
@@ -95,6 +95,7 @@ export default function MiniatureAbsorptionTrails() {
       targetCamera.getWorldDirection(scratch.projectForward)
       scratch.projectRight.setFromMatrixColumn(targetCamera.matrixWorld, 0)
       for (const p of field.particles) {
+        if (at >= p.start) continue
         point.set(...p.offset).multiplyScalar(atScale).add(pivot)
         relative.copy(point).sub(targetCamera.position)
         if (relative.dot(scratch.projectForward) <= 0) continue
@@ -155,20 +156,20 @@ export default function MiniatureAbsorptionTrails() {
     resources.geometry.setDrawRange(0, count)
     resources.position.needsUpdate = count > 0
     touchActorFrame('miniatureAbsorptionTrails', Math.round(clock.elapsedTime * 60), count > 0)
-    if (ctx && sp >= 0.4 && sp < 0.5) {
+    if (ctx && sp >= 0.4 && sp < FIELD_SCAN_END) {
       const visible = projectField(sp, camera)
       const cube = center.copy(pivot).project(camera)
       const cx = rect.left + (cube.x + 1) * width / 2, cy = rect.top + (1 - cube.y) * height / 2
       let concurrent = 0
       for (const event of field.scans) {
-        if (sp < event.start || sp >= event.end || concurrent >= 4) continue
+        if (sp < event.start || sp >= event.end || concurrent >= 9) continue
         let ids = selections.get(event.id)
         if (!ids) {
           ids = selectScanMembers(projectField(event.start, selectionCamera), event.selection)
           selections.set(event.id, ids)
         }
         const members = visible.filter(p => ids.includes(p.id))
-        if (members.length < 3) continue
+        if (!members.length) continue
         concurrent++
         const x = Math.min(...members.map(p => p.x - p.radius)) - 6
         const y = Math.min(...members.map(p => p.y - p.radius)) - 6
