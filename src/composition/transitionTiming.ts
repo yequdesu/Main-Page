@@ -1,15 +1,16 @@
 // The former page had 79 viewport heights of usable scroll (80 minus viewport).
-// Keep Act1's 70% distance; double both later acts: 0.7 + 2 * 0.3 = 1.3.
-export const PAGE_DISTANCE_SCALE = 1.3
+// Keep Act1's absolute distance; later acts are now twice their previous length.
+export const DOWNSTREAM_DISTANCE_SCALE = 4
+export const PAGE_DISTANCE_SCALE = 0.7 + DOWNSTREAM_DISTANCE_SCALE * 0.3
 export const PAGE_HEIGHT_VH = 1 + 79 * PAGE_DISTANCE_SCALE
 export const act1Progress = (value: number): number => value / PAGE_DISTANCE_SCALE
 export const previousPageProgress = (value: number): number =>
   value <= act1Progress(0.7) ? value * PAGE_DISTANCE_SCALE
-    : 0.7 + (value * PAGE_DISTANCE_SCALE - 0.7) / 2
+    : 0.7 + (value * PAGE_DISTANCE_SCALE - 0.7) / DOWNSTREAM_DISTANCE_SCALE
 
 /** Map legacy downstream milestones once, never the application's scroll value. */
 export const afterMiniature = (value: number): number =>
-  value === 1 ? 1 : (0.70 + (value - 0.55) * 0.60 / 0.45) / PAGE_DISTANCE_SCALE
+  value === 1 ? 1 : (0.70 + (value - 0.55) * (0.3 * DOWNSTREAM_DISTANCE_SCALE) / 0.45) / PAGE_DISTANCE_SCALE
 
 /** Preserve the old miniature trajectory, stretching its two phases separately. */
 export const miniatureSourceProgress = (value: number): number =>
