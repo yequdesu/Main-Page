@@ -366,5 +366,10 @@ export const stylizedOceanVolumeFragmentShader = /* glsl */`
     color += vec3(0.012, 0.026, 0.035) * depthBand;
     gl_FragColor = vec4(color, uOpacity);
     #include <fog_fragment>
+    // Fade the volume's color over the former solid night backdrop, keeping
+    // its depth occlusion and its visible background occlusion consistent.
+    gl_FragColor.rgb = mix(vec3(5.0, 8.0, 17.0) / 255.0,
+      gl_FragColor.rgb, clamp(uOpacity, 0.0, 1.0));
+    gl_FragColor.a = 1.0;
   }
 `
