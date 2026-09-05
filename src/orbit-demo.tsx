@@ -119,7 +119,7 @@ function Demo() {
       for (const item of items) {
         if (!item.b) {
           ctx.fillStyle = '#0b1528'
-          ctx.strokeStyle = '#f2f3f5'
+          ctx.strokeStyle = '#ffffff'
           ctx.lineWidth = Math.max(1.35, pixel * .85) / scale
           ctx.beginPath(); ctx.arc(0, 0, CORE * growth, 0, Math.PI * 2); ctx.fill(); ctx.stroke()
           continue
@@ -134,7 +134,7 @@ function Demo() {
         }
         ctx.translate((b.p.x * Math.cos(lean) - b.p.y * Math.sin(lean)) * ringScale, (b.p.x * Math.sin(lean) + b.p.y * Math.cos(lean)) * ringScale)
         ctx.rotate(b.angle)
-        ctx.strokeStyle = b.p.z < 0 ? '#8796ae' : '#f2f3f5'
+        ctx.strokeStyle = '#ffffff'
         ctx.lineWidth = Math.max(1.35, pixel * .85) / scale
         ctx.lineJoin = 'round'; ctx.lineCap = 'round'
         ctx.beginPath()
@@ -153,6 +153,16 @@ function Demo() {
         }
         ctx.stroke(); ctx.restore()
       }
+      // Quantize raster coverage: no gray/blue antialiasing pixels in the artwork.
+      const pixels = ctx.getImageData(0, 0, rw, rh)
+      for (let i = 0; i < pixels.data.length; i += 4) {
+        const white = pixels.data[i] >= 100
+        pixels.data[i] = white ? 255 : 11
+        pixels.data[i + 1] = white ? 255 : 21
+        pixels.data[i + 2] = white ? 255 : 40
+        pixels.data[i + 3] = 255
+      }
+      ctx.putImageData(pixels, 0, 0)
       output.setTransform(1, 0, 0, 1, 0, 0)
       output.imageSmoothingEnabled = false
       output.drawImage(raster, 0, 0, el.width, el.height)
