@@ -1,21 +1,20 @@
 import { useEffect, useMemo } from 'react'
-import { useFrame, useThree } from '@react-three/fiber'
-import { BufferAttribute, BufferGeometry, Color, Vector2 } from 'three'
-import { useScrollStore } from '../stores/scrollStore'
+import { useFrame } from '@react-three/fiber'
+import { BackSide, BufferAttribute, BufferGeometry, Color, IcosahedronGeometry, Vector2, Vector3 } from 'three'
 import { getWebglLayer } from '../composition/layerRegistry'
 import { useActorRuntime } from '../composition/actorRuntime'
 
 export const NIGHT_SKY = {
   seed: 7319,
-  palette: ['#050811', '#0c1423', '#152033'],
-  cellDensity: 14,
+  palette: ['#0a101c', '#101a29', '#152033'],
+  cellDensity: 24,
   contrast: 0.85,
-  darkestColor: '#040710',
-  centerBrightness: 0.22,
-  outerBrightness: 1.15,
-  darkRegionAxes: [1.2, 0.62],
-  rotationRadians: 0.24,
-  deformationAmplitude: 0.025,
+  darkestColor: '#050811',
+  centerBrightness: 0.64,
+  outerBrightness: 0.90,
+  darkRegionAxes: [1.1, 0.72],
+  rotationRadians: 0.0015,
+  deformationAmplitude: 0.018,
 } as const
 
 function hash(x: number, y: number): number {
@@ -33,68 +32,51 @@ function noise(x: number, y: number): number {
   return a * (1 - sy) + b * sy
 }
 
-function buildSky(width: number, height: number): BufferGeometry {
-  const shortSide = Math.max(1, Math.min(width, height))
-  // An oversized square covers every viewport corner even during rotation.
-  const extent = Math.hypot(width, height) / shortSide * 1.12
-  const columns = Math.ceil(extent * NIGHT_SKY.cellDensity)
-  const rows = columns
-  const vertices = Array.from({ length: rows + 1 }, (_, y) =>
-    Array.from({ length: columns + 1 }, (_, x) => ({
-      x: (x + (x === 0 || x === columns ? 0 : (hash(x, y) - 0.5) * 0.65)) / columns,
-      y: (y + (y === 0 || y === rows ? 0 : (hash(x + 941, y) - 0.5) * 0.65)) / rows,
-    })))
-  const positions: number[] = [], colors: number[] = []
+function buildSky(): BufferGeometry {
+  const geometry = new IcosahedronGeometry(1, NIGHT_SKY.cellDensity)
+  const positions = geometry.getAttribute('position')
+  const colors = new Float32Array(positions.count * 3)
   const palette = NIGHT_SKY.palette.map(value => new Color(value))
-  const shade = new Color()
-  type Point = { x: number; y: number }
-  function triangle(a: Point, b: Point, c: Point, variation: number) {
-    const x = (a.x + b.x + c.x) / 3 * extent
-    const y = (a.y + b.y + c.y) / 3 * extent
-    const broad = noise(x * 2.1 + 4.7, y * 2.1 + 8.3)
-    const detail = noise(x * 5.2, y * 5.2)
+  const point = new Vector3(), center = new Vector3(), shade = new Color()
+  for (let i = 0; i < positions.count; i++) {
+    point.fromBufferAttribute(positions, i)
+    const { x, y, z } = point
+    // Shared positions receive the same warp, keeping the closed sphere seamless.
+    point.set(x + Math.sin(y * 17 + z * 11) * 0.009,
+      y + Math.sin(z * 19 + x * 13) * 0.009,
+      z + Math.sin(x * 16 + y * 12) * 0.009).normalize()
+    positions.setXYZ(i, point.x, point.y, point.z)
+  }
+  for (let i = 0; i < positions.count; i += 3) {
+    center.set(0, 0, 0)
+    for (let j = 0; j < 3; j++) center.add(point.fromBufferAttribute(positions, i + j))
+    center.normalize()
+    const { x, y, z } = center
+    const broad = (noise(x * 4 + z * 2 + 4.7, y * 4 + z * 3 + 8.3)
+      + noise(z * 4 - x * 2, y * 5 - x * 3)) * 0.5
     const tone = Math.max(0, Math.min(1,
-      (broad * 0.8 + detail * 0.2 + (variation - 0.5) * 0.16) * NIGHT_SKY.contrast))
+      0.2 + broad * 0.6 + (hash(i, 31) - 0.5) * 0.12 * NIGHT_SKY.contrast))
     shade.copy(palette[tone < 0.5 ? 0 : 1])
-      .lerp(palette[tone < 0.5 ? 1 : 2], tone < 0.5 ? tone * 2 : (tone - 0.5) * 2)
-    for (const p of [a, b, c]) {
-      positions.push((p.x * 2 - 1) * extent, (p.y * 2 - 1) * extent, 0)
-      colors.push(shade.r, shade.g, shade.b)
-    }
+      .lerp(palette[tone < 0.5 ? 1 : 2], tone < 0.5 ? tone * 2 : tone * 2 - 1)
+    for (let j = 0; j < 3; j++) shade.toArray(colors, (i + j) * 3)
   }
-  for (let y = 0; y < rows; y++) for (let x = 0; x < columns; x++) {
-    const a = vertices[y][x], b = vertices[y][x + 1]
-    const c = vertices[y + 1][x], d = vertices[y + 1][x + 1]
-    if (hash(x + 71, y) > 0.5) {
-      triangle(a, b, d, hash(x + 123, y))
-      triangle(a, d, c, hash(x + 456, y))
-    } else {
-      triangle(a, b, c, hash(x + 123, y))
-      triangle(b, d, c, hash(x + 456, y))
-    }
-  }
-  const geometry = new BufferGeometry()
-  geometry.setAttribute('position', new BufferAttribute(new Float32Array(positions), 3))
-  geometry.setAttribute('color', new BufferAttribute(new Float32Array(colors), 3))
+  geometry.setAttribute('color', new BufferAttribute(colors, 3))
   return geometry
 }
 
 export default function LowPolyNightSky() {
-  const { width, height } = useThree(state => state.size)
-  const geometry = useMemo(() => buildSky(width, height), [width, height])
+  const geometry = useMemo(buildSky, [])
   const uniforms = useMemo(() => ({
-    uProgress: { value: useScrollStore.getState().scrollProgress },
-    uViewportScale: { value: new Vector2() },
+    uTime: { value: 0 },
     uDarkest: { value: new Color(NIGHT_SKY.darkestColor) },
     uAxes: { value: new Vector2(...NIGHT_SKY.darkRegionAxes) },
     uBrightness: { value: new Vector2(NIGHT_SKY.centerBrightness, NIGHT_SKY.outerBrightness) },
     uRotation: { value: NIGHT_SKY.rotationRadians },
     uDeformation: { value: NIGHT_SKY.deformationAmplitude },
   }), [])
-  const shortSide = Math.max(1, Math.min(width, height))
-  uniforms.uViewportScale.value.set(width / shortSide, height / shortSide)
-  useFrame(() => {
-    uniforms.uProgress.value = useScrollStore.getState().scrollProgress
+  // Reuse the scene frame loop, with no dependency on scroll progress.
+  useFrame(({ clock }) => {
+    uniforms.uTime.value = clock.elapsedTime
   })
   const layer = getWebglLayer('webgl.nightSky')
   useActorRuntime('lowPolyNightSky', true)
@@ -103,45 +85,43 @@ export default function LowPolyNightSky() {
     <mesh name="lowPolyNightSky" geometry={geometry} frustumCulled={false}
       renderOrder={layer.renderOrder} raycast={() => {}}>
       <shaderMaterial uniforms={uniforms} vertexColors depthTest={false} depthWrite={false}
-        transparent={false} toneMapped={false} fog={false}
+        transparent={false} toneMapped={false} fog={false} side={BackSide}
         vertexShader={`
           varying vec3 vSkyColor;
-          varying vec2 vScreen;
-          uniform float uProgress;
-          uniform float uRotation;
-          uniform float uDeformation;
-          uniform vec2 uViewportScale;
+          varying vec3 vWorldDirection;
+          uniform float uTime, uRotation, uDeformation;
           void main() {
             vSkyColor = color;
-            vec2 p = position.xy;
-            // Shared vertex positions receive identical displacements: no cracks.
-            p += uDeformation * vec2(
-              sin(p.y * 1.7 + uProgress * 0.7) - sin(p.y * 1.7),
-              cos(p.x * 1.4 + uProgress * 0.6) - cos(p.x * 1.4));
-            float angle = uProgress * uRotation;
-            p = mat2(cos(angle), sin(angle), -sin(angle), cos(angle)) * p;
-            // Orthographic projection of a gently tilted plane, independent
-            // of the scene camera and its depth buffer.
-            float tiltX = 0.18 + uProgress * 0.04;
-            float tiltY = -0.12 + uProgress * 0.03;
-            vec3 tilted = vec3(p.x, p.y * cos(tiltX), p.y * sin(tiltX));
-            p = vec2(tilted.x * cos(tiltY) + tilted.z * sin(tiltY), tilted.y);
-            vScreen = p / uViewportScale;
-            gl_Position = vec4(vScreen, 0.999, 1.0);
+            vec3 p = normalize(position);
+            float phase = uTime * 0.025;
+            p = normalize(p + uDeformation * vec3(
+              sin(p.y * 5.0 + p.z * 3.0 + phase),
+              sin(p.z * 4.0 + p.x * 3.0 + phase * 0.83),
+              cos(p.x * 5.0 + p.y * 2.0 + phase * 0.71)));
+            vec3 axis = normalize(vec3(0.28, 1.0, 0.34));
+            float angle = uTime * uRotation;
+            p = p * cos(angle) + cross(axis, p) * sin(angle)
+              + axis * dot(axis, p) * (1.0 - cos(angle));
+            vWorldDirection = p;
+            // World direction at infinity: retain camera rotation and FOV only.
+            vec4 projected = projectionMatrix * vec4(mat3(viewMatrix) * p, 1.0);
+            gl_Position = projected.xyww;
           }
         `}
         fragmentShader={`
           varying vec3 vSkyColor;
-          varying vec2 vScreen;
+          varying vec3 vWorldDirection;
           uniform vec3 uDarkest;
-          uniform vec2 uAxes;
-          uniform vec2 uBrightness;
+          uniform vec2 uAxes, uBrightness;
           void main() {
-            // Screen-anchored horizontal ellipse; the texture moves beneath it.
-            float radius = length(vScreen / uAxes);
+            vec3 direction = normalize(vWorldDirection);
+            // Broad ellipse anchored to the initial forward world direction.
+            vec2 offset = vec2(direction.x, direction.y + 0.028) / uAxes;
+            float distanceSquared = dot(offset, offset) + max(0.0, direction.z) * 2.0;
             float brightness = mix(uBrightness.x, uBrightness.y,
-              smoothstep(0.05, 1.3, radius));
-            gl_FragColor = vec4(max(uDarkest, vSkyColor * brightness), 1.0);
+              1.0 - exp(-distanceSquared * 0.65));
+            // A soft color floor retains facet differences instead of clipping them.
+            gl_FragColor = vec4(mix(uDarkest, vSkyColor, brightness), 1.0);
             #include <colorspace_fragment>
           }
         `}

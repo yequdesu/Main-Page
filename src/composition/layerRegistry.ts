@@ -34,7 +34,7 @@ export const LAYERS = {
   'webgl.nightSky': {
     id: 'webgl.nightSky',
     contract: { kind: 'webgl', renderOrder: -10000, depthTest: false, depthWrite: false, transparent: false },
-    description: 'Screen-space low-poly night sky, drawn before scene geometry.',
+    description: 'World-direction low-poly sky sphere at infinity, drawn before scene geometry.',
   },
   'webgl.oceanLines': {
     id: 'webgl.oceanLines',
