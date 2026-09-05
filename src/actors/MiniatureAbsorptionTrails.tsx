@@ -2,7 +2,7 @@ import { useEffect, useMemo } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
 import { BufferAttribute, BufferGeometry, DynamicDrawUsage, DoubleSide, MeshBasicMaterial, Vector3, type Camera } from 'three'
 import { getCircleConnector, smootherstep } from '../behaviors/motionTrail'
-import { buildParticleField, buildFieldScans, getFieldParticleState, selectScanMembers, CUBE_BOUND_RADIUS, FIELD_SCAN_END,
+import { buildParticleField, buildFieldScans, getFieldParticleState, selectScanMembers, CUBE_BOUND_RADIUS, FIELD_SCAN_END, FIELD_COUNT, FIELD_END,
   type ProjectedFieldCircle } from '../behaviors/miniatureParticleField'
 import { getMiniatureTransform, MINIATURE_PIVOT } from '../behaviors/miniatureUniverse'
 import { useScrollStore } from '../stores/scrollStore'
@@ -11,7 +11,7 @@ import { touchActorFrame, useActorRuntime } from '../composition/actorRuntime'
 import { getParticleScanCanvas } from './MiniatureParticleScan'
 
 const SEGMENTS = 24, SAMPLES = 12
-const CAPACITY = 240 * SAMPLES * (SEGMENTS * 3 + 6)
+const CAPACITY = FIELD_COUNT * SAMPLES * (SEGMENTS * 3 + 6)
 const pivot = new Vector3(...MINIATURE_PIVOT)
 const directions = Array.from({ length: SEGMENTS + 1 }, (_, i) =>
   [Math.cos(i * Math.PI * 2 / SEGMENTS), Math.sin(i * Math.PI * 2 / SEGMENTS)])
@@ -73,7 +73,7 @@ export default function MiniatureAbsorptionTrails() {
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
       ctx.clearRect(0, 0, window.innerWidth, window.innerHeight)
     }
-    if (sp < 0.25 || sp >= 0.648) {
+    if (sp < 0.25 || sp >= FIELD_END) {
       resources.geometry.setDrawRange(0, 0)
       touchActorFrame('miniatureAbsorptionTrails', Math.round(clock.elapsedTime * 60), false)
       return

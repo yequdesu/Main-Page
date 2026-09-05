@@ -8,9 +8,9 @@ export interface FieldParticle {
   start: number
   end: number
 }
-export const FIELD_COUNT = 240
-export const FIELD_END = 0.648
-export const FIELD_SCAN_END = FIELD_END - 0.03
+export const FIELD_COUNT = 420
+export const FIELD_END = 0.698
+export const FIELD_SCAN_END = FIELD_END - 0.04
 export const FIELD_CLEAR_RADIUS = 2.4
 export const CUBE_BOUND_RADIUS = 32 * Math.sqrt(3)
 
@@ -27,9 +27,13 @@ export function buildParticleField(seed: number): FieldParticle[] {
   const particles = Array.from({ length: FIELD_COUNT }, (_, id): FieldParticle => {
     const cluster = clusters[Math.floor(random() * clusters.length)]
     const clustered = random() < 0.78
-    const radial = clustered ? Math.max(FIELD_CLEAR_RADIUS, Math.min(8,
+    const originalRadial = clustered ? Math.max(FIELD_CLEAR_RADIUS, Math.min(8,
       cluster.radius + (random() + random() - 1) * 1.4))
       : Math.cbrt(FIELD_CLEAR_RADIUS ** 3 + random() * (8 ** 3 - FIELD_CLEAR_RADIUS ** 3))
+    // Preserve the original 240 positions/sizes for a given seed. Only added
+    // particles extend the same angular clusters into the outer 8–12 shell.
+    const radial = id < 240 ? originalRadial
+      : 8 + (originalRadial - FIELD_CLEAR_RADIUS) / (8 - FIELD_CLEAR_RADIUS) * 4
     const distance = CUBE_BOUND_RADIUS * radial
     const y = clustered ? Math.max(-0.99, Math.min(0.99,
       cluster.y + (random() + random() - 1) * cluster.spread)) : random() * 2 - 1
@@ -50,8 +54,8 @@ export function buildParticleField(seed: number): FieldParticle[] {
       if (bellDistanceProgress(mid) < rank) lo = mid
       else hi = mid
     }
-    particle.end = i === FIELD_COUNT - 1 ? FIELD_END : 0.53 + (FIELD_END - 0.53) * (lo + hi) / 2
-    particle.start = particle.end - 0.03
+    particle.end = i === FIELD_COUNT - 1 ? FIELD_END : 0.54 + (FIELD_END - 0.54) * (lo + hi) / 2
+    particle.start = particle.end - 0.04
   })
   return particles
 }

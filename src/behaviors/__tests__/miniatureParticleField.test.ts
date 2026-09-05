@@ -5,20 +5,22 @@ import { getMiniatureTransform } from '../miniatureUniverse'
 import { afterMiniature, miniatureSourceProgress } from '../../composition/transitionTiming'
 
 describe('miniature particle field', () => {
-  it('keeps 240 deterministic, unique world-space particles outside the cube', () => {
+  it('keeps 420 deterministic, unique world-space particles outside the cube', () => {
     const field = buildParticleField(123)
     expect(field).toEqual(buildParticleField(123))
     expect(field).not.toEqual(buildParticleField(124))
-    expect(new Set(field.map(p => p.id)).size).toBe(240)
+    expect(new Set(field.map(p => p.id)).size).toBe(420)
     for (const p of field) {
       expect(Math.hypot(...p.offset)).toBeCloseTo(p.distance)
       expect(p.distance).toBeGreaterThanOrEqual(CUBE_BOUND_RADIUS * FIELD_CLEAR_RADIUS)
-      expect(p.distance).toBeLessThanOrEqual(CUBE_BOUND_RADIUS * 8)
+      expect(p.distance).toBeLessThanOrEqual(CUBE_BOUND_RADIUS * 12)
+      if (p.id < 240) expect(p.distance).toBeLessThanOrEqual(CUBE_BOUND_RADIUS * 8)
+      else expect(p.distance).toBeGreaterThanOrEqual(CUBE_BOUND_RADIUS * 8)
       expect(getFieldParticleState(p, 0.5).travel).toBe(0)
     }
     expect(field.filter(p => p.distance > CUBE_BOUND_RADIUS * 5).length).toBeGreaterThan(120)
   })
-  it('collapses inward in radial order and completely vanishes by 64.8%', () => {
+  it('collapses inward in radial order and completely vanishes by 69.8%', () => {
     const field = buildParticleField(123)
     for (let i = 0; i < field.length; i++) {
       const p = field[i]
@@ -54,13 +56,13 @@ describe('miniature particle field', () => {
   it('stretches both miniature phases continuously and remaps downstream milestones once', () => {
     expect(miniatureSourceProgress(0.25)).toBe(0.25)
     expect(miniatureSourceProgress(0.5)).toBe(0.45)
-    expect(miniatureSourceProgress(0.65)).toBe(0.55)
+    expect(miniatureSourceProgress(0.70)).toBe(0.55)
     expect(getMiniatureTransform(0.5 - 1e-8).scale).toBeCloseTo(getMiniatureTransform(0.5 + 1e-8).scale, 6)
     expect(getMiniatureTransform(0.5).whiteFillProgress).toBe(0)
-    expect(getMiniatureTransform(0.65).whiteFillProgress).toBe(1)
-    expect(afterMiniature(0.55)).toBe(0.65)
-    expect(afterMiniature(0.85)).toBeCloseTo(0.8833333333)
-    expect(afterMiniature(0.90)).toBeCloseTo(0.9222222222)
+    expect(getMiniatureTransform(0.70).whiteFillProgress).toBe(1)
+    expect(afterMiniature(0.55)).toBe(0.70)
+    expect(afterMiniature(0.85)).toBeCloseTo(0.90)
+    expect(afterMiniature(0.90)).toBeCloseTo(0.9333333333)
     expect(afterMiniature(1)).toBe(1)
   })
 })

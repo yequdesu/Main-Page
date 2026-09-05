@@ -20,8 +20,8 @@ describe('miniature universe transition', () => {
 
   it('draws a full three-axis turn, fills white and freezes for handoff', () => {
     const spun = getMiniatureTransform(0.50)
-    const filled = getMiniatureTransform(0.65)
-    const handedOff = getMiniatureTransform(0.70)
+    const filled = getMiniatureTransform(0.70)
+    const handedOff = getMiniatureTransform(0.75)
     expect(spun.wireDrawProgress).toBe(1)
     expect(spun.rotation[0]).toBeCloseTo(Math.PI * 2 * 0.06)
     expect(spun.rotation[1]).toBeCloseTo(Math.PI * 2 * 0.32)
