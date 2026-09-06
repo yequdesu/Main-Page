@@ -104,7 +104,7 @@ function FarmScene({ speed }: { speed: number }) {
     <directionalLight position={[-7, 9, 8]} intensity={2.2} color="#ffd77d" />
     <directionalLight position={[8, 2, -7]} intensity={.5} color="#c47f4c" />
     <group>
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -3.25, 0]}><planeGeometry args={[26, 26]} /><meshBasicMaterial color="#513b1d" /></mesh>
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -3.25, 0]}><planeGeometry args={[26, 26, 8, 8]} /><meshBasicMaterial color="#8b6224" /></mesh>
       <WheatField speed={speed} />
       <CubeFrame />
     </group>
