@@ -25,32 +25,45 @@ function makeSeeds(): Seed[] {
   return seeds
 }
 
+function WheatEar({ seed, index, refCallback }: { seed: Seed; index: number; refCallback: (group: THREE.Group | null, index: number) => void }) {
+  const stem = useMemo(() => new THREE.CylinderGeometry(.025, .04, 1, 5), [])
+  const grain = useMemo(() => new THREE.ConeGeometry(.075, .22, 5), [])
+  const awn = useMemo(() => new THREE.ConeGeometry(.014, .42, 4), [])
+  const stemMaterial = useMemo(() => new THREE.MeshBasicMaterial({ color: '#8d6424' }), [])
+  const grainMaterial = useMemo(() => new THREE.MeshBasicMaterial({ color: seed.color }), [seed.color])
+  const awnMaterial = useMemo(() => new THREE.MeshBasicMaterial({ color: '#efd079' }), [])
+  useEffect(() => () => { stem.dispose(); grain.dispose(); awn.dispose(); stemMaterial.dispose(); grainMaterial.dispose(); awnMaterial.dispose() }, [stem, grain, awn, stemMaterial, grainMaterial, awnMaterial])
+  return <group ref={group => refCallback(group, index)} position={[seed.x, -3.15, seed.z]}>
+    <mesh geometry={stem} material={stemMaterial} scale={[1, seed.height, 1]} position={[0, seed.height * .5, 0]} />
+    {Array.from({ length: 7 }, (_, grainIndex) => {
+      const y = seed.height * (.48 + grainIndex * .075)
+      const side = grainIndex % 2 ? 1 : -1
+      return <group key={grainIndex} position={[side * (.055 + grainIndex * .006), y, 0]} rotation={[0, 0, side * .34]}>
+        <mesh geometry={grain} material={grainMaterial} rotation={[0, 0, Math.PI / 2]} scale={[1, .82, 1]} />
+        <mesh geometry={awn} material={awnMaterial} position={[side * .08, .04, 0]} rotation={[0, 0, side * .6]} />
+      </group>
+    })}
+    <mesh geometry={awn} material={awnMaterial} position={[0, seed.height * 1.02, 0]} rotation={[0, 0, seed.lean * 1.8]} />
+  </group>
+}
+
 function WheatField({ speed }: { speed: number }) {
   const seeds = useMemo(makeSeeds, [])
-  const mesh = useRef<THREE.InstancedMesh>(null)
-  const blade = useMemo(() => new THREE.ConeGeometry(.065, 1, 4), [])
-  const material = useMemo(() => new THREE.MeshBasicMaterial({ color: '#d6aa49', toneMapped: false }), [])
-  const dummy = useMemo(() => new THREE.Object3D(), [])
-  const color = useMemo(() => new THREE.Color(), [])
-  useEffect(() => () => { blade.dispose(); material.dispose() }, [blade, material])
+  const groups = useRef<(THREE.Group | null)[]>([])
   useFrame(({ clock }) => {
-    if (!mesh.current) return
     const t = clock.elapsedTime * speed
     seeds.forEach((seed, i) => {
       const gust = Math.sin(t * .8 + seed.phase + seed.x * .31 + seed.z * .17) * .13
         + Math.sin(t * .31 + seed.phase * 1.7 + seed.z * .11) * .07
       const bend = seed.lean + gust * seed.sway
-      dummy.position.set(seed.x + bend * seed.height * .25, -3.1 + seed.height * .5, seed.z)
-      dummy.rotation.set(0, seed.phase, bend)
-      dummy.scale.set(1, seed.height, 1)
-      dummy.updateMatrix()
-      mesh.current!.setMatrixAt(i, dummy.matrix)
-      color.set(seed.color); mesh.current!.setColorAt(i, color)
+      const group = groups.current[i]
+      if (!group) return
+      group.position.x = seed.x + bend * seed.height * .25
+      group.position.y = -3.15
+      group.rotation.set(0, seed.phase, bend)
     })
-    mesh.current.instanceMatrix.needsUpdate = true
-    if (mesh.current.instanceColor) mesh.current.instanceColor.needsUpdate = true
   })
-  return <instancedMesh ref={mesh} args={[blade, material, seeds.length]} frustumCulled={false} />
+  return <group>{seeds.map((seed, index) => <WheatEar key={index} seed={seed} index={index} refCallback={(group, i) => { groups.current[i] = group }} />)}</group>
 }
 
 function CubeFrame() {
