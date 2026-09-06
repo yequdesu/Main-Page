@@ -77,9 +77,9 @@ function WheatCarpet({ speed }: { speed: number }) {
   const geometry = useMemo(() => new THREE.ConeGeometry(.035, 1, 4), [])
   const material = useMemo(() => new THREE.MeshBasicMaterial({ color: '#b7832c' }), [])
   const dummy = useMemo(() => new THREE.Object3D(), [])
-  const patches = useMemo(() => Array.from({ length: 2500 }, (_, i) => ({
-    x: (i % 50 - 24.5) * .62,
-    z: (Math.floor(i / 50) - 24.5) * .62,
+  const patches = useMemo(() => Array.from({ length: 6400 }, (_, i) => ({
+    x: (i % 80 - 39.5) * .8,
+    z: (Math.floor(i / 80) - 39.5) * .8,
     h: .28 + random(i + 900) * .38,
     phase: random(i + 1200) * Math.PI * 2,
   })), [])
@@ -101,7 +101,7 @@ function WheatCarpet({ speed }: { speed: number }) {
 }
 
 function CubeFrame() {
-  const geometry = useMemo(() => new THREE.BoxGeometry(30, 16, 30), [])
+  const geometry = useMemo(() => new THREE.BoxGeometry(60, 22, 60), [])
   const edges = useMemo(() => new THREE.EdgesGeometry(geometry), [geometry])
   useEffect(() => () => { geometry.dispose(); edges.dispose() }, [geometry, edges])
   return <lineSegments geometry={edges} position={[0, 2, 0]}><lineBasicMaterial color="#e4d9b0" transparent opacity={.82} /></lineSegments>
@@ -142,7 +142,7 @@ function FieldFloor() {
 
 function FarmScene({ speed }: { speed: number }) {
   const { camera } = useThree()
-  useEffect(() => { camera.position.set(0, .5, 25); camera.lookAt(0, .35, 0) }, [camera])
+  useEffect(() => { camera.position.set(0, .5, 47); camera.lookAt(0, .35, 0) }, [camera])
   return <>
     <color attach="background" args={['#081224']} />
     <DuskBackdrop />
