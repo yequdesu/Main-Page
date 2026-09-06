@@ -24,7 +24,7 @@ function makeSeeds(): Seed[] {
     const row = Math.floor(i / columns)
     const u = (column + .18 + random(i + 2) * .64) / columns
     const v = (row + .18 + random(i * 3 + 9) * .64) / rows
-    const extent = layer === 0 ? 9.0 : layer === 1 ? 9.35 : 9.65
+    const extent = layer === 0 ? 11.5 : layer === 1 ? 12.1 : 12.6
     seeds.push({ x: (u - .5) * extent, z: (v - .5) * extent, height: .82 + random(i + 41) * (layer === 0 ? .72 : .52), lean: (random(i + 73) - .5) * .22, phase: random(i + 101) * Math.PI * 2, sway: .75 + random(i + 21) * .7, color: PALETTE[i % PALETTE.length] })
   }
   return seeds
@@ -72,23 +72,39 @@ function WheatField({ speed }: { speed: number }) {
 }
 
 function CubeFrame() {
-  const geometry = useMemo(() => new THREE.BoxGeometry(18, 11, 18), [])
+  const geometry = useMemo(() => new THREE.BoxGeometry(24, 14, 24), [])
   const edges = useMemo(() => new THREE.EdgesGeometry(geometry), [geometry])
   useEffect(() => () => { geometry.dispose(); edges.dispose() }, [geometry, edges])
-  return <lineSegments geometry={edges} position={[0, 1.5, 0]}><lineBasicMaterial color="#e4d9b0" transparent opacity={.82} /></lineSegments>
+  return <lineSegments geometry={edges} position={[0, 2, 0]}><lineBasicMaterial color="#e4d9b0" transparent opacity={.82} /></lineSegments>
+}
+
+function DuskBackdrop() {
+  const material = useMemo(() => new THREE.ShaderMaterial({
+    uniforms: {},
+    vertexShader: `varying vec2 vUv; void main(){vUv=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}`,
+    fragmentShader: `varying vec2 vUv; void main(){
+      vec3 top=vec3(0.025,0.055,0.13), mid=vec3(0.12,0.10,0.19), horizon=vec3(0.78,0.28,0.10);
+      float h=smoothstep(0.18,0.62,vUv.y); vec3 c=mix(horizon,mid,h); c=mix(c,top,smoothstep(0.55,1.0,vUv.y));
+      float band=smoothstep(0.0,0.12,abs(vUv.y-0.42)); c*=mix(0.82,1.0,band); gl_FragColor=vec4(c,1.0);
+    }`,
+    depthWrite: false,
+  }), [])
+  useEffect(() => () => material.dispose(), [material])
+  return <mesh position={[0, 3.5, -12]}><planeGeometry args={[40, 28]} /><primitive object={material} attach="material" /></mesh>
 }
 
 function FarmScene({ speed }: { speed: number }) {
   const { camera } = useThree()
-  useEffect(() => { camera.position.set(0, .4, 15.5); camera.lookAt(0, -.8, 0) }, [camera])
+  useEffect(() => { camera.position.set(0, .4, 20); camera.lookAt(0, -.8, 0) }, [camera])
   return <>
     <color attach="background" args={['#081224']} />
-    <fog attach="fog" args={['#081224', 18, 34]} />
+    <DuskBackdrop />
+    <fog attach="fog" args={['#160f1c', 22, 40]} />
     <ambientLight intensity={1.2} color="#5b6680" />
     <directionalLight position={[-7, 9, 8]} intensity={2.2} color="#ffd77d" />
     <directionalLight position={[8, 2, -7]} intensity={.5} color="#c47f4c" />
     <group>
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -3.25, 0]}><planeGeometry args={[18, 18]} /><meshBasicMaterial color="#513b1d" /></mesh>
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -3.25, 0]}><planeGeometry args={[26, 26]} /><meshBasicMaterial color="#513b1d" /></mesh>
       <WheatField speed={speed} />
       <CubeFrame />
     </group>
