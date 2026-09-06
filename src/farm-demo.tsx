@@ -24,7 +24,7 @@ function makeSeeds(): Seed[] {
     const row = Math.floor(i / columns)
     const u = (column + .18 + random(i + 2) * .64) / columns
     const v = (row + .18 + random(i * 3 + 9) * .64) / rows
-    const extent = layer === 0 ? 11.5 : layer === 1 ? 12.1 : 12.6
+    const extent = layer === 0 ? 15.0 : layer === 1 ? 15.6 : 16.2
     const baseHeight = layer === 0 ? 1.35 : layer === 1 ? 1.05 : .9
     seeds.push({ x: (u - .5) * extent, z: (v - .5) * extent, height: baseHeight + random(i + 41) * .9, lean: (random(i + 73) - .5) * .22, phase: random(i + 101) * Math.PI * 2, sway: .75 + random(i + 21) * .7, color: PALETTE[i % PALETTE.length] })
   }
@@ -73,7 +73,7 @@ function WheatField({ speed }: { speed: number }) {
 }
 
 function CubeFrame() {
-  const geometry = useMemo(() => new THREE.BoxGeometry(24, 14, 24), [])
+  const geometry = useMemo(() => new THREE.BoxGeometry(30, 16, 30), [])
   const edges = useMemo(() => new THREE.EdgesGeometry(geometry), [geometry])
   useEffect(() => () => { geometry.dispose(); edges.dispose() }, [geometry, edges])
   return <lineSegments geometry={edges} position={[0, 2, 0]}><lineBasicMaterial color="#e4d9b0" transparent opacity={.82} /></lineSegments>
@@ -114,7 +114,7 @@ function FieldFloor() {
 
 function FarmScene({ speed }: { speed: number }) {
   const { camera } = useThree()
-  useEffect(() => { camera.position.set(0, .4, 20); camera.lookAt(0, -.8, 0) }, [camera])
+  useEffect(() => { camera.position.set(0, .5, 25); camera.lookAt(0, .35, 0) }, [camera])
   return <>
     <color attach="background" args={['#081224']} />
     <DuskBackdrop />
