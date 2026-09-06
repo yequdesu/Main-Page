@@ -1,0 +1,12 @@
+* { box-sizing: border-box; }
+html, body, #root { width: 100%; height: 100%; margin: 0; overflow: hidden; }
+.farm-demo { width: 100%; height: 100%; background: #081224; color: #d5c9a2; font: 11px/1.5 ui-monospace, Consolas, monospace; }
+.farm-demo canvas { position: absolute; inset: 0; }
+.farm-demo header { position: absolute; inset: 26px 30px auto; display: flex; justify-content: space-between; letter-spacing: .1em; pointer-events: none; }
+.farm-demo footer { position: absolute; left: 50%; bottom: 26px; width: min(580px, calc(100% - 40px)); transform: translateX(-50%); padding: 14px 16px; background: #07101ee8; border: 1px solid #d7bb6238; }
+.farm-demo nav { display: flex; align-items: center; gap: 12px; margin-top: 12px; }
+.farm-demo button { border: 1px solid #d7bb6255; background: transparent; color: #e6d69d; padding: 6px 12px; cursor: pointer; }
+.farm-demo input { accent-color: #d7bb62; }
+.farm-demo label { display: flex; align-items: center; gap: 6px; }
+.farm-demo nav span { margin-left: auto; opacity: .7; }
+@media (max-width: 480px) { .farm-demo header { inset: 20px 16px auto; font-size: 9px; } .farm-demo footer { bottom: 16px; } }
