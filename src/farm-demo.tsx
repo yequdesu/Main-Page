@@ -16,19 +16,19 @@ const random = (seed: number) => {
 
 function makeSeeds(): Seed[] {
   const seeds: Seed[] = []
-  for (let i = 0; i < 360; i++) {
+  for (let i = 0; i < 900; i++) {
     const layer = i % 3
     const u = random(i + 2), v = random(i * 3 + 9)
-    const extent = layer === 0 ? 5.4 : layer === 1 ? 7.2 : 9
-    seeds.push({ x: (u - .5) * extent, z: (v - .5) * extent, height: 1.45 + random(i + 41) * (layer === 0 ? 1.3 : .9), lean: (random(i + 73) - .5) * .22, phase: random(i + 101) * Math.PI * 2, sway: .75 + random(i + 21) * .7, color: PALETTE[i % PALETTE.length] })
+    const extent = layer === 0 ? 7.2 : layer === 1 ? 8.4 : 9.2
+    seeds.push({ x: (u - .5) * extent, z: (v - .5) * extent, height: .82 + random(i + 41) * (layer === 0 ? .72 : .52), lean: (random(i + 73) - .5) * .22, phase: random(i + 101) * Math.PI * 2, sway: .75 + random(i + 21) * .7, color: PALETTE[i % PALETTE.length] })
   }
   return seeds
 }
 
 function WheatEar({ seed, index, refCallback }: { seed: Seed; index: number; refCallback: (group: THREE.Group | null, index: number) => void }) {
-  const stem = useMemo(() => new THREE.CylinderGeometry(.025, .04, 1, 5), [])
-  const grain = useMemo(() => new THREE.ConeGeometry(.075, .22, 5), [])
-  const awn = useMemo(() => new THREE.ConeGeometry(.014, .42, 4), [])
+  const stem = useMemo(() => new THREE.CylinderGeometry(.018, .028, 1, 5), [])
+  const grain = useMemo(() => new THREE.ConeGeometry(.052, .15, 5), [])
+  const awn = useMemo(() => new THREE.ConeGeometry(.009, .29, 4), [])
   const stemMaterial = useMemo(() => new THREE.MeshBasicMaterial({ color: '#8d6424' }), [])
   const grainMaterial = useMemo(() => new THREE.MeshBasicMaterial({ color: seed.color }), [seed.color])
   const awnMaterial = useMemo(() => new THREE.MeshBasicMaterial({ color: '#efd079' }), [])
@@ -38,9 +38,9 @@ function WheatEar({ seed, index, refCallback }: { seed: Seed; index: number; ref
     {Array.from({ length: 7 }, (_, grainIndex) => {
       const y = seed.height * (.48 + grainIndex * .075)
       const side = grainIndex % 2 ? 1 : -1
-      return <group key={grainIndex} position={[side * (.055 + grainIndex * .006), y, 0]} rotation={[0, 0, side * .34]}>
+      return <group key={grainIndex} position={[side * (.04 + grainIndex * .004), y, 0]} rotation={[0, 0, side * .34]}>
         <mesh geometry={grain} material={grainMaterial} rotation={[0, 0, Math.PI / 2]} scale={[1, .82, 1]} />
-        <mesh geometry={awn} material={awnMaterial} position={[side * .08, .04, 0]} rotation={[0, 0, side * .6]} />
+        <mesh geometry={awn} material={awnMaterial} position={[side * .055, .03, 0]} rotation={[0, 0, side * .6]} />
       </group>
     })}
     <mesh geometry={awn} material={awnMaterial} position={[0, seed.height * 1.02, 0]} rotation={[0, 0, seed.lean * 1.8]} />
@@ -103,7 +103,7 @@ function Demo() {
       <nav>
         <button onClick={() => setKey(value => value + 1)}>重新生成</button>
         <label>风速 <input type="range" min=".2" max="2" step=".1" value={speed} onChange={event => setSpeed(Number(event.target.value))} /></label>
-        <span>360 LOW-POLY INSTANCES</span>
+        <span>900 DETAILED LOW-POLY EARS</span>
       </nav>
     </footer>
   </main>
