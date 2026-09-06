@@ -25,7 +25,8 @@ function makeSeeds(): Seed[] {
     const u = (column + .18 + random(i + 2) * .64) / columns
     const v = (row + .18 + random(i * 3 + 9) * .64) / rows
     const extent = layer === 0 ? 11.5 : layer === 1 ? 12.1 : 12.6
-    seeds.push({ x: (u - .5) * extent, z: (v - .5) * extent, height: .82 + random(i + 41) * (layer === 0 ? .72 : .52), lean: (random(i + 73) - .5) * .22, phase: random(i + 101) * Math.PI * 2, sway: .75 + random(i + 21) * .7, color: PALETTE[i % PALETTE.length] })
+    const baseHeight = layer === 0 ? 1.35 : layer === 1 ? 1.05 : .9
+    seeds.push({ x: (u - .5) * extent, z: (v - .5) * extent, height: baseHeight + random(i + 41) * .9, lean: (random(i + 73) - .5) * .22, phase: random(i + 101) * Math.PI * 2, sway: .75 + random(i + 21) * .7, color: PALETTE[i % PALETTE.length] })
   }
   return seeds
 }
@@ -93,6 +94,24 @@ function DuskBackdrop() {
   return <mesh position={[0, 3.5, -12]}><planeGeometry args={[40, 28]} /><primitive object={material} attach="material" /></mesh>
 }
 
+function FieldFloor() {
+  const geometry = useMemo(() => {
+    const g = new THREE.PlaneGeometry(26, 26, 10, 10)
+    const colors = ['#7b551d', '#946b25', '#a8792a', '#6c4919']
+    const color = new THREE.Color()
+    const values = new Float32Array(g.attributes.position.count * 3)
+    for (let i = 0; i < g.attributes.position.count; i++) {
+      color.set(colors[i % colors.length])
+      values[i * 3] = color.r; values[i * 3 + 1] = color.g; values[i * 3 + 2] = color.b
+    }
+    g.setAttribute('color', new THREE.Float32BufferAttribute(values, 3))
+    return g
+  }, [])
+  const material = useMemo(() => new THREE.MeshBasicMaterial({ vertexColors: true }), [])
+  useEffect(() => () => { geometry.dispose(); material.dispose() }, [geometry, material])
+  return <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -3.25, 0]} geometry={geometry} material={material} />
+}
+
 function FarmScene({ speed }: { speed: number }) {
   const { camera } = useThree()
   useEffect(() => { camera.position.set(0, .4, 20); camera.lookAt(0, -.8, 0) }, [camera])
@@ -104,7 +123,7 @@ function FarmScene({ speed }: { speed: number }) {
     <directionalLight position={[-7, 9, 8]} intensity={2.2} color="#ffd77d" />
     <directionalLight position={[8, 2, -7]} intensity={.5} color="#c47f4c" />
     <group>
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -3.25, 0]}><planeGeometry args={[26, 26, 8, 8]} /><meshBasicMaterial color="#8b6224" /></mesh>
+      <FieldFloor />
       <WheatField speed={speed} />
       <CubeFrame />
     </group>
