@@ -72,6 +72,34 @@ function WheatField({ speed }: { speed: number }) {
   return <group>{seeds.map((seed, index) => <WheatEar key={index} seed={seed} index={index} refCallback={(group, i) => { groups.current[i] = group }} />)}</group>
 }
 
+function WheatCarpet({ speed }: { speed: number }) {
+  const mesh = useRef<THREE.InstancedMesh>(null)
+  const geometry = useMemo(() => new THREE.ConeGeometry(.035, 1, 4), [])
+  const material = useMemo(() => new THREE.MeshBasicMaterial({ color: '#b7832c' }), [])
+  const dummy = useMemo(() => new THREE.Object3D(), [])
+  const patches = useMemo(() => Array.from({ length: 2500 }, (_, i) => ({
+    x: (i % 50 - 24.5) * .62,
+    z: (Math.floor(i / 50) - 24.5) * .62,
+    h: .28 + random(i + 900) * .38,
+    phase: random(i + 1200) * Math.PI * 2,
+  })), [])
+  useEffect(() => () => { geometry.dispose(); material.dispose() }, [geometry, material])
+  useFrame(({ clock }) => {
+    if (!mesh.current) return
+    const t = clock.elapsedTime * speed
+    patches.forEach((patch, i) => {
+      const bend = Math.sin(t * .7 + patch.phase + patch.x * .2 + patch.z * .15) * .12
+      dummy.position.set(patch.x + bend * patch.h, -3.18, patch.z)
+      dummy.rotation.set(0, patch.phase, bend)
+      dummy.scale.set(1, patch.h, 1)
+      dummy.updateMatrix()
+      mesh.current!.setMatrixAt(i, dummy.matrix)
+    })
+    mesh.current.instanceMatrix.needsUpdate = true
+  })
+  return <instancedMesh ref={mesh} args={[geometry, material, patches.length]} frustumCulled={false} />
+}
+
 function CubeFrame() {
   const geometry = useMemo(() => new THREE.BoxGeometry(30, 16, 30), [])
   const edges = useMemo(() => new THREE.EdgesGeometry(geometry), [geometry])
@@ -124,6 +152,7 @@ function FarmScene({ speed }: { speed: number }) {
     <directionalLight position={[8, 2, -7]} intensity={.5} color="#c47f4c" />
     <group>
       <FieldFloor />
+      <WheatCarpet speed={speed} />
       <WheatField speed={speed} />
       <CubeFrame />
     </group>
