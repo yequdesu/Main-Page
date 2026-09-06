@@ -29,7 +29,7 @@ function WheatField({ speed }: { speed: number }) {
   const seeds = useMemo(makeSeeds, [])
   const mesh = useRef<THREE.InstancedMesh>(null)
   const blade = useMemo(() => new THREE.ConeGeometry(.065, 1, 4), [])
-  const material = useMemo(() => new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1, flatShading: true }), [])
+  const material = useMemo(() => new THREE.MeshBasicMaterial({ vertexColors: true, toneMapped: false }), [])
   const dummy = useMemo(() => new THREE.Object3D(), [])
   const color = useMemo(() => new THREE.Color(), [])
   useEffect(() => () => { blade.dispose(); material.dispose() }, [blade, material])
@@ -67,10 +67,10 @@ function FarmScene({ speed }: { speed: number }) {
     <color attach="background" args={['#081224']} />
     <fog attach="fog" args={['#081224', 18, 34]} />
     <ambientLight intensity={1.2} color="#5b6680" />
-    <directionalLight position={[-7, 9, 8]} intensity={3.2} color="#ffd77d" />
-    <directionalLight position={[8, 2, -7]} intensity={.8} color="#c47f4c" />
+    <directionalLight position={[-7, 9, 8]} intensity={2.2} color="#ffd77d" />
+    <directionalLight position={[8, 2, -7]} intensity={.5} color="#c47f4c" />
     <group>
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -3.25, 0]}><planeGeometry args={[26, 26]} /><meshStandardMaterial color="#5e421e" roughness={1} /></mesh>
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -3.25, 0]}><planeGeometry args={[26, 26]} /><meshBasicMaterial color="#3b2c1e" /></mesh>
       <WheatField speed={speed} />
       <CubeFrame />
     </group>
