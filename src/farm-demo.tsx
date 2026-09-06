@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
+import { createRoot } from 'react-dom/client'
 import * as THREE from 'three'
 import './debug/FarmDemo.css'
 
