@@ -77,9 +77,9 @@ function WheatCarpet({ speed }: { speed: number }) {
   const geometry = useMemo(() => new THREE.ConeGeometry(.035, 1, 4), [])
   const material = useMemo(() => new THREE.MeshBasicMaterial({ color: '#b7832c' }), [])
   const dummy = useMemo(() => new THREE.Object3D(), [])
-  const patches = useMemo(() => Array.from({ length: 6400 }, (_, i) => ({
-    x: (i % 80 - 39.5) * .8,
-    z: (Math.floor(i / 80) - 39.5) * .8,
+  const patches = useMemo(() => Array.from({ length: 3600 }, (_, i) => ({
+    x: (i % 60 - 29.5) * .62,
+    z: (Math.floor(i / 60) - 29.5) * .62,
     h: .28 + random(i + 900) * .38,
     phase: random(i + 1200) * Math.PI * 2,
   })), [])
@@ -101,7 +101,7 @@ function WheatCarpet({ speed }: { speed: number }) {
 }
 
 function CubeFrame() {
-  const geometry = useMemo(() => new THREE.BoxGeometry(60, 22, 60), [])
+  const geometry = useMemo(() => new THREE.BoxGeometry(30, 16, 30), [])
   const edges = useMemo(() => new THREE.EdgesGeometry(geometry), [geometry])
   useEffect(() => () => { geometry.dispose(); edges.dispose() }, [geometry, edges])
   return <lineSegments geometry={edges} position={[0, 2, 0]}><lineBasicMaterial color="#e4d9b0" transparent opacity={.82} /></lineSegments>
@@ -119,12 +119,12 @@ function DuskBackdrop() {
     depthWrite: false,
   }), [])
   useEffect(() => () => material.dispose(), [material])
-  return <mesh position={[0, 3.5, -12]}><planeGeometry args={[40, 28]} /><primitive object={material} attach="material" /></mesh>
+  return <mesh position={[0, 3.5, -18]}><planeGeometry args={[70, 40]} /><primitive object={material} attach="material" /></mesh>
 }
 
 function FieldFloor() {
   const geometry = useMemo(() => {
-    const g = new THREE.PlaneGeometry(70, 70, 16, 16)
+    const g = new THREE.PlaneGeometry(42, 42, 16, 16)
     const colors = ['#7b551d', '#946b25', '#a8792a', '#6c4919']
     const color = new THREE.Color()
     const values = new Float32Array(g.attributes.position.count * 3)
@@ -142,7 +142,7 @@ function FieldFloor() {
 
 function FarmScene({ speed }: { speed: number }) {
   const { camera } = useThree()
-  useEffect(() => { camera.position.set(0, .5, 47); camera.lookAt(0, .35, 0) }, [camera])
+  useEffect(() => { camera.position.set(0, .5, 25); camera.lookAt(0, .35, 0) }, [camera])
   return <>
     <color attach="background" args={['#081224']} />
     <DuskBackdrop />
