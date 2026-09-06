@@ -16,10 +16,10 @@ const random = (seed: number) => {
 
 function makeSeeds(): Seed[] {
   const seeds: Seed[] = []
-  for (let i = 0; i < 520; i++) {
+  for (let i = 0; i < 360; i++) {
     const layer = i % 3
     const u = random(i + 2), v = random(i * 3 + 9)
-    const extent = layer === 0 ? 7.5 : layer === 1 ? 10.5 : 13
+    const extent = layer === 0 ? 5.4 : layer === 1 ? 7.2 : 9
     seeds.push({ x: (u - .5) * extent, z: (v - .5) * extent, height: 1.45 + random(i + 41) * (layer === 0 ? 1.3 : .9), lean: (random(i + 73) - .5) * .22, phase: random(i + 101) * Math.PI * 2, sway: .75 + random(i + 21) * .7, color: PALETTE[i % PALETTE.length] })
   }
   return seeds
@@ -54,15 +54,15 @@ function WheatField({ speed }: { speed: number }) {
 }
 
 function CubeFrame() {
-  const geometry = useMemo(() => new THREE.BoxGeometry(26, 15, 26), [])
+  const geometry = useMemo(() => new THREE.BoxGeometry(18, 11, 18), [])
   const edges = useMemo(() => new THREE.EdgesGeometry(geometry), [geometry])
   useEffect(() => () => { geometry.dispose(); edges.dispose() }, [geometry, edges])
-  return <lineSegments geometry={edges} position={[0, 3, 0]}><lineBasicMaterial color="#e4d9b0" transparent opacity={.7} /></lineSegments>
+  return <lineSegments geometry={edges} position={[0, 1.5, 0]}><lineBasicMaterial color="#e4d9b0" transparent opacity={.82} /></lineSegments>
 }
 
 function FarmScene({ speed }: { speed: number }) {
   const { camera } = useThree()
-  useEffect(() => { camera.position.set(0, 1.1, 19); camera.lookAt(0, -1.4, 0) }, [camera])
+  useEffect(() => { camera.position.set(0, .4, 15.5); camera.lookAt(0, -.8, 0) }, [camera])
   return <>
     <color attach="background" args={['#081224']} />
     <fog attach="fog" args={['#081224', 18, 34]} />
@@ -70,7 +70,7 @@ function FarmScene({ speed }: { speed: number }) {
     <directionalLight position={[-7, 9, 8]} intensity={2.2} color="#ffd77d" />
     <directionalLight position={[8, 2, -7]} intensity={.5} color="#c47f4c" />
     <group>
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -3.25, 0]}><planeGeometry args={[26, 26]} /><meshBasicMaterial color="#3b2c1e" /></mesh>
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -3.25, 0]}><planeGeometry args={[18, 18]} /><meshBasicMaterial color="#3b2c1e" /></mesh>
       <WheatField speed={speed} />
       <CubeFrame />
     </group>
@@ -90,7 +90,7 @@ function Demo() {
       <nav>
         <button onClick={() => setKey(value => value + 1)}>重新生成</button>
         <label>风速 <input type="range" min=".2" max="2" step=".1" value={speed} onChange={event => setSpeed(Number(event.target.value))} /></label>
-        <span>520 LOW-POLY INSTANCES</span>
+        <span>360 LOW-POLY INSTANCES</span>
       </nav>
     </footer>
   </main>
