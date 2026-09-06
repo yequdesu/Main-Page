@@ -29,7 +29,7 @@ function WheatField({ speed }: { speed: number }) {
   const seeds = useMemo(makeSeeds, [])
   const mesh = useRef<THREE.InstancedMesh>(null)
   const blade = useMemo(() => new THREE.ConeGeometry(.065, 1, 4), [])
-  const material = useMemo(() => new THREE.MeshBasicMaterial({ vertexColors: true, toneMapped: false }), [])
+  const material = useMemo(() => new THREE.MeshBasicMaterial({ color: '#d6aa49', toneMapped: false }), [])
   const dummy = useMemo(() => new THREE.Object3D(), [])
   const color = useMemo(() => new THREE.Color(), [])
   useEffect(() => () => { blade.dispose(); material.dispose() }, [blade, material])
