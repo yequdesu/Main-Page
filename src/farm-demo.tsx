@@ -124,7 +124,7 @@ function DuskBackdrop() {
 
 function FieldFloor() {
   const geometry = useMemo(() => {
-    const g = new THREE.PlaneGeometry(26, 26, 10, 10)
+    const g = new THREE.PlaneGeometry(70, 70, 16, 16)
     const colors = ['#7b551d', '#946b25', '#a8792a', '#6c4919']
     const color = new THREE.Color()
     const values = new Float32Array(g.attributes.position.count * 3)
