@@ -16,8 +16,8 @@ const random = (seed: number) => {
 
 function makeSeeds(): Seed[] {
   const seeds: Seed[] = []
-  const columns = 58
-  const rows = 52
+  const columns = 40
+  const rows = 40
   for (let i = 0; i < columns * rows; i++) {
     const layer = i % 3
     const column = i % columns
@@ -88,7 +88,7 @@ function FarmScene({ speed }: { speed: number }) {
     <directionalLight position={[-7, 9, 8]} intensity={2.2} color="#ffd77d" />
     <directionalLight position={[8, 2, -7]} intensity={.5} color="#c47f4c" />
     <group>
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -3.25, 0]}><planeGeometry args={[18, 18]} /><meshBasicMaterial color="#3b2c1e" /></mesh>
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -3.25, 0]}><planeGeometry args={[18, 18]} /><meshBasicMaterial color="#513b1d" /></mesh>
       <WheatField speed={speed} />
       <CubeFrame />
     </group>
@@ -108,7 +108,7 @@ function Demo() {
       <nav>
         <button onClick={() => setKey(value => value + 1)}>重新生成</button>
         <label>风速 <input type="range" min=".2" max="2" step=".1" value={speed} onChange={event => setSpeed(Number(event.target.value))} /></label>
-        <span>3016 DETAILED LOW-POLY EARS</span>
+        <span>1600 DETAILED LOW-POLY EARS</span>
       </nav>
     </footer>
   </main>
