@@ -16,10 +16,15 @@ const random = (seed: number) => {
 
 function makeSeeds(): Seed[] {
   const seeds: Seed[] = []
-  for (let i = 0; i < 900; i++) {
+  const columns = 40
+  const rows = 36
+  for (let i = 0; i < columns * rows; i++) {
     const layer = i % 3
-    const u = random(i + 2), v = random(i * 3 + 9)
-    const extent = layer === 0 ? 7.2 : layer === 1 ? 8.4 : 9.2
+    const column = i % columns
+    const row = Math.floor(i / columns)
+    const u = (column + .18 + random(i + 2) * .64) / columns
+    const v = (row + .18 + random(i * 3 + 9) * .64) / rows
+    const extent = layer === 0 ? 8.0 : layer === 1 ? 8.8 : 9.4
     seeds.push({ x: (u - .5) * extent, z: (v - .5) * extent, height: .82 + random(i + 41) * (layer === 0 ? .72 : .52), lean: (random(i + 73) - .5) * .22, phase: random(i + 101) * Math.PI * 2, sway: .75 + random(i + 21) * .7, color: PALETTE[i % PALETTE.length] })
   }
   return seeds
@@ -103,7 +108,7 @@ function Demo() {
       <nav>
         <button onClick={() => setKey(value => value + 1)}>重新生成</button>
         <label>风速 <input type="range" min=".2" max="2" step=".1" value={speed} onChange={event => setSpeed(Number(event.target.value))} /></label>
-        <span>900 DETAILED LOW-POLY EARS</span>
+        <span>1440 DETAILED LOW-POLY EARS</span>
       </nav>
     </footer>
   </main>
