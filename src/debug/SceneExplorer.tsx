@@ -1,185 +1,118 @@
-import { useCallback, useState } from 'react'
-import type { Group, Object3D } from 'three'
-import type { EnvPreset } from '../models'
-import type { HelperState, SceneTreeNode } from './StudioShell'
+import { useState } from 'react'
+import type { SceneTreeNode } from './studioTypes'
 
-interface SceneExplorerProps {
-  env: EnvPreset
-  onEnvChange: (env: EnvPreset) => void
-  helpers: HelperState
-  onHelpersChange: (helpers: HelperState) => void
-  sceneTree: SceneTreeNode[]
-  selectedNode: Object3D | null
-  onNodeSelect: (node: Object3D | null) => void
-  modelRef: React.RefObject<Group | null>
+interface Props {
+  tree: SceneTreeNode[]
+  selectedId: string | null
+  hiddenIds: string[]
+  isolatedId: string | null
+  onSelect: (id: string | null) => void
+  onHide: () => void
+  onIsolate: () => void
+  onShowAll: () => void
+  onFocus: () => void
 }
-
-// ============================================================
-// 环境预设
-// ============================================================
-
-const ENV_PRESETS: { key: EnvPreset; label: string }[] = [
-  { key: 'studio', label: 'Studio' },
-  { key: 'night', label: 'Night' },
-  { key: 'dawn', label: 'Dawn' },
-  { key: 'sunset', label: 'Sunset' },
-]
-
-// ============================================================
-// SceneTreeView — 递归场景树
-// ============================================================
-
-function SceneTreeView({
-  nodes, depth, selectedUuid, onSelect,
-}: {
-  nodes: SceneTreeNode[]
-  depth: number
-  selectedUuid: string | null
-  onSelect: (uuid: string) => void
-}) {
-  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({})
-
+function matches(node: SceneTreeNode, query: string): boolean {
   return (
-    <>
-      {nodes.map((node) => {
-        const hasChildren = node.children.length > 0
-        const isCollapsed = collapsed[node.uuid] ?? (depth > 1)
-        const isSelected = selectedUuid === node.uuid
-
-        return (
-          <div key={node.uuid}>
-            <div
-              className={`tree-node ${isSelected ? 'selected' : ''}`}
-              style={{ paddingLeft: 4 + depth * 12 }}
-              onClick={() => onSelect(node.uuid)}
-            >
-              {hasChildren ? (
-                <span
-                  className="toggle"
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    setCollapsed((p) => ({ ...p, [node.uuid]: !isCollapsed }))
-                  }}
-                >
-                  {isCollapsed ? '▸' : '▾'}
-                </span>
-              ) : (
-                <span className="toggle">{'  '}</span>
-              )}
-              <span>{node.name || node.type}</span>
-            </div>
-            {hasChildren && !isCollapsed && (
-              <div className="tree-children">
-                <SceneTreeView
-                  nodes={node.children}
-                  depth={depth + 1}
-                  selectedUuid={selectedUuid}
-                  onSelect={onSelect}
-                />
-              </div>
-            )}
-          </div>
-        )
-      })}
-    </>
+    `${node.name} ${node.type}`.toLowerCase().includes(query) ||
+    node.children.some((child) => matches(child, query))
   )
 }
-
-// ============================================================
-// SceneExplorer
-// ============================================================
-
-export default function SceneExplorer({
-  env, onEnvChange, helpers, onHelpersChange,
-  sceneTree, selectedNode, onNodeSelect, modelRef,
-}: SceneExplorerProps) {
-  const [envOpen, setEnvOpen] = useState(true)
-  const [helperOpen, setHelperOpen] = useState(true)
-  const [treeOpen, setTreeOpen] = useState(true)
-
-  const toggleHelper = useCallback((key: keyof HelperState) => {
-    onHelpersChange({ ...helpers, [key]: !helpers[key] })
-  }, [helpers, onHelpersChange])
-
-  const handleNodeSelect = useCallback((uuid: string) => {
-    if (!modelRef.current) return
-    // 在场景图中查找对应 Object3D
-    let found: Object3D | null = null
-    modelRef.current.traverse((child) => {
-      if (child.uuid === uuid) found = child
-    })
-    onNodeSelect(found)
-  }, [modelRef, onNodeSelect])
-
+function TreeNode({
+  node,
+  props,
+  query,
+  depth,
+}: {
+  node: SceneTreeNode
+  props: Props
+  query: string
+  depth: number
+}) {
+  const [open, setOpen] = useState(depth < 1)
+  const ancestor = props.selectedId?.startsWith(`${node.id}.`)
+  const expanded = open || !!query || ancestor
+  const hidden = props.hiddenIds.some((id) => node.id === id || node.id.startsWith(`${id}.`))
+  if (query && !matches(node, query)) return null
   return (
-    <div className="scene-explorer">
-      {/* ---- 环境预设 ---- */}
+    <li>
+      <div
+        className={`tree-row ${props.selectedId === node.id ? 'selected' : ''} ${hidden ? 'muted' : ''}`}
+        style={{ paddingLeft: depth * 12 }}
+      >
+        {node.children.length ? (
+          <button
+            className="tree-toggle"
+            aria-label={`${expanded ? '折叠' : '展开'} ${node.name}`}
+            aria-expanded={expanded}
+            onClick={() => setOpen(!expanded)}
+          >
+            {expanded ? '▾' : '▸'}
+          </button>
+        ) : (
+          <span className="tree-toggle" />
+        )}
+        <button
+          className="tree-node"
+          title={`${node.name} · ${node.type}`}
+          aria-pressed={props.selectedId === node.id}
+          onClick={() => props.onSelect(node.id)}
+        >
+          {node.name}
+          {hidden ? ' · 隐藏' : ''}
+        </button>
+      </div>
+      {!!node.children.length && expanded && (
+        <ul>
+          {node.children.map((child) => (
+            <TreeNode key={child.id} node={child} props={props} query={query} depth={depth + 1} />
+          ))}
+        </ul>
+      )}
+    </li>
+  )
+}
+export default function SceneExplorer(props: Props) {
+  const [query, setQuery] = useState('')
+  const normalized = query.trim().toLowerCase()
+  const hasResult = props.tree.some((node) => matches(node, normalized))
+  return (
+    <aside className="scene-explorer" aria-label="场景对象">
       <div className="panel-section">
-        <h3 onClick={() => setEnvOpen((v) => !v)}>
-          {envOpen ? '▾' : '▸'} 环境
-        </h3>
-        {envOpen && (
-          <div className="env-preset-list">
-            {ENV_PRESETS.map((p) => (
-              <button
-                key={p.key}
-                className={`env-preset-btn ${env === p.key ? 'active' : ''}`}
-                onClick={() => onEnvChange(p.key)}
-              >
-                {p.label}
-              </button>
-            ))}
-          </div>
+        <h2>场景对象</h2>
+        <input
+          className="tree-search"
+          aria-label="搜索场景对象"
+          placeholder="搜索名称或类型"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+        />
+        <div className="button-row">
+          <button disabled={!props.selectedId} onClick={props.onFocus}>
+            聚焦
+          </button>
+          <button disabled={!props.selectedId} onClick={props.onHide}>
+            隐藏 / 显示
+          </button>
+          <button disabled={!props.selectedId} aria-pressed={!!props.isolatedId} onClick={props.onIsolate}>
+            隔离
+          </button>
+        </div>
+        {(props.hiddenIds.length > 0 || props.isolatedId) && (
+          <button onClick={props.onShowAll}>显示全部对象</button>
         )}
       </div>
-
-      {/* ---- 辅助工具 ---- */}
-      <div className="panel-section">
-        <h3 onClick={() => setHelperOpen((v) => !v)}>
-          {helperOpen ? '▾' : '▸'} 辅助
-        </h3>
-        {helperOpen && (
-          <>
-            <label className="helper-toggle">
-              <input type="checkbox" checked={helpers.grid} onChange={() => toggleHelper('grid')} />
-              Grid 网格
-            </label>
-            <label className="helper-toggle">
-              <input type="checkbox" checked={helpers.axes} onChange={() => toggleHelper('axes')} />
-              Axes 坐标轴
-            </label>
-            <label className="helper-toggle">
-              <input type="checkbox" checked={helpers.bbox} onChange={() => toggleHelper('bbox')} />
-              BBox 包围盒
-            </label>
-            <label className="helper-toggle">
-              <input type="checkbox" checked={helpers.wireframe} onChange={() => toggleHelper('wireframe')} />
-              Wireframe 线框
-            </label>
-          </>
-        )}
-      </div>
-
-      {/* ---- 场景树 ---- */}
-      <div className="panel-section">
-        <h3 onClick={() => setTreeOpen((v) => !v)}>
-          {treeOpen ? '▾' : '▸'} 场景树
-        </h3>
-        {treeOpen && (
-          <div className="scene-tree">
-            {sceneTree.length === 0 ? (
-              <div className="panel-empty">加载模型后显示</div>
-            ) : (
-              <SceneTreeView
-                nodes={sceneTree}
-                depth={0}
-                selectedUuid={selectedNode?.uuid ?? null}
-                onSelect={handleNodeSelect}
-              />
-            )}
-          </div>
-        )}
-      </div>
-    </div>
+      {!props.tree.length ? (
+        <p className="panel-empty">模型加载完成后显示对象层级</p>
+      ) : !hasResult ? (
+        <p className="panel-empty">没有匹配的对象</p>
+      ) : (
+        <ul className="scene-tree" aria-label="模型对象层级">
+          {props.tree.map((node) => (
+            <TreeNode key={node.id} node={node} props={props} query={normalized} depth={0} />
+          ))}
+        </ul>
+      )}
+    </aside>
   )
 }

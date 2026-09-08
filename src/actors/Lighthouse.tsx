@@ -17,16 +17,19 @@ export let _lighthouseGroupRef: Group | null = null
  *
  * 援引：R3F 声明式场景图 — pmndrs 官方 Getting Started
  */
-export default function Lighthouse() {
+export default function Lighthouse({ standalone = false }: { standalone?: boolean }) {
   const groupRef = useRef<Group>(null)
 
   useEffect(() => {
-    _lighthouseGroupRef = groupRef.current
-    return () => { _lighthouseGroupRef = null }
-  }, [])
+    if (standalone) return
+    const registered = groupRef.current
+    _lighthouseGroupRef = registered
+    return () => { if (_lighthouseGroupRef === registered) _lighthouseGroupRef = null }
+  }, [standalone])
 
   // 白化过渡后隐藏灯塔 — sp ≥ 0.55 时 visible=false
   useFrame(() => {
+    if (standalone) return
     const sp = useScrollStore.getState().scrollProgress
     if (groupRef.current) {
       groupRef.current.visible = sp < WHITE_OUT_END

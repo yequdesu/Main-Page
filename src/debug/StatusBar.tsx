@@ -1,70 +1,51 @@
-import { useRef, useEffect } from 'react'
-
-const _fpsHistory = new Float32Array(60)
-let _fpsIdx = 0
-
-/**
- * StatusBar — 底部性能监控条。
- *
- * FPS 通过独立 requestAnimationFrame 采样（与 R3F useFrame 解耦）。
- * Draw Calls / Triangles 由 StudioViewport 中的 RendererStats
- * 写入 canvas dataset，这里通过轮询读取。
- *
- * 援引：Stats.js FPS 计数算法
- */
-export default function StatusBar() {
-  const fpsRef = useRef<HTMLSpanElement>(null)
-  const dcRef = useRef<HTMLSpanElement>(null)
-  const triRef = useRef<HTMLSpanElement>(null)
-  const lastTime = useRef(performance.now())
-  const frameCount = useRef(0)
-
-  // FPS 独立采样（requestAnimationFrame，500ms 更新一次）
+import { useEffect, useState, type RefObject } from 'react'
+import { VIEW_LABELS, type ViewHandle, type ViewId } from './studioTypes'
+export default function StatusBar({
+  views,
+  activeView,
+  message,
+}: {
+  views: RefObject<Map<ViewId, ViewHandle>>
+  activeView: ViewId
+  message: string
+}) {
+  const [stats, setStats] = useState({ fps: 0, calls: 0, triangles: 0, rendering: false })
   useEffect(() => {
-    let raf = 0
-    const tick = () => {
-      frameCount.current++
+    let lastFrames = views.current.get(activeView)?.stats.frames ?? 0
+    let lastTime = performance.now()
+    const timer = setInterval(() => {
+      const current = views.current.get(activeView)?.stats
       const now = performance.now()
-      const elapsed = now - lastTime.current
-      if (elapsed >= 500) {
-        const fps = Math.round((frameCount.current / elapsed) * 1000)
-        frameCount.current = 0
-        lastTime.current = now
-        _fpsHistory[_fpsIdx % 60] = fps
-        _fpsIdx++
-        let sum = 0; let count = 0
-        for (let i = 0; i < 60; i++) {
-          if (_fpsHistory[i] > 0) { sum += _fpsHistory[i]; count++ }
-        }
-        const avgFps = count > 0 ? Math.round(sum / count) : fps
-        if (fpsRef.current) fpsRef.current.textContent = String(avgFps)
+      if (!current) {
+        setStats({ fps: 0, calls: 0, triangles: 0, rendering: false })
+        lastFrames = 0
+        lastTime = now
+        return
       }
-      raf = requestAnimationFrame(tick)
-    }
-    raf = requestAnimationFrame(tick)
-    return () => cancelAnimationFrame(raf)
-  }, [])
-
-  // Draw calls / triangles — 从 canvas dataset 定时轮询
-  useEffect(() => {
-    const interval = setInterval(() => {
-      const canvas = document.querySelector('.studio-viewport canvas') as HTMLCanvasElement | null
-      const dc = canvas?.getAttribute('data-drawcalls') ?? '—'
-      const tris = canvas?.getAttribute('data-triangles') ?? '—'
-      if (dcRef.current) dcRef.current.textContent = String(dc)
-      if (triRef.current) triRef.current.textContent = String(tris)
+      const fps = Math.max(0, Math.round((current.frames - lastFrames) / ((now - lastTime) / 1000)))
+      setStats({
+        fps,
+        calls: current.calls,
+        triangles: current.triangles,
+        rendering: now - current.lastRender < 600,
+      })
+      lastFrames = current.frames
+      lastTime = now
     }, 500)
-    return () => clearInterval(interval)
-  }, [])
-
+    return () => clearInterval(timer)
+  }, [views, activeView])
   return (
-    <div className="studio-status-bar">
+    <footer className="studio-status-bar">
       <span>
-        <span className="status-indicator live" />
-        FPS <span ref={fpsRef}>—</span>
+        {VIEW_LABELS[activeView]} · {stats.rendering ? `渲染中 ${stats.fps} FPS` : '空闲 · 按需渲染'}
       </span>
-      <span>Draw Calls: <span ref={dcRef}>—</span></span>
-      <span>Tris: <span ref={triRef}>—</span></span>
-    </div>
+      <span>Draw Calls {stats.calls}</span>
+      <span>
+        Tris {stats.triangles.toLocaleString()} <span className="muted">含辅助线框</span>
+      </span>
+      <span className="status-message" role="status">
+        {message}
+      </span>
+    </footer>
   )
 }

@@ -7,9 +7,9 @@ import {
 } from 'three'
 
 /**
- * LighthouseCaptureTypes — 离屏截图可调参数的类型定义 + 默认值 + 纯函数。
+ * LighthouseCaptureTypes — 离屏截图可调参数的类型定义 + 默认值 + 离屏渲染函数。
  *
- * 从 LighthouseCapture.tsx 提取。共 17 个可控参数。
+ * 从 LighthouseCapture.tsx 提取；参数定义以下方 CaptureConfig 为准。
  * 用于主应用（默认值行为不变）和 debug 预览面板（Leva 控件覆盖）。
  *
  * 援引：Three.js WebGLRenderer / PerspectiveCamera / Light 配置
@@ -190,7 +190,7 @@ function applyEdgeStroke(
 }
 
 // ============================================================
-// 离屏截图纯函数
+// 离屏截图函数
 // ============================================================
 
 /**
@@ -211,9 +211,11 @@ export function offscreenCapture(
     return null
   }
 
+  let offRenderer: WebGLRenderer | undefined
+  let silhouetteMaterial: MeshBasicMaterial | undefined
   try {
     // ---- 独立渲染器 ----
-    const offRenderer = new WebGLRenderer({
+    offRenderer = new WebGLRenderer({
       alpha: true,
       antialias: config.antialias,
       preserveDrawingBuffer: true,
@@ -237,6 +239,7 @@ export function offscreenCapture(
         transparent: true,
         depthWrite: true,
       })
+      silhouetteMaterial = silhouetteMat
       clone.traverse((child) => {
         if (!(child instanceof Mesh)) return
         // 保留窗户发光（BoxGeometry + MeshBasicMaterial #ffdf6d + 非透明）
@@ -255,7 +258,6 @@ export function offscreenCapture(
     const tempScene = new Scene()
     tempScene.add(clone)
 
-  
     // ---- 光照 ----
     tempScene.add(new AmbientLight(config.ambientColor, config.ambientIntensity))
 
@@ -330,20 +332,14 @@ export function offscreenCapture(
       dataUrl = composite.toDataURL('image/png')
     }
 
-    // ---- 清理 ----
-    offRenderer.dispose()
-    clone.traverse((c) => {
-      if ((c as any).geometry) (c as any).geometry.dispose()
-      if ((c as any).material) {
-        const mat = (c as any).material
-        if (Array.isArray(mat)) mat.forEach((m: any) => m.dispose())
-        else mat.dispose()
-      }
-    })
-
     return dataUrl
   } catch (err) {
     console.error('offscreenCapture failed:', err)
     return null
+  } finally {
+    // Object3D.clone 共享几何体/材质，不能释放源灯塔仍在使用的资源。
+    silhouetteMaterial?.dispose()
+    offRenderer?.dispose()
+    offRenderer?.forceContextLoss()
   }
 }

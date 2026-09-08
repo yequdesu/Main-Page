@@ -4,6 +4,7 @@ import type { Plugin } from 'vite'
 import { readFileSync, writeFileSync, existsSync, unlinkSync } from 'fs'
 import { resolve } from 'path'
 import { load, dump } from 'js-yaml'
+import { pickSavable } from './src/debug/captureSettings'
 
 // ============================================================
 // 常量
@@ -11,68 +12,18 @@ import { load, dump } from 'js-yaml'
 
 const YAML_PATH = resolve(__dirname, 'src/debug/lighthouse-capture.yaml')
 
-/**
- * 可保存字段白名单 — 仅相机 + 光照 + 位移。
- * captureW / captureH / antialias 等渲染参数不参与持久化。
- */
-const SAVABLE_KEYS = [
-  'cameraFov', 'cameraZ', 'cameraY',
-  'ambientColor', 'ambientIntensity',
-  'keyColor', 'keyIntensity', 'keyX', 'keyY', 'keyZ',
-  'fillColor', 'fillIntensity', 'fillX', 'fillY', 'fillZ',
-  'cloneY',
-  'silhouetteFillColor', 'silhouetteType', 'outlineType', 'edgeGlowIntensity', 'edgeGlowColor', 'edgeGlowThickness',
-] as const
-
-interface DebugYamlConfig {
-  cameraFov: number
-  cameraZ: number
-  cameraY: number
-  ambientColor: string
-  ambientIntensity: number
-  keyColor: string
-  keyIntensity: number
-  keyX: number
-  keyY: number
-  keyZ: number
-  fillColor: string
-  fillIntensity: number
-  fillX: number
-  fillY: number
-  fillZ: number
-  cloneY: number
-  silhouetteFillColor: string
-  silhouetteType: string
-  outlineType: string
-  edgeGlowIntensity: number
-  edgeGlowColor: string
-  edgeGlowThickness: number
-}
-
 // ============================================================
 // YAML 辅助函数
 // ============================================================
 
-function readYamlConfig(): DebugYamlConfig | null {
-  try {
-    if (!existsSync(YAML_PATH)) return null
-    const raw = readFileSync(YAML_PATH, 'utf-8')
-    return load(raw) as DebugYamlConfig
-  } catch {
-    return null
-  }
-}
-
-function pickSavalable(raw: Record<string, unknown>): DebugYamlConfig {
-  const out: Record<string, unknown> = {}
-  for (const key of SAVABLE_KEYS) {
-    if (key in raw) out[key] = raw[key]
-  }
-  return out as unknown as DebugYamlConfig
+function readYamlConfig(): Record<string, string | number> | null {
+  if (!existsSync(YAML_PATH)) return null
+  const raw = readFileSync(YAML_PATH, 'utf-8')
+  return pickSavable(load(raw))
 }
 
 function writeYamlConfig(raw: Record<string, unknown>): void {
-  const config = pickSavalable(raw)
+  const config = pickSavable(raw)
   const yaml = dump(config, { indent: 2, lineWidth: 120 })
   writeFileSync(YAML_PATH, yaml, 'utf-8')
 }
@@ -102,11 +53,11 @@ function debugOnlyPlugin(): Plugin {
       const G = (s: string) => `\x1b[32m${s}\x1b[39m`
       const B = (s: string) => `\x1b[1m${s}\x1b[22m`
 
-      // ---- YAML 文件变更 → HMR full-reload（dev / debug 均可用） ----
+      // 仅主入口监听此事件；Vite 的 /index.html full-reload 会重载所有页面。
       server.watcher.add(YAML_PATH)
-      server.watcher.on('change', (file) => {
+      server.watcher.on('all', (_event, file) => {
         if (file === YAML_PATH) {
-          server.ws.send({ type: 'full-reload' })
+          server.ws.send({ type: 'custom', event: 'lighthouse-config-updated', data: {} })
         }
       })
 
@@ -115,13 +66,18 @@ function debugOnlyPlugin(): Plugin {
       server.middlewares.use((req, res, next) => {
         // GET /__debug/config → 读取 YAML → 返回 JSON
         if (req.method === 'GET' && matchPath(req.url, '/__debug/config')) {
-          const cfg = readYamlConfig()
-          if (cfg) {
-            res.writeHead(200, { 'Content-Type': 'application/json' })
-            res.end(JSON.stringify(cfg))
-          } else {
-            res.writeHead(204)
-            res.end()
+          try {
+            const cfg = readYamlConfig()
+            if (cfg) {
+              res.writeHead(200, { 'Content-Type': 'application/json' })
+              res.end(JSON.stringify(cfg))
+            } else {
+              res.writeHead(204)
+              res.end()
+            }
+          } catch (error) {
+            res.writeHead(500, { 'Content-Type': 'application/json' })
+            res.end(JSON.stringify({ error: error instanceof Error ? error.message : '配置读取失败' }))
           }
           return
         }
@@ -137,9 +93,9 @@ function debugOnlyPlugin(): Plugin {
               writeYamlConfig(cfg)
               res.writeHead(200, { 'Content-Type': 'application/json' })
               res.end(JSON.stringify({ ok: true }))
-            } catch {
+            } catch (error) {
               res.writeHead(400, { 'Content-Type': 'application/json' })
-              res.end(JSON.stringify({ ok: false, error: 'Invalid config' }))
+              res.end(JSON.stringify({ ok: false, error: error instanceof Error ? error.message : 'Invalid config' }))
             }
           })
           return
@@ -190,7 +146,7 @@ function debugOnlyPlugin(): Plugin {
 }
 
 // 启动时读取 YAML 配置（无文件则为空对象），注入为编译时常量
-const _buildTimeConfig = readYamlConfig() ?? ({} as DebugYamlConfig)
+const _buildTimeConfig = readYamlConfig() ?? {}
 
 export default defineConfig({
   plugins: [react(), debugOnlyPlugin()],

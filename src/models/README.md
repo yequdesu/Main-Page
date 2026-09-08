@@ -2,7 +2,7 @@
 
 ## 当前入口
 
-[MODEL_REGISTRY](index.ts) 是 Debug Studio 模型选择器的数据源，记录组件、GLB 路径、默认环境、相机和来源信息。GLB 组件使用 Drei 的 `useGLTF` 加载模型。
+[MODEL_REGISTRY](index.ts) 是 Debug Studio 模型选择器的数据源，记录组件、GLB 路径、默认环境和来源信息。Studio 优先通过 `glbPath` 加载 GLB，各视口克隆节点、骨骼和材质，共享缓存中的几何体与贴图；组件可供其他入口复用。相机由实际包围盒自动取景，三角面数从渲染器读取。
 
 | 注册键 | 组件 | 资源 |
 |--------|------|------|

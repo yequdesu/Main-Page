@@ -1,113 +1,186 @@
-import { useMemo, useState } from 'react'
-import { Mesh, type Group, type Object3D, type MeshStandardMaterial } from 'three'
+import { Mesh, type Object3D, type MeshStandardMaterial } from 'three'
 import type { ModelRegistryEntry } from '../models'
+import { VIEW_LABELS, type AnimationState, type CameraPose, type ViewId } from './studioTypes'
 
-interface PropertyPanelProps {
-  entry: ModelRegistryEntry | undefined
-  selectedNode: Object3D | null
-  modelRef: React.RefObject<Group | null>
-}
-
-// ============================================================
-// ModelInfoCard
-// ============================================================
-
-function ModelInfoCard({ entry }: { entry: ModelRegistryEntry | undefined }) {
-  const [open, setOpen] = useState(true)
-  if (!entry) return <div className="panel-empty">未选择模型</div>
+export function ObjectInspector({
+  node,
+  entry,
+  clips,
+  animation,
+  onAnimation,
+}: {
+  node: Object3D | null
+  entry: ModelRegistryEntry
+  clips: string[]
+  animation: AnimationState
+  onAnimation: (state: AnimationState) => void
+}) {
+  const materials =
+    node instanceof Mesh ? (Array.isArray(node.material) ? node.material : [node.material]) : []
   return (
-    <div className="panel-section">
-      <h3 onClick={() => setOpen((v) => !v)}>{open ? '▾' : '▸'} 模型信息</h3>
-      {open && <div className="model-info-card">
-        <p><span className="info-label">名称：</span>{entry.label}</p>
-        {entry.triCount != null && (
-          <p><span className="info-label">三角面：</span>~{entry.triCount.toLocaleString()}</p>
+    <>
+      <section className="panel-section">
+        <h2>模型信息</h2>
+        <p>{entry.label}</p>
+        <p className="muted">{entry.attribution}</p>
+        <p className="muted">{entry.procedural ? '程序化几何' : entry.glbPath}</p>
+      </section>
+      <section className="panel-section">
+        <h2>选中对象</h2>
+        {node ? (
+          <>
+            <p>{node.name || node.type}</p>
+            <p className="muted">
+              {node.type} · {node.children.length} 个子节点
+            </p>
+          </>
+        ) : (
+          <p className="panel-empty">点击模型或左侧节点进行检查</p>
         )}
-        {entry.procedural && <p><span className="info-label">类型：</span>程序化几何</p>}
-        {entry.glbPath && <p><span className="info-label">路径：</span>{entry.glbPath}</p>}
-        {entry.attribution && <p><span className="info-label">来源：</span>{entry.attribution}</p>}
-      </div>
-      }
-    </div>
+      </section>
+      {node && (
+        <section className="panel-section">
+          <h2>
+            材质检查 <small>只读</small>
+          </h2>
+          {materials.length ? (
+            materials.map((raw, i) => {
+              const material = raw as MeshStandardMaterial
+              return (
+                <div className="material-block" key={raw.uuid}>
+                  <strong>{material.name || `材质 ${i + 1}`}</strong>
+                  <dl>
+                    <dt>类型</dt>
+                    <dd>{material.type}</dd>
+                    {material.color && (
+                      <>
+                        <dt>颜色</dt>
+                        <dd>#{material.color.getHexString()}</dd>
+                      </>
+                    )}
+                    {'metalness' in material && (
+                      <>
+                        <dt>金属度</dt>
+                        <dd>{material.metalness.toFixed(2)}</dd>
+                      </>
+                    )}
+                    {'roughness' in material && (
+                      <>
+                        <dt>粗糙度</dt>
+                        <dd>{material.roughness.toFixed(2)}</dd>
+                      </>
+                    )}
+                    <dt>透明度</dt>
+                    <dd>{material.opacity.toFixed(2)}</dd>
+                    <dt>透明</dt>
+                    <dd>{material.transparent ? '是' : '否'}</dd>
+                  </dl>
+                </div>
+              )
+            })
+          ) : (
+            <p className="panel-empty">此节点没有材质，请选择 Mesh</p>
+          )}
+        </section>
+      )}
+      {!!clips.length && (
+        <section className="panel-section">
+          <h2>模型动画</h2>
+          <label>
+            片段
+            <select
+              aria-label="动画片段"
+              value={animation.clip}
+              onChange={(e) => onAnimation({ ...animation, clip: e.target.value })}
+            >
+              <option value="">选择片段</option>
+              {clips.map((name) => (
+                <option key={name}>{name}</option>
+              ))}
+            </select>
+          </label>
+          <div className="button-row">
+            <button
+              disabled={!animation.clip}
+              onClick={() => onAnimation({ ...animation, playing: !animation.playing })}
+            >
+              {animation.playing ? '暂停' : '播放'}
+            </button>
+            <button onClick={() => onAnimation({ ...animation, clip: '', playing: false })}>停止</button>
+          </div>
+          <label>
+            播放速度
+            <input
+              aria-label="播放速度"
+              type="number"
+              min="0.1"
+              max="3"
+              step="0.1"
+              value={animation.speed}
+              onChange={(e) => {
+                const speed = e.target.valueAsNumber
+                if (Number.isFinite(speed))
+                  onAnimation({ ...animation, speed: Math.max(0.1, Math.min(3, speed)) })
+              }}
+            />
+          </label>
+        </section>
+      )}
+    </>
   )
 }
-
-// ============================================================
-// MaterialInspector
-// ============================================================
-
-function MaterialInspector({ node }: { node: Object3D | null }) {
-  const [open, setOpen] = useState(false)
-  const material = useMemo(() => {
-    if (!node || !(node instanceof Mesh)) return null
-    const mats = Array.isArray(node.material) ? node.material : [node.material]
-    return mats[0] as MeshStandardMaterial | undefined
-  }, [node])
-
-  if (!node || !(node instanceof Mesh)) {
-    return (
-      <div className="panel-section">
-        <h3 onClick={() => setOpen((v) => !v)}>{open ? '▾' : '▸'} 材质属性</h3>
-        {open && <div className="panel-empty">选中 Mesh 节点后显示</div>}
-      </div>
-    )
-  }
-
-  if (!material) {
-    return (
-      <div className="panel-section">
-        <h3 onClick={() => setOpen((v) => !v)}>{open ? '▾' : '▸'} 材质属性</h3>
-        {open && <div className="panel-empty">无标准材质信息</div>}
-      </div>
-    )
-  }
-
+export function CameraPanel({
+  id,
+  pose,
+  onPose,
+  linked,
+  onLinked,
+  disabled,
+}: {
+  id: ViewId
+  pose: CameraPose | null
+  onPose: (pose: CameraPose) => void
+  linked: boolean
+  onLinked: (linked: boolean) => void
+  disabled: boolean
+}) {
+  const orthographic = id !== 'perspective' && id !== 'wireframe'
   return (
-    <div className="panel-section">
-      <h3 onClick={() => setOpen((v) => !v)}>{open ? '▾' : '▸'} 材质属性</h3>
-      {open && <div className="material-props">
-        <p style={{ fontSize: 11, margin: '4px 0' }}>
-          <span className="info-label">节点：</span>{node.name || node.type}
-        </p>
-        <dl>
-          <dt>color</dt>
-          <dd>#{material.color?.getHexString?.() ?? '—'}</dd>
-          {'metalness' in material && <><dt>metalness</dt><dd>{material.metalness?.toFixed(3) ?? '—'}</dd></>}
-          {'roughness' in material && <><dt>roughness</dt><dd>{material.roughness?.toFixed(3) ?? '—'}</dd></>}
-          {'transparent' in material && <><dt>transparent</dt><dd>{material.transparent ? '是' : '否'}</dd></>}
-          {'opacity' in material && <><dt>opacity</dt><dd>{material.opacity?.toFixed(3) ?? '—'}</dd></>}
-          {'wireframe' in material && <><dt>wireframe</dt><dd>{material.wireframe ? '是' : '否'}</dd></>}
-        </dl>
-      </div>
-      }
-    </div>
-  )
-}
-
-// ============================================================
-// AnimationControls
-// ============================================================
-
-function AnimationControls({ modelRef }: { modelRef: React.RefObject<Group | null> }) {
-  // useAnimations 依赖 R3F 内部 hooks（useFrame），必须在 <Canvas> 内调用。
-  // PropertyPanel 位于 Canvas 外的 DOM 面板中，无法直接使用。
-  // 将来支持带动画的模型时，在 Canvas 内创建 AnimationBridge 组件，
-  // 通过 drei <Html> 将控件渲染到面板区域。
-  return null
-}
-
-// ============================================================
-// PropertyPanel
-// ============================================================
-
-export default function PropertyPanel({
-  entry, selectedNode, modelRef,
-}: PropertyPanelProps) {
-  return (
-    <div className="property-panel">
-      <ModelInfoCard entry={entry} />
-      <MaterialInspector node={selectedNode} />
-      <AnimationControls modelRef={modelRef} />
-    </div>
+    <section className="panel-section">
+      <h2>相机 · {VIEW_LABELS[id]}</h2>
+      {pose && (
+        <div className="camera-fields">
+          {(
+            [
+              ['distance', '距离', 0.1, 500],
+              ['azimuth', '方位角 °', -360, 360],
+              ['elevation', '仰角 °', -89, 89],
+            ] as const
+          ).map(([key, label, min, max]) => (
+            <label key={key}>
+              {label}
+              <input
+                aria-label={label}
+                type="number"
+                min={min}
+                max={max}
+                step="0.1"
+                value={Number(pose[key].toFixed(1))}
+                disabled={disabled || orthographic}
+                onChange={(e) => {
+                  const value = e.target.valueAsNumber
+                  if (Number.isFinite(value)) onPose({ ...pose, [key]: Math.min(max, Math.max(min, value)) })
+                }}
+              />
+            </label>
+          ))}
+        </div>
+      )}
+      {orthographic && <p className="muted">正交视图使用滚轮缩放，保持固定观察方向。</p>}
+      <label className="check">
+        <input type="checkbox" checked={linked} onChange={(e) => onLinked(e.target.checked)} />
+        对比视口相机联动
+      </label>
+    </section>
   )
 }

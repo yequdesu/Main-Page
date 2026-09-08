@@ -20,8 +20,6 @@ export interface ModelRegistryEntry {
   component: ComponentType<any>
   glbPath?: string
   environment?: EnvPreset
-  defaultCamera?: { fov: number; position: [number, number, number] }
-  triCount?: number
   attribution?: string
   procedural?: boolean
   /** 自定义 Leva 控件标记 — 当前仅 'lighthouse-capture' */
@@ -34,10 +32,8 @@ export const MODEL_REGISTRY: Record<string, ModelRegistryEntry> = {
     label: 'Lighthouse · 截图调试',
     component: lazy(() => import('../actors/Lighthouse')),
     procedural: true,
-    triCount: 30,
     attribution: '程序化生成（YeQuDeSu）',
-    environment: 'night',
-    defaultCamera: { fov: 25, position: [0, -1.5, 9] },
+    environment: 'studio',
     debugControls: 'lighthouse-capture',
   },
 
@@ -46,7 +42,6 @@ export const MODEL_REGISTRY: Record<string, ModelRegistryEntry> = {
     label: 'Voyager 1',
     component: lazy(() => import('./Voyager1')),
     glbPath: '/models/voyager-1.glb',
-    triCount: 20400,
     attribution: 'illidroid (Sketchfab) · CC BY 4.0',
     environment: 'studio',
   },
@@ -54,7 +49,6 @@ export const MODEL_REGISTRY: Record<string, ModelRegistryEntry> = {
     label: 'Voyager 1 · Low Poly',
     component: lazy(() => import('./Voyager1LowPoly')),
     glbPath: '/models/voyager-1-low-poly.glb',
-    triCount: 10550,
     attribution: 'illidroid (Sketchfab) · CC BY 4.0 · 低模烘焙',
     environment: 'studio',
   },
