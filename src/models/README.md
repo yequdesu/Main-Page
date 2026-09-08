@@ -1,60 +1,47 @@
 # models/ — 3D 模型资产与组件
 
-## 目录
+## 当前入口
 
-```
-src/models/
-  index.ts       — MODEL_REGISTRY 注册表（添加新模型只需在此加一项）
-  Voyager1.tsx    — gltfjsx 生成的 Voyager 1 组件
+[MODEL_REGISTRY](index.ts) 是 Debug Studio 模型选择器的数据源，记录组件、GLB 路径、默认环境、相机和来源信息。GLB 组件使用 Drei 的 `useGLTF` 加载模型。
 
-public/models/
-  Voyager1.glb    — GLB 二进制文件（Vite 静态服务，URL: /models/Voyager1.glb）
-```
+| 注册键 | 组件 | 资源 |
+|--------|------|------|
+| `lighthouse-capture` | [Lighthouse.tsx](../actors/Lighthouse.tsx) | 程序化生成，无独立 GLB |
+| `voyager1` | [Voyager1.tsx](Voyager1.tsx) | [voyager-1.glb](../../public/models/voyager-1.glb) |
+| `voyager1-low-poly` | [Voyager1LowPoly.tsx](Voyager1LowPoly.tsx) | [voyager-1-low-poly.glb](../../public/models/voyager-1-low-poly.glb) |
 
-## 添加新 GLB 模型
+静态资源 URL 分别为 `/models/voyager-1.glb` 和 `/models/voyager-1-low-poly.glb`；文件名大小写必须与磁盘一致。
 
-1. 将 `.glb` 文件放入 `public/models/`
-2. 运行 `npx @react-three/gltfjsx public/models/新模型.glb --transform --types --output src/models/新模型.tsx`
-3. 检查生成的代码（import 路径、类型），必要时手动润色
-4. 在 `src/models/index.ts` 的 `MODEL_REGISTRY` 中添加 entry
-5. 重启 `pnpm debug`，在 Leva 下拉菜单中验证
+## 添加模型
 
-## 模型来源与许可证
+1. 将 GLB 放入 `public/models/`，创建对应的加载组件；现有 `Voyager1.tsx` 可作参考。
+2. 如使用 gltfjsx 生成组件，核对生成文件中的 import、资源 URL 和解码配置。
+3. 在 `MODEL_REGISTRY` 注册组件及元数据；GLB 组件沿用 `lazy` 加载。
+4. 在 `pnpm debug` 的顶部模型选择器中验证加载、材质、视口和模型自带动画。
+5. 更新本文件中的资源入口与来源说明。
 
-| 模型 | 作者 | 来源 | 许可证 | 三角面 | 文件大小 |
-|------|------|------|--------|:---:|:---:|
-| Voyager 1 | illidroid | [Sketchfab](https://sketchfab.com/3d-models/voyager-1-39bececb8b5d48a3ad0070e720586759) | CC BY 4.0 | 20.4K | 1.69 MB |
-| Voyager 1 Low Poly | illidroid | `scripts/bake-low-poly.sh` 烘焙 | CC BY 4.0 | 10.5K | 401 KB |
-| Lighthouse | YeQuDeSu | 程序化生成 | 项目自有 | ~6K | — |
+## 来源与许可证
 
-## 低模烘焙管线
+以下为仓库登记的来源信息，替换模型或发布衍生资产时应保留署名：
 
-```
-scripts/bake-low-poly.sh — GLB 低模烘焙脚本
-```
+| 模型 | 作者 | 来源 | 许可证 |
+|------|------|------|--------|
+| Voyager 1 | illidroid | [Sketchfab 原模型](https://sketchfab.com/3d-models/voyager-1-39bececb8b5d48a3ad0070e720586759) | CC BY 4.0 |
+| Voyager 1 Low Poly | illidroid | 原模型经仓库低模脚本处理 | CC BY 4.0 |
+| Lighthouse | YeQuDeSu | 程序化生成 | 项目自有 |
 
-**管线步骤：**
+注册表中的三角面数是展示元数据，资源重新生成后需要核对更新；本说明不重复维护文件大小或未经重新测量的模型统计。
 
-```
-weld(合并顶点) → simplify(边折叠减面) → resize(纹理缩放) → meshopt(量化压缩)
-```
+## 低模烘焙
 
-**用法：**
+[bake-low-poly.sh](../../scripts/bake-low-poly.sh) 依次执行顶点焊接、减面、纹理缩放和 meshopt 压缩，通过 `npx` 调用 `@gltf-transform/cli`。运行可能需要下载工具；输出路径会被写入，先确认输入与输出文件。
+
+在仓库根目录运行，例如输出一个新文件：
+
 ```bash
-bash scripts/bake-low-poly.sh <输入.glb> <输出.glb> [面数比例] [纹理尺寸]
-
-# 示例
-bash scripts/bake-low-poly.sh public/models/voyager-1.glb public/models/voyager-1-low.glb
-bash scripts/bake-low-poly.sh public/models/model.glb public/models/model-low.glb 0.5 1024
+bash scripts/bake-low-poly.sh public/models/voyager-1.glb public/models/voyager-1-preview-low.glb 0.5 512
 ```
 
-**依赖：** `@gltf-transform/cli`（npx 按需安装）
+省略后两个参数时，脚本当前默认减面比例为 `0.3`、纹理尺寸为 `512`；以脚本为准。生成新资产后，核对组件资源路径、加载结果和来源信息。
 
-## gltfjsx 使用提示
-
-- `--transform` 应用 Draco 压缩 + WebP 纹理，通常减少 70-90% 体积
-- `--types` 生成 TypeScript 类型定义
-- `--instance` 对重复几何体启用自动实例化
-- 生成的组件使用 drei 的 `useGLTF`，自动从 `public/` 加载
-
-**援引：** [gltf.pmnd.rs](https://gltf.pmnd.rs) — pmndrs 官方 GLB→JSX 转换工具
+相关资料：[Debug Studio](../debug/README.md)、[共享约定](../../AGENTS.md)。

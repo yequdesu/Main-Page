@@ -1,42 +1,37 @@
-# acts/ — Act 组件（场景编排层）
+# acts/ — 场景编排层
 
 ## 职责
 
-按滚动区间组装 Actor 组件，控制可见性。不做几何体创建或逐帧动画——这些由 Actor 和 Behavior 负责。
+按滚动进度组装场景对象，控制 Act 组可见性，并协调需要场景上下文的行为。几何体和材质由 Actor 管理；可复用计算放在 Behavior 中。
 
-## 文件
+## 当前组成
 
-| 文件 | 区间 | 组装内容 | 可见性控制 |
-|------|:---:|------|------|
-| `Act1OceanVoyage.tsx` | 0–46% | `OceanWaves` + `Lighthouse` + `LightBeam` + `LighthouseCapture` | `<group visible={visible}>` |
-| `Act2GridTransition.tsx` | 40–85% | `GridLines` | `<group visible={visible}>` |
-| `Act3ContentPhase.tsx` | 85–100% | `OrbitRings` + `CentralStar` + `PlanetLabel` ×3 + `updateCameraFocus` | `<group visible={visible}>` |
+| 文件 | 子组件与行为 |
+|------|--------------|
+| [Act1OceanVoyage.tsx](Act1OceanVoyage.tsx) | `OceanWaves`、`LightBeam`、`LighthouseCapture` |
+| [Act2GridTransition.tsx](Act2GridTransition.tsx) | `GridLines`；保留基于进度的 `useFrame` 协调回调 |
+| [Act3ContentPhase.tsx](Act3ContentPhase.tsx) | `OrbitRings`；在 `useFrame` 中调用 `updateCameraFocus` |
 
-## 组织原则
+可见性条件由 [App.tsx](../App.tsx) 的 `needsAct1/2/3` 决定。当前 Act 1 的组保留到进度 0.86 之前，使海浪能在网格阶段继续使用；Act 2 从 0.39、Act 3 从 0.84 开始启用组可见性。边界含 0.01 的提前/延后余量，各对象还会根据自身进度计算透明度等属性。这与主页中概括的三个视觉阶段不是同一组边界。
 
-- **始终挂载，不 return null**——使用 `<group visible={visible}>` 隐藏
-- **跨 Act 存在的对象提升至 Canvas 根层级**——如 `DustField`（粒子/行星所有 Act 都可见）
-- **Act 组件本身不含 useFrame**——动画逻辑在 Actor 内部
-- 每个 Act 用 `React.memo` 包裹，减少不必要的 reconciler 遍历
+三个 Act 在 App 中始终挂载，通过 `<group visible={visible}>` 控制组可见性。`visible` 不等于卸载，也不能替代逐帧回调自己的条件检查。
 
-## 新增 Act 步骤
+## 跨幕对象与 DOM
 
-1. 创建 `src/acts/ActXNew.tsx`，参考 `Act1OceanVoyage.tsx` 模式
-2. 在 `src/types/index.ts` 的 `SCROLL_RIG` 中添加阈值（如需要）
-3. 在 `src/App.tsx` 中注册：`<ActXNew visible={needsActX(sp)} />`
-4. 更新 `README.md` 和本文件
+[Canvas.tsx](../r3f/Canvas.tsx) 直接挂载 `SceneLights`、`Planets`、`DustField`、`Lighthouse`、`WindChimeLines` 和 `CentralStar`，这些对象不在任何 Act 的可见性组内。
 
-## 依赖方向
+- 主行星由 `Planets` 管理，碎片由 `DustField` 管理。
+- `Lighthouse` 根据滚动进度自行隐藏，`LighthouseCapture` 负责离屏截图。
+- `BrandTitle`、终端、`FloatingLabels` 和 SVG 聚焦层位于 App 的 DOM 层；信息面板和标签根据 Act 3 条件挂载。
 
-```
-acts/ → actors/, behaviors/, stores/, types/
-acts/ 不依赖 r3f/（acts 作为 Canvas children 注入）
-```
+## 扩展与验证
 
-## 相关文档
+1. 参考现有 Act 组件，复用 Actor 和 Behavior；需要逐帧协调时可使用 `useFrame`。
+2. 共享阈值放在 [SCROLL_RIG](../types/index.ts)，在 App 中接入新的可见性条件和组件。
+3. 跨幕对象应放在 Canvas 根层级，避免被某一 Act 的组可见性隐藏。
+4. 验证前进、回滚及边界过渡；涉及行为变化时运行 [组件测试](../behaviors/__tests__/r3f-components.test.tsx)，并检查浏览器表现。
+5. 同步更新本文件和[项目总览](../../README.md)的相关说明。
 
-| 文档 | 用途 |
-|------|------|
-| [`../actors/README.md`](../actors/README.md) | 各 Actor 组件的职责和属性 |
-| [`../../README.md`](../../README.md) | 项目架构和渲染管线概览 |
-| [`../../docs/MAINTENANCE.md`](../../docs/MAINTENANCE.md) §5.1 | 新增 Act 步骤详解 |
+依赖包括 `actors/`、`behaviors/`、`stores/` 和 `r3f/ScrollRig`。Canvas 通过 `children` 接收 Act，保持容器与具体幕编排的分工。
+
+相关资料：[Actor 说明](../actors/README.md)、[R3F 基础设施](../r3f/README.md)、[共享约定](../../AGENTS.md)。

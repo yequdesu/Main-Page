@@ -1,6 +1,6 @@
 # Debug 系统说明
 
-`src/debug/` 是通用的 3D 模型预览调试系统，基于 Studio 三栏布局架构，支持程序化模型和 GLB/glTF 模型的实时参数调试。
+`src/debug/` 是通用的 3D 模型预览调试系统，基于 Studio 三栏布局架构，支持程序化模型和 GLB/glTF 模型的实时参数调试。当前生产构建只使用主应用入口，`debug.html` 不随默认构建输出。
 
 ## pnpm debug vs pnpm dev
 
@@ -69,11 +69,12 @@ debug.html                              Vite 入口（独立于 index.html）
 src/models/
   ├─ index.ts                           MODEL_REGISTRY 注册表（添加新模型只需在此加一项）
   │                                     debugControls 标记启用自定义 Leva 面板（如 'lighthouse-capture'）
-  ├─ Voyager1.tsx                        gltfjsx 生成的 Voyager 1 组件（useGLTF）
+  ├─ Voyager1.tsx                        Voyager 1 组件（useGLTF）
+  ├─ Voyager1LowPoly.tsx                 Voyager 1 低模组件（useGLTF）
   └─ README.md                          模型来源与许可证文档
 
 public/models/
-  ├─ Voyager1.glb                        GLB 二进制文件（Vite 静态服务，URL: /models/Voyager1.glb）
+  ├─ voyager-1.glb                       GLB 二进制文件（URL: /models/voyager-1.glb）
   └─ voyager-1-low-poly.glb              低模烘焙 GLB 文件
 ```
 
@@ -86,6 +87,8 @@ Studio 采用固定宽度的三栏 CSS Grid 布局：
 - **右栏 - PropertyPanel（280px）**：模型信息卡片、选中 Mesh 的材质属性、GLB 动画播放控制
 
 布局逻辑见 `StudioLayout.css`，使用 `flex: 1` 的 Shell 容器嵌套 CSS Grid。
+
+截图按钮当前导出页面中第一个视口 Canvas 的 PNG；分屏和四视图不会合成为一张截图。实现见 [StudioToolbar.tsx](StudioToolbar.tsx)。
 
 ## 模型注册表机制
 
@@ -106,6 +109,7 @@ Studio 采用固定宽度的三栏 CSS Grid 布局：
 ```
 
 要添加新模型：
+
 1. GLB 放入 `public/models/`
 2. 运行 `npx @react-three/gltfjsx public/models/模型.glb --transform --types --output src/models/模型.tsx`
 3. 在 `MODEL_REGISTRY` 中添加 entry
@@ -151,6 +155,7 @@ Studio 采用固定宽度的三栏 CSS Grid 布局：
 | `useLevaCaptureConfig.ts` | Lighthouse 截图专用 Leva 控件 hook |
 | `../models/index.ts` | 模型注册表 + 类型 + debugControls 标记 |
 | `../models/Voyager1.tsx` | Voyager 1 GLB 组件（gltfjsx 生成） |
+| `../models/Voyager1LowPoly.tsx` | Voyager 1 低模 GLB 组件 |
 
 ## 依赖
 

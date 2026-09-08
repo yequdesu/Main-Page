@@ -1,61 +1,49 @@
-# actors/ — 3D 对象组件（可渲染层）
+# actors/ — 场景对象与叠加层
 
 ## 职责
 
-每个文件封装一个 Three.js 对象（Mesh、Line、Sprite、Points、InstancedMesh2）的**创建**和**逐帧动画**。组件返回 R3F JSX，内部使用 `useFrame` 驱动动画。
+3D Actor 封装对象创建、材质和逐帧更新。本目录也包含品牌文字、行星标签及 SVG 辅助层等 DOM 组件，它们由 App 侧挂载。
 
-## 文件
+## 当前组件地图
 
-| 文件 | 对象类型 | 生命周期 | renderOrder | 动画 |
-|------|----------|----------|:---:|------|
-| `Lighthouse.tsx` | 30 Mesh（`MeshStandardMaterial`） | Act1 group 内 | 0 | 无（静态） |
-| `LightBeam.tsx` | 3 Cone + 2 Line + 1 Glow + PointLight | Act1 group 内 | 0 | 3 模式 + 每帧发布光束世界变换（供 OceanWaves 体积光照） |
-| `SceneLights.tsx` | AmbientLight + 2 DirectionalLight | Canvas 根层级 | — | 无（全局静态灯光） |
-| `OceanWaves.tsx` | 30 Line（逐顶点动画） | Act1 group 内 | 0 | 波浪 Y 偏移 + 体积聚光照明（读 `_beamWorldOrigin/Direction`） |
-| `DustField.tsx` | 3 Mesh（主行星） + InstancedMesh2 ×80（碎片） | **Canvas 根层级** | 1/2 | 位置/颜色/透明度逐帧更新 |
-| `CentralStar.tsx` | 2 Mesh（核心+光晕） + Sprite（Halo） | Act3 group 内 | 1/2/1 | 光晕脉冲 + 透明度 |
-| `OrbitRings.tsx` | 3 Line（轨道参考线）+ 编排 `GYRO_RINGS` → `<OrbitalRing>` | Act3 group 内 | 2 | 透明度（参考线）+ 配置映射 |
-| `OrbitalRing.tsx` | 1 LineLoop（陀螺仪环），可独立复用 | Act3 group 内（由 `OrbitRings` 编排） | 2 | 进动（Y 旋转）+ 透明度（scroll 驱动） |
+以下挂载位置描述主应用；Debug Studio 可通过模型注册表单独加载灯塔。
 
-> **轨道系统完整文档：** [`docs/orbital-system.md`](../../docs/orbital-system.md) — 力学模型、变换推导、配置参考、操作手册
+| 文件 | 主应用挂载位置 | 职责 |
+|------|----------------|------|
+| [SceneLights.tsx](SceneLights.tsx) | Canvas 根层级 | 全局灯光；环境光引用供 `ScrollInvalidator` 更新 |
+| [Lighthouse.tsx](Lighthouse.tsx) | Canvas 根层级 | 程序化灯塔，根据进度自行隐藏，提供截图所需对象引用 |
+| [Planets.tsx](Planets.tsx) | Canvas 根层级 | 三颗主行星、光晕/大气层、轨道与交互数据 |
+| [DustField.tsx](DustField.tsx) | Canvas 根层级 | InstancedMesh2 碎片的位置、颜色和透明度 |
+| [CentralStar.tsx](CentralStar.tsx) | Canvas 根层级 | 恒星核心、内层光晕、近场和远场 Sprite，以及风铃过渡 |
+| [WindChimeLines.tsx](WindChimeLines.tsx) | Canvas 根层级 | 跟随主行星和恒星过渡的悬线 |
+| [OceanWaves.tsx](OceanWaves.tsx) | Act 1 | 海浪、展平过渡与光束照明 |
+| [LightBeam.tsx](LightBeam.tsx) | Act 1 | 灯塔光束，发布光束世界变换供海浪读取 |
+| [LighthouseCapture.tsx](LighthouseCapture.tsx) | Act 1 | 离屏渲染灯塔截图，导出 `getLighthouseCapture()` |
+| [LighthouseCaptureTypes.ts](LighthouseCaptureTypes.ts) | 截图模块 | 截图类型、默认参数和离屏渲染函数 |
+| [GridLines.tsx](GridLines.tsx) | Act 2 | 网格线与节点的延伸、位移和透明度 |
+| [OrbitRings.tsx](OrbitRings.tsx) | Act 3 | 轨道参考线与陀螺仪环编排 |
+| [OrbitalRing.tsx](OrbitalRing.tsx) | `OrbitRings` 内 | 单个陀螺仪环的进动和显隐 |
+| [BrandTitle.tsx](BrandTitle.tsx) | App DOM 层 | 品牌标题与灯塔截图图标 |
+| [FloatingLabels.tsx](FloatingLabels.tsx) | App DOM 层，Act 3 条件挂载 | 行星标签终端、PBD 布局、入场顺序与交互 |
+| [PlanetLabelGuideLines.tsx](PlanetLabelGuideLines.tsx) | `FloatingLabels` 内 | 标签与行星之间的 SVG 连线 |
+| [PlanetLabelDebug.tsx](PlanetLabelDebug.tsx) | `FloatingLabels` 内 | PBD 约束可视化，由主终端 `debug` 命令控制 |
 
-| `GridLines.tsx` | 28 Line + 210 Points | Act2 group 内 | 2 | 延伸 + 透明度 |
-| `FloatingLabels.tsx` | 3 DOM pill（TerminalBar） | App 根 DOM 层 | — | PBD 物理驱动，独立 rAF 60fps |
-| `LighthouseCapture.tsx` | 无渲染（离屏截图逻辑） | Act1 group 内 | — | 导出 `getLighthouseCapture()` |
+场景组装以 [Canvas.tsx](../r3f/Canvas.tsx) 和 [App.tsx](../App.tsx) 为准。常驻 Canvas 不代表对象始终可见，需继续核对 Actor 内部的进度与透明度逻辑。
 
-> **PBD 布局系统文档：** [`../../docs/actors/pbd-layout-operation-guide.md`](../../docs/actors/pbd-layout-operation-guide.md) — 操作手册  
-> [`../../docs/actors/pbd-layout-maintenance-guide.md`](../../docs/actors/pbd-layout-maintenance-guide.md) — 维护指南  
-> [`../../docs/superpowers/specs/2026-06-21-pbd-layout-design.md`](../../docs/superpowers/specs/2026-06-21-pbd-layout-design.md) — 设计文档
+## 渲染和共享数据
 
-## 编写规范
+- 具体 Mesh、Line、Sprite 的渲染顺序与深度设置在各组件中维护；不能根据父 Group 的 `renderOrder` 推定所有子对象的数值。这里不再复制整套易失真的逐对象参数表。
+- 热路径复用临时对象，并按实际依赖使用帧缓存。Three.js 资源的创建与释放需要明确所有权。
+- `DustField` 的实例颜色初始化依赖 `materialsNeedsUpdate()` 更新步骤。
+- `OceanWaves` 从 `LightBeam` 导出的变量读取光束世界变换；`WindChimeLines` 从 `Planets` 读取行星位置。这些共享引用用于场景更新，修改时检查消费者和更新时序。
+- 行星世界位置、屏幕坐标与终端数据需要保持对应关系；不要把主行星逻辑重新放回 `DustField`。
 
-- **预分配对象**：`Vector3`/`Color`/`Matrix4` 用 `useRef().current` 跨帧复用
-- **帧缓存**：使用 `useFrameCache` 守卫，同一帧不重复处理
-- **材质不复用**：每个 Actor 管理自己的材质生命周期
-- **renderOrder 显式设置**：不依赖父 Group 继承
+新增 Actor 时，先确定它应由某个 Act、Canvas 根层级还是 App DOM 层管理。可复用计算抽取到 `behaviors/`，并按改动范围验证场景和交互。
 
-## 新增 Actor 步骤
+## 相关资料
 
-1. 创建 `src/actors/NewObject.tsx`
-2. 参考同类型组件（静态参考 Lighthouse，动画参考 OceanWaves，粒子参考 DustField）
-3. 在对应 Act 中导入并挂载（或 Canvas 根层级）
-4. 如需纯计算逻辑，抽取至 `behaviors/`
-
-## 依赖方向
-
-```
-actors/ → behaviors/, stores/, shaders/, types/, r3f/
-actors/ 不依赖 acts/
-```
-
-**已知跨 Actor 依赖：** `OceanWaves` → `LightBeam`（通过模块级共享变量 `_beamWorldOrigin` / `_beamWorldDirection` 读取光束世界变换）。这是为避开 React props 60fps 重渲染的刻意设计，详见 `docs/MAINTENANCE.md` §8.1。
-
-## 相关文档
-
-| 文档 | 用途 |
-|------|------|
-| [`../../docs/orbital-system.md`](../../docs/orbital-system.md) | 轨道系统完整文档（OrbitalRing / OrbitRings） |
-| [`../../docs/MAINTENANCE.md`](../../docs/MAINTENANCE.md) §7 | 渲染层级和 depthWrite/depthTest 规则 |
-| [`../../docs/MAINTENANCE.md`](../../docs/MAINTENANCE.md) §8.1 | 体积聚光照明数据流（OceanWaves ↔ LightBeam） |
-| [`../behaviors/README.md`](../behaviors/README.md) | 可复用行为逻辑（useFrame 中调用的纯函数） |
-| [`../../docs/dev-blog/`](../../docs/dev-blog/) | 4 篇调试记录（涉及 DustField, InstancedMesh2） |
+- [Act 编排](../acts/README.md)、[Behavior 说明](../behaviors/README.md)、[共享约定](../../AGENTS.md)。
+- [轨道系统](../../docs/orbital-system.md)。
+- [PBD 操作手册](../../docs/actors/pbd-layout-operation-guide.md)、[维护指南](../../docs/actors/pbd-layout-maintenance-guide.md)。
+- [渲染效果设计](../../docs/actors/design.md)、[维护指南](../../docs/actors/maintenance-guide.md)。
+- [调试记录](../../docs/dev-blog/)，用于了解历史问题与修复背景。
