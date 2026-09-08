@@ -111,8 +111,13 @@ export default function TerminalBar(props: TerminalBarProps) {
   )
 
   const [mode, setMode] = useState<TerminalMode>(controlledMode ?? 'typing')
-  const [inputValue, setInputValue] = useState(controlledInputValue ?? '')
-  const [cursorPos, setCursorPos] = useState(0)
+  const [{ value: inputValue, cursorPos }, setInput] = useState(() => ({
+    value: controlledInputValue ?? '', cursorPos: controlledInputValue?.length ?? 0,
+  }))
+  // 文本与光标属于同一次编辑；程序清空或预填时默认将光标放到末尾。
+  const setInputValue = useCallback((value: string, position = value.length) => {
+    setInput({ value, cursorPos: position })
+  }, [])
   const [hasFocus, setHasFocus] = useState(false)
 
   useEffect(() => { if (controlledMode !== undefined) setMode(controlledMode) }, [controlledMode])
@@ -133,10 +138,12 @@ export default function TerminalBar(props: TerminalBarProps) {
 
   const hiddenInputRef = useRef<HTMLInputElement | null>(null)
 
-  // 同步视觉游标位置到 hidden input 的 selectionStart
+  // 仅移动选区时，从原生输入框同步视觉光标。
   const syncCursorPos = useCallback(() => {
     const el = hiddenInputRef.current
-    if (el) setCursorPos(el.selectionStart ?? el.value.length)
+    if (!el) return
+    const position = el.selectionStart ?? el.value.length
+    setInput(current => current.cursorPos === position ? current : { ...current, cursorPos: position })
   }, [])
   const barInnerRef = useRef<HTMLDivElement | null>(null)
   const scrollableRef = useRef<ScrollableHandle | null>(null)
@@ -155,7 +162,7 @@ export default function TerminalBar(props: TerminalBarProps) {
     mode, inputValue,
     setMode: (m: string) => { setMode(m as TerminalMode); onModeChange?.(m as TerminalMode) },
     clearInput: () => { setInputValue('') },
-    setInputValue: (v: string) => { setInputValue(v) },
+    setInputValue,
     playEcho: (lines: string[]) => { onPlayEcho?.(lines) },
     clearEcho: () => { onClearEcho?.() },
     onCommand, onClear, promptChar: T.promptChar,

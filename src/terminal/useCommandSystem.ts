@@ -13,7 +13,7 @@ export interface CommandSystemDeps {
   inputValue: string
   setMode: (mode: string) => void
   clearInput: () => void
-  setInputValue: (val: string) => void
+  setInputValue: (val: string, cursorPos: number) => void
   playEcho: (lines: string[]) => void
   clearEcho: () => void
   onCommand?: (input: string) => string
@@ -71,7 +71,11 @@ export function useCommandSystem(deps: CommandSystemDeps) {
   )
 
   const handleInputChange = useCallback(
-    (e: React.ChangeEvent<HTMLInputElement>) => deps.setInputValue(e.target.value),
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const input = e.currentTarget
+      // 粘贴和输入法不一定触发 keyup / select，必须在 input 事件中读取新光标。
+      deps.setInputValue(input.value, input.selectionStart ?? input.value.length)
+    },
     [deps.setInputValue],
   )
 
