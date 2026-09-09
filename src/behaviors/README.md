@@ -15,18 +15,21 @@
 | `useOcclusionFade.ts` | 纯函数 | `calcOcclusionFade`——聚焦遮挡检测（可 L1 单测）|
 | `useScreenSpaceHover.ts` | 纯函数 | `calcScreenSpaceHover`——NDC 投影悬停检测 + 迟滞阈值（可 L1 单测）|
 | `useScreenProjection.ts` | Hook | 3D 世界坐标 → 屏幕坐标投影（NDC 管线），包括中央恒星 |
-| `usePBDLayout.ts` | 纯函数 | PBD 标签布局引擎——速度前馈 + 6 类约束投影 |
-| `useFloatingLabels.ts` | Hook | PBD 编排层——rAF 驱动 60fps 物理 + 入场排序 + 退出管理 |
+| `usePBDLayout.ts` | 有状态函数 | PBD 融合布局——模块级速度与目标历史、速度前馈 + 6 类混合约束 |
+| `useFloatingLabels.ts` | Hook | PBD 编排层——rAF 步进 + 入场延迟 + 退出管理 |
 
 > **PBD 文档：** [`../../docs/actors/pbd-layout-operation-guide.md`](../../docs/actors/pbd-layout-operation-guide.md)  
 > [`../../docs/actors/pbd-layout-maintenance-guide.md`](../../docs/actors/pbd-layout-maintenance-guide.md)  
-> [`../../docs/superpowers/specs/2026-06-21-pbd-layout-design.md`](../../docs/superpowers/specs/2026-06-21-pbd-layout-design.md)
+> [形式化公式](../../docs/actors/pbd-layout-formal.md) · [SVG 交互说明](../../docs/actors/pbd-layout-explainer.html)
+>
+> [历史设计（2026-06-21）](../../docs/superpowers/specs/2026-06-21-pbd-layout-design.md)
 
 ## 命名约定
 
-- 文件名以 `use` 开头（统一样式），但内部导出**纯函数**而非 Hook
+- 文件名以 `use` 开头；其中既有纯计算函数，也有 Hook 和有状态函数，以实现为准
 - 纯函数零 React 依赖，零 Three.js 场景依赖，参数即输入、返回值即输出
 - Three.js 类型（`Vector3`、`PerspectiveCamera`）作为参数传入，不 import 场景实例
+- `stepPBD()` 的模块级状态需要明确所有权，不能把一个模块实例当作多个独立求解器。交互说明通过独立页面隔离它与主页。
 
 ## 测试
 
@@ -49,7 +52,7 @@
 
 ```
 behaviors/ → types/ (ParticleData 等)
-behaviors/ 不依赖 actors/, acts/, stores/（参数通过函数签名传入）
+纯计算单元优先通过参数传入数据；编排 Hook 可依赖 stores，部分现有行为也读取 Actor 共享引用
 ```
 
 ## 相关文档

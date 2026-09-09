@@ -19,7 +19,7 @@ YeQuDesu 的滚动驱动 3D 单页个人网站，用海洋灯塔、网格过渡�
 - **滚动与快进**：滚轮有惯性；点击页面可用 2 秒动画快进到末尾。
 - **行星导航**：点击行星聚焦相机并显示 SVG 辅助线，再次点击打开链接；聚焦期间阻止滚轮，超时自动取消聚焦。
 - **主终端**：点击或按 `/` 激活，支持 `help`、`debug`、`day`、`night`、`clear`；`light`、`dark`、`cls` 为对应别名。
-- **场景信息与标签**：最后一幕显示行星、轨道、摄像机和碎片数据；行星标签由 PBD 物理布局管理，支持 `info`、`focus`、`open` 命令。
+- **场景信息与标签**：最后一幕显示行星、轨道、摄像机和碎片数据；行星标签由 PBD 融合布局管理，支持 `info`、`focus`、`open` 命令。算法的公式、SVG 动画和参数实验见 [交互说明](docs/actors/pbd-layout-explainer.html)。
 - **主题与品牌**：支持日夜切换，灯塔图标由场景模型离屏渲染生成。主题由 CSS、场景混合和终端色板分别更新；海洋阶段的主终端保持夜间色板。
 
 当前行星入口由 [PLANET_LINKS](src/types/index.ts) 配置：
@@ -47,12 +47,16 @@ pnpm dev
 | `pnpm debug` | 专注模型调试，根路径重定向到 `/debug.html` |
 | `pnpm build` | 执行 TypeScript 检查和 Vite 构建，输出到 `dist/` |
 | `pnpm preview` | 本地预览已构建的主应用 |
+| `pnpm build:docs` | 独立构建 PBD 交互说明，输出到 `dist-docs/` |
+| `pnpm preview:docs` | 预览已构建的交互说明 |
 | `pnpm test` | Vitest 开发测试 |
 | `pnpm test --run` | 单次运行测试 |
 | `pnpm clean` | 删除 `dist/`、Vite 缓存和 TypeScript 构建缓存 |
 | `pnpm mirror` | 查看默认端口 5173、9999 的后台服务状态 |
 
 命令以 [package.json](package.json) 为准。测试覆盖数学工具、部分 R3F 组件、PBD 布局、终端命令、打字机和滚动容器；具体数量与通过情况以本次运行结果为准。
+
+运行开发服务后，访问 [PBD 交互说明](http://localhost:5173/docs/actors/pbd-layout-explainer.html)，可调整布局参数、播放 SVG 动画、逐帧观察并比较求解帧率。独立构建的默认预览地址为 [文档预览](http://localhost:4173/docs/actors/pbd-layout-explainer.html)。这两项文档命令不改变主应用的生产入口。
 
 ## Debug Studio 与模型
 
@@ -91,6 +95,7 @@ Studio 是独立的开发入口。当前 Vite 生产构建只使用 `index.html`
 | [src/MainTerminal.tsx](src/MainTerminal.tsx)、[src/InfoPanelTerminal.tsx](src/InfoPanelTerminal.tsx) | 主终端和场景信息终端封装 |
 | [src/theme/](src/theme/)、[src/stores/](src/stores/) | 主题色板、主题更新、交互状态和实时场景数据 |
 | [src/debug/](src/debug/)、[src/models/](src/models/) | Debug Studio、模型注册表与 GLB 组件 |
+| [src/docs/pbd/](src/docs/pbd/README.md) | PBD 交互说明的 SVG、公式、实验与几何诊断 |
 | [src/shaders/](src/shaders/)、[src/utils/](src/utils/)、[src/types/](src/types/) | Shader、数学工具、共享类型和配置 |
 
 主场景的组装关系以 [Canvas.tsx](src/r3f/Canvas.tsx) 为准：
@@ -125,7 +130,7 @@ SceneCanvas
 | 场景组成 | [Act 说明](src/acts/README.md)、[Actor 说明](src/actors/README.md)、[R3F 基础设施](src/r3f/README.md) |
 | 终端 | [操作手册](docs/terminal/operation-guide.md)、[维护手册](docs/terminal/maintenance-guide.md)、[技术规格](docs/terminal/specification.md) |
 | 主题 | [设计](docs/theme/design.md)、[操作](docs/theme/operation-guide.md)、[维护](docs/theme/maintenance-guide.md) |
-| 轨道与标签布局 | [轨道系统](docs/orbital-system.md)、[PBD 操作](docs/actors/pbd-layout-operation-guide.md)、[PBD 维护](docs/actors/pbd-layout-maintenance-guide.md) |
+| 轨道与标签布局 | [轨道系统](docs/orbital-system.md)、[PBD 交互说明](docs/actors/pbd-layout-explainer.html)、[形式化公式](docs/actors/pbd-layout-formal.md)、[操作](docs/actors/pbd-layout-operation-guide.md)、[维护](docs/actors/pbd-layout-maintenance-guide.md) |
 | 渲染效果 | [Actor 设计](docs/actors/design.md)、[操作](docs/actors/operation-guide.md)、[维护](docs/actors/maintenance-guide.md) |
 | 开发排障 | [维护手册](docs/MAINTENANCE.md)、[调试记录](docs/dev-blog/) |
 

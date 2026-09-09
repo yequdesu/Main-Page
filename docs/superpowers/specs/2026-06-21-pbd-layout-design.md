@@ -1,5 +1,7 @@
 # PBD 行星标签布局系统 — 设计文档
 
+> 历史设计快照，保留 2026-06-21 的设计意图和当时描述。当前执行顺序、公式与局限请阅读 [形式化说明](../../actors/pbd-layout-formal.md) 和 [SVG 交互说明](../../actors/pbd-layout-explainer.html)，不要将下文的稳定性与约束保证视为当前验收结论。
+
 **日期**: 2026-06-21  
 **状态**: 稳定版 v1  
 **关联**: `src/behaviors/usePBDLayout.ts`, `src/behaviors/useFloatingLabels.ts`, `src/actors/FloatingLabels.tsx`, `src/actors/PlanetLabelDebug.tsx`

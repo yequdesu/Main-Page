@@ -46,6 +46,6 @@
 
 - [Act 编排](../acts/README.md)、[Behavior 说明](../behaviors/README.md)、[共享约定](../../AGENTS.md)。
 - [轨道系统](../../docs/orbital-system.md)。
-- [PBD 操作手册](../../docs/actors/pbd-layout-operation-guide.md)、[维护指南](../../docs/actors/pbd-layout-maintenance-guide.md)。
+- [PBD 交互说明](../../docs/actors/pbd-layout-explainer.html)、[形式化公式](../../docs/actors/pbd-layout-formal.md)、[操作手册](../../docs/actors/pbd-layout-operation-guide.md)、[维护指南](../../docs/actors/pbd-layout-maintenance-guide.md)。
 - [渲染效果设计](../../docs/actors/design.md)、[维护指南](../../docs/actors/maintenance-guide.md)。
 - [调试记录](../../docs/dev-blog/)，用于了解历史问题与修复背景。
