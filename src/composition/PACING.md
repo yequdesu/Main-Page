@@ -54,11 +54,15 @@ Completion history is separate per gate and memory-only. Reverse input exits
 immediately and rearms gates crossed on the way back. Native scrollbar jumps
 are clamped too; subsequent deliberate gutter dragging can charge the gate.
 
-During the first hold the cube rotates at .35 rad/s and scanning loops slowly.
-Full charge starts a same-direction, constant-yaw-speed alignment to the next
-quarter-turn face; progress remains locked until alignment finishes. The next
-stage inherits that pose, and face projection chooses the visible side face,
-not a hard-coded -Z face. Later whitening matches the current camera exactly.
+Displayed progress and the scrollbar settle together with a .18s exponential
+response, including after a gate clamps the input target. All scene actors see
+the same eased progress. The cube introduces gentle three-axis motion before
+the first gate, using a .45s velocity response, while scanning loops slowly.
+Full charge unlocks immediately; face alignment belongs to the normal whitening
+interval, with no additional wait. Rewinding clears the hold pose and returns
+to the authored transform with a short visual blend, not a persistent offset.
+Face projection chooses the visible side face, not a hard-coded -Z face.
+Whitening still matches the current camera exactly at the handoff.
 The second hold adds real-time orbit phase; its accumulated offset is preserved
 after release and eased away through the preceding phase on reverse playback.
 Neither hold regenerates the scene's particles or geometric satellites.

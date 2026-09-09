@@ -1,12 +1,25 @@
 import { describe, expect, it } from 'vitest'
 import { CHARGE_GATE_POINTS, chargeFromInput, constrainChargeProgress, createChargeGates,
-  finishChargeGate, tickChargeGates, createWheelIntentFilter, createForwardCubeAlignment,
+  integrateHoldVelocity, settleGateProgress, tickChargeGates, createWheelIntentFilter, createForwardCubeAlignment,
   sampleCubeAlignment, CUBE_HOLD_SPEED, chargeGates, resetChargeGates, getOrbitHoldPhase } from '../chargeGates'
 import { TIMELINE } from '../../composition/timeline'
 import { getSquareContourTransitionFrame } from '../act2SquareContourTransition'
 import { getPixelOrbitGeometry } from '../pixelOrbitReveal'
 
 describe('scroll energy gates', () => {
+  it('settles without overshoot and integrates velocity independently of frame rate', () => {
+    const whole = integrateHoldVelocity(2, .065, .1)
+    const first = integrateHoldVelocity(2, .065, .05)
+    const second = integrateHoldVelocity(first.velocity, .065, .05)
+    expect(first.distance + second.distance).toBeCloseTo(whole.distance, 12)
+    expect(second.velocity).toBeCloseTo(whole.velocity, 12)
+    expect(settleGateProgress(.2, .3, .016)).toBeGreaterThan(.2)
+    expect(settleGateProgress(.2, .3, .016)).toBeLessThan(.3)
+    const state = createChargeGates()
+    state.cubePose = [1, 2, 3]
+    constrainChargeProgress(state, CHARGE_GATE_POINTS[0], CHARGE_GATE_POINTS[0] - .01)
+    expect(state.cubePose).toBeNull()
+  })
   it('catches fast jumps in order and never charges from overshoot or inertia', () => {
     const state = createChargeGates()
     expect(constrainChargeProgress(state, 0, 1)).toBe(CHARGE_GATE_POINTS[0])
@@ -31,9 +44,9 @@ describe('scroll energy gates', () => {
     chargeFromInput(state, 80, 800, 0)
     expect(state.energy).toBe(.1) // abandoned attempts do not unlock faster charging
     for (let i = 0; i < 9; i++) chargeFromInput(state, 80, 800, 10 + i)
-    expect(state.mode).toBe('releasing')
-    expect(constrainChargeProgress(state, point, 1)).toBe(point)
-    finishChargeGate(state)
+    expect(state.mode).toBe('idle')
+    expect(state.active).toBe(-1)
+    expect(constrainChargeProgress(state, point, point + .01)).toBe(point + .01)
     expect(state.completed).toEqual([true, false])
     constrainChargeProgress(state, point + .1, point - .01)
     constrainChargeProgress(state, point - .01, point)
@@ -57,7 +70,7 @@ describe('scroll energy gates', () => {
     state.unlocked[0] = true
     expect(constrainChargeProgress(state, CHARGE_GATE_POINTS[0] + .01, 1)).toBe(CHARGE_GATE_POINTS[1])
     for (let i = 0; i < 10; i++) chargeFromInput(state, 100, 800, i)
-    expect(state.mode).toBe('releasing')
+    expect(state.mode).toBe('idle')
     tickChargeGates(state, 0); tickChargeGates(state, 100); tickChargeGates(state, 200)
     expect(state.active).toBe(-1)
     expect(state.released).toBe(CHARGE_GATE_POINTS[1])

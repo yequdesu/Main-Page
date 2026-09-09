@@ -27,8 +27,7 @@ import {
 } from '../composition/coreAnchors'
 import { useAnchorStore } from '../composition/anchorStore'
 import { TIMELINE } from '../composition/timeline'
-import { chargeGates, CHARGE_GATE_POINTS, CUBE_HOLD_SPEED, createForwardCubeAlignment,
-  sampleCubeAlignment, finishChargeGate } from '../behaviors/chargeGates'
+import { chargeGates, CHARGE_GATE_POINTS, integrateHoldVelocity } from '../behaviors/chargeGates'
 
 interface MiniatureUniverseProps {
   children: ReactNode
@@ -117,7 +116,9 @@ export default function MiniatureUniverse({ children }: MiniatureUniverseProps) 
   const cameraLocal = useMemo(() => new Vector3(), [])
   const quarterQuaternion = useMemo(() => new Quaternion(), [])
   const yAxis = useMemo(() => new Vector3(0, 1, 0), [])
-  const gateRotation = useMemo(() => getMiniatureTransform(CHARGE_GATE_POINTS[0]).rotation, [])
+  const rewindPose = useMemo(() => new Quaternion(), [])
+  const rewindBlend = useRef(0)
+  const holdMotion = useRef({ offset: [0, 0, 0], velocity: [0, 0, 0], previous: 0, released: false })
   const projectedCorners = useMemo(() => [
     new Vector3(), new Vector3(), new Vector3(), new Vector3(),
   ], [])
@@ -132,43 +133,50 @@ export default function MiniatureUniverse({ children }: MiniatureUniverseProps) 
     useAnchorStore.getState().clearProducer('miniature')
   }, [wireGeometry, wireMaterial])
 
-  useFrame((state) => {
+  useFrame((state, delta) => {
     const universe = universeRef.current
     if (!universe) return
     const sp = useScrollStore.getState().scrollProgress
     const transform = getMiniatureTransform(sp)
 
-    if (chargeGates.active === 0) {
-      chargeGates.cubePose ??= [...gateRotation]
-      if (chargeGates.mode === 'charging') {
-        chargeGates.cubePose[1] += (chargeGates.clocks[0] - chargeGates.cubeClock) * CUBE_HOLD_SPEED
-      } else {
-        if (!chargeGates.alignment) {
-          universe.getWorldPosition(centerWorld)
-          lookMatrix.lookAt(state.camera.position, centerWorld, state.camera.up)
-          faceQuaternion.setFromRotationMatrix(lookMatrix)
-          faceEuler.setFromQuaternion(faceQuaternion, 'XYZ')
-          chargeGates.alignment = createForwardCubeAlignment(chargeGates.cubePose, [faceEuler.x, faceEuler.y, faceEuler.z])
-          chargeGates.cubeFaceTurn = Math.round((chargeGates.alignment.to[1] - faceEuler.y) / (Math.PI / 2))
-        }
-        chargeGates.cubePose = sampleCubeAlignment(chargeGates.alignment, chargeGates.releaseAge)
-        if (chargeGates.releaseAge >= chargeGates.alignment.duration) finishChargeGate(chargeGates)
+    const motion = holdMotion.current
+    const dt = Math.min(.1, delta)
+    const gate = CHARGE_GATE_POINTS[0]
+    const reversing = sp < motion.previous - 1e-7
+    const approach = Math.max(0, Math.min(1, (sp - (gate - .04)) / .04))
+    const weight = approach * approach * (3 - 2 * approach)
+    if (reversing || sp < gate - .04) {
+      if (chargeGates.cubePose || motion.offset.some(v => v !== 0)) {
+        rewindPose.copy(universe.quaternion)
+        rewindBlend.current = 1
       }
-      chargeGates.cubeClock = chargeGates.clocks[0]
-      state.invalidate()
+      // Pause history must never change the authored camera/miniature path.
+      motion.offset = [0, 0, 0]; motion.velocity = [0, 0, 0]
+      motion.released = false; chargeGates.cubePose = null
+    } else if (sp <= gate && approach > 0) {
+      const time = state.clock.elapsedTime
+      const speeds = [.075 * Math.cos(time * .23), .28, .06 * Math.sin(time * .19 + 1)]
+      for (let i = 0; i < 3; i++) {
+        const step = integrateHoldVelocity(motion.velocity[i], speeds[i] * weight, dt)
+        motion.velocity[i] = step.velocity; motion.offset[i] += step.distance
+      }
+      chargeGates.cubePose = transform.rotation.map((v, i) => v + motion.offset[i]) as [number, number, number]
+      motion.released = false
     }
+    motion.previous = sp
 
     universe.scale.setScalar(transform.scale)
     spinEuler.set(...transform.rotation)
     universe.quaternion.setFromEuler(spinEuler)
 
     if (chargeGates.cubePose) {
-      // Retain the real-time pose on release and blend its offset away when
-      // rewinding the preceding draw phase, instead of snapping to authored yaw.
-      const t = Math.max(0, Math.min(1, (sp - TIMELINE.cubeDrawAndTumble.start) /
-        (CHARGE_GATE_POINTS[0] - TIMELINE.cubeDrawAndTumble.start)))
-      const w = t * t * (3 - 2 * t)
-      spinEuler.set(...transform.rotation.map((value, i) => value + (chargeGates.cubePose![i] - gateRotation[i]) * w) as [number, number, number])
+      if (sp > gate) {
+        for (let i = 0; i < 3; i++) {
+          const step = integrateHoldVelocity(motion.velocity[i], 0, dt)
+          motion.velocity[i] = step.velocity; chargeGates.cubePose[i] += step.distance
+        }
+      }
+      spinEuler.set(...chargeGates.cubePose)
       universe.quaternion.setFromEuler(spinEuler)
     }
 
@@ -178,6 +186,18 @@ export default function MiniatureUniverse({ children }: MiniatureUniverseProps) 
       faceQuaternion.setFromRotationMatrix(lookMatrix)
       faceEuler.setFromQuaternion(faceQuaternion, 'XYZ')
       if (chargeGates.cubePose) {
+        if (!motion.released) {
+          // Choose the closest cube-symmetric face now; alignment happens in
+          // the normal whitening interval, never in an extra waiting phase.
+          let best = -1
+          for (let turn = 0; turn < 4; turn++) {
+            quarterQuaternion.setFromAxisAngle(yAxis, turn * Math.PI / 2)
+            quarterQuaternion.premultiply(faceQuaternion)
+            const score = Math.abs(universe.quaternion.dot(quarterQuaternion))
+            if (score > best) { best = score; chargeGates.cubeFaceTurn = turn }
+          }
+          motion.released = true
+        }
         quarterQuaternion.setFromAxisAngle(yAxis, chargeGates.cubeFaceTurn * Math.PI / 2)
         faceQuaternion.multiply(quarterQuaternion)
         universe.quaternion.slerp(faceQuaternion, transform.faceAlignProgress)
@@ -189,6 +209,11 @@ export default function MiniatureUniverse({ children }: MiniatureUniverseProps) 
       }
     }
 
+    if (rewindBlend.current > 0) {
+      rewindBlend.current = Math.max(0, rewindBlend.current - dt / .3)
+      const t = rewindBlend.current
+      universe.quaternion.slerp(rewindPose, t * t * (3 - 2 * t))
+    }
     wireMaterial.uniforms.uDrawProgress.value = transform.wireDrawProgress
     wireMaterial.uniforms.uOpacity.value = transform.wireOpacity
     if (whiteMaterialRef.current) whiteMaterialRef.current.opacity = transform.whiteFillProgress

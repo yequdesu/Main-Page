@@ -19,26 +19,39 @@ export interface ChargeGates {
   cubeClock: number
   cubeFaceTurn: number
   alignment: { from: Pose; to: Pose; duration: number } | null
+  orbitVelocity: number
+  previousScroll: number | null
 }
 export function createChargeGates(): ChargeGates {
   return { active: -1, mode: 'idle', energy: 0, unlocked: [false, false], completed: [false, false],
     clocks: [0, 0], lastTime: -1, lastInput: -Infinity, releaseAge: 0, released: null,
-    cubePose: null, cubeClock: 0, cubeFaceTurn: 0, alignment: null }
+    cubePose: null, cubeClock: 0, cubeFaceTurn: 0, alignment: null,
+    orbitVelocity: ORBIT_HOLD_SPEED, previousScroll: null }
 }
 export function finishChargeGate(state: ChargeGates) {
   if (state.active === -1) return
   state.unlocked[state.active] = true
   state.completed[state.active] = true
   state.released = CHARGE_GATE_POINTS[state.active]
-  state.active = -1; state.mode = 'idle'; state.energy = 0
+  state.active = -1; state.mode = 'idle'; state.energy = 1
   state.alignment = null
 }
-export function tickChargeGates(state: ChargeGates, now: number) {
+export function tickChargeGates(state: ChargeGates, now: number, scroll?: number) {
   const dt = state.lastTime < 0 ? 0 : Math.max(0, Math.min(.1, (now - state.lastTime) / 1000))
   state.lastTime = now
+  if (scroll !== undefined && dt > 0) {
+    // Displayed scroll already carries its incoming velocity. Only add the
+    // residual idle motion; adding that velocity twice creates an entry kick.
+    if (state.active !== 1) state.orbitVelocity = 0
+    state.previousScroll = scroll
+  }
   if (state.active === -1) return
   if (state.mode === 'charging') {
-    state.clocks[state.active] += dt
+    if (state.active === 1) {
+      const step = integrateHoldVelocity(state.orbitVelocity, ORBIT_HOLD_SPEED, dt)
+      state.orbitVelocity = step.velocity
+      state.clocks[1] += step.distance / ORBIT_HOLD_SPEED
+    } else state.clocks[0] += dt
     if (now - state.lastInput > 160) state.energy = Math.max(0, state.energy - dt * .3)
   } else {
     state.releaseAge += dt
@@ -50,7 +63,12 @@ export function tickChargeGates(state: ChargeGates, now: number) {
 export function constrainChargeProgress(state: ChargeGates, from: number, requested: number): number {
   const to = Math.max(0, Math.min(1, requested))
   if (to < from - 1e-7) {
-    CHARGE_GATE_POINTS.forEach((point, i) => { if (to < point - 1e-7) state.unlocked[i] = false })
+    CHARGE_GATE_POINTS.forEach((point, i) => {
+      if (to < point - 1e-7) {
+        state.unlocked[i] = false
+        if (i === 0) { state.cubePose = null; state.alignment = null; state.cubeFaceTurn = 0 }
+      }
+    })
     if (state.active !== -1 && to < CHARGE_GATE_POINTS[state.active] - 1e-7) {
       state.active = -1; state.mode = 'idle'; state.energy = 0; state.alignment = null; state.released = null
     }
@@ -74,8 +92,21 @@ export function chargeFromInput(state: ChargeGates, pixels: number, viewportHeig
   state.lastInput = now
   state.energy = Math.min(1, state.energy + Math.min(.12, pixels / Math.max(400, viewportHeight)) * multiplier)
   if (state.energy >= 1 - 1e-9) {
-    state.energy = 1; state.mode = 'releasing'; state.releaseAge = 0
+    finishChargeGate(state)
   }
+}
+
+/** Exact exponential velocity handoff: continuous position and velocity, even
+ * when the incoming scroll speed differs from the idle orbit speed. */
+export function integrateHoldVelocity(velocity: number, target: number, dt: number, duration = .45) {
+  const decay = Math.exp(-Math.max(0, dt) / duration)
+  return { velocity: target + (velocity - target) * decay,
+    distance: target * dt + (velocity - target) * duration * (1 - decay) }
+}
+
+export function settleGateProgress(current: number, target: number, dt: number) {
+  if (Math.abs(current - target) < 1e-7) return target
+  return current + (target - current) * (1 - Math.exp(-Math.max(0, dt) / .18))
 }
 
 /** Trackpads do not expose a momentum flag. Reject the decaying tail of a

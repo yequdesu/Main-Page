@@ -29,7 +29,7 @@ import { PLANET_LINKS } from './types'
 import { useDayNight } from './theme/useDayNight'
 import ChargeEnergyBar from './actors/ChargeEnergyBar'
 import { chargeGates, chargeFromInput, constrainChargeProgress, createWheelIntentFilter,
-  publishChargeGates, resetChargeGates, tickChargeGates } from './behaviors/chargeGates'
+  publishChargeGates, resetChargeGates, tickChargeGates, settleGateProgress } from './behaviors/chargeGates'
 import './theme/theme.css'
 import './fonts.css'
 import './App.css'
@@ -75,6 +75,7 @@ export default function App() {
   const act3VisibleRef = useRef(false)
   const isAct3FocusedRef = useRef(false)
   const scrollbarDrag = useRef(false)
+  const displayedProgress = useRef(0)
   const wheelIntent = useRef(createWheelIntentFilter())
 
   // ---- UI state (React �?triggers re-render) ----
@@ -110,7 +111,7 @@ export default function App() {
       end: 'bottom bottom',
       scrub: 0,
       onUpdate: (self) => {
-        if (Math.abs(self.progress - physRef.current.target) < 0.0005) return
+        if (Math.abs(self.progress - displayedProgress.current) < 0.0005) return
         physRef.current.lastScrollbar = performance.now()
         physRef.current.velocity = 0
         const previous = physRef.current.target
@@ -119,8 +120,7 @@ export default function App() {
         }
         const next = constrainChargeProgress(chargeGates, previous, self.progress)
         physRef.current.target = next
-        setScrollProgress(next)
-        if (next !== self.progress) syncScrollbar(next)
+        if (next !== self.progress) syncScrollbar(displayedProgress.current)
         publishChargeGates()
       },
     })
@@ -139,21 +139,18 @@ export default function App() {
       p.lastPhysics = now
       const dtFrames = dt * 60
 
-      tickChargeGates(chargeGates, now)
+      tickChargeGates(chargeGates, now, displayedProgress.current)
       if (chargeGates.released !== null) {
         p.target = chargeGates.released + .00001
         chargeGates.released = null
         p.velocity = 0
-        setScrollProgress(p.target); syncScrollbar(p.target)
       }
       publishChargeGates()
-      if (chargeGates.active >= 0) { p.velocity = 0; return }
-
-      if (now - p.lastScrollbar < 80) return
-      if (p.velocity === 0) return
+      if (chargeGates.active >= 0) p.velocity = 0
 
       const previousTarget = p.target
-      p.target = constrainChargeProgress(chargeGates, previousTarget, p.target + p.velocity * dtFrames)
+      if (now - p.lastScrollbar >= 80 && p.velocity !== 0)
+        p.target = constrainChargeProgress(chargeGates, previousTarget, p.target + p.velocity * dtFrames)
       if (chargeGates.active >= 0) p.velocity = 0
       if (p.target <= 0) { p.target = 0; p.velocity = 0 }
       if (p.target >= 1) { p.target = 1; p.velocity = 0 }
@@ -161,10 +158,8 @@ export default function App() {
       p.velocity *= Math.pow(FRICTION, dtFrames)
       if (Math.abs(p.velocity) < 0.00001) p.velocity = 0
 
-      const targetChanged = Math.abs(p.target - previousTarget) > SCROLL_PROGRESS_EPSILON
-      if (!targetChanged && p.velocity === 0) return
-
-      const sceneTarget = p.target
+      const sceneTarget = settleGateProgress(displayedProgress.current, p.target, dt)
+      displayedProgress.current = sceneTarget
       setScrollProgress(sceneTarget)
       syncScrollbar(sceneTarget)
     }
@@ -191,7 +186,6 @@ export default function App() {
       p.velocity = 0
       if (delta < 0) {
         p.target = constrainChargeProgress(chargeGates, p.target, p.target - Math.max(.0001, Math.abs(delta) / (window.innerHeight * (SCROLL_VH - 1))))
-        setScrollProgress(p.target); syncScrollbar(p.target)
       } else if (intentional) chargeFromInput(chargeGates, delta, window.innerHeight, performance.now())
       publishChargeGates()
       return
