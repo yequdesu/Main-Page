@@ -8,6 +8,7 @@ import { getDomLayer, listLayers, resolvePointerEvents } from '../layerRegistry'
 import { useSequenceStore } from '../sequenceStore'
 import { snapshotTimeline } from '../timeline'
 import './CompositionPanel.css'
+import { ACT1_WORLD_OPTIONS, useAct1WorldStore, type Act1SceneId } from '../../worlds/act1World'
 
 interface CompositionPanelProps {
   scrollProgress: number
@@ -15,6 +16,8 @@ interface CompositionPanelProps {
 
 export default function CompositionPanel({ scrollProgress }: CompositionPanelProps) {
   const [collapsed, setCollapsed] = useState(false)
+  const sceneId = useAct1WorldStore(s => s.sceneId)
+  const selectScene = useAct1WorldStore(s => s.selectScene)
   const anchors = useAnchorStore((state) => state.anchors)
   const actorRuntime = useActorRuntimeStore((state) => state.actors)
   const sequences = useSequenceStore((state) => state.states)
@@ -71,6 +74,15 @@ export default function CompositionPanel({ scrollProgress }: CompositionPanelPro
         </button>
       </header>
       <div className="composition-panel__body">
+        <section>
+          <h3>Act1 内部世界</h3>
+          <select aria-label="Act1 内部世界" value={sceneId}
+            style={{ width: '100%', background: '#141923', color: '#e3e5e9', padding: 6 }}
+            onChange={event => selectScene(event.target.value as Act1SceneId)}>
+            {ACT1_WORLD_OPTIONS.map(option => <option key={option.id} value={option.id}>{option.label}</option>)}
+          </select>
+          <div>仅切换立方体内部；刷新恢复灯塔。</div>
+        </section>
         <section>
           <h3>Timeline</h3>
           {Object.entries(timeline).map(([key, value]) => (

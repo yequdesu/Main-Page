@@ -1,6 +1,13 @@
 import { defineActor, getActor, type ActorSpec } from './actorRegistry'
 
 export const CORE_ACTORS: ActorSpec[] = [
+  ...['lighthouseWorld', 'sunsetWheatWorld'].map<ActorSpec>(id => ({
+    id, domain: 'webgl' as const, layer: 'webgl.oceanLines',
+    lifecycle: { mount: 'whenActive', activeWhen: 'selected Act1 world and Act1 visible', dispose: 'auto' },
+    timing: { clocks: ['scroll', 'elapsedTime'] as ('scroll' | 'elapsedTime')[], ranges: ['act1OceanVoyage'] },
+    consumes: ['scroll.sp', 'clock.elapsedTime'],
+    debug: { label: id === 'lighthouseWorld' ? 'Lighthouse World' : 'Sunset Wheat World' },
+  })),
   {
     id: 'sceneBackground',
     domain: 'webgl',

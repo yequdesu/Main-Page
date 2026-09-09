@@ -1,9 +1,6 @@
 import { memo } from 'react'
-import LightBeam from '../actors/LightBeam'
-import OceanWaves from '../actors/OceanWaves'
-import LighthouseCapture from '../actors/LighthouseCapture'
 import AsteroidBelts from '../actors/AsteroidBelts'
-import Lighthouse from '../actors/Lighthouse'
+import Act1WorldHost from '../worlds/Act1WorldHost'
 import MiniatureUniverse from '../actors/MiniatureUniverse'
 
 /**
@@ -23,11 +20,8 @@ const Act1OceanVoyage = memo(function Act1OceanVoyage({ visible }: Act1Props) {
     <group visible={visible}>
       <AsteroidBelts variant="act1" />
       <MiniatureUniverse>
-        <LightBeam />
-        <OceanWaves />
-        <Lighthouse />
+        <Act1WorldHost active={visible} />
       </MiniatureUniverse>
-      <LighthouseCapture onCaptureReady={() => {}} />
     </group>
   )
 })
