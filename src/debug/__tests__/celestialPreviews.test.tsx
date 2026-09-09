@@ -1,9 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import ReactThreeTestRenderer from '@react-three/test-renderer'
-import { Box3, Mesh, MeshBasicMaterial, Sprite, Vector3 } from 'three'
+import { Box3, Mesh, MeshBasicMaterial, MeshStandardMaterial, Sprite, TorusGeometry, Vector3 } from 'three'
 import CentralStar from '../../actors/CentralStar'
-import { CentralStarPreview, PlanetPreview } from '../../models/CelestialPreviews'
-import { createPlanetPreview, createStarPreview } from '../../models/celestialPreview'
+import { CentralStarPreview, PlanetPreview, RingedPlanetPreview } from '../../models/CelestialPreviews'
+import { createPlanetPreview, createRingedPlanetPreview, createStarPreview } from '../../models/celestialPreview'
+import { createRingedPlanetAsset } from '../../actors/assets/ringedPlanet'
+import { createPlanetHaloTexture, PLANET_BASE_RADIUS } from '../../actors/assets/planet'
 import { useScrollStore } from '../../stores/scrollStore'
 import { useRealtimeStore } from '../../stores/realtimeStore'
 import { indexScene, localBounds } from '../studioModel'
@@ -45,9 +47,9 @@ describe('程序化资产独立预览', () => {
     }
   })
 
-  it('单颗行星组件播放、卸载均不污染主页轨道或交互 store', async () => {
+  it.each([PlanetPreview, RingedPlanetPreview])('行星组件 %s 播放、卸载均不污染主页轨道或交互 store', async (Preview) => {
     const scroll = useScrollStore.getState(), realtime = useRealtimeStore.getState()
-    const preview = await ReactThreeTestRenderer.create(<PlanetPreview previewTime={() => 40} />)
+    const preview = await ReactThreeTestRenderer.create(<Preview previewTime={() => 40} />)
     await preview.advanceFrames(3, 0.016)
     await preview.unmount()
     expect(useScrollStore.getState()).toBe(scroll)
@@ -90,8 +92,8 @@ describe('程序化资产独立预览', () => {
     } finally { a.dispose(); b.dispose() }
   })
 
-  it('光晕动画不改变主体取景，恒星远场柔光不缩小主体取景', () => {
-    const planet = createPlanetPreview(), star = createStarPreview()
+  it.each([createPlanetPreview, createRingedPlanetPreview])('预览 %s 的光晕动画不改变取景，恒星远场柔光不缩小主体取景', (create) => {
+    const planet = create(), star = createStarPreview()
     try {
       const bounds = localBounds(planet.root)
       for (const time of [0, 10, 50, 100, 500]) {
@@ -103,6 +105,122 @@ describe('程序化资产独立预览', () => {
       expect(extent.x).toBe(5.5)
       expect((star.root.getObjectByName('远场柔光') as Sprite).scale.x).toBeGreaterThan(extent.x)
     } finally { planet.dispose(); star.dispose() }
+  })
+
+  it('圆环面包围核心且有厚度，跟随缩放和位置，播放不会覆盖隐藏状态', () => {
+    const texture = createPlanetHaloTexture()
+    const asset = createRingedPlanetAsset(0, texture)
+    try {
+      expect(asset.ring.geometry).toBeInstanceOf(TorusGeometry)
+      const vertices = asset.ring.geometry.getAttribute('position')
+      const vertex = new Vector3()
+      for (let i = 0; i < vertices.count; i++) {
+        // 倾斜/压扁后也不与核心球面相交。
+        expect(vertex.fromBufferAttribute(vertices, i).length()).toBeGreaterThan(PLANET_BASE_RADIUS)
+      }
+      const size = new Box3().setFromObject(asset.ring).getSize(new Vector3())
+      expect(Math.min(size.x, size.y, size.z)).toBeGreaterThan(0)
+      asset.core.position.set(2, 3, 4)
+      asset.core.scale.setScalar(20)
+      asset.ring.visible = false
+      asset.outerRing.visible = false
+      asset.updateAppearance(10, 0, 20, 1, 1, 2.4)
+      expect(asset.ring.position.equals(asset.core.position)).toBe(true)
+      expect(asset.ring.scale.equals(asset.core.scale)).toBe(true)
+      expect(asset.ring.visible).toBe(false)
+      expect(asset.ring.material.transparent).toBe(true)
+      expect(asset.ring.material.opacity).toBe(0.5)
+      expect(asset.ring.material.depthWrite).toBe(false)
+      expect(asset.ring.material.depthTest).toBe(true)
+      expect(asset.ring.renderOrder).toBeGreaterThan(asset.core.renderOrder)
+      expect(asset.outerRing.position.equals(asset.core.position)).toBe(true)
+      expect(asset.outerRing.scale.equals(asset.core.scale)).toBe(true)
+      expect(asset.outerRing.visible).toBe(false)
+      expect(asset.outerRing.material.opacity).toBe(0.25)
+      expect(asset.outerRing.material.transparent).toBe(true)
+      expect(asset.outerRing.material.depthWrite).toBe(false)
+      expect(asset.outerRing.material.depthTest).toBe(true)
+      asset.updateAppearance(10.5, 0, 20, 0.5, 1, 2.4)
+      expect(asset.ring.material.opacity).toBe(0.25)
+      expect(asset.outerRing.material.opacity).toBe(0.125)
+      asset.updateAppearance(11, 0, 20, 0, 1, 2.4)
+      expect(asset.ring.material.opacity).toBe(0)
+      expect(asset.outerRing.material.opacity).toBe(0)
+      expect(asset.ring.material.depthWrite).toBe(false)
+    } finally { asset.dispose(); texture.dispose() }
+  })
+
+  it('内侧切分细环与窄缝，四层互不相交，向外颜色变浅且透明度递增', () => {
+    const texture = createPlanetHaloTexture()
+    const asset = createRingedPlanetAsset(0, texture)
+    try {
+      asset.updateAppearance(0, 0, 1, 1, 1, 1)
+      const vertex = new Vector3()
+      const rings = [asset.innerRing, asset.ring, asset.outerRing, asset.outermostRing]
+      const bands = rings.map(ring => {
+        const positions = ring.geometry.getAttribute('position')
+        let min = Infinity, max = 0
+        for (let i = 0; i < positions.count; i++) {
+          const radius = vertex.fromBufferAttribute(positions, i).length()
+          min = Math.min(min, radius)
+          max = Math.max(max, radius)
+        }
+        return { min, max }
+      })
+      expect(bands[0].min).toBeGreaterThan(PLANET_BASE_RADIUS)
+      // 切分前后保留原环带的内外边界。
+      expect(bands[0].min / PLANET_BASE_RADIUS).toBeCloseTo(1.42)
+      expect(bands[1].max / PLANET_BASE_RADIUS).toBeCloseTo(1.98)
+      for (let i = 1; i < bands.length; i++) {
+        expect(bands[i].min).toBeGreaterThan(bands[i - 1].max)
+      }
+      expect(bands[0].max - bands[0].min).toBeLessThan(bands[1].max - bands[1].min)
+      expect(bands[1].min - bands[0].max).toBeLessThan(bands[2].min - bands[1].max)
+      for (let i = 2; i < rings.length; i++) {
+        expect(rings[i].material.opacity).toBeLessThan(rings[i - 1].material.opacity)
+        const innerColor = rings[i - 1].material.color, outerColor = rings[i].material.color
+        expect(outerColor.r).toBeGreaterThan(innerColor.r)
+        expect(outerColor.g).toBeGreaterThan(innerColor.g)
+        expect(outerColor.b).toBeGreaterThan(innerColor.b)
+      }
+      asset.innerRing.visible = false
+      asset.outermostRing.visible = false
+      asset.core.position.set(2, 3, 4)
+      asset.updateAppearance(10, 0, 20, 0.5, 1, 2.4)
+      expect(asset.innerRing.material.opacity).toBe(0.25)
+      expect(asset.outermostRing.material.opacity).toBe(0.06)
+      for (const ring of [asset.innerRing, asset.outermostRing]) {
+        expect(ring.visible).toBe(false)
+        expect(ring.position.equals(asset.core.position)).toBe(true)
+        expect(ring.scale.x).toBe(20)
+        expect(ring.material.depthWrite).toBe(false)
+        expect(ring.material.depthTest).toBe(true)
+        expect(ring.renderOrder).toBeGreaterThan(asset.core.renderOrder)
+      }
+    } finally { asset.dispose(); texture.dispose() }
+  })
+
+  it.each(['行星环_0', '外层行星环_0', '内侧细环_0', '最外层淡环_0'])('环面 %s 可独立索引，各视口独占并释放资源', (name) => {
+    const a = createRingedPlanetPreview(), b = createRingedPlanetPreview()
+    const ringA = a.root.getObjectByName(name) as Mesh<TorusGeometry, MeshStandardMaterial>
+    const ringB = b.root.getObjectByName(name) as Mesh<TorusGeometry, MeshStandardMaterial>
+    expect(indexScene(a.root).tree).toEqual(indexScene(b.root).tree)
+    expect([...indexScene(a.root).objects.values()]).toContain(ringA)
+    expect(ringA.geometry).not.toBe(ringB.geometry)
+    expect(ringA.material).not.toBe(ringB.material)
+    ringA.material.wireframe = true
+    a.update(10)
+    expect(ringB.material.wireframe).toBe(false)
+    const ownGeometry = vi.spyOn(ringA.geometry, 'dispose')
+    const ownMaterial = vi.spyOn(ringA.material, 'dispose')
+    const otherGeometry = vi.spyOn(ringB.geometry, 'dispose')
+    const otherMaterial = vi.spyOn(ringB.material, 'dispose')
+    a.dispose()
+    expect(ownGeometry).toHaveBeenCalledTimes(1)
+    expect(ownMaterial).toHaveBeenCalledTimes(1)
+    expect(otherGeometry).not.toHaveBeenCalled()
+    expect(otherMaterial).not.toHaveBeenCalled()
+    b.dispose()
   })
 
   it('释放一个视口的资产时不释放另一个实例或 Three.js 共享 Sprite 几何体', () => {

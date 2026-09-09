@@ -10,6 +10,8 @@
 
 恒星和行星通过 [共用恒星工厂](assets/centralStar.ts)、[共用行星工厂](assets/planet.ts) 创建视觉资产，[光晕纹理工厂](assets/haloTexture.ts) 绘制径向渐变。主页 Actor 保留滚动、轨道、聚焦与实时数据逻辑；Studio 的 [独立预览](../models/CelestialPreviews.tsx) 只复用视觉资产。每个实例拥有并释放自己的几何体、材质和贴图；行星贴图在同一系统内共享，Three.js 内部共享的 Sprite 几何体不由实例释放。
 
+[带环行星工厂](assets/ringedPlanet.ts) 在共用行星主体上组合倾斜、压扁的 `TorusGeometry`，当前仅供 Studio 的新类型实验使用；参数、渲染与资源所有权见 [模型说明](../models/README.md#带环行星实验)。
+
 | 文件 | 主应用挂载位置 | 职责 |
 |------|----------------|------|
 | [SceneLights.tsx](SceneLights.tsx) | Canvas 根层级 | 全局灯光；环境光引用供 `ScrollInvalidator` 更新 |

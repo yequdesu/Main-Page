@@ -1,6 +1,7 @@
 import { Box3, Vector3 } from 'three'
 import { createCentralStarAsset } from '../actors/assets/centralStar'
 import { createPlanetAsset, createPlanetHaloTexture, ATMOS_HALO_SCALE, PLANET_CONTENT_COLOR } from '../actors/assets/planet'
+import { createRingedPlanetAsset } from '../actors/assets/ringedPlanet'
 
 export function createStarPreview() {
   const asset = createCentralStarAsset()
@@ -18,21 +19,32 @@ const PREVIEW_SCALE = 20
 const PREVIEW_HALO_SCALE = 2.4 * ATMOS_HALO_SCALE
 
 export function createPlanetPreview() {
+  return createPlanetSample(createPlanetAsset, '行星')
+}
+
+export function createRingedPlanetPreview() {
+  // 收窄该样本的远场光晕，使自动取景能看清环面，同时保留完整光晕。
+  return createPlanetSample(createRingedPlanetAsset, '带环行星', 1.5 * ATMOS_HALO_SCALE)
+}
+
+function createPlanetSample(createAsset: typeof createPlanetAsset, name: string, haloScale = PREVIEW_HALO_SCALE) {
   const texture = createPlanetHaloTexture()
-  const asset = createPlanetAsset(0, texture)
-  asset.root.name = '行星'
+  const asset = createAsset(0, texture)
+  asset.root.name = name
   asset.core.scale.setScalar(PREVIEW_SCALE)
   asset.core.material.color.set(PLANET_CONTENT_COLOR)
   asset.core.material.opacity = 1
   // 包含光晕的最大呼吸幅度，暂停和播放时均保持相同的主体取景。
-  const extent = PREVIEW_HALO_SCALE * 1.04 / 2
-  asset.root.userData.studioBounds = new Box3(
+  const extent = haloScale * 1.04 / 2
+  const bounds = new Box3(
     new Vector3(-extent, -extent, -extent), new Vector3(extent, extent, extent),
   )
   function update(time: number) {
-    asset.updateAppearance(time, 0, PREVIEW_SCALE, 1, 1, PREVIEW_HALO_SCALE)
+    asset.updateAppearance(time, 0, PREVIEW_SCALE, 1, 1, haloScale)
   }
   update(0)
+  // 派生资产的附加几何体也参与取景，随后保持边界固定，不随光晕呼吸缩放。
+  asset.root.userData.studioBounds = bounds.union(new Box3().setFromObject(asset.root))
   return {
     root: asset.root, update,
     dispose() {

@@ -54,6 +54,14 @@ export const MODEL_REGISTRY: Record<string, ModelRegistryEntry> = {
     attribution: '程序化生成（YeQuDeSu）',
     environment: 'night',
   },
+  'ringed-planet': {
+    label: '带环行星 · 程序化资产',
+    component: lazy(() => import('./CelestialPreviews').then(module => ({ default: module.RingedPlanetPreview }))),
+    procedural: true,
+    previewAnimation: '光晕呼吸',
+    attribution: '程序化生成（YeQuDeSu）· 圆环面行星环实验',
+    environment: 'studio',
+  },
 
   // ---- GLB 模型 ----
   voyager1: {
