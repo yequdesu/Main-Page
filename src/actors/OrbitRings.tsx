@@ -1,10 +1,9 @@
-import { useMemo, useRef } from 'react'
-import { useFrame } from '@react-three/fiber'
-import { type LineBasicMaterial } from 'three'
-import { SCENE_CENTER_Z, ORBIT_RADII, ORBIT_COUNT, clamped, smoothstep, GRID_SHIFT_START } from '../r3f/ScrollRig'
+import { useMemo } from 'react'
+import { SCENE_CENTER_Z, ORBIT_RADII, ORBIT_COUNT } from '../r3f/ScrollRig'
 import { useScrollStore } from '../stores/scrollStore'
 import { themeColor } from '../theme/colors'
 import OrbitalRing from './OrbitalRing'
+import OrbitLineMaterial from './OrbitLineMaterial'
 import type { OrbitalRingConfig } from '../types'
 
 /**
@@ -45,19 +44,6 @@ export default function OrbitRings({ speedScale = 1.0 }: OrbitRingsProps) {
     }), [],
   )
 
-  const orbitMatRefs = useRef<(LineBasicMaterial | null)[]>([null, null, null])
-
-  useFrame(() => {
-    const sp = useScrollStore.getState().scrollProgress
-    const ORBIT_START = 0.94
-    const act3Progress = clamped(sp, ORBIT_START, 1.0)
-    const smooth3 = smoothstep(act3Progress)
-
-    orbitMatRefs.current.forEach((mat) => {
-      if (mat) mat.opacity = smooth3 * 0.35
-    })
-  })
-
   return (
     <>
       {/* 静态轨道参考线（行星公转轨道） */}
@@ -69,7 +55,7 @@ export default function OrbitRings({ speedScale = 1.0 }: OrbitRingsProps) {
               args={[new Float32Array(pts.flat()), 3]}
             />
           </bufferGeometry>
-          <lineBasicMaterial ref={(mat) => { orbitMatRefs.current[t] = mat }} color={orbitColor} transparent opacity={0} depthWrite={false} depthTest />
+          <OrbitLineMaterial color={orbitColor} maxOpacity={0.35} appearStart={0.94} trackIdx={t} />
         </threeLine>
       ))}
 

@@ -117,6 +117,7 @@ src/
 ├── actors/
 │   ├── OrbitalRing.tsx         单环力学组件（可独立复用）
 │   ├── OrbitRings.tsx          轨道系统编排（参考线 + 配置数组 → N 环）
+│   ├── OrbitLineMaterial.tsx   导航线显隐、聚焦弱化与球体附近渐隐
 │   └── README.md               组件概览
 └── r3f/
     └── ScrollRig.ts            阈值常量 + 工具函数（clamped, smoothstep）
@@ -157,7 +158,7 @@ export interface OrbitalRingConfig {
       <bufferGeometry key={`${radius}:${segmentCount}`}>
         <bufferAttribute attach="attributes-position" args={[positions, 3]} />
       </bufferGeometry>
-      <lineBasicMaterial ref={matRef} ... />
+      <OrbitLineMaterial color={color} maxOpacity={maxOpacity} appearStart={GRID_SHIFT_START} />
     </lineLoop>
   </group>
 </group>
@@ -168,10 +169,11 @@ export interface OrbitalRingConfig {
 **useFrame 逻辑：**
 
 ```
-1. 读 scrollProgress → 计算 smooth3
-2. matRef.opacity = smooth3 × maxOpacity   （scroll 驱动）
-3. outerGroupRef.rotation.y += delta × speed × speedScale  （时间驱动）
+OrbitalRing: outerGroupRef.rotation.y += delta × speed × speedScale
+OrbitLineMaterial: 滚动显隐 × 聚焦弱化；同步球体位置与半径供片元渐隐
 ```
+
+聚焦时轨道会整体减弱，并在行星表面之外柔和淡出，退出后平滑恢复。仅作用于导航线，实体行星环不受影响。参数、空间公式、资源生命周期与 Three.js 来源统一维护在 [Actors：聚焦时的轨道显示](../src/actors/README.md#聚焦时的轨道显示)。本次同步了材质与显隐相关说明，其他历史理论和扩展示例未全面复核。
 
 ### 3.3 `OrbitRings.tsx` — 轨道系统编排
 
@@ -241,7 +243,7 @@ OrbitRings ──→ OrbitalRing ──→ useScrollStore (Zustand)
 ### 4.6 最大透明度 `maxOpacity`
 
 - **默认：** `0.28`
-- **实际透明度 =** `smoothstep(clamped(scrollProgress, GRID_SHIFT_START, 1)) × maxOpacity`，阈值来自 `src/types/index.ts`
+- **全景基础透明度 =** `smoothstep(clamped(scrollProgress, GRID_SHIFT_START, 1)) × maxOpacity`，阈值来自 `src/types/index.ts`；聚焦时再乘整体弱化与局部渐隐系数（见上述 Actors 文档）
 - 仅在 Act 3 阶段（sp > 0.85）可见
 
 ### 4.7 速度缩放 `speedScale`

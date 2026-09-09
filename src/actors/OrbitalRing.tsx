@@ -1,8 +1,8 @@
 import { useMemo, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
-import { type Group, type LineBasicMaterial } from 'three'
-import { SCENE_CENTER_Z, clamped, smoothstep, GRID_SHIFT_START } from '../r3f/ScrollRig'
-import { useScrollStore } from '../stores/scrollStore'
+import { type Group } from 'three'
+import { SCENE_CENTER_Z, GRID_SHIFT_START } from '../r3f/ScrollRig'
+import OrbitLineMaterial from './OrbitLineMaterial'
 import type { OrbitalRingConfig } from '../types'
 
 /**
@@ -67,19 +67,7 @@ export default function OrbitalRing({ config, speedScale = 1.0, color: colorOver
 
   // 外层 group — Y 轴进动（黄道面法线）
   const outerGroupRef = useRef<Group>(null)
-  // 环材质 — 透明度由 scroll 驱动
-  const matRef = useRef<LineBasicMaterial>(null)
-
   useFrame((_state, delta) => {
-    const sp = useScrollStore.getState().scrollProgress
-    const act3Progress = clamped(sp, GRID_SHIFT_START, 1.0)
-    const smooth3 = smoothstep(act3Progress)
-
-    // 透明度（scroll 驱动）
-    if (matRef.current) {
-      matRef.current.opacity = smooth3 * maxOpacity
-    }
-
     // 进动（时间驱动）
     if (outerGroupRef.current) {
       outerGroupRef.current.rotation.y += delta * speed * speedScale
@@ -102,13 +90,10 @@ export default function OrbitalRing({ config, speedScale = 1.0, color: colorOver
           <bufferGeometry key={`${radius}:${segmentCount}`}>
             <bufferAttribute attach="attributes-position" args={[positions, 3]} />
           </bufferGeometry>
-          <lineBasicMaterial
-            ref={matRef}
+          <OrbitLineMaterial
             color={colorOverride ?? configColor}
-            transparent
-            opacity={0}
-            depthWrite={false}
-            depthTest
+            maxOpacity={maxOpacity}
+            appearStart={GRID_SHIFT_START}
           />
         </lineLoop>
       </group>

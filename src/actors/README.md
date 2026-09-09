@@ -31,6 +31,7 @@
 | [GridLines.tsx](GridLines.tsx) | Act 2 | 网格线与节点的延伸、位移和透明度 |
 | [OrbitRings.tsx](OrbitRings.tsx) | Act 3 | 轨道参考线与陀螺仪环编排 |
 | [OrbitalRing.tsx](OrbitalRing.tsx) | `OrbitRings` 内 | 外层进动轨道线：有序圆周顶点、首尾闭合、进动和显隐 |
+| [OrbitLineMaterial.tsx](OrbitLineMaterial.tsx) | 静态及外层轨道线 | 聚焦时整体弱化、球体附近的局部渐隐，保留内置线材质的深度与雾 |
 | [BrandTitle.tsx](BrandTitle.tsx) | App DOM 层 | 品牌标题与灯塔截图图标 |
 | [FloatingLabels.tsx](FloatingLabels.tsx) | App DOM 层，Act 3 条件挂载 | 行星标签终端、PBD 布局、入场顺序与交互 |
 | [PlanetLabelGuideLines.tsx](PlanetLabelGuideLines.tsx) | `FloatingLabels` 内 | 标签与行星之间的 SVG 连线 |
@@ -45,6 +46,14 @@
 整个资产根节点随主页滚动显隐；核心位置和缩放更新后，统一调用资产的 `updateAppearance()`，使卫星和四层环同步跟随风铃下落、轨道运动、距离缩放与遮挡淡出。卫星使用主页 R3F 时钟，Studio 继续使用独立的可暂停预览时钟。行星可见时由 `Planets` 请求下一帧，保证停止滚动后卫星仍公转；不可见时不为行星继续请求帧，保留 Canvas 的 `frameloop="demand"`。依据：[R3F 按需渲染](https://r3f.docs.pmnd.rs/advanced/scaling-performance#on-demand-rendering)。
 
 工厂返回的 `visualRadiusScale` 是相对核心半径的可见实体包络：普通行星取近场光晕边缘，带环行星取最外环外缘，带卫星行星取卫星完整公转范围。主页据此计算标签避让半径，避免标签遮住附件，同时避免半径随卫星相位摆动。相机聚焦后方距离和侧向距离使用 [Planets.tsx](Planets.tsx) 中的 `_planetFocusDistanceScales`：普通行星为 1.00 倍，带卫星和带环行星统一为 1.25 倍，以兼顾近景观察和附件边距。点击和导航仍以主行星中心为目标，卫星不是独立导航入口。
+
+## 聚焦时的轨道显示
+
+六条导航轨道线共用 [OrbitLineMaterial.tsx](OrbitLineMaterial.tsx) 的显示规则。全景保留原有滚动显隐；聚焦时，当前行星的公转轨道保留原透明度的 45%，另外两条保留 18%，外层装饰轨道保留 12%。进入、切换目标与退出均使用时间常数 0.8 秒的指数平滑，避免透明度突变。30 秒自动返回仍由相机控制器负责，清除聚焦后轨道渐渐恢复。
+
+局部渐隐以三个行星核心的实时世界坐标与球体半径为依据，来自 `Planets` 的 `_planetWorldPositions` / `_planetCoreWorldRadii`。对轨道片元位置 `p`，取各球体渐隐系数的最小值：`min_i smoothstep(1.08 r_i, 1.65 r_i, distance(p, c_i))`，再按聚焦渐变量混入透明度。这样在球体表面之外留出很窄的断口，并在外侧连续恢复线条；世界空间计算支持外层环的倾斜、拉伸与进动。使用球体真实半径而非附件包络，避免卫星和实体行星环周围出现巨大缺口。仅导航线应用此效果，实体行星环材质不受影响。
+
+轨道保留 `transparent=true`、`depthWrite=false`、`depthTest=true` 和具体线对象的 `renderOrder=2`；球体以 `renderOrder=1` 写入深度，遮挡后方轨道。局部渐隐只修改内置 `LineBasicMaterial` 的片元透明度，不替换雾、主题色和深度流程。实现通过 `onBeforeCompile` 添加世界坐标与 uniform，并提供固定 shader 缓存键；升级 Three.js 时需核对 `project_vertex` / `opaque_fragment` 注入点。依据：[Three.js Material 文档](https://threejs.org/docs/pages/Material.html)中的 `onBeforeCompile`、`customProgramCacheKey`、`depthTest` 和 `depthWrite`。材质由 R3F 释放，向量和 uniform 在挂载时分配，逐帧复用；动画沿用可见阶段 `Planets` 的 `invalidate()`。
 
 ## 渲染和共享数据
 

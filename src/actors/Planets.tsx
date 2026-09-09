@@ -21,6 +21,8 @@ import { useScreenProjection } from '../behaviors/useScreenProjection'
 // ============================================================
 
 export const _planetWorldPositions: (Vector3 | null)[] = [null, null, null]
+// 实时球体半径供轨道接触处淡出使用，不包含实体行星环或卫星轨道。
+export const _planetCoreWorldRadii: number[] = [0, 0, 0]
 export const _planetOrbitTargets: (Vector3 | null)[] = [null, null, null]
 export const _planetRawOrbitY: number[] = [0, 0, 0]  // 纯轨道Y(WindChimeLines计算用)
 export let _mainPlanetIndices: number[] = []
@@ -232,6 +234,7 @@ export default function Planets() {
       if (trackIdx >= 0 && trackIdx < 3) {
         if (!_planetWorldPositions[trackIdx]) _planetWorldPositions[trackIdx] = new Vector3()
         _planetWorldPositions[trackIdx]!.copy(mesh.position)
+        _planetCoreWorldRadii[trackIdx] = mesh.visible ? PLANET_BASE_RADIUS * appearance.scale : 0
 
         // 计算该行星的屏幕视觉半径（px），供径向布局使用
         // 标签避让覆盖环带外缘或卫星整圈公转范围，不随卫星相位抖动。
