@@ -9,7 +9,7 @@ import { calcAppearance } from '../behaviors/useAppearanceFade'
 import { calcOcclusionFade } from '../behaviors/useOcclusionFade'
 import { calcScreenSpaceHover } from '../behaviors/useScreenSpaceHover'
 import { smoothstep, clamped, SCENE_CENTER_Z, WHITE_OUT_THRESHOLD, WHITE_OUT_END, GRID_SHIFT_START, ORBIT_RADII, ORBIT_COUNT } from '../r3f/ScrollRig'
-import { createPlanetAsset, createPlanetHaloTexture, PLANET_BASE_RADIUS, INNER_GLOW_SCALE, ATMOS_HALO_SCALE, PLANET_CONTENT_COLOR } from './assets/planet'
+import { createPlanetAsset, createPlanetHaloTexture, PLANET_BASE_RADIUS, ATMOS_HALO_SCALE, PLANET_CONTENT_COLOR } from './assets/planet'
 import { createSatellitePlanetAsset } from './assets/satellitePlanet'
 import { createRingedPlanetAsset } from './assets/ringedPlanet'
 import { type ParticleData } from '../types'
@@ -24,7 +24,8 @@ export const _planetWorldPositions: (Vector3 | null)[] = [null, null, null]
 export const _planetOrbitTargets: (Vector3 | null)[] = [null, null, null]
 export const _planetRawOrbitY: number[] = [0, 0, 0]  // 纯轨道Y(WindChimeLines计算用)
 export let _mainPlanetIndices: number[] = []
-export const _planetFocusDistanceScales: number[] = [1, 1, 1]
+// 按内、中、外轨道配置；复合行星保留适量附件边距。
+export const _planetFocusDistanceScales = [1, 1.25, 1.25] as const
 
 /** Act1 基准色（冷白） */
 const COLOR_ACT1 = '#f0f8ff'
@@ -128,8 +129,6 @@ export default function Planets() {
         asset.root.visible = false
         // 粒子遍历顺序不等于轨道顺序，后续更新、标签和聚焦都按 trackIdx 读取。
         assets[trackIdx] = asset
-        // 距离增大也会减小 calcAppearance 的球体尺寸，以平方根适配复合资产包络。
-        _planetFocusDistanceScales[trackIdx] = Math.sqrt(asset.visualRadiusScale / INNER_GLOW_SCALE)
       }
     }
 
