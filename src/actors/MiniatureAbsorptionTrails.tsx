@@ -10,6 +10,7 @@ import { useScrollStore } from '../stores/scrollStore'
 import { getWebglLayer } from '../composition/layerRegistry'
 import { touchActorFrame, useActorRuntime } from '../composition/actorRuntime'
 import { getParticleScanCanvas } from './MiniatureParticleScan'
+import { chargeGates } from '../behaviors/chargeGates'
 
 const SEGMENTS = 24, SAMPLES = 12
 const CAPACITY = FIELD_COUNT * SAMPLES * (SEGMENTS * 3 + 6)
@@ -159,13 +160,15 @@ export default function MiniatureAbsorptionTrails() {
     resources.position.needsUpdate = count > 0
     touchActorFrame('miniatureAbsorptionTrails', Math.round(clock.elapsedTime * 60), count > 0)
     if (ctx && sp >= 0.4 && sp < FIELD_SCAN_END) {
+      const paused = chargeGates.active === 0
+      const scanSp = paused ? .4 + ((.1 + chargeGates.clocks[0] * .008) % (FIELD_SCAN_END - .4)) : sp
       const visible = projectField(sp, camera)
       const cube = center.copy(pivot).project(camera)
       const cx = rect.left + (cube.x + 1) * width / 2, cy = rect.top + (1 - cube.y) * height / 2
       let concurrent = 0
       for (const event of field.scans) {
-        if (sp < event.start || sp >= event.end || concurrent >= 9) continue
-        let ids = selections.get(event.id)
+        if (scanSp < event.start || scanSp >= event.end || concurrent >= 9) continue
+        let ids = paused ? selectScanMembers(visible, event.selection, Math.min(width, height) * .10) : selections.get(event.id)
         if (!ids) {
           ids = selectScanMembers(projectField(event.start, selectionCamera), event.selection,
             Math.min(width, height) * 0.10)
@@ -180,7 +183,7 @@ export default function MiniatureAbsorptionTrails() {
         const h = Math.max(...members.map(p => p.y + p.radius)) + 6 - y
         const actual = visible.filter(p => p.x - p.radius >= x && p.x + p.radius <= x + w &&
           p.y - p.radius >= y && p.y + p.radius <= y + h)
-        const t = (sp - event.start) / (event.end - event.start)
+        const t = (scanSp - event.start) / (event.end - event.start)
         ctx.globalAlpha = smootherstep(Math.min(1, t / 0.12)) * (1 - smootherstep(Math.max(0, (t - 0.78) / 0.22)))
         ctx.strokeStyle = '#cbd5e1'; ctx.fillStyle = '#cbd5e1'; ctx.lineWidth = 0.8
         ctx.strokeRect(x, y, w, h)

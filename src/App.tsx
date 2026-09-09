@@ -27,6 +27,9 @@ import { resetSequence, useSignal } from './composition/sequenceStore'
 import type { LabelConfig, SequenceStrategy } from './behaviors/useFloatingLabels'
 import { PLANET_LINKS } from './types'
 import { useDayNight } from './theme/useDayNight'
+import ChargeEnergyBar from './actors/ChargeEnergyBar'
+import { chargeGates, chargeFromInput, constrainChargeProgress, createWheelIntentFilter,
+  publishChargeGates, resetChargeGates, tickChargeGates } from './behaviors/chargeGates'
 import './theme/theme.css'
 import './fonts.css'
 import './App.css'
@@ -71,6 +74,8 @@ export default function App() {
   const stRef = useRef<ScrollTrigger | null>(null)
   const act3VisibleRef = useRef(false)
   const isAct3FocusedRef = useRef(false)
+  const scrollbarDrag = useRef(false)
+  const wheelIntent = useRef(createWheelIntentFilter())
 
   // ---- UI state (React �?triggers re-render) ----
   const [lighthouseImage, setLighthouseImage] = useState<string | null>(null)
@@ -95,6 +100,8 @@ export default function App() {
 
   // ---- ScrollTrigger (native scrollbar) ----
   useGSAP(() => {
+    resetChargeGates()
+    physRef.current.active = true
     document.body.style.height = window.innerHeight * SCROLL_VH + 'px'
 
     stRef.current = ScrollTrigger.create({
@@ -106,8 +113,15 @@ export default function App() {
         if (Math.abs(self.progress - physRef.current.target) < 0.0005) return
         physRef.current.lastScrollbar = performance.now()
         physRef.current.velocity = 0
-        physRef.current.target = self.progress
-        setScrollProgress(self.progress)
+        const previous = physRef.current.target
+        if (scrollbarDrag.current && chargeGates.active >= 0 && self.progress > previous) {
+          chargeFromInput(chargeGates, (self.progress - previous) * window.innerHeight * (SCROLL_VH - 1), window.innerHeight, performance.now())
+        }
+        const next = constrainChargeProgress(chargeGates, previous, self.progress)
+        physRef.current.target = next
+        setScrollProgress(next)
+        if (next !== self.progress) syncScrollbar(next)
+        publishChargeGates()
       },
     })
 
@@ -125,11 +139,22 @@ export default function App() {
       p.lastPhysics = now
       const dtFrames = dt * 60
 
+      tickChargeGates(chargeGates, now)
+      if (chargeGates.released !== null) {
+        p.target = chargeGates.released + .00001
+        chargeGates.released = null
+        p.velocity = 0
+        setScrollProgress(p.target); syncScrollbar(p.target)
+      }
+      publishChargeGates()
+      if (chargeGates.active >= 0) { p.velocity = 0; return }
+
       if (now - p.lastScrollbar < 80) return
       if (p.velocity === 0) return
 
       const previousTarget = p.target
-      p.target += p.velocity * dtFrames
+      p.target = constrainChargeProgress(chargeGates, previousTarget, p.target + p.velocity * dtFrames)
+      if (chargeGates.active >= 0) p.velocity = 0
       if (p.target <= 0) { p.target = 0; p.velocity = 0 }
       if (p.target >= 1) { p.target = 1; p.velocity = 0 }
 
@@ -157,29 +182,81 @@ export default function App() {
     return useScrollStore.subscribe(syncFocusGate)
   }, [])
 
-  // ---- wheel handler ----
-  const onWheel = useCallback((e: WheelEvent) => {
-    e.preventDefault()
+  // Physical input is separate from velocity: inertial frames never charge.
+  const handleScrollInput = useCallback((delta: number, intentional = true) => {
     if (isTerminalActive) return
     if (isAct3FocusedRef.current) return
     const p = physRef.current
-    if ((p.target <= SCROLL_PROGRESS_EPSILON && e.deltaY < 0) ||
-        (p.target >= 1 - SCROLL_PROGRESS_EPSILON && e.deltaY > 0)) {
+    if (chargeGates.active >= 0) {
+      p.velocity = 0
+      if (delta < 0) {
+        p.target = constrainChargeProgress(chargeGates, p.target, p.target - Math.max(.0001, Math.abs(delta) / (window.innerHeight * (SCROLL_VH - 1))))
+        setScrollProgress(p.target); syncScrollbar(p.target)
+      } else if (intentional) chargeFromInput(chargeGates, delta, window.innerHeight, performance.now())
+      publishChargeGates()
+      return
+    }
+    if ((p.target <= SCROLL_PROGRESS_EPSILON && delta < 0) ||
+        (p.target >= 1 - SCROLL_PROGRESS_EPSILON && delta > 0)) {
       p.velocity = 0
       return
     }
-    const step = e.deltaY / (window.innerHeight * (SCROLL_VH - 1)) * (0.65 * 79 / 80)
+    const step = delta / (window.innerHeight * (SCROLL_VH - 1)) * (0.65 * 79 / 80)
     p.velocity += step
     p.velocity = Math.max(-MAX_VELOCITY, Math.min(MAX_VELOCITY, p.velocity))
-  }, [isTerminalActive])
+  }, [isTerminalActive, syncScrollbar])
 
   // ---- event listeners ----
   useEffect(() => {
+    const interactive = (target: EventTarget | null) => target instanceof Element && !!target.closest(
+      'input, textarea, select, button, a, [contenteditable="true"], [role="dialog"], .composition-panel, .main-terminal')
+    const onWheel = (event: WheelEvent) => {
+      if (interactive(event.target)) return
+      event.preventDefault()
+      const delta = event.deltaY * (event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? window.innerHeight : 1)
+      handleScrollInput(delta, wheelIntent.current(delta, performance.now()))
+    }
+    let touchY: number | null = null
+    const touchStart = (event: TouchEvent) => {
+      touchY = event.touches.length === 1 && !interactive(event.target) ? event.touches[0].clientY : null
+    }
+    const touchMove = (event: TouchEvent) => {
+      if (touchY === null || event.touches.length !== 1) return
+      event.preventDefault()
+      const y = event.touches[0].clientY
+      handleScrollInput(touchY - y); touchY = y
+    }
+    const touchEnd = () => { touchY = null }
+    const keyDown = (event: KeyboardEvent) => {
+      if (interactive(event.target) || event.ctrlKey || event.metaKey || event.altKey) return
+      const direction = event.key === 'ArrowDown' || event.key === 'PageDown' || event.key === 'End' || (event.key === ' ' && !event.shiftKey) ? 1
+        : event.key === 'ArrowUp' || event.key === 'PageUp' || event.key === 'Home' || (event.key === ' ' && event.shiftKey) ? -1 : 0
+      if (!direction) return
+      event.preventDefault(); handleScrollInput(direction * window.innerHeight * .12)
+    }
+    const pointerDown = (event: PointerEvent) => { scrollbarDrag.current = event.clientX >= document.documentElement.clientWidth - 16 }
+    const pointerUp = () => { scrollbarDrag.current = false }
     window.addEventListener('wheel', onWheel, { passive: false })
+    window.addEventListener('touchstart', touchStart, { passive: true })
+    window.addEventListener('touchmove', touchMove, { passive: false })
+    window.addEventListener('touchend', touchEnd)
+    window.addEventListener('touchcancel', touchEnd)
+    window.addEventListener('keydown', keyDown)
+    window.addEventListener('pointerdown', pointerDown)
+    window.addEventListener('pointerup', pointerUp)
+    window.addEventListener('blur', pointerUp)
     return () => {
       window.removeEventListener('wheel', onWheel)
+      window.removeEventListener('touchstart', touchStart)
+      window.removeEventListener('touchmove', touchMove)
+      window.removeEventListener('touchend', touchEnd)
+      window.removeEventListener('touchcancel', touchEnd)
+      window.removeEventListener('keydown', keyDown)
+      window.removeEventListener('pointerdown', pointerDown)
+      window.removeEventListener('pointerup', pointerUp)
+      window.removeEventListener('blur', pointerUp)
     }
-  }, [onWheel])
+  }, [handleScrollInput])
 
   useEffect(() => {
     const visible = needsAct3(scrollProgress)
@@ -257,6 +334,7 @@ export default function App() {
 
       <LusionAtmosphereOverlay />
       <Act2SquareContourTransition />
+      <ChargeEnergyBar />
 
       <MainTerminal
         mode={terminalMode}

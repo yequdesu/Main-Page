@@ -27,6 +27,8 @@ import {
 } from '../composition/coreAnchors'
 import { useAnchorStore } from '../composition/anchorStore'
 import { TIMELINE } from '../composition/timeline'
+import { chargeGates, CHARGE_GATE_POINTS, CUBE_HOLD_SPEED, createForwardCubeAlignment,
+  sampleCubeAlignment, finishChargeGate } from '../behaviors/chargeGates'
 
 interface MiniatureUniverseProps {
   children: ReactNode
@@ -112,6 +114,10 @@ export default function MiniatureUniverse({ children }: MiniatureUniverseProps) 
   const faceQuaternion = useMemo(() => new Quaternion(), [])
   const lookMatrix = useMemo(() => new Matrix4(), [])
   const centerWorld = useMemo(() => new Vector3(), [])
+  const cameraLocal = useMemo(() => new Vector3(), [])
+  const quarterQuaternion = useMemo(() => new Quaternion(), [])
+  const yAxis = useMemo(() => new Vector3(0, 1, 0), [])
+  const gateRotation = useMemo(() => getMiniatureTransform(CHARGE_GATE_POINTS[0]).rotation, [])
   const projectedCorners = useMemo(() => [
     new Vector3(), new Vector3(), new Vector3(), new Vector3(),
   ], [])
@@ -132,21 +138,55 @@ export default function MiniatureUniverse({ children }: MiniatureUniverseProps) 
     const sp = useScrollStore.getState().scrollProgress
     const transform = getMiniatureTransform(sp)
 
+    if (chargeGates.active === 0) {
+      chargeGates.cubePose ??= [...gateRotation]
+      if (chargeGates.mode === 'charging') {
+        chargeGates.cubePose[1] += (chargeGates.clocks[0] - chargeGates.cubeClock) * CUBE_HOLD_SPEED
+      } else {
+        if (!chargeGates.alignment) {
+          universe.getWorldPosition(centerWorld)
+          lookMatrix.lookAt(state.camera.position, centerWorld, state.camera.up)
+          faceQuaternion.setFromRotationMatrix(lookMatrix)
+          faceEuler.setFromQuaternion(faceQuaternion, 'XYZ')
+          chargeGates.alignment = createForwardCubeAlignment(chargeGates.cubePose, [faceEuler.x, faceEuler.y, faceEuler.z])
+          chargeGates.cubeFaceTurn = Math.round((chargeGates.alignment.to[1] - faceEuler.y) / (Math.PI / 2))
+        }
+        chargeGates.cubePose = sampleCubeAlignment(chargeGates.alignment, chargeGates.releaseAge)
+        if (chargeGates.releaseAge >= chargeGates.alignment.duration) finishChargeGate(chargeGates)
+      }
+      chargeGates.cubeClock = chargeGates.clocks[0]
+      state.invalidate()
+    }
+
     universe.scale.setScalar(transform.scale)
     spinEuler.set(...transform.rotation)
     universe.quaternion.setFromEuler(spinEuler)
+
+    if (chargeGates.cubePose) {
+      // Retain the real-time pose on release and blend its offset away when
+      // rewinding the preceding draw phase, instead of snapping to authored yaw.
+      const t = Math.max(0, Math.min(1, (sp - TIMELINE.cubeDrawAndTumble.start) /
+        (CHARGE_GATE_POINTS[0] - TIMELINE.cubeDrawAndTumble.start)))
+      const w = t * t * (3 - 2 * t)
+      spinEuler.set(...transform.rotation.map((value, i) => value + (chargeGates.cubePose![i] - gateRotation[i]) * w) as [number, number, number])
+      universe.quaternion.setFromEuler(spinEuler)
+    }
 
     if (transform.faceAlignProgress > 0) {
       universe.getWorldPosition(centerWorld)
       lookMatrix.lookAt(state.camera.position, centerWorld, state.camera.up)
       faceQuaternion.setFromRotationMatrix(lookMatrix)
       faceEuler.setFromQuaternion(faceQuaternion, 'XYZ')
-      spinEuler.set(...getDirectedFaceAlignmentRotation(
-        transform.rotation,
-        [faceEuler.x, faceEuler.y, faceEuler.z],
-        transform.faceAlignProgress,
-      ))
-      universe.quaternion.setFromEuler(spinEuler)
+      if (chargeGates.cubePose) {
+        quarterQuaternion.setFromAxisAngle(yAxis, chargeGates.cubeFaceTurn * Math.PI / 2)
+        faceQuaternion.multiply(quarterQuaternion)
+        universe.quaternion.slerp(faceQuaternion, transform.faceAlignProgress)
+      } else {
+        spinEuler.set(...getDirectedFaceAlignmentRotation(
+          transform.rotation, [faceEuler.x, faceEuler.y, faceEuler.z], transform.faceAlignProgress,
+        ))
+        universe.quaternion.setFromEuler(spinEuler)
+      }
     }
 
     wireMaterial.uniforms.uDrawProgress.value = transform.wireDrawProgress
@@ -182,12 +222,11 @@ export default function MiniatureUniverse({ children }: MiniatureUniverseProps) 
 
     if (sp < TIMELINE.cubeWhiteFill.start || sp > TIMELINE.squareSeedShrink.end) return
     const half = MINIATURE_CUBE_HALF_SIZE
-    const localFaceCorners: readonly [number, number, number][] = [
-      [half, -half, -half],
-      [-half, -half, -half],
-      [-half, half, -half],
-      [half, half, -half],
-    ]
+    // Alignment can finish on any of the four side faces, not only local -Z.
+    state.camera.getWorldPosition(cameraLocal)
+    universe.worldToLocal(cameraLocal)
+    const axis = Math.abs(cameraLocal.x) > Math.abs(cameraLocal.z) ? 0 : 2
+    const sign = Math.sign(cameraLocal.getComponent(axis)) || 1
     let minX = Number.POSITIVE_INFINITY
     let minY = Number.POSITIVE_INFINITY
     let maxX = Number.NEGATIVE_INFINITY
@@ -195,7 +234,8 @@ export default function MiniatureUniverse({ children }: MiniatureUniverseProps) 
 
     for (let index = 0; index < projectedCorners.length; index++) {
       const projected = projectedCorners[index]
-      projected.set(...localFaceCorners[index]).applyMatrix4(universe.matrixWorld).project(state.camera)
+      projected.set((index & 1 ? half : -half), (index & 2 ? half : -half), (index & 1 ? half : -half))
+        .setComponent(axis, sign * half).applyMatrix4(universe.matrixWorld).project(state.camera)
       const x = canvasRect.left + (projected.x * 0.5 + 0.5) * canvasRect.width
       const y = canvasRect.top + (-projected.y * 0.5 + 0.5) * canvasRect.height
       minX = Math.min(minX, x)

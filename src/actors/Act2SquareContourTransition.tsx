@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef } from 'react'
+import { chargeGates, getOrbitHoldPhase, subscribeChargeGates } from '../behaviors/chargeGates'
 import { useScrollStore } from '../stores/scrollStore'
 import { useAnchorStore, type Anchor } from '../composition/anchorStore'
 import {
@@ -685,7 +686,7 @@ export default function Act2SquareContourTransition() {
         layout ? layout.logicalCentralRadius * zoom : waveView.screenRadius,
         (layout?.logicalSpacing ?? waveView.logicalSpacing) * zoom,
         (layout?.logicalSquareSize ?? waveView.logicalSquareSize) * zoom,
-        scrollProgress, circleMorph,
+        scrollProgress, circleMorph, getOrbitHoldPhase(scrollProgress),
       )
     }
 
@@ -723,6 +724,10 @@ export default function Act2SquareContourTransition() {
   }, [active, faceRectAnchor, scrollProgress, targetAnchor])
 
   drawRef.current = draw
+
+  useEffect(() => subscribeChargeGates(() => {
+    if (chargeGates.active === 1) drawRef.current()
+  }), [])
 
   useEffect(() => {
     draw()

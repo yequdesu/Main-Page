@@ -47,7 +47,7 @@ export const TIMELINE = {
   squareContourZoom: defineRange('squareContourZoom', afterMiniature(0.70), afterMiniature(0.80), 'Frozen square contour canvas zooms out to the Act 3 terminal framing'),
   squarePlanetFlights: defineRange('squarePlanetFlights', afterMiniature(0.70), afterMiniature(0.80), 'Three circular trails fly from the central frame into the Act 3 planet targets'),
   squareOrbitFlights: defineRange('squareOrbitFlights', afterMiniature(PACING.orbitSourceStart), afterMiniature(PACING.orbitSourceEnd), 'Orbit tracing follows the main planet flight, retaining flight speed and stagger'),
-  squareTitleFade: defineRange('squareTitleFade', afterMiniature(0.64) + PACING.titleHold, afterMiniature(0.72) + PACING.titleHold, 'Complete title holds before shrinking and fading'),
+  squareTitleFade: defineRange('squareTitleFade', afterMiniature(0.665), afterMiniature(0.745), 'Complete title holds through the strict-geometry charge gate before fading'),
   squareAct3Crossfade: defineRange('squareAct3Crossfade', afterMiniature(PACING.crossfadeSourceStart), SCROLL_RIG.ACT3_START, 'Completed white system holds before crossfading into Act 3'),
   act3OrbitResume: defineRange('act3OrbitResume', SCROLL_RIG.ACT3_START, afterMiniature(PACING.orbitResumeSourceEnd), 'Frozen terminal layout smoothly resumes orbit motion'),
   act2ThemeReveal: defineRange('act2ThemeReveal', SCROLL_RIG.MINIATURE_END, afterMiniature(0.63), 'Theme background and lighting return beneath the square wave'),

@@ -31,6 +31,10 @@ export interface RegisteredLayer {
 }
 
 export const LAYERS = {
+  'dom.chargeEnergyBar': {
+    id: 'dom.chargeEnergyBar',
+    contract: { kind: 'dom', zIndex: 25, position: 'fixed', pointerEvents: 'none' },
+  },
   'webgl.oceanLines': {
     id: 'webgl.oceanLines',
     contract: { kind: 'webgl', renderOrder: -1, depthTest: true, depthWrite: true, transparent: true, blending: 'normal' },

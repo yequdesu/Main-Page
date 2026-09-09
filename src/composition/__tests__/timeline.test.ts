@@ -18,7 +18,7 @@ describe('composition timeline', () => {
     expect(TIMELINE.squareContourZoom).toMatchObject({ start: afterMiniature(0.70), end: afterMiniature(0.80), reversible: true })
     expect(TIMELINE.squarePlanetFlights).toMatchObject({ start: afterMiniature(0.70), end: afterMiniature(0.80), reversible: true })
     expect(TIMELINE.squareOrbitFlights).toMatchObject({ start: afterMiniature(PACING.orbitSourceStart), end: afterMiniature(PACING.orbitSourceEnd), reversible: true })
-    expect(TIMELINE.squareTitleFade).toMatchObject({ start: afterMiniature(0.64) + PACING.titleHold, end: afterMiniature(0.72) + PACING.titleHold, reversible: true })
+    expect(TIMELINE.squareTitleFade).toMatchObject({ start: afterMiniature(0.665), end: afterMiniature(0.745), reversible: true })
     expect(TIMELINE.squareAct3Crossfade).toMatchObject({ start: afterMiniature(PACING.crossfadeSourceStart), end: afterMiniature(PACING.act3SourceStart), reversible: true })
     expect(TIMELINE.act3OrbitResume).toMatchObject({ start: afterMiniature(PACING.act3SourceStart), end: afterMiniature(PACING.orbitResumeSourceEnd), reversible: true })
     expect(TIMELINE.act2ThemeReveal).toMatchObject({ start: afterMiniature(0.55), end: afterMiniature(0.63), reversible: true })

@@ -34,5 +34,36 @@ their launch window moves. All reverse playback is scroll-analytic.
 
 The completed white system must hold before the shared Canvas/WebGL crossfade.
 Act3 interaction gates use the same new entry milestone as the end of that fade.
-Logo remains disabled. Ordinary page clicks no longer start a two-second tween
-to 100%. Continuous visual acceptance remains manual.
+The Act3 completion logo remains disabled. Ordinary page clicks no longer start
+a two-second tween to 100%. Continuous visual acceptance remains manual.
+
+## Input-energy gates
+
+Two gates clamp scene and scrollbar progress: before whitening (26.32%) and at
+the end of square-to-vector replacement (52.98%). The latter is also the title
+fade's exact start, so the complete Act2 logo remains fully visible while held.
+These are real input gates, not extra scroll-distance plateaus. Public Lusion
+work (<https://lusion.co/>) is an interaction reference, not a copied runtime.
+
+Only new wheel/touch/keyboard input adds energy. A capped contribution prevents
+one large delta from filling the capsule. Application inertia never contributes;
+decaying trackpad wheel tails use a heuristic because WheelEvent supplies no
+portable momentum flag. Energy leaks at .3/s after a 160ms input grace period.
+Re-entry after a completed charge doubles the gain; abandoned attempts do not.
+Completion history is separate per gate and memory-only. Reverse input exits
+immediately and rearms gates crossed on the way back. Native scrollbar jumps
+are clamped too; subsequent deliberate gutter dragging can charge the gate.
+
+During the first hold the cube rotates at .35 rad/s and scanning loops slowly.
+Full charge starts a same-direction, constant-yaw-speed alignment to the next
+quarter-turn face; progress remains locked until alignment finishes. The next
+stage inherits that pose, and face projection chooses the visible side face,
+not a hard-coded -Z face. Later whitening matches the current camera exactly.
+The second hold adds real-time orbit phase; its accumulated offset is preserved
+after release and eased away through the preceding phase on reverse playback.
+Neither hold regenerates the scene's particles or geometric satellites.
+
+The energy overlay is a pointer-transparent SVG capsule, top centered with a
+safe-area offset. Only changed energy values update its DOM. The vector orbit
+Canvas redraws during its hold without raster sampling or image reads. Pause
+rotation and input energy live separately from the linear scroll store.

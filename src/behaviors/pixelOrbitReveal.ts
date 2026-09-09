@@ -6,11 +6,11 @@ const ease = (x: number) => {
 }
 
 // Scroll-analytic orbits: fixed staggered lanes avoid random jumps on reverse playback.
-export function getPixelOrbitRevealFrame(scroll: number) {
+export function getPixelOrbitRevealFrame(scroll: number, extraPhase = 0) {
   // Keep the original angular speed; extending the hold must add rotation,
   // not stretch the same rotation over a longer interval.
   const phase = Math.max(0, (Math.min(scroll, TIMELINE.geometricOrbitRetract.end) - TIMELINE.squareBfsWave.start) /
-    (TIMELINE.squareCircleMorph.start - TIMELINE.squareBfsWave.start))
+    (TIMELINE.squareCircleMorph.start - TIMELINE.squareBfsWave.start)) + extraPhase
   return {
     expansion: ease(progress('geometricOrbitExpand', scroll)),
     collapse: ease(progress('geometricOrbitRetract', scroll)),
@@ -19,8 +19,8 @@ export function getPixelOrbitRevealFrame(scroll: number) {
   }
 }
 
-export function getPixelOrbitGeometry(scroll: number, radius: number, spacing: number, squareSize: number) {
-  const f = getPixelOrbitRevealFrame(scroll)
+export function getPixelOrbitGeometry(scroll: number, radius: number, spacing: number, squareSize: number, extraPhase = 0) {
+  const f = getPixelOrbitRevealFrame(scroll, extraPhase)
   if (f.expansion <= 0 || f.collapse >= 1) return []
   const ringRadius = Math.max(0, radius - squareSize * .5)
   return Array.from({ length: 48 }, (_, i) => {
@@ -47,10 +47,10 @@ export function createPixelOrbitRevealRenderer() {
   const b = blend.getContext('2d')!
   return (
     ctx: CanvasRenderingContext2D, width: number, height: number,
-    cx: number, cy: number, radius: number, spacing: number, squareSize: number, scroll: number, morph: number,
+    cx: number, cy: number, radius: number, spacing: number, squareSize: number, scroll: number, morph: number, extraPhase = 0,
   ) => {
     if (radius <= 0 || spacing <= 0 || squareSize <= 0) return
-    const geometry = getPixelOrbitGeometry(scroll, radius, spacing, squareSize)
+    const geometry = getPixelOrbitGeometry(scroll, radius, spacing, squareSize, extraPhase)
     if (!geometry.length) return
     // Each offscreen texel IS one existing wave grid cell, not an independent
     // screen pixel. World projection and occlusion happen before occupancy sampling.
