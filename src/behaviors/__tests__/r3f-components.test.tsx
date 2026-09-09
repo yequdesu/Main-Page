@@ -26,7 +26,7 @@ describe('R3F Component Scene Graph', () => {
       scrollProgress: 0,
       focusedPlanetIdx: -1,
       hoveredIdx: -1,
-      overlayData: { focused: false },
+      focusStartTime: null,
     })
   })
 

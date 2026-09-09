@@ -12,9 +12,9 @@
 
 所有行星核心共用受光的粗糙标准材质，以同色自发光托住暗面；主页方向光与 Studio 行星预览灯光采用恒星远场柔光的中心色。色源位于 [celestialLighting.ts](assets/celestialLighting.ts)，设计与边界见 [行星表面光照](../models/README.md#行星表面光照)。
 
-[带环行星工厂](assets/ringedPlanet.ts) 在共用行星主体上组合倾斜、压扁的 `TorusGeometry`，当前仅供 Studio 的新类型实验使用；参数、渲染与资源所有权见 [模型说明](../models/README.md#带环行星实验)。
+[带环行星工厂](assets/ringedPlanet.ts) 在共用行星主体上组合倾斜、压扁的 `TorusGeometry`，用于主页最外侧轨道（索引 2 / GitHub）与 Studio 预览；参数、渲染与资源所有权见 [模型说明](../models/README.md#带环行星实验)。
 
-[带卫星行星工厂](assets/satellitePlanet.ts) 添加单颗球形卫星，按绝对预览时间计算倾斜圆轨道位置；Studio 的取景覆盖完整公转包络，播放与暂停沿用共享预览时钟。参数与扩展方式见 [模型说明](../models/README.md#带卫星行星实验)。
+[带卫星行星工厂](assets/satellitePlanet.ts) 添加单颗球形卫星，用于主页中间轨道（索引 1 / Code），按调用方的绝对动画时间计算水平 XZ 平面的圆轨道位置；Studio 的取景覆盖完整公转包络，播放与暂停沿用共享预览时钟。参数与扩展方式见 [模型说明](../models/README.md#带卫星行星实验)。
 
 | 文件 | 主应用挂载位置 | 职责 |
 |------|----------------|------|
@@ -37,6 +37,14 @@
 | [PlanetLabelDebug.tsx](PlanetLabelDebug.tsx) | `FloatingLabels` 内 | PBD 约束可视化，由主终端 `debug` 命令控制 |
 
 场景组装以 [Canvas.tsx](../r3f/Canvas.tsx) 和 [App.tsx](../App.tsx) 为准。常驻 Canvas 不代表对象始终可见，需继续核对 Actor 内部的进度与透明度逻辑。
+
+## 主页轨道与资产对应
+
+[Planets.tsx](Planets.tsx) 的 `PLANET_FACTORIES` 按 `ORBIT_RADII` 由内到外选择普通、带卫星、带环工厂。随机粒子按粒子索引遍历，但资产必须写入 `assets[trackIdx]`，以保持更新、导航链接和聚焦目标一致。
+
+整个资产根节点随主页滚动显隐；核心位置和缩放更新后，统一调用资产的 `updateAppearance()`，使卫星和四层环同步跟随风铃下落、轨道运动、距离缩放与遮挡淡出。卫星使用主页 R3F 时钟，Studio 继续使用独立的可暂停预览时钟。行星可见时由 `Planets` 请求下一帧，保证停止滚动后卫星仍公转；不可见时不为行星继续请求帧，保留 Canvas 的 `frameloop="demand"`。依据：[R3F 按需渲染](https://r3f.docs.pmnd.rs/advanced/scaling-performance#on-demand-rendering)。
+
+工厂返回的 `visualRadiusScale` 是相对核心半径的可见实体包络：普通行星取近场光晕边缘，带环行星取最外环外缘，带卫星行星取卫星完整公转范围。主页据此计算标签避让半径，避免标签遮住附件，同时避免半径随卫星相位摆动。复合资产的相机聚焦后方距离和侧向距离按 `sqrt(visualRadiusScale / INNER_GLOW_SCALE)` 放大，以留出附件空间；这也考虑了 `calcAppearance` 随观察距离增大而缩小球体的机制。点击和导航仍以主行星中心为目标，卫星不是独立导航入口。
 
 ## 渲染和共享数据
 

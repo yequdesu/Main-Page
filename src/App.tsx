@@ -52,9 +52,9 @@ export default function App() {
   // ---- UI state (React — triggers re-render) ----
   const [hintVisible, setHintVisible] = useState(true)
   const [isClickPlaying, setIsClickPlaying] = useState(false)
-  const [isAct3Focused, setIsAct3Focused] = useState(false)
   const [lighthouseImage, setLighthouseImage] = useState<string | null>(null)
-  const overlayData = useScrollStore(s => s.overlayData)
+  const focusedPlanetIdx = useScrollStore(s => s.focusedPlanetIdx)
+  const isAct3Focused = focusedPlanetIdx >= 0 && scrollProgress >= GRID_SHIFT_START
   const isTerminalActive = terminalMode === 'active'
 
   // ---- Act visibility ----
@@ -171,12 +171,6 @@ export default function App() {
     }
   }, [onWheel, onClick])
 
-  // ---- Act 3 focus state (block scroll wheel) ----
-  useEffect(() => {
-    const focused = overlayData.focused && scrollProgress >= GRID_SHIFT_START
-    setIsAct3Focused(focused)
-  }, [overlayData.focused, scrollProgress])
-
   // ---- lighthouse screenshot ----
   useEffect(() => {
     // theme 切换时清除缓存，触发重新烘焙
@@ -288,26 +282,8 @@ export default function App() {
         scrollProgress={sp}
         lighthouseImage={lighthouseImage}
         isClickPlaying={isClickPlaying}
-        isFocused={overlayData.focused && sp >= GRID_SHIFT_START}
+        isFocused={isAct3Focused}
       />
-
-      {/* 聚焦 SVG 叠加层 */}
-      {overlayData.focused && (
-        <svg className="focus-overlay" width="100%" height="100%">
-          {overlayData.star && (
-            <circle cx={overlayData.star.x} cy={overlayData.star.y} r={overlayData.star.r + 10}
-              fill="none" stroke="#64748b" strokeWidth={1} strokeDasharray="4 6" className="overlay-ring" />
-          )}
-          {overlayData.planet && (
-            <circle cx={overlayData.planet.x} cy={overlayData.planet.y} r={overlayData.planet.r + 8}
-              fill="none" stroke="#64748b" strokeWidth={1} strokeDasharray="4 6" className="overlay-ring" />
-          )}
-          {overlayData.tangents?.map((t: any, i: number) => (
-            <line key={i} x1={t.x1} y1={t.y1} x2={t.x2} y2={t.y2}
-              stroke="#94a3b8" strokeWidth={0.5} className="overlay-line" />
-          ))}
-        </svg>
-      )}
 
       {/* 页脚 */}
       <footer className="app-footer">

@@ -10,6 +10,8 @@ import { calcOcclusionFade } from '../behaviors/useOcclusionFade'
 import { calcScreenSpaceHover } from '../behaviors/useScreenSpaceHover'
 import { smoothstep, clamped, SCENE_CENTER_Z, WHITE_OUT_THRESHOLD, WHITE_OUT_END, GRID_SHIFT_START, ORBIT_RADII, ORBIT_COUNT } from '../r3f/ScrollRig'
 import { createPlanetAsset, createPlanetHaloTexture, PLANET_BASE_RADIUS, INNER_GLOW_SCALE, ATMOS_HALO_SCALE, PLANET_CONTENT_COLOR } from './assets/planet'
+import { createSatellitePlanetAsset } from './assets/satellitePlanet'
+import { createRingedPlanetAsset } from './assets/ringedPlanet'
 import { type ParticleData } from '../types'
 import { WC_ANCHOR_Y, WC_DROP_START, WC_DROP_END, WC_RETRACT_END, getWindChimeProgress } from '../behaviors/useWindChime'
 import { useScreenProjection } from '../behaviors/useScreenProjection'
@@ -22,14 +24,18 @@ export const _planetWorldPositions: (Vector3 | null)[] = [null, null, null]
 export const _planetOrbitTargets: (Vector3 | null)[] = [null, null, null]
 export const _planetRawOrbitY: number[] = [0, 0, 0]  // 纯轨道Y(WindChimeLines计算用)
 export let _mainPlanetIndices: number[] = []
+export const _planetFocusDistanceScales: number[] = [1, 1, 1]
 
 /** Act1 基准色（冷白） */
 const COLOR_ACT1 = '#f0f8ff'
 
+// 与 ORBIT_RADII / PLANET_LINKS 一致，按由内到外的轨道顺序构造。
+const PLANET_FACTORIES = [createPlanetAsset, createSatellitePlanetAsset, createRingedPlanetAsset] as const
+
 /**
  * Planets — 3 颗主行星（独立 Mesh，非 InstancedMesh）。
  *
- * renderOrder = 1, depthWrite = true，与碎片（renderOrder=2）分属不同渲染管线。
+ * 核心 renderOrder = 1、depthWrite = true；附件沿用各自工厂的绘制与深度设置。
  * 原 DustField 中行星逻辑剥离至此处。
  *
  * 援引：
@@ -37,7 +43,7 @@ const COLOR_ACT1 = '#f0f8ff'
  *   R3F InstancedMesh + individual <mesh> for interactive objects
  */
 export default function Planets() {
-  const { camera, gl } = useThree()
+  const { camera, gl, invalidate } = useThree()
   const { project } = useScreenProjection(_planetWorldPositions)
   const { shouldSkip } = useFrameCache()
 
@@ -117,9 +123,13 @@ export default function Planets() {
       if (isMain) {
         const trackIdx = planetIndices.indexOf(i)
 
-        const asset = createPlanetAsset(trackIdx, haloTexture)
+        const asset = PLANET_FACTORIES[trackIdx](trackIdx, haloTexture)
         asset.core.position.set(wx, wy, wz)
-        assets.push(asset)
+        asset.root.visible = false
+        // 粒子遍历顺序不等于轨道顺序，后续更新、标签和聚焦都按 trackIdx 读取。
+        assets[trackIdx] = asset
+        // 距离增大也会减小 calcAppearance 的球体尺寸，以平方根适配复合资产包络。
+        _planetFocusDistanceScales[trackIdx] = Math.sqrt(asset.visualRadiusScale / INNER_GLOW_SCALE)
       }
     }
 
@@ -151,8 +161,10 @@ export default function Planets() {
     const act3Progress = clamped(sp, ORBIT_START, 1.0)
     const smooth3 = smoothstep(act3Progress)
 
-    // 行星始终在轨道 XZ，不参与 dust。0.68 前不可见，0.68 起从上方下落
+    // 行星始终在轨道 XZ，不参与 dust；从 VISIBLE_START 起由上方下落。
     const VISIBLE_START = 0.60
+    // 静止滚动时仍需驱动卫星公转；隐藏阶段不为行星请求连续帧。
+    if (sp >= VISIBLE_START) invalidate()
     const wc = getWindChimeProgress(sp)
     const inWindChime = wc.active
     const orbitSmooth3 = 1.0  // 始终轨道位置，永不 dust-lerp
@@ -204,7 +216,7 @@ export default function Planets() {
       }
 
       mesh.position.set(px, py, pz)
-      // 下落：0.68 开始(早于风铃线)，到 WC_DROP_END 到位
+      // 下落早于风铃线开始，到 WC_DROP_END 到位。
       if (sp >= VISIBLE_START && sp < WC_DROP_END) {
         const dropOnly = clamped(sp, VISIBLE_START, WC_DROP_END)
         mesh.position.y = WC_ANCHOR_Y + (py - WC_ANCHOR_Y) * smoothstep(dropOnly)
@@ -213,7 +225,8 @@ export default function Planets() {
       if (inWindChime) {
         mesh.position.z += 6 * wc.smoothP
       }
-      mesh.visible = sp >= VISIBLE_START  // 0.68 前隐藏
+      mesh.visible = sp >= VISIBLE_START
+      assets[trackIdx].root.visible = mesh.visible
       mesh.scale.setScalar(appearance.scale)
 
       // Track world position
@@ -222,8 +235,8 @@ export default function Planets() {
         _planetWorldPositions[trackIdx]!.copy(mesh.position)
 
         // 计算该行星的屏幕视觉半径（px），供径向布局使用
-        // worldRadius = 基准半径 × 当前 scale × 内层光晕倍率（视觉可见边缘）
-        const _worldR = PLANET_BASE_RADIUS * appearance.scale * INNER_GLOW_SCALE
+        // 标签避让覆盖环带外缘或卫星整圈公转范围，不随卫星相位抖动。
+        const _worldR = PLANET_BASE_RADIUS * appearance.scale * assets[trackIdx].visualRadiusScale
         const _pcam = camera as PerspectiveCamera
         const _fovY = (_pcam.fov * Math.PI) / 180
         // 屏幕半径 = worldRadius / 距离处的 frustum 高度 × 视口高度

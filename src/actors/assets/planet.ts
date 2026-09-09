@@ -117,6 +117,8 @@ export function createPlanetAsset(trackIdx: number, haloTexture: Texture) {
   root.add(mesh, glow, shell, sprite)
   return {
     root, core: mesh, glow, atmosphere: shell, halo: sprite,
+    /** 相对核心半径的实体视觉包络，用于主页标签避让（不包含远场柔光）。 */
+    visualRadiusScale: INNER_GLOW_SCALE,
     updateAppearance(time: number, phase: number, scale: number, opacity: number, glowFactor: number, haloScale: number) {
       mat.emissive.copy(mat.color) // 跟随主页的跨幕颜色插值，也适用于独立预览。
       const gPulse = 1 + Math.sin(time * GLOW_PULSE_FREQ_1 + phase * 2.1) * GLOW_PULSE_AMP_1 + Math.sin(time * GLOW_PULSE_FREQ_2 + phase) * GLOW_PULSE_AMP_2

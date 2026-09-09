@@ -103,19 +103,6 @@ export interface GridLineData {
 }
 
 // ============================================================
-// 屏幕覆盖数据
-// ============================================================
-export interface ScreenCircle { x: number; y: number; r: number }
-export interface TangentLine { x1: number; y1: number; x2: number; y2: number }
-
-export interface OverlayData {
-  focused: boolean
-  star?: ScreenCircle
-  planet?: ScreenCircle
-  tangents?: TangentLine[]
-}
-
-// ============================================================
 // Act 引用（从 act.exit 保存到 ctx 的数据）
 // ============================================================
 export interface Act1State {

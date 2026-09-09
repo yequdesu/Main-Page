@@ -9,7 +9,7 @@
 | 文件 | 类型 | 职责 |
 |------|------|------|
 | `useFrameCache.ts` | Hook | 帧缓存守卫——同帧同参数跳过更新（`shouldSkip` / `shouldSkipSp`）|
-| `useCameraFocus.ts` | 函数 | 相机双层平滑 + 轨道绕行 + 30s 自动取消 + SVG overlay 数据发射 |
+| `useCameraFocus.ts` | 函数 | `createCameraFocusController()` 创建场景独占控制器：双层平滑、每次零相位环绕、30s 自动返回；可由调用方传入复合行星的聚焦距离倍率（见 [资产对应](../actors/README.md#主页轨道与资产对应)） |
 | `useOrbitPosition.ts` | 纯函数 | `calcOrbitPosition`——计算粒子轨道位置（可 L1 单测）|
 | `useAppearanceFade.ts` | 纯函数 | `calcAppearance`——计算粒子缩放/透明度/颜色过渡（可 L1 单测）|
 | `useOcclusionFade.ts` | 纯函数 | `calcOcclusionFade`——聚焦遮挡检测（可 L1 单测）|
@@ -23,6 +23,14 @@
 > [形式化公式](../../docs/actors/pbd-layout-formal.md) · [SVG 交互说明](../../docs/actors/pbd-layout-explainer.html)
 >
 > [历史设计（2026-06-21）](../../docs/superpowers/specs/2026-06-21-pbd-layout-design.md)
+
+## 聚焦会话
+
+相机控制器由 `Act3ContentPhase` 持有，避免模块级相位和平滑目标泄漏到新场景。点击行星与标签终端 `focus` 命令都调用 `setFocusedPlanet()`，将 `focusStartTime` 置为 `null`；下一场景帧使用 R3F 的 `elapsedTime` 开始计时，时间 `0` 也是有效开始时间。切换目标或再次发起同目标聚焦均开启新一轮计时。
+
+每轮环绕角由 `0.024 × (time − focusStartTime)` 计算，从零相位开始；相机从当前实际姿态平滑衔接到初始环绕位置，不瞬移回全局再拉近。平滑系数按帧间隔换算，环绕速度不依赖帧率。满 `FOCUS_TIMEOUT`（源码在 `types/index.ts`，当前 30 秒）后清除聚焦并平滑返回默认全局位置和朝向，恢复滚轮与品牌显示。离开内容阶段或目标失效同样清除聚焦。
+
+聚焦曾绘制恒星和行星的屏幕轮廓虚线圆、两圆的外公切线；现在已移除对应 SVG、投影计算及 `overlayData` 状态。标签自身的 PBD 牵引线和场景轨道线仍由各自模块管理。
 
 ## 命名约定
 

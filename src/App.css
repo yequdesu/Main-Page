@@ -31,19 +31,6 @@ canvas { display: block; }
   50% { transform: rotate(45deg) translateY(6px); }
 }
 
-/* ---- focus overlay SVG ---- */
-.focus-overlay { position: fixed; inset: 0; z-index: 5; pointer-events: none; }
-.overlay-ring { animation: ring-in 0.6s ease-out both; }
-@keyframes ring-in {
-  from { opacity: 0; stroke-dashoffset: 30; }
-  to   { opacity: 1; stroke-dashoffset: 0; }
-}
-.overlay-line { animation: line-in 0.8s ease-out 0.2s both; }
-@keyframes line-in {
-  from { opacity: 0; stroke-dashoffset: 20; }
-  to   { opacity: 1; stroke-dashoffset: 0; }
-}
-
 /* ---- footer ---- */
 .app-footer {
   position: fixed; bottom: 0.7rem; left: 0; right: 0; z-index: 20;

@@ -80,6 +80,7 @@ export function createRingedPlanetAsset(trackIdx: number, haloTexture: Texture) 
 
   return {
     ...planet, ring, outerRing, innerRing, outermostRing,
+    visualRadiusScale: Math.max(planet.visualRadiusScale, outermostRadius + PLANET_OUTERMOST_RING.tube),
     updateAppearance(time: number, phase: number, scale: number, opacity: number, glowFactor: number, haloScale: number) {
       planet.updateAppearance(time, phase, scale, opacity, glowFactor, haloScale)
       for (const layer of layers) {

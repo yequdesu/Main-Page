@@ -10,11 +10,11 @@
 |------|--------------|
 | [Act1OceanVoyage.tsx](Act1OceanVoyage.tsx) | `OceanWaves`、`LightBeam`、`LighthouseCapture` |
 | [Act2GridTransition.tsx](Act2GridTransition.tsx) | `GridLines`；保留基于进度的 `useFrame` 协调回调 |
-| [Act3ContentPhase.tsx](Act3ContentPhase.tsx) | `OrbitRings`；在 `useFrame` 中调用 `updateCameraFocus` |
+| [Act3ContentPhase.tsx](Act3ContentPhase.tsx) | `OrbitRings`；独占 `createCameraFocusController()` 实例，在 `useFrame` 中更新相机 |
 
 可见性条件由 [App.tsx](../App.tsx) 的 `needsAct1/2/3` 决定。当前 Act 1 的组保留到进度 0.86 之前，使海浪能在网格阶段继续使用；Act 2 从 0.39、Act 3 从 0.84 开始启用组可见性。边界含 0.01 的提前/延后余量，各对象还会根据自身进度计算透明度等属性。这与主页中概括的三个视觉阶段不是同一组边界。
 
-三个 Act 在 App 中始终挂载，通过 `<group visible={visible}>` 控制组可见性。`visible` 不等于卸载，也不能替代逐帧回调自己的条件检查。
+三个 Act 在 App 中始终挂载，通过 `<group visible={visible}>` 控制组可见性。`visible` 不等于卸载，也不能替代逐帧回调自己的条件检查。Act 3 的相机控制器在组隐藏后继续接收更新，以便离开内容阶段时清除聚焦并回到全局视角。
 
 ## 跨幕对象与 DOM
 
@@ -22,7 +22,7 @@
 
 - 主行星由 `Planets` 管理，碎片由 `DustField` 管理。
 - `Lighthouse` 根据滚动进度自行隐藏，`LighthouseCapture` 负责离屏截图。
-- `BrandTitle`、终端、`FloatingLabels` 和 SVG 聚焦层位于 App 的 DOM 层；信息面板和标签根据 Act 3 条件挂载。
+- `BrandTitle`、终端和 `FloatingLabels`位于 App 的 DOM 层；信息面板和标签根据 Act 3 条件挂载。
 
 ## 扩展与验证
 

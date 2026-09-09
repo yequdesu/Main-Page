@@ -1,5 +1,4 @@
 import { create } from 'zustand'
-import type { OverlayData } from '../types'
 
 // ============================================================
 // Slice 类型
@@ -11,8 +10,8 @@ interface ScrollSlice {
 interface FocusSlice {
   focusedPlanetIdx: number
   hoveredIdx: number
-  focusStartTime: number
-  overlayData: OverlayData
+  /** null 表示新一轮聚焦尚未由场景时钟开始计时。 */
+  focusStartTime: number | null
 }
 
 // ============================================================
@@ -26,7 +25,6 @@ interface FocusActions {
   setFocusedPlanet: (idx: number) => void
   setHoveredIdx: (idx: number) => void
   setFocusStartTime: (t: number) => void
-  setOverlayData: (data: OverlayData) => void
   clearFocus: () => void
 }
 
@@ -76,8 +74,7 @@ export const useScrollStore = create<ScrollStore>()((set) => ({
   // ---- Focus slice ----
   focusedPlanetIdx: -1,
   hoveredIdx: -1,
-  focusStartTime: 0,
-  overlayData: { focused: false },
+  focusStartTime: null,
 
   // ---- Terminal slice ----
   terminalMode: 'typing' as TerminalMode,
@@ -87,15 +84,13 @@ export const useScrollStore = create<ScrollStore>()((set) => ({
   labelsGateOpen: false,
   dayNight: 'night' as DayNight,
 
-  setFocusedPlanet: (idx) => set({ focusedPlanetIdx: idx }),
+  setFocusedPlanet: (idx) => set({ focusedPlanetIdx: idx, focusStartTime: null }),
   setHoveredIdx: (idx) => set({ hoveredIdx: idx }),
   setFocusStartTime: (t) => set({ focusStartTime: t }),
-  setOverlayData: (data) => set({ overlayData: data }),
   clearFocus: () => set({
     focusedPlanetIdx: -1,
     hoveredIdx: -1,
-    focusStartTime: 0,
-    overlayData: { focused: false },
+    focusStartTime: null,
   }),
 
   // ---- Terminal actions ----

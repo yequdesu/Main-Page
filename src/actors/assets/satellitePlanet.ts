@@ -1,14 +1,14 @@
 import { Mesh, MeshStandardMaterial, SphereGeometry, type Texture } from 'three'
 import { createPlanetAsset, PLANET_BASE_RADIUS } from './planet'
 
-/** 尺寸相对于行星核心半径，周期按预览时钟的秒数计。 */
+/** 尺寸相对于行星核心半径，周期按调用方动画时钟的秒数计。 */
 export const SATELLITE = {
   radius: 0.28,
   orbitRadius: 2.5,
   period: 12,
-  inclinationDegrees: 18,
+  inclinationDegrees: 0,
   initialPhase: Math.PI / 6,
-  color: '#9a9fae',
+  color: '#8e9fbd',
 } as const
 
 /** 一颗行星与一颗天然卫星；仅包含视觉与圆轨道运动，不读取主页状态。 */
@@ -29,6 +29,7 @@ export function createSatellitePlanetAsset(trackIdx: number, haloTexture: Textur
 
   return {
     ...planet, moon,
+    visualRadiusScale: Math.max(planet.visualRadiusScale, SATELLITE.orbitRadius + SATELLITE.radius),
     updateAppearance(time: number, phase: number, scale: number, opacity: number, glowFactor: number, haloScale: number) {
       planet.updateAppearance(time, phase, scale, opacity, glowFactor, haloScale)
       // 绝对时间求位置：暂停、变速、停止归零及多视口不会累计出不同相位。
