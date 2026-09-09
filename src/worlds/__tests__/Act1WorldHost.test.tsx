@@ -28,7 +28,7 @@ describe('Act1 world lifecycle', () => {
     expect(renderer.scene.findByProps({ name: 'persistent-shell' }).instance).toBe(shell)
     expect(useScrollStore.getState().scrollProgress).toBe(scroll)
     expect(useActorRuntimeStore.getState().actors.sunsetWheatWorld.active).toBe(true)
-    const nodes = ['wheat-sky', 'wheat-ground', 'wheat-sun', 'wheat-clouds', 'wheat-lod-0', 'wheat-lod-1', 'wheat-lod-2']
+    const nodes = ['wheat-sky', 'wheat-ground', 'wheat-canopy', 'wheat-lod-0', 'wheat-lod-1', 'wheat-lod-2']
       .map(name => renderer.scene.findByProps({ name }).instance as Mesh)
     const geometries = nodes.map(m => vi.spyOn(m.geometry, 'dispose'))
     const ground = nodes[1].geometry

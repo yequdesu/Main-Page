@@ -22,6 +22,10 @@ export function buildWheatSeeds(): WheatSeed[] {
 
 // Same bend envelope used by the shader; a root at y=0 always stays fixed.
 export function wheatBendWeight(y: number) { return Math.max(0, y) ** 2 }
+export function wheatScreenDetail(pixelsPerStalk: number) {
+  const t = Math.max(0, Math.min(1, (pixelsPerStalk - 4) / 16))
+  return t * t * (3 - 2 * t)
+}
 export function wheatEdgeWeight(x: number, z: number, half = 32) {
   const t = Math.max(0, Math.min(1, (half - Math.max(Math.abs(x), Math.abs(z))) / .8))
   return t * t * (3 - 2 * t)

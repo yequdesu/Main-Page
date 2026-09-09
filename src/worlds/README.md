@@ -22,12 +22,15 @@ to the lighthouse. Production visitors do not receive a scene selector.
 use different ear detail. Each batch shares its geometry and instance attributes.
 Only one time uniform changes during animation. Root positions never change.
 The shaders bend all parts coherently, attenuate wind at the edges, and clip the
-deformed cube-local position. All five material variants share this clipping.
+deformed cube-local position. All four material variants share this clipping.
 
 Lighting is a local stylized material model (sun-direction bands, backlight, root
 darkening and distance haze), not new global lights or a shadow-map pass. The sky,
-sun, clouds and closed soil volume are actual bounded geometry. The sun's internal
-offset adapts to narrow viewports; no camera changes are needed. This first version
+closed soil volume and sky window have bounded geometry. Sun and clouds are now
+directional features at optical infinity inside that window, not separate disks
+or wall-mounted cloud meshes. Camera-to-surface rays are calculated in cube-local
+space every frame, so adjacent box faces share one continuous distant sky. The
+sun's direction adapts to narrow viewports; no camera changes are needed. This version
 does not implement individual stalk-to-stalk cast shadows.
 
 The soil fills from the planting surface to the cube bottom. Its volume shader
@@ -36,12 +39,17 @@ broken sediment lenses and filtered mineral flecks. Opposing/adjacent faces do
 not restart UV patterns, and the texture has no time dependency. Grain detail
 is suppressed below screen-pixel size during miniature shrink.
 
+When a stalk projects to 4–20 CSS pixels, fine wheat dissolves onto a low-poly
+canopy with the same wind phase and closed skirts down to the planting surface.
+Below that threshold the three instance draws are disabled. All transitions
+derive from current projection, without a stored playback direction.
+
 ## Validation
 
 - Tests cover root coverage/determinism, three batch populations, bend weights,
   shared clipping, coordinate adaptation, shell identity, unchanged progress,
   selected-world lifecycle, capture mounting and GPU resource disposal.
-- Production build passes. Full suite on this change: 131 passed, 3 failed.
+- Production build passes. Full suite: 134 passed, 3 failed.
   Unchanged failures: `miniatureParticleField` exact floating-point comparison;
   two `r3f-components` LightBeam tests lacking a jsdom Canvas context.
 - Browser snapshots checked initial field coverage, miniature containment at 26%,
