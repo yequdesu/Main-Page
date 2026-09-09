@@ -7,8 +7,10 @@ const ease = (x: number) => {
 
 // Scroll-analytic orbits: fixed staggered lanes avoid random jumps on reverse playback.
 export function getPixelOrbitRevealFrame(scroll: number) {
-  const phase = Math.max(0, Math.min(1, (scroll - TIMELINE.geometricOrbitExpand.start) /
-    (TIMELINE.geometricOrbitRetract.end - TIMELINE.geometricOrbitExpand.start)))
+  // Keep the original angular speed; extending the hold must add rotation,
+  // not stretch the same rotation over a longer interval.
+  const phase = Math.max(0, (Math.min(scroll, TIMELINE.geometricOrbitRetract.end) - TIMELINE.squareBfsWave.start) /
+    (TIMELINE.squareCircleMorph.start - TIMELINE.squareBfsWave.start))
   return {
     expansion: ease(progress('geometricOrbitExpand', scroll)),
     collapse: ease(progress('geometricOrbitRetract', scroll)),

@@ -4,6 +4,22 @@ import { TIMELINE } from '../../composition/timeline'
 import { afterMiniature } from '../../composition/transitionTiming'
 
 describe('pixel orbit reveal', () => {
+  it('preserves original expansion and rotation speed while extending the middle hold', () => {
+    const start = TIMELINE.squareBfsWave.start
+    const span = TIMELINE.squareCircleMorph.start - start
+    for (const phase of [0, .1, .2, .36, .5]) {
+      const t = Math.min(1, phase / .36)
+      const frame = getPixelOrbitRevealFrame(start + phase * span)
+      expect(frame.expansion).toBeCloseTo(t * t * t * (t * (t * 6 - 15) + 10), 10)
+      expect(frame.angle).toBeCloseTo(phase * 1.65, 10)
+    }
+    const hold = getPixelOrbitRevealFrame(afterMiniature(.63))
+    expect(hold.expansion).toBe(1)
+    expect(hold.collapse).toBe(0)
+    const a = getPixelOrbitRevealFrame(afterMiniature(.66))
+    const b = getPixelOrbitRevealFrame(afterMiniature(.67))
+    expect(b.angle - a.angle).toBeCloseTo((.01 / .09) * 1.65, 10)
+  })
   it('retracts with the title, spans the morph and finishes before planet launch', () => {
     expect(getPixelOrbitRevealFrame(0).expansion).toBe(0)
     expect(getPixelOrbitRevealFrame(afterMiniature(.635)).expansion).toBe(1)
