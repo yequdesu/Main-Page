@@ -20,14 +20,16 @@ describe('pixel orbit reveal', () => {
     const b = getPixelOrbitRevealFrame(afterMiniature(.67))
     expect(b.angle - a.angle).toBeCloseTo((.01 / .09) * 1.65, 10)
   })
-  it('retracts with the title, spans the morph and finishes before planet launch', () => {
+  it('retracts with the title, spans the morph and finishes at 59% page progress', () => {
     expect(getPixelOrbitRevealFrame(0).expansion).toBe(0)
     expect(getPixelOrbitRevealFrame(afterMiniature(.635)).expansion).toBe(1)
     expect(getPixelOrbitRevealFrame(TIMELINE.squareTitleFade.start).collapse).toBe(0)
     expect(TIMELINE.geometricOrbitRetract.start).toBe(TIMELINE.squareTitleFade.start)
     expect(getPixelOrbitRevealFrame(TIMELINE.squareCircleMorph.end).collapse).toBeLessThan(1)
     expect(getPixelOrbitRevealFrame(TIMELINE.geometricOrbitRetract.end).collapse).toBe(1)
-    expect(TIMELINE.geometricOrbitRetract.end).toBeLessThan(TIMELINE.squarePlanetFlights.start)
+    expect(TIMELINE.geometricOrbitRetract.end).toBe(.59)
+    expect(getPixelOrbitRevealFrame(.589).collapse).toBeLessThan(1)
+    expect(getPixelOrbitRevealFrame(.59).collapse).toBe(1)
     expect(getPixelOrbitRevealFrame(1).collapse).toBe(1)
   })
   it('is independent of playback order', () => {

@@ -42,7 +42,7 @@ export const TIMELINE = {
   squareBfsWave: defineRange('squareBfsWave', afterMiniature(0.56), afterMiniature(0.70), 'Deterministic square wave expands to its 400-cell handoff radius'),
   squareCircleMorph: defineRange('squareCircleMorph', afterMiniature(0.65), afterMiniature(0.665), 'Dense square wave morphs into a strict circular ring'),
   geometricOrbitExpand: defineRange('geometricOrbitExpand', afterMiniature(0.56), afterMiniature(0.56 + (0.65 - 0.56) * 0.36), 'Original square-wave expansion timing; extended orbit hold before retraction'),
-  geometricOrbitRetract: defineRange('geometricOrbitRetract', afterMiniature(0.64), afterMiniature(0.695), 'Geometric satellites retract with the title fade before planet launch'),
+  geometricOrbitRetract: defineRange('geometricOrbitRetract', afterMiniature(0.64), 0.59, 'Geometric satellites retract with the title fade and finish at 59% page progress'),
   squareTitleTyping: defineRange('squareTitleTyping', afterMiniature(0.58), afterMiniature(0.64), 'Allura bracket title is handwritten by raster DFS trails'),
   squareContourZoom: defineRange('squareContourZoom', afterMiniature(0.70), afterMiniature(0.80), 'Frozen square contour canvas zooms out to the Act 3 terminal framing'),
   squarePlanetFlights: defineRange('squarePlanetFlights', afterMiniature(0.70), afterMiniature(0.80), 'Three circular trails fly from the central frame into the Act 3 planet targets'),

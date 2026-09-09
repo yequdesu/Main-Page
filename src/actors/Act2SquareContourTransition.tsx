@@ -584,17 +584,6 @@ export default function Act2SquareContourTransition() {
       }
     }
 
-    if (scrollProgress > TIMELINE.geometricOrbitExpand.start && scrollProgress < TIMELINE.geometricOrbitRetract.end) {
-      pixelOrbitRef.current ??= createPixelOrbitRevealRenderer()
-      pixelOrbitRef.current(
-        ctx, width, height, initialCenterX, initialCenterY,
-        waveView.screenRadius,
-        waveView.logicalSpacing * waveView.zoom,
-        waveView.logicalSquareSize * waveView.zoom,
-        scrollProgress, circleMorph,
-      )
-    }
-
     const target = targetAnchor?.value
     let layout: SquareContourLayout | undefined
     if (scrollProgress > TIMELINE.squareBfsWave.end && target) {
@@ -680,6 +669,23 @@ export default function Act2SquareContourTransition() {
         handoffView.logicalSquareSize,
         SQUARE_WAVE_FADE_GENERATIONS,
         frame.contourAlpha,
+      )
+    }
+
+    if (scrollProgress > TIMELINE.geometricOrbitExpand.start && scrollProgress < TIMELINE.geometricOrbitRetract.end) {
+      pixelOrbitRef.current ??= createPixelOrbitRevealRenderer()
+      // Retraction now overlaps the start of the contour zoom. Follow the same
+      // center and scale as the central ring, rather than the frozen wave view.
+      const orbitTransform = layout ? getSquareContourTransform(layout, frame.zoomProgress) : undefined
+      const zoom = orbitTransform?.zoom ?? waveView.zoom
+      pixelOrbitRef.current(
+        ctx, width, height,
+        orbitTransform?.focusX ?? initialCenterX,
+        orbitTransform?.focusY ?? initialCenterY,
+        layout ? layout.logicalCentralRadius * zoom : waveView.screenRadius,
+        (layout?.logicalSpacing ?? waveView.logicalSpacing) * zoom,
+        (layout?.logicalSquareSize ?? waveView.logicalSquareSize) * zoom,
+        scrollProgress, circleMorph,
       )
     }
 
