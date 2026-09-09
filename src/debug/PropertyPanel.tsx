@@ -1,4 +1,4 @@
-import { Mesh, type Object3D, type MeshStandardMaterial } from 'three'
+import { Mesh, Sprite, type Object3D, type MeshStandardMaterial } from 'three'
 import type { ModelRegistryEntry } from '../models'
 import { VIEW_LABELS, type AnimationState, type CameraPose, type ViewId } from './studioTypes'
 
@@ -16,14 +16,14 @@ export function ObjectInspector({
   onAnimation: (state: AnimationState) => void
 }) {
   const materials =
-    node instanceof Mesh ? (Array.isArray(node.material) ? node.material : [node.material]) : []
+    node instanceof Mesh || node instanceof Sprite ? (Array.isArray(node.material) ? node.material : [node.material]) : []
   return (
     <>
       <section className="panel-section">
         <h2>模型信息</h2>
         <p>{entry.label}</p>
         <p className="muted">{entry.attribution}</p>
-        <p className="muted">{entry.procedural ? '程序化几何' : entry.glbPath}</p>
+        <p className="muted">{entry.procedural ? '程序化 3D 资产' : entry.glbPath}</p>
       </section>
       <section className="panel-section">
         <h2>选中对象</h2>
@@ -79,13 +79,13 @@ export function ObjectInspector({
               )
             })
           ) : (
-            <p className="panel-empty">此节点没有材质，请选择 Mesh</p>
+            <p className="panel-empty">此节点没有材质，请选择 Mesh 或 Sprite</p>
           )}
         </section>
       )}
       {!!clips.length && (
         <section className="panel-section">
-          <h2>模型动画</h2>
+          <h2>{entry.previewAnimation ? '预览动画' : '模型动画'}</h2>
           <label>
             片段
             <select

@@ -2,6 +2,7 @@ import {
   Box3,
   Matrix4,
   Mesh,
+  Sprite,
   Material,
   Object3D,
   PerspectiveCamera,
@@ -50,14 +51,20 @@ export function localBounds(root: Object3D) {
   const inverse = root.matrixWorld.clone().invert()
   const box = new Box3()
   const transform = new Matrix4()
-  root.traverse((object) => {
-    if (!(object instanceof Mesh)) return
-    if (!object.geometry.boundingBox) object.geometry.computeBoundingBox()
-    if (object.geometry.boundingBox) {
-      transform.multiplyMatrices(inverse, object.matrixWorld)
-      box.union(object.geometry.boundingBox.clone().applyMatrix4(transform))
+  function visit(object: Object3D) {
+    transform.multiplyMatrices(inverse, object.matrixWorld)
+    const envelope = object.userData.studioBounds
+    if (envelope instanceof Box3) {
+      box.union(envelope.clone().applyMatrix4(transform))
+      return
     }
-  })
+    if (object instanceof Mesh || object instanceof Sprite) {
+      if (!object.geometry.boundingBox) object.geometry.computeBoundingBox()
+      if (object.geometry.boundingBox) box.union(object.geometry.boundingBox.clone().applyMatrix4(transform))
+    }
+    object.children.forEach(visit)
+  }
+  visit(root)
   return box
 }
 
@@ -72,10 +79,14 @@ export function fitCamera(
   aspect: number,
   direction: Vector3,
 ) {
+  // 热更新/卸载过程中可能短暂没有几何体，不能将 Infinity 写入相机。
+  if (box.isEmpty() || ![...box.min.toArray(), ...box.max.toArray()].every(Number.isFinite)) return null
   const sphere = box.getBoundingSphere(new Sphere())
   const radius = Math.max(sphere.radius, 0.01)
   const center = sphere.center
-  const backward = direction.clone().normalize()
+  const backward = direction.clone()
+  if (!backward.toArray().every(Number.isFinite) || backward.lengthSq() < 1e-12) backward.set(5, 3, 8)
+  backward.normalize()
   const right = new Vector3().crossVectors(camera.up, backward).normalize()
   const up = new Vector3().crossVectors(backward, right).normalize()
   const corners = []
@@ -103,7 +114,7 @@ export function fitCamera(
     camera.right = halfH * aspect
     camera.zoom = 1
   }
-  camera.position.copy(center).addScaledVector(direction.clone().normalize(), distance)
+  camera.position.copy(center).addScaledVector(backward, distance)
   camera.near = Math.max(0.001, radius / 1000)
   camera.far = Math.max(1000, distance + radius * 10)
   camera.lookAt(center)

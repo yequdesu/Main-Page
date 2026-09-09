@@ -42,6 +42,18 @@ YAML 变化发送 `lighthouse-config-updated` 自定义 HMR 事件，由 [main.t
 
 新模型接入 [MODEL_REGISTRY](../models/index.ts)。GLB 路径优先走通用加载管道；程序化组件应能通过 `standalone` 脱离主页行为。只有 `debugControls: 'lighthouse-capture'` 显示图标制作页签，不应对所有程序化模型启用灯塔控件。
 
+### 恒星与行星独立预览（2026-09-09）
+
+- [共用视觉工厂](../actors/assets/centralStar.ts) 和 [行星视觉工厂](../actors/assets/planet.ts) 从主页 Actor 提取原有几何体、材质、光晕参数及脉冲公式。主页负责场景编排，[独立预览工厂](../models/celestialPreview.ts) 负责完整显示恒星与单颗固定尺寸行星，避免通过篡改主页 store 强制显示模型，也避免两套视觉实现长期分叉。
+- 工厂按实例创建资源，由挂载组件卸载时调用 `dispose()`；`primitive` 显式使用 `dispose={null}`。主页同一三行星系统共用一张光晕贴图；单颗行星预览独占贴图，不跨视口共享材质；不释放 Three.js 自带的共享 Sprite 几何体。依据 [R3F 官方对象与释放说明](https://raw.githubusercontent.com/pmndrs/react-three-fiber/master/docs/API/objects.mdx)。
+- [CelestialPreviews](../models/CelestialPreviews.tsx) 在实例创建后通过 `onAssetReady` 通知工作台重新索引与归一化，包含工厂代码热更新后替换节点的情况；单纯修改播放时间不会重建模型。
+- 注册项的 `previewAnimation` 定义预览动画名称，区别于 GLB 的 AnimationClip。[previewPlayback.ts](previewPlayback.ts) 在 Session 中保留一份可暂停时钟；各视口按绝对预览时间更新相位，新增视口不会从零开始或重复累计时间。React 只维护播放控制，不逐帧写 React/Zustand 状态。
+- 播放状态变化先请求一帧；播放期间 Viewport 持续 `invalidate()`，暂停后回到按需渲染。依据 [R3F 官方按需渲染说明](https://raw.githubusercontent.com/pmndrs/react-three-fiber/master/docs/advanced/scaling-performance.mdx)。视觉工厂不修改对象可见性，因此 Explorer 的隐藏/隔离不被动画覆盖。
+- `userData.studioBounds` 为程序化预览的局部取景范围。`localBounds` 遇到此范围时不再累计该子树的几何边界：恒星用近场柔光范围，单颗行星用包含光晕最大呼吸幅度的范围；单独聚焦子节点仍测量其自身几何体。归一化和相机适配使用同一测量方法，普通模型沿用原有取景流程。空包围盒不更新相机，无效观察方向回退到默认方向，避免热更新期间产生 NaN 视角。
+- 回归测试包括主页/预览状态隔离、固定样本、多视口资源隔离、播放时钟、隐藏保持和光晕取景范围。浏览器还需检查两种资产的单/对比/四视图、播放/暂停/停止、对象操作和 PNG，以及主页末幕的恒星与行星。
+
+### 通用扩展与验证
+
 新增环境预设修改注册表 EnvPreset、Shell 选项和 Viewport 的 ENV_LIGHTS。新增辅助工具修改 studioTypes、Shell 控件和 Viewport，并标记 `userData.studioHelper` 使导出开关正确工作。
 
 ```bash
@@ -50,6 +62,6 @@ pnpm build
 pnpm test --run
 ```
 
-测试覆盖克隆资源隔离、局部测量、视锥取景、隐藏/隔离、保存边界、像素方向与失败清理。默认 `pnpm build` 不打包 Debug 入口，因此还必须在 `/debug.html` 做浏览器验证：三个模型的单/对比/四视图、侧栏收起与调整、相机与自动旋转、对象操作、图标参数变化/保存/重读/失败、透明 PNG 与拼图。改变共享烘焙或 Lighthouse 时还要检查主页首幕、主题与滚动可见性。
+测试覆盖克隆资源隔离、局部测量、视锥取景、隐藏/隔离、保存边界、像素方向与失败清理。默认 `pnpm build` 不打包 Debug 入口，因此还必须在 `/debug.html` 做浏览器验证：各类模型的单/对比/四视图、侧栏收起与调整、相机与自动旋转、对象操作、图标参数变化/保存/重读/失败、透明 PNG 与拼图。改变共享烘焙或 Lighthouse 时还要检查主页首幕、主题与滚动可见性。
 
 浏览器/WebGL 验证与单元测试互补，不能将 Node 中的 mock renderer 测试当作像素正确性的证明。

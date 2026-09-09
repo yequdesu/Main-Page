@@ -13,6 +13,7 @@ pnpm debug    # / 与 /index.html 重定向到 /debug.html
 
 ## 当前能力
 
+- 程序化资产：灯塔、中央恒星与单颗行星；恒星/行星复用主页视觉工厂，默认暂停且完整显示，可在对象页签播放光晕呼吸。
 - 左侧对象树：加载完成后生成层级；按名称或类型搜索，选中、聚焦、隐藏、隔离和恢复显示。
 - 中间视口：单视图、实体/线框对比、正视/侧视/顶视/透视四视图；模型归一化居中、自动取景，支持适配全部与重置方向。
 - 右侧场景：灯光预设、辅助工具、活动相机数值、模型变换、自动旋转和背景；Leva 面板在侧栏内部滚动。
@@ -32,6 +33,7 @@ pnpm debug    # / 与 /index.html 重定向到 /debug.html
 | [SceneExplorer.tsx](SceneExplorer.tsx) | 搜索、层级、对象选择与显示操作 |
 | [StudioViewport.tsx](StudioViewport.tsx) | 独立 Canvas、加载反馈、相机、灯光、选中框与动画 |
 | [studioModel.ts](studioModel.ts) | 克隆资源所有权、局部包围盒、稳定节点路径与相机取景 |
+| [previewPlayback.ts](previewPlayback.ts) | 程序化预览的会话时钟，多视口共享播放时间，支持暂停、速度和停止归零 |
 | [studioTypes.ts](studioTypes.ts) | 视口句柄与共享状态类型 |
 | [PropertyPanel.tsx](PropertyPanel.tsx) | 相机编辑、只读材质检查与动画操作 |
 | [ModelPreviewControls.tsx](ModelPreviewControls.tsx) | 工作台灯光、变换、旋转与背景的局部 Leva store |

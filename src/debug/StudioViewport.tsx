@@ -56,6 +56,7 @@ interface Props {
   isolatedId: string | null
   activeView: ViewId
   animation: AnimationState
+  previewTime: () => number
   initialPoses?: Partial<Record<ViewId, CameraPose>>
   onActiveView: (id: ViewId) => void
   onSelect: (id: string | null) => void
@@ -129,20 +130,23 @@ function LoadedAsset({
   onReady,
   onSelect,
   onClips,
+  previewTime,
 }: {
   entry: ModelRegistryEntry
   config: ModelPreviewConfig
   onReady: (model: LoadedModel) => void
   onSelect: Props['onSelect']
   onClips: (clips: AnimationClip[]) => void
+  previewTime: () => number
 }) {
   const root = useRef<Group>(null!)
   const normalizer = useRef<Group>(null!)
   const raw = useRef<Group>(null!)
   const Model = entry.component
-  useLayoutEffect(() => {
+  const reportReady = useCallback(() => {
     raw.current.updateWorldMatrix(true, true)
     const bounds = localBounds(raw.current)
+    if (bounds.isEmpty()) return
     const center = bounds.getCenter(new Vector3())
     const extent = bounds.getSize(new Vector3())
     const scale = 4 / Math.max(extent.x, extent.y, extent.z, 0.001)
@@ -151,6 +155,10 @@ function LoadedAsset({
     root.current.updateWorldMatrix(true, true)
     onReady({ root: root.current, raw: raw.current, ...indexScene(raw.current) })
   }, [onReady])
+  useLayoutEffect(() => {
+    // 程序化预览在每次实例创建后报告就绪（含 HMR）；其他资产沿用挂载后索引。
+    if (!entry.previewAnimation) reportReady()
+  }, [entry.previewAnimation, reportReady])
   return (
     <group
       ref={root}
@@ -164,7 +172,9 @@ function LoadedAsset({
     >
       <group ref={normalizer}>
         <group ref={raw}>
-          {entry.glbPath ? <GLBModel path={entry.glbPath} onClips={onClips} /> : <Model standalone />}
+          {entry.glbPath ? <GLBModel path={entry.glbPath} onClips={onClips} /> : (
+            <Model standalone previewTime={previewTime} onAssetReady={reportReady} />
+          )}
         </group>
       </group>
     </group>
@@ -228,16 +238,19 @@ function Scene({
           : camera.position.clone().sub(controls.current.target)
       const center = fitCamera(
         camera,
-        new Box3().setFromObject(object),
+        entry.previewAnimation
+          ? localBounds(object).applyMatrix4(object.matrixWorld)
+          : new Box3().setFromObject(object),
         size.width / Math.max(size.height, 1),
         direction,
       )
+      if (!center) return
       controls.current.target.copy(center)
       controls.current.update()
       invalidate()
       reportPose()
     },
-    [loaded, camera, id, orthographic, size.width, size.height, invalidate, reportPose],
+    [loaded, camera, id, orthographic, size.width, size.height, invalidate, reportPose, entry.previewAnimation],
   )
   const onReady = useCallback((model: LoadedModel) => {
     setLoaded(model)
@@ -381,12 +394,17 @@ function Scene({
     },
     [mixer, loaded],
   )
+  useEffect(() => {
+    // 程序化动画从暂停、停止或速度变化进入下一帧；播放期间才持续请求渲染。
+    if (entry.previewAnimation) invalidate()
+  }, [entry.previewAnimation, props.animation, invalidate])
   useFrame((_, delta) => {
     if (config.autoRotate && !orthographic) invalidate()
     if (mixer && props.animation.playing && props.animation.clip) {
       mixer.update(Math.min(delta, 0.1) * props.animation.speed)
       invalidate()
     }
+    if (entry.previewAnimation && props.animation.playing && props.animation.clip) invalidate()
     selectionBox.current?.update()
     wholeBox.current?.update()
     gl.render(scene, camera)
@@ -435,6 +453,7 @@ function Scene({
             onReady={onReady}
             onSelect={props.onSelect}
             onClips={setClips}
+            previewTime={props.previewTime}
           />
         </Suspense>
       </ModelErrorBoundary>

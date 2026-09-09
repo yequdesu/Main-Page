@@ -75,6 +75,20 @@ describe('独立视口模型', () => {
 })
 
 describe('自动取景', () => {
+  it('临时空包围盒不会破坏已有相机姿态', () => {
+    const camera = new PerspectiveCamera(45)
+    camera.position.set(5, 3, 8)
+    const position = camera.position.clone()
+    expect(fitCamera(camera, new Box3(), 1, new Vector3(5, 3, 8))).toBeNull()
+    expect(camera.position.equals(position)).toBe(true)
+  })
+  it('无效观察方向能恢复到有效取景', () => {
+    const camera = new PerspectiveCamera(45)
+    const box = new Box3(new Vector3(-1, -1, -1), new Vector3(1, 1, 1))
+    fitCamera(camera, box, 1, new Vector3(NaN, NaN, NaN))
+    expect(camera.position.toArray().every(Number.isFinite)).toBe(true)
+    expect(camera.position.length()).toBeGreaterThan(1)
+  })
   for (const aspect of [0.45, 1, 2.2])
     for (const orthographic of [false, true]) {
       it(`包围盒所有角点处于 ${aspect} ${orthographic ? '正交' : '透视'} 视锥内`, () => {

@@ -22,6 +22,8 @@ export interface ModelRegistryEntry {
   environment?: EnvPreset
   attribution?: string
   procedural?: boolean
+  /** 工作台独立预览动画的名称；GLB 动画仍从文件读取。 */
+  previewAnimation?: string
   /** 自定义 Leva 控件标记 — 当前仅 'lighthouse-capture' */
   debugControls?: 'lighthouse-capture'
 }
@@ -35,6 +37,22 @@ export const MODEL_REGISTRY: Record<string, ModelRegistryEntry> = {
     attribution: '程序化生成（YeQuDeSu）',
     environment: 'studio',
     debugControls: 'lighthouse-capture',
+  },
+  'central-star': {
+    label: '中央恒星 · 程序化资产',
+    component: lazy(() => import('./CelestialPreviews').then(module => ({ default: module.CentralStarPreview }))),
+    procedural: true,
+    previewAnimation: '光晕呼吸',
+    attribution: '程序化生成（YeQuDeSu）',
+    environment: 'night',
+  },
+  'planet': {
+    label: '单颗行星 · 程序化资产',
+    component: lazy(() => import('./CelestialPreviews').then(module => ({ default: module.PlanetPreview }))),
+    procedural: true,
+    previewAnimation: '光晕呼吸',
+    attribution: '程序化生成（YeQuDeSu）',
+    environment: 'night',
   },
 
   // ---- GLB 模型 ----

@@ -7,10 +7,18 @@
 | 注册键 | 组件 | 资源 |
 |--------|------|------|
 | `lighthouse-capture` | [Lighthouse.tsx](../actors/Lighthouse.tsx) | 程序化生成，无独立 GLB |
+| `central-star` | [CentralStarPreview](CelestialPreviews.tsx) | 共用恒星几何体、材质与光晕，独立预览 |
+| `planet` | [PlanetPreview](CelestialPreviews.tsx) | 单颗行星核心、大气层与光晕，独立预览 |
 | `voyager1` | [Voyager1.tsx](Voyager1.tsx) | [voyager-1.glb](../../public/models/voyager-1.glb) |
 | `voyager1-low-poly` | [Voyager1LowPoly.tsx](Voyager1LowPoly.tsx) | [voyager-1-low-poly.glb](../../public/models/voyager-1-low-poly.glb) |
 
 静态资源 URL 分别为 `/models/voyager-1.glb` 和 `/models/voyager-1-low-poly.glb`；文件名大小写必须与磁盘一致。
+
+## 程序化资产
+
+恒星和行星的视觉构造在 [centralStar.ts](../actors/assets/centralStar.ts)、[planet.ts](../actors/assets/planet.ts)，由主页 Actor 与 Studio 共用。[celestialPreview.ts](celestialPreview.ts) 提供独立预览场景，完整显示光晕，不读取或写入主页的滚动、聚焦与实时数据。
+
+主页三颗行星使用同一视觉模型，因此工作台只展示一颗固定尺寸的行星，不加入轨道、公转、标签或风铃编排。该样本不是主页随机初始化结果的快照。对象页签的“预览动画”控制恒星或行星的光晕呼吸，默认暂停，支持速度调整与停止归零。
 
 ## 添加模型
 
@@ -29,6 +37,7 @@
 | Voyager 1 | illidroid | [Sketchfab 原模型](https://sketchfab.com/3d-models/voyager-1-39bececb8b5d48a3ad0070e720586759) | CC BY 4.0 |
 | Voyager 1 Low Poly | illidroid | 原模型经仓库低模脚本处理 | CC BY 4.0 |
 | Lighthouse | YeQuDeSu | 程序化生成 | 项目自有 |
+| Central Star / Planet | YeQuDeSu | 程序化生成，共用主页视觉资产 | 项目自有 |
 
 注册表中的三角面数是展示元数据，资源重新生成后需要核对更新；本说明不重复维护文件大小或未经重新测量的模型统计。
 

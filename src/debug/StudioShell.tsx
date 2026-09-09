@@ -25,6 +25,7 @@ import {
   type ViewportMode,
 } from './studioTypes'
 import { LEVA_THEME, downloadCanvas } from './studioUI'
+import { createPreviewPlayback } from './previewPlayback'
 import './StudioLayout.css'
 
 function ResizeHandle({
@@ -123,7 +124,8 @@ function Session({ modelKey, onModelChange }: { modelKey: string; onModelChange:
   const [activeView, setActiveView] = useState<ViewId>('perspective')
   const [poses, setPoses] = useState<Partial<Record<ViewId, CameraPose>>>(remembered?.poses ?? {})
   const [linked, setLinked] = useState(WORKSPACE.linked)
-  const [animation, setAnimation] = useState<AnimationState>({ clip: '', playing: false, speed: 1 })
+  const [animation, setAnimation] = useState<AnimationState>({ clip: entry.previewAnimation ?? '', playing: false, speed: 1 })
+  const [previewPlayback] = useState(() => createPreviewPlayback())
   const views = useRef(new Map<ViewId, ViewHandle>())
   const [readyVersion, setReadyVersion] = useState(0)
   const [tab, setTab] = useState('scene')
@@ -302,6 +304,7 @@ function Session({ modelKey, onModelChange }: { modelKey: string; onModelChange:
           isolatedId={isolatedId}
           activeView={activeView}
           animation={animation}
+          previewTime={previewPlayback.time}
           initialPoses={remembered?.poses}
           onActiveView={setActiveView}
           onSelect={select}
@@ -386,9 +389,12 @@ function Session({ modelKey, onModelChange }: { modelKey: string; onModelChange:
             <ObjectInspector
               entry={entry}
               node={selectedId ? (model.objects.get(selectedId) ?? null) : null}
-              clips={model.clips}
+              clips={entry.previewAnimation ? [entry.previewAnimation] : model.clips}
               animation={animation}
-              onAnimation={setAnimation}
+              onAnimation={(next) => {
+                previewPlayback.configure(next)
+                setAnimation(next)
+              }}
             />
           </div>
           {entry.debugControls === 'lighthouse-capture' && (
