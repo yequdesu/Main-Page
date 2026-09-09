@@ -1,4 +1,5 @@
 import { afterMiniature } from '../../composition/transitionTiming'
+import { TIMELINE } from '../../composition/timeline'
 import { describe, expect, it } from 'vitest'
 import type { Act3ContourTarget } from '../../composition/coreAnchors'
 import {
@@ -56,9 +57,9 @@ describe('Act 2 square contour transition', () => {
   })
 
   it('shrinks and fades the title with the logical canvas', () => {
-    const beforeFade = getSquareContourTransitionFrame(afterMiniature(0.64), 1600, 1000)
-    const halfway = getSquareContourTransitionFrame(afterMiniature(0.68), 1600, 1000)
-    const gone = getSquareContourTransitionFrame(afterMiniature(0.72), 1600, 1000)
+    const beforeFade = getSquareContourTransitionFrame(TIMELINE.squareTitleFade.start, 1600, 1000)
+    const halfway = getSquareContourTransitionFrame((TIMELINE.squareTitleFade.start + TIMELINE.squareTitleFade.end) / 2, 1600, 1000)
+    const gone = getSquareContourTransitionFrame(TIMELINE.squareTitleFade.end, 1600, 1000)
     expect(beforeFade.titleAlpha).toBe(1)
     expect(halfway.titleAlpha).toBeCloseTo(0.5)
     expect(gone.titleAlpha).toBe(0)
@@ -216,7 +217,7 @@ describe('Act 2 square contour transition', () => {
     expect(getSquareContourTransitionFrame(afterMiniature(0.70), 1000, 800).zoomProgress).toBe(0)
     expect(getSquareContourTransitionFrame(afterMiniature(0.80), 1000, 800).zoomProgress).toBe(1)
     expect(getSquareContourTransitionFrame(afterMiniature(0.80), 1000, 800).contourAlpha).toBe(1)
-    expect(getSquareContourTransitionFrame(afterMiniature(0.85), 1000, 800).contourAlpha).toBe(0)
+    expect(getSquareContourTransitionFrame(TIMELINE.squareAct3Crossfade.end, 1000, 800).contourAlpha).toBe(0)
   })
 
   it('launches three planets with the specified stagger and exact arrivals', () => {

@@ -1,4 +1,4 @@
-import { afterMiniature } from '../composition/transitionTiming'
+import { afterMiniature, PRESENTATION_PACING } from '../composition/transitionTiming'
 import type { Act3ContourTarget } from '../composition/coreAnchors'
 import { TIMELINE, clamp01, progress, smoothProgress } from '../composition/timeline'
 import { SQUARE_WAVE_SPACING, type SquareWaveSprite } from './squareWaveTransition'
@@ -30,8 +30,8 @@ export const PLANET_FLIGHT_LAUNCH_ANGLES = [
   -Math.PI * 0.5 + Math.PI * 4 / 3,
 ] as const
 export const ORBIT_TRACE_TIMINGS = Array.from({ length: 6 }, (_, index) => ({
-  start: afterMiniature(0.725 + index * 0.007),
-  end: afterMiniature(0.765 + index * 0.007),
+  start: afterMiniature(PRESENTATION_PACING.orbitSourceStart + index * 0.007),
+  end: afterMiniature(PRESENTATION_PACING.orbitSourceStart + 0.04 + index * 0.007),
   seed: 0xea7e2001 + index,
 }))
 export const ORBIT_TRACER_CLOSURE_START = 0.86

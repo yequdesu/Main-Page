@@ -1,4 +1,4 @@
-import { afterMiniature, act1Progress } from './transitionTiming'
+import { afterMiniature, act1Progress, act1AnimationProgress, act1PageProgress, PRESENTATION_PACING as PACING } from './transitionTiming'
 import { SCROLL_RIG } from '../types'
 
 export type TimelineDirection = 'forward' | 'backward' | 'still'
@@ -36,23 +36,23 @@ export const TIMELINE = {
   ),
   cubeDrawAndTumble: defineRange('cubeDrawAndTumble', SCROLL_RIG.MINIATURE_START, act1Progress(0.50), 'Cube edges draw while the miniature tumbles on three axes'),
   cubeAbsorptionTrails: defineRange('cubeAbsorptionTrails', act1Progress(0.25), act1Progress(0.70), 'Spatial particle field, screen scans and inward collapse'),
-  cubeParticleScan: defineRange('cubeParticleScan', act1Progress(0.40), act1Progress(0.658), 'Scan remaining stationary particles until the last collapse starts'),
+  cubeParticleScan: defineRange('cubeParticleScan', act1PageProgress(act1Progress(0.40)), act1PageProgress(act1Progress(0.658)), 'Scan remaining stationary particles until the last collapse starts'),
   cubeWhiteFill: defineRange('cubeWhiteFill', act1Progress(0.50), SCROLL_RIG.MINIATURE_END, 'Cube settles face-on and fills to pure white'),
   squareSeedShrink: defineRange('squareSeedShrink', afterMiniature(0.55), afterMiniature(0.56), 'Screen-space square takes over and shrinks slightly'),
   squareBfsWave: defineRange('squareBfsWave', afterMiniature(0.56), afterMiniature(0.70), 'Deterministic square wave expands to its 400-cell handoff radius'),
   squareCircleMorph: defineRange('squareCircleMorph', afterMiniature(0.65), afterMiniature(0.665), 'Dense square wave morphs into a strict circular ring'),
   geometricOrbitExpand: defineRange('geometricOrbitExpand', afterMiniature(0.56), afterMiniature(0.56 + (0.65 - 0.56) * 0.36), 'Original square-wave expansion timing; extended orbit hold before retraction'),
-  geometricOrbitRetract: defineRange('geometricOrbitRetract', afterMiniature(0.64), 0.59, 'Geometric satellites retract with the title fade and finish at 59% page progress'),
+  geometricOrbitRetract: defineRange('geometricOrbitRetract', PACING.geometricRetractEnd - (0.59 - afterMiniature(0.64)), PACING.geometricRetractEnd, 'Longer orbit hold; original retraction duration and easing, ending at 70%'),
   squareTitleTyping: defineRange('squareTitleTyping', afterMiniature(0.58), afterMiniature(0.64), 'Allura bracket title is handwritten by raster DFS trails'),
   squareContourZoom: defineRange('squareContourZoom', afterMiniature(0.70), afterMiniature(0.80), 'Frozen square contour canvas zooms out to the Act 3 terminal framing'),
   squarePlanetFlights: defineRange('squarePlanetFlights', afterMiniature(0.70), afterMiniature(0.80), 'Three circular trails fly from the central frame into the Act 3 planet targets'),
-  squareOrbitFlights: defineRange('squareOrbitFlights', afterMiniature(0.725), afterMiniature(0.80), 'Six staggered circular trails draw the Act 3 orbit system'),
-  squareTitleFade: defineRange('squareTitleFade', afterMiniature(0.64), afterMiniature(0.72), 'Earendel title shrinks with the logical canvas and fades out'),
-  squareAct3Crossfade: defineRange('squareAct3Crossfade', afterMiniature(0.80), SCROLL_RIG.ACT3_START, 'Square contours crossfade into matching Act 3 geometry'),
-  act3OrbitResume: defineRange('act3OrbitResume', SCROLL_RIG.ACT3_START, afterMiniature(0.90), 'Frozen terminal layout smoothly resumes orbit motion'),
+  squareOrbitFlights: defineRange('squareOrbitFlights', afterMiniature(PACING.orbitSourceStart), afterMiniature(PACING.orbitSourceEnd), 'Orbit tracing follows the main planet flight, retaining flight speed and stagger'),
+  squareTitleFade: defineRange('squareTitleFade', afterMiniature(0.64) + PACING.titleHold, afterMiniature(0.72) + PACING.titleHold, 'Complete title holds before shrinking and fading'),
+  squareAct3Crossfade: defineRange('squareAct3Crossfade', afterMiniature(PACING.crossfadeSourceStart), SCROLL_RIG.ACT3_START, 'Completed white system holds before crossfading into Act 3'),
+  act3OrbitResume: defineRange('act3OrbitResume', SCROLL_RIG.ACT3_START, afterMiniature(PACING.orbitResumeSourceEnd), 'Frozen terminal layout smoothly resumes orbit motion'),
   act2ThemeReveal: defineRange('act2ThemeReveal', SCROLL_RIG.MINIATURE_END, afterMiniature(0.63), 'Theme background and lighting return beneath the square wave'),
   wavesAct3Fade: defineRange('wavesAct3Fade', SCROLL_RIG.ACT3_START, 1.0, 'Ocean fades as Act 3 shifts in'),
-  orbitLineReveal: defineRange('orbitLineReveal', afterMiniature(0.80), SCROLL_RIG.ACT3_START, 'Completed Canvas orbit traces crossfade into stable Act 3 lines'),
+  orbitLineReveal: defineRange('orbitLineReveal', afterMiniature(PACING.crossfadeSourceStart), SCROLL_RIG.ACT3_START, 'Completed Canvas orbit traces crossfade into stable Act 3 lines'),
   planetVisible: defineRange('planetVisible', afterMiniature(0.58), 1.0, 'Main planets and central star publish their terminal layout'),
   orbitGlow: defineRange('orbitGlow', afterMiniature(0.94), 1.0, 'Orbit rings and planet glow fade in'),
   brandTitle: defineRange('brandTitle', SCROLL_RIG.TEXT_START, afterMiniature(0.92), 'Brand title scroll-driven reveal'),
@@ -75,9 +75,13 @@ export function smoothstep01(t: number): number {
 
 export function progress(key: TimelineKey, sp: number): number {
   const range = getRange(key)
-  const span = range.end - range.start
+  const miniatureClock = key === 'miniatureShrink' || key === 'cubeDrawAndTumble' ||
+    key === 'cubeWhiteFill' || key === 'cubeAbsorptionTrails' || key === 'cubeParticleScan'
+  const clock = miniatureClock ? act1AnimationProgress : (value: number) => value
+  const start = clock(range.start), end = clock(range.end)
+  const span = end - start
   if (span === 0) return sp >= range.end ? 1 : 0
-  return clamp01((sp - range.start) / span)
+  return clamp01((clock(sp) - start) / span)
 }
 
 export function smoothProgress(key: TimelineKey, sp: number): number {

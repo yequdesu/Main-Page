@@ -20,27 +20,28 @@ describe('pixel orbit reveal', () => {
     const b = getPixelOrbitRevealFrame(afterMiniature(.67))
     expect(b.angle - a.angle).toBeCloseTo((.01 / .09) * 1.65, 10)
   })
-  it('retracts with the title, spans the morph and finishes at 59% page progress', () => {
+  it('extends the hold, preserves retraction duration and finishes at 70% page progress', () => {
     expect(getPixelOrbitRevealFrame(0).expansion).toBe(0)
     expect(getPixelOrbitRevealFrame(afterMiniature(.635)).expansion).toBe(1)
     expect(getPixelOrbitRevealFrame(TIMELINE.squareTitleFade.start).collapse).toBe(0)
-    expect(TIMELINE.geometricOrbitRetract.start).toBe(TIMELINE.squareTitleFade.start)
+    expect(TIMELINE.geometricOrbitRetract.end - TIMELINE.geometricOrbitRetract.start).toBeCloseTo(.59 - afterMiniature(.64))
+    expect(getPixelOrbitRevealFrame(.60).collapse).toBe(0)
     expect(getPixelOrbitRevealFrame(TIMELINE.squareCircleMorph.end).collapse).toBeLessThan(1)
     expect(getPixelOrbitRevealFrame(TIMELINE.geometricOrbitRetract.end).collapse).toBe(1)
-    expect(TIMELINE.geometricOrbitRetract.end).toBe(.59)
-    expect(getPixelOrbitRevealFrame(.589).collapse).toBeLessThan(1)
-    expect(getPixelOrbitRevealFrame(.59).collapse).toBe(1)
+    expect(TIMELINE.geometricOrbitRetract.end).toBe(.70)
+    expect(getPixelOrbitRevealFrame(.699).collapse).toBeLessThan(1)
+    expect(getPixelOrbitRevealFrame(.70).collapse).toBe(1)
     expect(getPixelOrbitRevealFrame(1).collapse).toBe(1)
   })
   it('is independent of playback order', () => {
-    const p = afterMiniature(.66)
+    const p = .65
     const frame = getPixelOrbitRevealFrame(p)
     getPixelOrbitRevealFrame(1)
     expect(getPixelOrbitRevealFrame(p)).toEqual(frame)
     expect(frame.collapse).toBeGreaterThan(getPixelOrbitRevealFrame(afterMiniature(.64)).collapse)
   })
   it('shares 48 deterministic white-shape transforms and front/rear masks', () => {
-    const p = afterMiniature(.66)
+    const p = .65
     const shapes = getPixelOrbitGeometry(p, 100, 1.1, 1)
     expect(shapes).toHaveLength(48)
     for (let kind = 0; kind < 4; kind++) expect(shapes.filter(g => g.kind === kind)).toHaveLength(12)

@@ -1,6 +1,6 @@
-import { miniatureSourceProgress } from '../composition/transitionTiming'
+import { miniatureSourceProgress, act1AnimationProgress } from '../composition/transitionTiming'
 import { SCROLL_RIG } from '../types'
-import { TIMELINE } from '../composition/timeline'
+import { TIMELINE, progress as timelineProgress } from '../composition/timeline'
 
 export const MINIATURE_CUBE_SIZE = 64
 export const MINIATURE_CUBE_HALF_SIZE = MINIATURE_CUBE_SIZE / 2
@@ -76,7 +76,7 @@ export interface MiniatureTransform {
 
 export function getMiniatureTransform(scrollProgress: number): MiniatureTransform {
   const miniatureScroll = Math.min(scrollProgress, SCROLL_RIG.MINIATURE_END)
-  const sourceScroll = miniatureSourceProgress(scrollProgress)
+  const sourceScroll = miniatureSourceProgress(act1AnimationProgress(scrollProgress))
   const containmentEnd = 0.25 + (0.55 - 0.25) * 0.6
   const progress = rangeProgress(
     sourceScroll,
@@ -88,16 +88,8 @@ export function getMiniatureTransform(scrollProgress: number): MiniatureTransfor
     0.25,
     containmentEnd,
   ))
-  const tumbleProgress = smootherstep01(rangeProgress(
-    miniatureScroll,
-    TIMELINE.cubeDrawAndTumble.start,
-    TIMELINE.cubeDrawAndTumble.end,
-  ))
-  const whiteFillProgress = smoothstep01(rangeProgress(
-    miniatureScroll,
-    TIMELINE.cubeWhiteFill.start,
-    TIMELINE.cubeWhiteFill.end,
-  ))
+  const tumbleProgress = smootherstep01(timelineProgress('cubeDrawAndTumble', miniatureScroll))
+  const whiteFillProgress = smoothstep01(timelineProgress('cubeWhiteFill', miniatureScroll))
   const canvasHandoffProgress = smoothstep01(rangeProgress(
     scrollProgress,
     TIMELINE.squareSeedShrink.start,
@@ -124,11 +116,7 @@ export function getMiniatureTransform(scrollProgress: number): MiniatureTransfor
         ],
     wireOpacity: scrollProgress >= TIMELINE.cubeDrawAndTumble.start &&
       scrollProgress <= TIMELINE.cubeWhiteFill.end ? 1 : 0,
-    wireDrawProgress: smoothstep01(rangeProgress(
-      scrollProgress,
-      TIMELINE.cubeDrawAndTumble.start,
-      TIMELINE.cubeDrawAndTumble.end,
-    )),
+    wireDrawProgress: smoothstep01(timelineProgress('cubeDrawAndTumble', scrollProgress)),
     whiteFillProgress,
     faceAlignProgress: whiteFillProgress,
     canvasHandoffProgress,

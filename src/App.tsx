@@ -24,7 +24,6 @@ import MiniatureAbsorptionTrails from './actors/MiniatureAbsorptionTrails'
 import { registerCoreActors } from './composition/coreActors'
 import { registerCoreSequences } from './composition/coreSequences'
 import { resetSequence, useSignal } from './composition/sequenceStore'
-import { useEffectScope } from './composition/effectScope'
 import type { LabelConfig, SequenceStrategy } from './behaviors/useFloatingLabels'
 import { PLANET_LINKS } from './types'
 import { useDayNight } from './theme/useDayNight'
@@ -64,24 +63,19 @@ export default function App() {
   const echoLines = useScrollStore(s => s.echoLines)
   const inputValue = useScrollStore(s => s.inputValue)
   const { handleThemeUpdate, themeKey } = useDayNight()
-  const scrollEffectScope = useEffectScope('appScroll')
   const signalAct3 = useSignal('act3.entry')
 
   // ---- Physics state (refs �?no re-render) ----
   const physRef = useRef({ target: 0, velocity: 0, lastScrollbar: 0, lastPhysics: 0, active: true })
-  const clickTweenRef = useRef<gsap.core.Tween | null>(null)
   const lighthouseCapturedRef = useRef(false)
   const stRef = useRef<ScrollTrigger | null>(null)
   const act3VisibleRef = useRef(false)
   const isAct3FocusedRef = useRef(false)
-  const scrollProgressRef = useRef(0)
 
   // ---- UI state (React �?triggers re-render) ----
-  const [isClickPlaying, setIsClickPlaying] = useState(false)
   const [lighthouseImage, setLighthouseImage] = useState<string | null>(null)
   const isTerminalActive = terminalMode === 'active'
 
-  scrollProgressRef.current = scrollProgress
 
   // ---- Act visibility ----
   // The screen-space square takes over the face-on miniature at the white-fill endpoint.
@@ -132,7 +126,6 @@ export default function App() {
       const dtFrames = dt * 60
 
       if (now - p.lastScrollbar < 80) return
-      if (isClickPlaying) return
       if (p.velocity === 0) return
 
       const previousTarget = p.target
@@ -152,7 +145,7 @@ export default function App() {
     }
     gsap.ticker.add(ticker)
     return () => { gsap.ticker.remove(ticker) }
-  }, [isClickPlaying, syncScrollbar])
+  }, [syncScrollbar])
 
   useEffect(() => {
     const syncFocusGate = (state: ReturnType<typeof useScrollStore.getState>) => {
@@ -169,12 +162,6 @@ export default function App() {
     e.preventDefault()
     if (isTerminalActive) return
     if (isAct3FocusedRef.current) return
-    if (isClickPlaying && clickTweenRef.current) {
-      clickTweenRef.current.kill()
-      scrollEffectScope.cancel('interrupt click tween')
-      clickTweenRef.current = null
-      setIsClickPlaying(false)
-    }
     const p = physRef.current
     if ((p.target <= SCROLL_PROGRESS_EPSILON && e.deltaY < 0) ||
         (p.target >= 1 - SCROLL_PROGRESS_EPSILON && e.deltaY > 0)) {
@@ -184,45 +171,15 @@ export default function App() {
     const step = e.deltaY / (window.innerHeight * (SCROLL_VH - 1)) * (0.65 * 79 / 80)
     p.velocity += step
     p.velocity = Math.max(-MAX_VELOCITY, Math.min(MAX_VELOCITY, p.velocity))
-  }, [isTerminalActive, isClickPlaying, scrollEffectScope])
-
-  // ---- click fast-forward ----
-  const onClick = useCallback(() => {
-    if (isTerminalActive) return
-    if (isClickPlaying) return
-    if (isAct3FocusedRef.current) return  // block fast-forward during planet focus
-    if (scrollProgressRef.current >= 0.995) return
-    setIsClickPlaying(true)
-    physRef.current.velocity = 0
-
-    const tweenObj = { val: physRef.current.target }
-    scrollEffectScope.cancel('replace click tween')
-    clickTweenRef.current = scrollEffectScope.addTween(gsap.to(tweenObj, {
-      val: 1.0,
-      duration: 2,
-      ease: 'power2.inOut',
-      onUpdate: () => {
-        physRef.current.target = tweenObj.val
-        const sceneTarget = tweenObj.val
-        setScrollProgress(sceneTarget)
-        syncScrollbar(sceneTarget)
-      },
-      onComplete: () => {
-        setIsClickPlaying(false)
-        clickTweenRef.current = null
-      },
-    }))
-  }, [isTerminalActive, isClickPlaying, setScrollProgress, syncScrollbar, scrollEffectScope])
+  }, [isTerminalActive])
 
   // ---- event listeners ----
   useEffect(() => {
     window.addEventListener('wheel', onWheel, { passive: false })
-    window.addEventListener('click', onClick)
     return () => {
       window.removeEventListener('wheel', onWheel)
-      window.removeEventListener('click', onClick)
     }
-  }, [onWheel, onClick])
+  }, [onWheel])
 
   useEffect(() => {
     const visible = needsAct3(scrollProgress)
@@ -257,12 +214,11 @@ export default function App() {
   useEffect(() => {
     return () => {
       physRef.current.active = false
-      scrollEffectScope.cancel('app cleanup')
       stRef.current?.kill()
       ScrollTrigger.getAll().forEach((t: ScrollTrigger) => t.kill())
       document.body.style.height = ''
     }
-  }, [scrollEffectScope])
+  }, [])
 
   const sp = scrollProgress
 
@@ -342,7 +298,7 @@ export default function App() {
         <BrandTitle
           scrollProgress={sp}
           lighthouseImage={lighthouseImage}
-          isClickPlaying={isClickPlaying}
+          isClickPlaying={false}
         />
       )}
 

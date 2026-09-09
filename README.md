@@ -25,7 +25,7 @@
 ## 交互
 
 - **滚动** — 物理动量惯性（`FRICTION=0.955`），驱动全部 3D 动画
-- **点击** — 快进跳至末尾（2s GSAP tween）；Act 3 点击行星聚焦（NDC 投影检测）
+- **点击** — 不再触发全页快进；Act 3 点击行星聚焦（NDC 投影检测）
 - **行星聚焦** — 相机绕行 + SVG 切线连接线 + 30s 自动取消；再次点击打开链接；聚焦时阻止滚轮
 - **终端系统** — 底部主终端（click + `/` 激活，支持 help / debug / day / night / clear 命令）；Act 3 左上角信息面板终端（实时显示行星/轨道/摄像机/debris 数据）
 - **主题切换** — `day` / `night` 命令切换全局主题（CSS 静态元素 + Scene 背景 + Terminal 颜色三层同步过渡，0.6s crossfade）
@@ -127,7 +127,7 @@ src/
 `frameloop="demand"` 模式下，R3F 不自动循环。每次渲染由以下链路触发：
 
 ```
-用户滚轮/拖拽/点击快进 → App.tsx 滚动物理
+用户滚轮/拖拽 → App.tsx 滚动物理
   → setScrollProgress(sp) → Zustand
   → ScrollInvalidator.subscribe → invalidate()
   → 所有 useFrame 按 scene graph 顺序执行 → WebGL 渲染

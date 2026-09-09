@@ -1,4 +1,4 @@
-import { PAGE_DISTANCE_SCALE, act1Progress } from '../composition/transitionTiming'
+import { PAGE_DISTANCE_SCALE, act1Progress, act1AnimationProgress, act1PageProgress } from '../composition/transitionTiming'
 import { useEffect, useMemo } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
 import { BufferAttribute, BufferGeometry, DynamicDrawUsage, DoubleSide, MeshBasicMaterial, Vector3, type Camera } from 'three'
@@ -55,7 +55,8 @@ export default function MiniatureAbsorptionTrails() {
   useEffect(() => () => { resources.geometry.dispose(); resources.material.dispose() }, [resources])
 
   useFrame(({ camera, clock, gl }) => {
-    const sp = useScrollStore.getState().scrollProgress * PAGE_DISTANCE_SCALE
+    const pageProgress = useScrollStore.getState().scrollProgress
+    const sp = act1AnimationProgress(pageProgress) * PAGE_DISTANCE_SCALE
     const canvas = getParticleScanCanvas()
     const ctx = canvas?.getContext('2d')
     const rect = gl.domElement.getBoundingClientRect()
@@ -83,7 +84,7 @@ export default function MiniatureAbsorptionTrails() {
     right.setFromMatrixColumn(camera.matrixWorld, 0)
     up.setFromMatrixColumn(camera.matrixWorld, 1)
     camera.getWorldDirection(forward)
-    const scale = getMiniatureTransform(act1Progress(sp)).scale
+    const scale = getMiniatureTransform(pageProgress).scale
     let count = 0
     const emit = (x: number, y: number, z: number) => {
       resources.position.setXYZ(count++, x, y, z)
@@ -92,7 +93,7 @@ export default function MiniatureAbsorptionTrails() {
       emit(c.x + right.x * x + up.x * y, c.y + right.y * x + up.y * y, c.z + right.z * x + up.z * y)
     const projectField = (at: number, targetCamera: Camera): ProjectedFieldCircle[] => {
       const result: ProjectedFieldCircle[] = []
-      const atScale = getMiniatureTransform(act1Progress(at)).scale
+      const atScale = getMiniatureTransform(act1PageProgress(act1Progress(at))).scale
       targetCamera.getWorldDirection(scratch.projectForward)
       scratch.projectRight.setFromMatrixColumn(targetCamera.matrixWorld, 0)
       for (const p of field.particles) {

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef } from 'react'
+import { act1AnimationProgress } from '../composition/transitionTiming'
 import { useFrame, useLoader } from '@react-three/fiber'
 import {
   ClampToEdgeWrapping,
@@ -243,7 +244,7 @@ export default function OceanWaves() {
     const act3Progress = clamped(sp, TIMELINE.act3Shift.start, 1)
     const sceneOpacity = 1 - smoothstep(act3Progress)
     const volumeReveal = smoothstep(clamped(
-      sp,
+      act1AnimationProgress(sp),
       TIMELINE.miniatureShrink.start + 0.015,
       0.48,
     ))
