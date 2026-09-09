@@ -10,6 +10,7 @@
 | `central-star` | [CentralStarPreview](CelestialPreviews.tsx) | 共用恒星几何体、材质与光晕，独立预览 |
 | `planet` | [PlanetPreview](CelestialPreviews.tsx) | 单颗行星核心、大气层与光晕，独立预览 |
 | `ringed-planet` | [RingedPlanetPreview](CelestialPreviews.tsx) | 带环行星实验：共用行星主体，添加倾斜薄圆环面 |
+| `satellite-planet` | [SatellitePlanetPreview](CelestialPreviews.tsx) | 一颗行星与一颗绕其公转的天然卫星 |
 | `voyager1` | [Voyager1.tsx](Voyager1.tsx) | [voyager-1.glb](../../public/models/voyager-1.glb) |
 | `voyager1-low-poly` | [Voyager1LowPoly.tsx](Voyager1LowPoly.tsx) | [voyager-1-low-poly.glb](../../public/models/voyager-1-low-poly.glb) |
 
@@ -19,7 +20,17 @@
 
 恒星和行星的视觉构造在 [centralStar.ts](../actors/assets/centralStar.ts)、[planet.ts](../actors/assets/planet.ts)，由主页 Actor 与 Studio 共用。[celestialPreview.ts](celestialPreview.ts) 提供独立预览场景，完整显示光晕，不读取或写入主页的滚动、聚焦与实时数据。
 
-主页三颗行星使用同一视觉模型，因此工作台只展示一颗固定尺寸的行星，不加入轨道、公转、标签或风铃编排。该样本不是主页随机初始化结果的快照。对象页签的“预览动画”控制恒星或行星的光晕呼吸，默认暂停，支持速度调整与停止归零。
+主页三颗行星使用同一视觉模型，因此普通行星样本只展示一颗固定尺寸的行星，不加入主页轨道、公转、标签或风铃编排。该样本不是主页随机初始化结果的快照。对象页签的“预览动画”控制光晕呼吸，以及带卫星样本的卫星公转；默认暂停，支持速度调整与停止归零。
+
+### 行星表面光照
+
+普通、带环、带卫星行星，以及主页三颗导航行星，共用 [planet.ts](../actors/assets/planet.ts) 的 `MeshStandardMaterial` 核心。旧核心使用不响应灯光的 `MeshBasicMaterial`，而卫星使用标准材质，因此此前只有卫星呈现球面明暗。现在核心采用 `roughness=0.95`、`metalness=0`，以漫反射塑形；同色 `emissiveIntensity=0.35` 托住暗面，并在 `updateAppearance()` 中同步核心的跨幕颜色。内层白色光晕不透明度降至 `0.06`，避免覆盖核心的明暗层次。这是柔和的表面明暗渐变，不是体积散射，也没有新增投射阴影或行星环投影。
+
+[celestialLighting.ts](../actors/assets/celestialLighting.ts) 定义共享 sRGB 色源：恒星远场柔光中心色 `#b4bed2`。恒星远场本身仍是多色渐变的加法混合 Sprite，并不发出真实场景灯光；此处选其中心色作为照明基调。主页 [SceneLights](../actors/SceneLights.tsx) 的主光、补光使用该色，保留原方向和强度，因此也会影响场景中的其他受光材质。原环境光与跨幕强度编排保持原样。
+
+Studio 三种行星通过注册表的 `previewLighting` 使用同色主光、补光和环境光初值，参数集中在 `PLANET_PREVIEW_LIGHTING`；用户的会话调整优先，其他模型继续使用通用默认值。环境预设仍会调整环境光强度，方向光显式颜色不随预设改色。可在右侧灯光控件调节主光强度和位置观察明暗变化。主页与 Studio 的光照布局不同，因此整体亮度不保证完全相同。
+
+材质依据：[Three.js MeshBasicMaterial](https://threejs.org/docs/pages/MeshBasicMaterial.html)、[MeshStandardMaterial](https://threejs.org/docs/pages/MeshStandardMaterial.html)。核心保留 `renderOrder=1`、透明淡入淡出、深度测试与深度写入；光晕仍使用原有材质和按需渲染更新，未增加阴影贴图或额外每帧资源分配。
 
 ### 带环行星实验
 
@@ -42,6 +53,16 @@
 
 四层环面均使用 `transparent=true`、`depthTest=true`、`depthWrite=false`，具体 Mesh 设置 `renderOrder=2`，在核心与近场光晕之后绘制：前半环按各自不透明度混合，后半环被球体深度遮挡。整体淡入淡出系数乘以各层基础不透明度。每个视口拥有自己的环面几何体和材质，卸载时一并释放。构造依据：[Three.js TorusGeometry](https://threejs.org/docs/pages/TorusGeometry.html)、[BufferGeometry.scale](https://threejs.org/docs/pages/BufferGeometry.html#scale)、[材质透明度与深度](https://threejs.org/docs/pages/Material.html)、[对象绘制顺序](https://threejs.org/docs/pages/Object3D.html#renderOrder)；构造参数同时核对了仓库安装版本的实现。
 
+### 带卫星行星实验
+
+选择“带卫星行星 · 程序化资产”，在对象页签播放“卫星公转与光晕呼吸”。[satellitePlanet.ts](../actors/assets/satellitePlanet.ts) 复用普通行星主体，并添加一颗带轻微蓝调的灰白色 `SphereGeometry` 卫星；这是独立的程序化类型。卫星使用粗糙的 `MeshStandardMaterial`，由 Studio 灯光表现球体明暗。
+
+参数集中在 `SATELLITE`：卫星半径为行星半径 `r` 的 `0.28` 倍，圆轨道半径为 `2.5r`，轨道倾角为 `18°`，初始相位为 `π/6`，1 倍速下每 `12` 秒公转一圈。令 `d=2.5r`、`θ=2πt/12+π/6`、`i=18°`，则卫星相对于行星核心的位置为 `(d cosθ cos i, −d cosθ sin i, d sinθ)`。这是按固定圆轨道驱动的运动样本，不进行引力积分或真实天体参数拟合。
+
+位置由共享预览时钟的绝对时间计算，多视口相位一致；暂停冻结位置，变速从当前位置继续，停止返回初始相位。播放时沿用 Studio 的 `invalidate()` 循环，暂停后按需渲染，不更新主页 store。取景边界预先覆盖完整轨道与卫星半径，避免公转过程中裁切或相机缩放跳动；原有行星与带环行星的取景方式保持兼容。
+
+对象树中的 `卫星_0` 可以独立选择、隐藏和隔离，动画不会覆盖显示状态。卫星 Mesh 设置 `renderOrder=1`、`depthTest=true`，完整显示时写入深度，与行星核心形成前后遮挡；每个视口独占卫星几何体和材质，随资产卸载释放。预览时钟、资源所有权及按需渲染依据见 [Studio 维护指南](../debug/MAINTENANCE.md#恒星与行星独立预览2026-09-09)。
+
 ## 添加模型
 
 1. 将 GLB 放入 `public/models/`，创建对应的加载组件；现有 `Voyager1.tsx` 可作参考。
@@ -61,6 +82,7 @@
 | Lighthouse | YeQuDeSu | 程序化生成 | 项目自有 |
 | Central Star / Planet | YeQuDeSu | 程序化生成，共用主页视觉资产 | 项目自有 |
 | Ringed Planet | YeQuDeSu | 程序化生成，行星主体与圆环面组合 | 项目自有 |
+| Satellite Planet | YeQuDeSu | 程序化生成，行星主体与单卫星圆轨道 | 项目自有 |
 
 注册表中的三角面数是展示元数据，资源重新生成后需要核对更新；本说明不重复维护文件大小或未经重新测量的模型统计。
 

@@ -1,7 +1,8 @@
 import { Box3, Vector3 } from 'three'
 import { createCentralStarAsset } from '../actors/assets/centralStar'
-import { createPlanetAsset, createPlanetHaloTexture, ATMOS_HALO_SCALE, PLANET_CONTENT_COLOR } from '../actors/assets/planet'
+import { createPlanetAsset, createPlanetHaloTexture, ATMOS_HALO_SCALE, PLANET_CONTENT_COLOR, PLANET_BASE_RADIUS } from '../actors/assets/planet'
 import { createRingedPlanetAsset } from '../actors/assets/ringedPlanet'
+import { createSatellitePlanetAsset, SATELLITE } from '../actors/assets/satellitePlanet'
 
 export function createStarPreview() {
   const asset = createCentralStarAsset()
@@ -27,7 +28,13 @@ export function createRingedPlanetPreview() {
   return createPlanetSample(createRingedPlanetAsset, '带环行星', 1.5 * ATMOS_HALO_SCALE)
 }
 
-function createPlanetSample(createAsset: typeof createPlanetAsset, name: string, haloScale = PREVIEW_HALO_SCALE) {
+export function createSatellitePlanetPreview() {
+  // 用完整公转包络取景，不能只测量卫星初始位置。
+  const motionExtent = PLANET_BASE_RADIUS * PREVIEW_SCALE * (SATELLITE.orbitRadius + SATELLITE.radius)
+  return createPlanetSample(createSatellitePlanetAsset, '带卫星行星', 1.5 * ATMOS_HALO_SCALE, motionExtent)
+}
+
+function createPlanetSample(createAsset: typeof createPlanetAsset, name: string, haloScale = PREVIEW_HALO_SCALE, motionExtent = 0) {
   const texture = createPlanetHaloTexture()
   const asset = createAsset(0, texture)
   asset.root.name = name
@@ -35,7 +42,7 @@ function createPlanetSample(createAsset: typeof createPlanetAsset, name: string,
   asset.core.material.color.set(PLANET_CONTENT_COLOR)
   asset.core.material.opacity = 1
   // 包含光晕的最大呼吸幅度，暂停和播放时均保持相同的主体取景。
-  const extent = haloScale * 1.04 / 2
+  const extent = Math.max(haloScale * 1.04 / 2, motionExtent)
   const bounds = new Box3(
     new Vector3(-extent, -extent, -extent), new Vector3(extent, extent, extent),
   )

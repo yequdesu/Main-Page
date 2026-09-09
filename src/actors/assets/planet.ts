@@ -1,4 +1,4 @@
-import { Group, Mesh, SphereGeometry, MeshBasicMaterial, ShaderMaterial, BackSide, Sprite, SpriteMaterial, AdditiveBlending, Color, type Texture } from 'three'
+import { Group, Mesh, SphereGeometry, MeshBasicMaterial, MeshStandardMaterial, ShaderMaterial, BackSide, Sprite, SpriteMaterial, AdditiveBlending, Color, type Texture } from 'three'
 import { atmosphereVertex, atmosphereFragment } from '../../shaders/AtmosphereShader'
 import { makeHaloTexture } from './haloTexture'
 
@@ -25,7 +25,7 @@ const ATMOS_HALO_OPACITY = 0.32
 /** 内层光晕半径倍率  ↑=近场散射更扩散  ↓=光晕紧贴核心 */
 export const INNER_GLOW_SCALE = 1.1
 /** 内层光晕不透明度系数  ↑=光晕更亮更明显  ↓=光晕更暗 */
-const INNER_GLOW_OPACITY = 0.20
+const INNER_GLOW_OPACITY = 0.06
 
 // -- 颜色 --
 /** 行星核心色  改色相→行星基调变化 */
@@ -75,7 +75,12 @@ export function createPlanetHaloTexture() {
 export function createPlanetAsset(trackIdx: number, haloTexture: Texture) {
   // Planet core
   const geo = new SphereGeometry(PLANET_BASE_RADIUS, GEO_SEGMENTS, GEO_SEGMENTS)
-  const mat = new MeshBasicMaterial({ color: PLANET_CORE_COLOR, transparent: true, opacity: 0, depthWrite: true, depthTest: true })
+  const mat = new MeshStandardMaterial({
+    color: PLANET_CORE_COLOR, roughness: 0.95, metalness: 0,
+    // 少量同色自发光托住暗面，避免导航行星出现过黑的半球。
+    emissive: PLANET_CORE_COLOR, emissiveIntensity: 0.35,
+    transparent: true, opacity: 0, depthWrite: true, depthTest: true,
+  })
   const mesh = new Mesh(geo, mat)
   mesh.renderOrder = 1
   mesh.name = `planet_${trackIdx}`
@@ -113,6 +118,7 @@ export function createPlanetAsset(trackIdx: number, haloTexture: Texture) {
   return {
     root, core: mesh, glow, atmosphere: shell, halo: sprite,
     updateAppearance(time: number, phase: number, scale: number, opacity: number, glowFactor: number, haloScale: number) {
+      mat.emissive.copy(mat.color) // 跟随主页的跨幕颜色插值，也适用于独立预览。
       const gPulse = 1 + Math.sin(time * GLOW_PULSE_FREQ_1 + phase * 2.1) * GLOW_PULSE_AMP_1 + Math.sin(time * GLOW_PULSE_FREQ_2 + phase) * GLOW_PULSE_AMP_2
       glow.position.copy(mesh.position)
       glow.scale.setScalar(scale * gPulse)

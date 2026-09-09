@@ -1,3 +1,4 @@
+import { STAR_FAR_LIGHT_RGB } from './celestialLighting'
 import { Group, Mesh, SphereGeometry, MeshBasicMaterial, Sprite, SpriteMaterial, AdditiveBlending } from 'three'
 import { makeHaloTexture } from './haloTexture'
 
@@ -50,7 +51,7 @@ const HALO_COLOR_STOPS: [number, string][] = [
 ]
 /** 灰白远场径向渐变  [位置, rgba] */
 const FAR_HALO_COLOR_STOPS: [number, string][] = [
-  [0,    'rgba(180,190,210,0.18)'],
+  [0,    `rgba(${STAR_FAR_LIGHT_RGB.join(',')},0.18)`],
   [0.1,  'rgba(160,170,195,0.10)'],
   [0.3,  'rgba(140,150,180,0.03)'],
   [0.6,  'rgba(120,130,160,0.005)'],

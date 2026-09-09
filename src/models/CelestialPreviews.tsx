@@ -1,6 +1,6 @@
 import { useEffect, useMemo } from 'react'
 import { useFrame } from '@react-three/fiber'
-import { createStarPreview, createPlanetPreview, createRingedPlanetPreview } from './celestialPreview'
+import { createStarPreview, createPlanetPreview, createRingedPlanetPreview, createSatellitePlanetPreview } from './celestialPreview'
 
 interface PreviewProps {
   standalone?: boolean
@@ -28,4 +28,8 @@ export function PlanetPreview(props: PreviewProps) {
 
 export function RingedPlanetPreview(props: PreviewProps) {
   return <ProceduralAsset {...props} create={createRingedPlanetPreview} />
+}
+
+export function SatellitePlanetPreview(props: PreviewProps) {
+  return <ProceduralAsset {...props} create={createSatellitePlanetPreview} />
 }

@@ -1,6 +1,6 @@
 import { useMemo, useRef, useEffect } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
-import { MeshBasicMaterial, Color, Vector3, type PerspectiveCamera } from 'three'
+import { Color, Vector3, type PerspectiveCamera } from 'three'
 import { useScrollStore } from '../stores/scrollStore'
 import { useRealtimeStore, type PlanetCoords } from '../stores/realtimeStore'
 import { useFrameCache } from '../behaviors/useFrameCache'
@@ -248,7 +248,7 @@ export default function Planets() {
       store.setPlanetData(coords, angles, speeds, store.orbitSpeeds, orbAngles as [number, number, number])
 
       // Opacity with occlusion
-      const mat = mesh.material as MeshBasicMaterial
+      const mat = mesh.material
       let planetOpacity = appearance.opacity
       if (focusedPlanetPos && focusedPlanetIdx >= 0 && i !== focusedPlanetIdx) {
         _scratch.set(px, py, pz)

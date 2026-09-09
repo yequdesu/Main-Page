@@ -108,7 +108,7 @@ function Session({ modelKey, onModelChange }: { modelKey: string; onModelChange:
   const entry = MODEL_REGISTRY[modelKey]
   const remembered = useRef(SESSION_CACHE.get(modelKey)).current
   const store = useCreateStore()
-  const config = useModelPreviewControls(store, CONFIG_CACHE.get(modelKey))
+  const config = useModelPreviewControls(store, CONFIG_CACHE.get(modelKey) ?? entry.previewLighting)
   useEffect(() => {
     CONFIG_CACHE.set(modelKey, config)
   }, [modelKey, config])

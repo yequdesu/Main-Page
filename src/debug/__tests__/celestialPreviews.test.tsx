@@ -1,14 +1,16 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import ReactThreeTestRenderer from '@react-three/test-renderer'
-import { Box3, Mesh, MeshBasicMaterial, MeshStandardMaterial, Sprite, TorusGeometry, Vector3 } from 'three'
+import { Box3, Mesh, MeshStandardMaterial, Sprite, TorusGeometry, Vector3 } from 'three'
 import CentralStar from '../../actors/CentralStar'
-import { CentralStarPreview, PlanetPreview, RingedPlanetPreview } from '../../models/CelestialPreviews'
-import { createPlanetPreview, createRingedPlanetPreview, createStarPreview } from '../../models/celestialPreview'
+import { CentralStarPreview, PlanetPreview, RingedPlanetPreview, SatellitePlanetPreview } from '../../models/CelestialPreviews'
+import { createPlanetPreview, createRingedPlanetPreview, createSatellitePlanetPreview, createStarPreview } from '../../models/celestialPreview'
 import { createRingedPlanetAsset } from '../../actors/assets/ringedPlanet'
+import { createSatellitePlanetAsset, SATELLITE } from '../../actors/assets/satellitePlanet'
 import { createPlanetHaloTexture, PLANET_BASE_RADIUS } from '../../actors/assets/planet'
 import { useScrollStore } from '../../stores/scrollStore'
 import { useRealtimeStore } from '../../stores/realtimeStore'
 import { indexScene, localBounds } from '../studioModel'
+import { createPreviewPlayback } from '../previewPlayback'
 
 beforeEach(() => {
   // JSDOM 没有 2D Canvas；只替代纹理绘制，保留真实 Three.js 几何体/材质/场景。
@@ -47,7 +49,7 @@ describe('程序化资产独立预览', () => {
     }
   })
 
-  it.each([PlanetPreview, RingedPlanetPreview])('行星组件 %s 播放、卸载均不污染主页轨道或交互 store', async (Preview) => {
+  it.each([PlanetPreview, RingedPlanetPreview, SatellitePlanetPreview])('行星组件 %s 播放、卸载均不污染主页轨道或交互 store', async (Preview) => {
     const scroll = useScrollStore.getState(), realtime = useRealtimeStore.getState()
     const preview = await ReactThreeTestRenderer.create(<Preview previewTime={() => 40} />)
     await preview.advanceFrames(3, 0.016)
@@ -69,6 +71,21 @@ describe('程序化资产独立预览', () => {
     } finally { await preview.unmount() }
   })
 
+  it.each([createPlanetPreview, createRingedPlanetPreview, createSatellitePlanetPreview])('行星 %s 响应光照，跨幕变色后暗面填充同步且不重建材质', (create) => {
+    const asset = create()
+    try {
+      const core = asset.root.getObjectByName('planet_0') as Mesh
+      expect(core.material).toBeInstanceOf(MeshStandardMaterial)
+      const material = core.material as MeshStandardMaterial
+      expect(material.emissiveIntensity).toBeGreaterThan(0)
+      expect(material.emissiveIntensity).toBeLessThan(1)
+      material.color.set('#c8a090')
+      asset.update(4)
+      expect(material.emissive.equals(material.color)).toBe(true)
+      expect(core.material).toBe(material)
+    } finally { asset.dispose() }
+  })
+
   it('仅创建一颗完整行星，多视口拥有独立材质和显示状态', () => {
     const a = createPlanetPreview(), b = createPlanetPreview()
     try {
@@ -84,15 +101,15 @@ describe('程序化资产独立预览', () => {
       expect((a.root.getObjectByName('halo_0') as Sprite).material.opacity)
         .toBe((b.root.getObjectByName('halo_0') as Sprite).material.opacity)
       coreA.visible = false
-      ;(coreA.material as MeshBasicMaterial).wireframe = true
+      ;(coreA.material as MeshStandardMaterial).wireframe = true
       a.update(20)
       expect(coreA.visible).toBe(false)
       expect(coreB.visible).toBe(true)
-      expect((coreB.material as MeshBasicMaterial).wireframe).toBe(false)
+      expect((coreB.material as MeshStandardMaterial).wireframe).toBe(false)
     } finally { a.dispose(); b.dispose() }
   })
 
-  it.each([createPlanetPreview, createRingedPlanetPreview])('预览 %s 的光晕动画不改变取景，恒星远场柔光不缩小主体取景', (create) => {
+  it.each([createPlanetPreview, createRingedPlanetPreview, createSatellitePlanetPreview])('预览 %s 的光晕动画不改变取景，恒星远场柔光不缩小主体取景', (create) => {
     const planet = create(), star = createStarPreview()
     try {
       const bounds = localBounds(planet.root)
@@ -105,6 +122,82 @@ describe('程序化资产独立预览', () => {
       expect(extent.x).toBe(5.5)
       expect((star.root.getObjectByName('远场柔光') as Sprite).scale.x).toBeGreaterThan(extent.x)
     } finally { planet.dispose(); star.dispose() }
+  })
+
+  it('卫星按固定圆轨道绕核心运行，整圈回到初态且不覆盖隐藏状态', () => {
+    const texture = createPlanetHaloTexture()
+    const asset = createSatellitePlanetAsset(0, texture)
+    try {
+      asset.core.position.set(2, 3, 4)
+      const update = (time: number) => asset.updateAppearance(time, 0, 20, 1, 1, 1.5)
+      update(0)
+      const start = asset.moon.position.clone().sub(asset.core.position)
+      expect(start.length()).toBeCloseTo(PLANET_BASE_RADIUS * 20 * SATELLITE.orbitRadius)
+      update(SATELLITE.period / 4)
+      const quarter = asset.moon.position.clone().sub(asset.core.position)
+      expect(quarter.length()).toBeCloseTo(start.length())
+      expect(quarter.dot(start)).toBeCloseTo(0)
+      asset.moon.visible = false
+      update(SATELLITE.period)
+      expect(asset.moon.position.clone().sub(asset.core.position).distanceTo(start)).toBeLessThan(1e-10)
+      expect(asset.moon.visible).toBe(false)
+      expect(asset.moon.scale.x).toBe(20)
+      expect(asset.moon.material.opacity).toBe(1)
+      expect(asset.moon.material.depthTest).toBe(true)
+      expect(asset.moon.material.depthWrite).toBe(true)
+    } finally { asset.dispose(); texture.dispose() }
+  })
+
+  it('卫星预览随时钟暂停、变速和归零，多视口同相位且完整轨道不越出取景框', () => {
+    let now = 0
+    const playback = createPreviewPlayback(() => now)
+    const a = createSatellitePlanetPreview(), b = createSatellitePlanetPreview()
+    const moonA = a.root.getObjectByName('卫星_0') as Mesh
+    const moonB = b.root.getObjectByName('卫星_0') as Mesh
+    try {
+      const start = moonA.position.clone()
+      playback.configure({ clip: 'orbit', playing: true, speed: 1 })
+      now = 3; a.update(playback.time())
+      expect(moonA.position.distanceTo(start)).toBeGreaterThan(0.1)
+      playback.configure({ clip: 'orbit', playing: false, speed: 1 })
+      const paused = moonA.position.clone()
+      now = 7; a.update(playback.time())
+      expect(moonA.position.equals(paused)).toBe(true)
+      playback.configure({ clip: 'orbit', playing: true, speed: 2 })
+      now = 8; a.update(playback.time()); b.update(5)
+      expect(moonA.position.equals(moonB.position)).toBe(true)
+      playback.configure({ clip: '', playing: false, speed: 2 })
+      a.update(playback.time())
+      expect(moonA.position.equals(start)).toBe(true)
+      const bounds = localBounds(a.root)
+      for (let i = 0; i <= 48; i++) {
+        a.update(i * SATELLITE.period / 48)
+        expect(bounds.containsBox(new Box3().setFromObject(a.root))).toBe(true)
+        expect(localBounds(a.root).equals(bounds)).toBe(true)
+      }
+    } finally { a.dispose(); b.dispose() }
+  })
+
+  it('卫星可独立索引和显示，每个视口独占并释放卫星资源', () => {
+    const a = createSatellitePlanetPreview(), b = createSatellitePlanetPreview()
+    const moonA = a.root.getObjectByName('卫星_0') as Mesh
+    const moonB = b.root.getObjectByName('卫星_0') as Mesh
+    const geometry = vi.spyOn(moonA.geometry, 'dispose')
+    const material = vi.spyOn(moonA.material as MeshStandardMaterial, 'dispose')
+    const otherGeometry = vi.spyOn(moonB.geometry, 'dispose')
+    try {
+      expect([...indexScene(a.root).objects.values()]).toContain(moonA)
+      expect(moonA.geometry).not.toBe(moonB.geometry)
+      expect(moonA.material).not.toBe(moonB.material)
+      moonA.visible = false
+      a.update(3); b.update(3)
+      expect(moonA.visible).toBe(false)
+      expect(moonB.visible).toBe(true)
+    } finally { a.dispose() }
+    expect(geometry).toHaveBeenCalledTimes(1)
+    expect(material).toHaveBeenCalledTimes(1)
+    expect(otherGeometry).not.toHaveBeenCalled()
+    b.dispose()
   })
 
   it('圆环面包围核心且有厚度，跟随缩放和位置，播放不会覆盖隐藏状态', () => {
