@@ -30,6 +30,12 @@ sun, clouds and closed soil volume are actual bounded geometry. The sun's intern
 offset adapts to narrow viewports; no camera changes are needed. This first version
 does not implement individual stalk-to-stalk cast shadows.
 
+The soil fills from the planting surface to the cube bottom. Its volume shader
+uses cube-local noise for uneven humus, loam, clay and parent-rock horizons,
+broken sediment lenses and filtered mineral flecks. Opposing/adjacent faces do
+not restart UV patterns, and the texture has no time dependency. Grain detail
+is suppressed below screen-pixel size during miniature shrink.
+
 ## Validation
 
 - Tests cover root coverage/determinism, three batch populations, bend weights,

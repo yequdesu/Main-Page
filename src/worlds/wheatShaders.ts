@@ -1,3 +1,5 @@
+import { soilShader } from './soilShader'
+
 export const wheatWind = /* glsl */`
   vec3 bendWheat(vec3 p, vec3 root, float phase) {
     float edge = smoothstep(0.0, 0.8, uHalf - max(abs(root.x), abs(root.y)));
@@ -53,6 +55,7 @@ export const worldFragment = /* glsl */`
   varying vec3 vLocal;
   varying float vTint;
   varying float vPart;
+  ${soilShader}
   void main() {
     ${worldClip}
     vec3 color;
@@ -71,8 +74,7 @@ export const worldFragment = /* glsl */`
       float distanceHaze = smoothstep(12.0, 64.0, 32.0 - vLocal.z) * .22;
       color = mix(color, vec3(.42,.20,.075), distanceHaze);
     } else if (uKind < 1.5) {
-      float fleck = sin(vLocal.x * 4.0) * sin(vLocal.z * 3.7);
-      color = vec3(.095,.037,.014) * (1.0 + .12 * fleck);
+      color = soilColor(vLocal, uFloor);
     } else if (uKind < 2.5) {
       float altitude = clamp((vLocal.y + 1.5) / 33.0, 0.0, 1.0);
       color = mix(vec3(.72,.27,.085), vec3(.10,.075,.16), smoothstep(0.0, .85, altitude));

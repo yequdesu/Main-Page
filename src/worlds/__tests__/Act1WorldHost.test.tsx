@@ -31,6 +31,12 @@ describe('Act1 world lifecycle', () => {
     const nodes = ['wheat-sky', 'wheat-ground', 'wheat-sun', 'wheat-clouds', 'wheat-lod-0', 'wheat-lod-1', 'wheat-lod-2']
       .map(name => renderer.scene.findByProps({ name }).instance as Mesh)
     const geometries = nodes.map(m => vi.spyOn(m.geometry, 'dispose'))
+    const ground = nodes[1].geometry
+    ground.computeBoundingBox()
+    expect(ground.boundingBox!.min.y).toBeCloseTo(-32)
+    expect(ground.boundingBox!.max.y).toBeCloseTo(-2.5)
+    expect(ground.boundingBox!.max.x).toBeCloseTo(31.98)
+    expect(ground.boundingBox!.min.z).toBeCloseTo(-31.98)
     const materials = [...new Set(nodes.map(m => m.material as ShaderMaterial))]
     for (const material of materials) {
       expect(material.depthTest).toBe(true)
