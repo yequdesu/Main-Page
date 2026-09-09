@@ -1,4 +1,4 @@
-import { BufferAttribute, BufferGeometry, InstancedBufferAttribute, InstancedBufferGeometry } from 'three'
+import { Box3, BufferAttribute, BufferGeometry, InstancedBufferAttribute, InstancedBufferGeometry, Sphere, Vector3 } from 'three'
 
 export const WHEAT_COLUMNS = 240
 export const WHEAT_ROWS = 200
@@ -22,17 +22,13 @@ export function buildWheatSeeds(): WheatSeed[] {
 
 // Same bend envelope used by the shader; a root at y=0 always stays fixed.
 export function wheatBendWeight(y: number) { return Math.max(0, y) ** 2 }
-export function wheatScreenDetail(pixelsPerStalk: number) {
-  const t = Math.max(0, Math.min(1, (pixelsPerStalk - 4) / 16))
-  return t * t * (3 - 2 * t)
-}
 export function wheatEdgeWeight(x: number, z: number, half = 32) {
   const t = Math.max(0, Math.min(1, (half - Math.max(Math.abs(x), Math.abs(z))) / .8))
   return t * t * (3 - 2 * t)
 }
 
 type P = [number, number, number]
-export function buildWheatGeometry(lod: number): BufferGeometry {
+export function buildWheatGeometry(lod: number, indexed = true): BufferGeometry {
   const positions: number[] = [], parts: number[] = []
   const tri = (a: P, b: P, c: P, part: number) => { positions.push(...a, ...b, ...c); parts.push(part, part, part) }
   const ribbon = (a: P, b: P, width: number, part: number) => {
@@ -69,18 +65,69 @@ export function buildWheatGeometry(lod: number): BufferGeometry {
   const geometry = new BufferGeometry()
   geometry.setAttribute('position', new BufferAttribute(new Float32Array(positions), 3))
   geometry.setAttribute('aPart', new BufferAttribute(new Float32Array(parts), 1))
+  if (indexed) {
+    // Exact float32 welding, not a tolerance-based simplification. The fragment
+    // shader derives face normals, so sharing positions preserves the faceting.
+    const p = geometry.getAttribute('position'), part = geometry.getAttribute('aPart')
+    const unique = new Map<string, number>(), xyz: number[] = [], kinds: number[] = [], indices: number[] = []
+    for (let i = 0; i < p.count; i++) {
+      const key = `${p.getX(i)},${p.getY(i)},${p.getZ(i)},${part.getX(i)}`
+      let index = unique.get(key)
+      if (index === undefined) {
+        index = unique.size; unique.set(key, index)
+        xyz.push(p.getX(i), p.getY(i), p.getZ(i)); kinds.push(part.getX(i))
+      }
+      indices.push(index)
+    }
+    geometry.setAttribute('position', new BufferAttribute(new Float32Array(xyz), 3))
+    geometry.setAttribute('aPart', new BufferAttribute(new Float32Array(kinds), 1))
+    geometry.setIndex(indices)
+  }
+  return geometry
+}
+
+function instanceWheat(source: BufferGeometry, selected: WheatSeed[]): InstancedBufferGeometry {
+  const geometry = new InstancedBufferGeometry()
+  geometry.setAttribute('position', source.getAttribute('position'))
+  geometry.setAttribute('aPart', source.getAttribute('aPart'))
+  geometry.setIndex(source.index)
+  geometry.instanceCount = selected.length
+  geometry.setAttribute('aRoot', new InstancedBufferAttribute(new Float32Array(selected.flatMap(s => [s.x, s.z, s.height])), 3))
+  geometry.setAttribute('aVariation', new InstancedBufferAttribute(new Float32Array(selected.flatMap(s => [s.angle, s.phase, s.tint])), 3))
+  const box = new Box3()
+  for (const seed of selected) {
+    // Includes the full grain/awn geometry plus the maximum analytical wind
+    // displacement at any time. Roots are in shader coordinates, not position.
+    box.expandByPoint(new Vector3(seed.x - 1.7, WHEAT_FLOOR, seed.z - 1.7))
+    box.expandByPoint(new Vector3(seed.x + 1.7, WHEAT_FLOOR + seed.height * 1.2, seed.z + 1.7))
+  }
+  geometry.boundingBox = box
+  geometry.boundingSphere = box.getBoundingSphere(new Sphere())
   return geometry
 }
 
 export function buildWheatBatch(seeds: WheatSeed[], lod: number): InstancedBufferGeometry {
   const source = buildWheatGeometry(lod)
-  const geometry = new InstancedBufferGeometry()
-  geometry.setAttribute('position', source.getAttribute('position').clone())
-  geometry.setAttribute('aPart', source.getAttribute('aPart').clone())
+  const result = instanceWheat(source, seeds.filter(seed => seed.lod === lod))
   source.dispose()
-  const selected = seeds.filter(seed => seed.lod === lod)
-  geometry.instanceCount = selected.length
-  geometry.setAttribute('aRoot', new InstancedBufferAttribute(new Float32Array(selected.flatMap(s => [s.x, s.z, s.height])), 3))
-  geometry.setAttribute('aVariation', new InstancedBufferAttribute(new Float32Array(selected.flatMap(s => [s.angle, s.phase, s.tint])), 3))
-  return geometry
+  return result
+}
+
+export function buildWheatTiles(seeds: WheatSeed[]): InstancedBufferGeometry[] {
+  const templates = [0, 1, 2].map(lod => buildWheatGeometry(lod))
+  const cells = new Map<number, WheatSeed[]>()
+  for (const seed of seeds) {
+    const x = Math.max(0, Math.min(3, Math.floor((seed.x + 32) / 16)))
+    const z = Math.max(0, Math.min(3, Math.floor((seed.z + 32) / 16)))
+    const id = seed.lod * 16 + z * 4 + x
+    if (!cells.has(id)) cells.set(id, [])
+    cells.get(id)!.push(seed)
+  }
+  const tiles = [...cells.entries()].map(([id, roots]) => {
+    const geometry = instanceWheat(templates[Math.floor(id / 16)], roots)
+    geometry.userData.lod = Math.floor(id / 16)
+    return geometry
+  })
+  templates.forEach(g => g.dispose())
+  return tiles
 }

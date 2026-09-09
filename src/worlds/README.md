@@ -18,11 +18,15 @@ to the lighthouse. Production visitors do not receive a scene selector.
 
 ## Sunset wheat implementation
 
-48,000 deterministic, stratified roots fill the terrain; three instanced batches
-use different ear detail. Each batch shares its geometry and instance attributes.
+48,000 deterministic, stratified roots fill the terrain; three fixed spatial
+detail levels retain their original ear models throughout miniature shrink.
+Instances are grouped into 16-unit tiles with conservative wind-aware bounds
+for frustum culling. Tiles share exactly indexed model attributes; welding
+preserves every triangle and part attribute, including derivative face normals.
 Only one time uniform changes during animation. Root positions never change.
 The shaders bend all parts coherently, attenuate wind at the edges, and clip the
-deformed cube-local position. All four material variants share this clipping.
+deformed cube-local position. All three material variants share this clipping;
+their kind is a compile-time constant to eliminate unused shader branches.
 
 Lighting is a local stylized material model (sun-direction bands, backlight, root
 darkening and distance haze), not new global lights or a shadow-map pass. The sky,
@@ -36,20 +40,22 @@ does not implement individual stalk-to-stalk cast shadows.
 The soil fills from the planting surface to the cube bottom. Its volume shader
 uses cube-local noise for uneven humus, loam, clay and parent-rock horizons,
 broken sediment lenses and filtered mineral flecks. Opposing/adjacent faces do
-not restart UV patterns, and the texture has no time dependency. Grain detail
-is suppressed below screen-pixel size during miniature shrink.
+not restart UV patterns, and the texture has no time dependency. Soil mineral
+grain detail is filtered below screen-pixel size during miniature shrink.
 
-When a stalk projects to 4–20 CSS pixels, fine wheat dissolves onto a low-poly
-canopy with the same wind phase and closed skirts down to the planting surface.
-Below that threshold the three instance draws are disabled. All transitions
-derive from current projection, without a stored playback direction.
+Wheat ears are never dissolved or replaced with a continuous canopy. Small
+screen size does not disable them: only ordinary frustum culling and the
+existing whole-world lifecycle control rendering. Density, wind and material
+lighting remain unchanged. No renderer resolution or DPR reduction is used.
 
 ## Validation
 
 - Tests cover root coverage/determinism, three batch populations, bend weights,
   shared clipping, coordinate adaptation, shell identity, unchanged progress,
   selected-world lifecycle, capture mounting and GPU resource disposal.
-- Production build passes. Full suite: 134 passed, 3 failed.
+- Regression tests also cover exact indexed triangle equivalence, tile instance
+  conservation, conservative bounds and unchanged ear visibility during shrink.
+- Production build and all 9 world tests pass. Full suite: 135 passed, 3 failed.
   Unchanged failures: `miniatureParticleField` exact floating-point comparison;
   two `r3f-components` LightBeam tests lacking a jsdom Canvas context.
 - Browser snapshots checked initial field coverage, miniature containment at 26%,

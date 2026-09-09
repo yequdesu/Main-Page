@@ -28,8 +28,24 @@ describe('Act1 world lifecycle', () => {
     expect(renderer.scene.findByProps({ name: 'persistent-shell' }).instance).toBe(shell)
     expect(useScrollStore.getState().scrollProgress).toBe(scroll)
     expect(useActorRuntimeStore.getState().actors.sunsetWheatWorld.active).toBe(true)
-    const nodes = ['wheat-sky', 'wheat-ground', 'wheat-canopy', 'wheat-lod-0', 'wheat-lod-1', 'wheat-lod-2']
+    const nodes = ['wheat-sky', 'wheat-ground']
       .map(name => renderer.scene.findByProps({ name }).instance as Mesh)
+    const world = renderer.scene.findByProps({ name: 'sunset-wheat-world' }).instance
+    const tiles: Mesh[] = []
+    world.traverse(node => { if (node.name.startsWith('wheat-tile-')) tiles.push(node as Mesh) })
+    expect(tiles.length).toBeGreaterThan(3)
+    expect(world.getObjectByName('wheat-canopy')).toBeUndefined()
+    nodes.push(...tiles)
+    // Pulling the cube away must not replace or dissolve the original ears.
+    for (const scale of [1, .1, .001, .1, 1]) {
+      world.scale.setScalar(scale)
+      await renderer.advanceFrames(1, 1 / 60)
+      for (const tile of tiles) {
+        expect(tile.visible).toBe(true)
+        expect(tile.frustumCulled).toBe(true)
+        expect((tile.material as ShaderMaterial).uniforms).not.toHaveProperty('uDetail')
+      }
+    }
     const geometries = nodes.map(m => vi.spyOn(m.geometry, 'dispose'))
     const ground = nodes[1].geometry
     ground.computeBoundingBox()
