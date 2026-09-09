@@ -24,7 +24,7 @@
 | [LighthouseCaptureTypes.ts](LighthouseCaptureTypes.ts) | 截图模块 | 截图类型、默认参数和离屏渲染函数 |
 | [GridLines.tsx](GridLines.tsx) | Act 2 | 网格线与节点的延伸、位移和透明度 |
 | [OrbitRings.tsx](OrbitRings.tsx) | Act 3 | 轨道参考线与陀螺仪环编排 |
-| [OrbitalRing.tsx](OrbitalRing.tsx) | `OrbitRings` 内 | 单个陀螺仪环的进动和显隐 |
+| [OrbitalRing.tsx](OrbitalRing.tsx) | `OrbitRings` 内 | 外层进动轨道线：有序圆周顶点、首尾闭合、进动和显隐 |
 | [BrandTitle.tsx](BrandTitle.tsx) | App DOM 层 | 品牌标题与灯塔截图图标 |
 | [FloatingLabels.tsx](FloatingLabels.tsx) | App DOM 层，Act 3 条件挂载 | 行星标签终端、PBD 布局、入场顺序与交互 |
 | [PlanetLabelGuideLines.tsx](PlanetLabelGuideLines.tsx) | `FloatingLabels` 内 | 标签与行星之间的 SVG 连线 |

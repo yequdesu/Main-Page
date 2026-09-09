@@ -1,5 +1,7 @@
 # 轨道系统操作手册
 
+维护说明（2026-09-09）：本次核对并更新外层轨道的线几何、配置和锯齿排查。下文保留既有坐标与力学设计说明，其文献对应关系未在本次重新核验。
+
 ## 目录
 
 1. [系统概览](#一系统概览)
@@ -18,7 +20,9 @@
 | 层 | 组件 | 数量 | 几何 | 行为 |
 |----|------|:---:|------|------|
 | 轨道参考线 | `OrbitRings.tsx` | 3 | `threeLine` — 手动构建顶点圆 | 静态，仅透明度变化 |
-| 陀螺仪装饰环 | `OrbitalRing.tsx` × N | 3（可扩展） | `lineLoop` — RingGeometry | 倾角 + 偏心率 + 进动 |
+| 外层进动轨道线 | `OrbitalRing.tsx` × N | 3（可扩展） | `LineLoop` + 非索引 `BufferGeometry` 圆周顶点 | 倾角 + 偏心率 + 进动 |
+
+“外层进动轨道线”即原文的“陀螺仪装饰环”，是装饰性的闭合线条；三颗行星的公转参考线由第一层提供。
 
 **数据流：**
 
@@ -27,7 +31,7 @@ OrbitalRingConfig[]          <OrbitalRing config={…} />
 ─────────────────          ─────────────────────────────
 GYRO_RINGS 数组  ─────────→  外层 Group: Y 旋转（进动 Ω）
                              内层 Group: X 旋转（倾角 i）+ X 拉伸（偏心率 e）
-                               └─ lineLoop + RingGeometry
+                               └─ lineLoop + 有序圆周 BufferGeometry
 ```
 
 每条陀螺仪环是**独立的力学模拟单元**，拥有自己的 `useFrame`，互不干扰。
@@ -61,7 +65,7 @@ GYRO_RINGS 数组  ─────────→  外层 Group: Y 旋转（进�
 
 ### 2.3 变换链
 
-RingGeometry 创建于 X-Y 平面（法线沿 Z）。通过以下变换链映射至目标轨道面：
+圆周顶点创建于 X-Y 平面（轨道面法线沿 Z）。通过以下变换链映射至目标轨道面：
 
 ```
 R_y(Ω) · S_x( stretch ) · R_x( π/2 − i )
@@ -70,7 +74,7 @@ R_y(Ω) · S_x( stretch ) · R_x( π/2 − i )
  进动     偏心率→椭圆       倾角
 ```
 
-**推导验证：** RingGeometry 法线 n₀ = (0, 0, 1)
+**推导验证：** 初始轨道面法线 n₀ = (0, 0, 1)
 
 ```
 n₁ = R_x(π/2 − i) · n₀ = (0, −cos(i), sin(i))
@@ -87,7 +91,7 @@ n  = R_y(Ω) · n₁ = (sin(i)·sin(Ω), −cos(i), sin(i)·cos(Ω))
 
 ### 2.4 偏心率实现
 
-正圆 RingGeometry 通过内层 group 的 `scale.x = 1/√(1−e²)` 拉伸为椭圆。与 ē/ī 比例遵循 Ngo & Lissauer (2016) 统计关系：
+圆周折线通过内层 group 的 `scale.x = 1/√(1−e²)` 拉伸为椭圆。与 ē/ī 比例遵循 Ngo & Lissauer (2016) 统计关系：
 
 ```
 ē ≈ (1–2) · ī（弧度制）
@@ -122,15 +126,14 @@ src/
 
 ```ts
 export interface OrbitalRingConfig {
-  radius: number           // 轨道外半径（必填）
-  innerRadius?: number     // 轨道内半径，默认 radius - 0.04
+  radius: number           // 拉伸前的轨道线半径（必填）
   inclination: number      // 黄道面倾角 (rad)
   eccentricity: number     // 偏心率 0–1
   speed: number            // 进动角速度 (rad/s)，speedScale=1 时的值
   phase: number            // 初始升交点经度 (rad)
   color?: string           // 环颜色，默认 '#cbd5e1'
   maxOpacity?: number      // 最大透明度 0–1，默认 0.28
-  segments?: number        // 环分段数，默认 96
+  segments?: number        // 闭合线分段数，默认 256，向下取整且至少为 3
 }
 ```
 
@@ -151,12 +154,16 @@ export interface OrbitalRingConfig {
   <group rotation={[PI/2 - inclination, 0, 0]} scale={[stretchX, 1, 1]}>
     {/* ↑ 内层：X 旋转 — 倾角 i；X 拉伸 — 偏心率 e */}
     <lineLoop renderOrder={2}>
-      <ringGeometry args={[innerRadius, radius, segments]} />
+      <bufferGeometry key={`${radius}:${segmentCount}`}>
+        <bufferAttribute attach="attributes-position" args={[positions, 3]} />
+      </bufferGeometry>
       <lineBasicMaterial ref={matRef} ... />
     </lineLoop>
   </group>
 </group>
 ```
+
+`positions` 按圆周角度递增排列，包含 `segmentCount` 个顶点，不重复首点；`LineLoop` 自动连接末点与首点。顶点数组由 `useMemo` 缓存，半径或分段变化时重建几何体，避免保留旧包围体；几何体和材质由 R3F 管理释放。配置中已移除不适用于线条的 `innerRadius`，线宽不再由内外半径差表达。
 
 **useFrame 逻辑：**
 
@@ -169,6 +176,7 @@ export interface OrbitalRingConfig {
 ### 3.3 `OrbitRings.tsx` — 轨道系统编排
 
 **职责：**
+
 - 渲染 3 条静态轨道参考线（`ORBIT_RADII` 数组）
 - 管理 `GYRO_RINGS` 配置数组
 - 映射每条配置 → `<OrbitalRing>` 实例
@@ -233,7 +241,7 @@ OrbitRings ──→ OrbitalRing ──→ useScrollStore (Zustand)
 ### 4.6 最大透明度 `maxOpacity`
 
 - **默认：** `0.28`
-- **实际透明度 =** `smoothstep(scrollProgress) × maxOpacity`
+- **实际透明度 =** `smoothstep(clamped(scrollProgress, GRID_SHIFT_START, 1)) × maxOpacity`，阈值来自 `src/types/index.ts`
 - 仅在 Act 3 阶段（sp > 0.85）可见
 
 ### 4.7 速度缩放 `speedScale`
@@ -343,9 +351,17 @@ console.log('angle with Y:', Math.acos(Math.abs(n.y)) * 180 / Math.PI)
 
 ### 6.5 性能
 
-每条 `OrbitalRing` 拥有独立 `useFrame`。10 条环以下无性能影响。如需大量环（>20），建议：
-- 降低 `segments`（默认 96 → 48）
-- 合并 useFrame 到父级统一管理
+每条 `OrbitalRing` 拥有独立 `useFrame`，顶点只在半径或分段数变化时生成。默认 256 段用于减轻大尺寸显示时的折线感。扩展环数量前应测量目标设备的帧耗时，再决定是否降低分段数或合并逐帧更新。
+
+### 6.6 轨道边缘出现锯齿或折返短线
+
+旧实现将 `RingGeometry` 放入 `LineLoop`。`RingGeometry` 的索引用于描述圆环面的三角形，线条渲染却按该索引顺序连接顶点，导致内外圈之间出现径向边、斜边和重复描线。这属于**连线拓扑错误**；仅提高分段数或开启抗锯齿无法消除错误连接。
+
+当前使用非索引 `BufferGeometry`，只保留一圈按角度排序的圆周顶点，再由 `LineLoop` 闭合。保持原有倾角、偏心率、进动、滚动透明度和主题颜色；具体线对象仍设置 `renderOrder=2`，材质仍为 `transparent=true`、`depthWrite=false`、`depthTest=true`。主 Canvas 的 `flat`、`frameloop="demand"` 和原有渲染请求机制保持原样。
+
+拓扑正确后，如果仍看到轮廓的像素台阶，应另行检查像素密度和抗锯齿；如果看到多边形拐角，则检查 `segments`。不要用圆环面的内外半径模拟线宽。
+
+回归测试见 [OrbitalRing.test.tsx](../src/actors/__tests__/OrbitalRing.test.tsx)，覆盖单一半径、相邻顶点连接、首尾闭合、配置更新及原有动画行为；视觉检查在主页面 Act 3 的日夜主题与行星聚焦状态进行。
 
 ---
 
@@ -354,6 +370,8 @@ console.log('angle with Y:', Math.acos(Math.abs(n.y)) * 180 / Math.PI)
 - Murray & Dermott, *Solar System Dynamics*, §2.8 (orbital elements)
 - Ngo & Lissauer (2016), *PNAS* — ē/ī statistical relationship in solar system bodies
 - R3F `useFrame` — https://docs.pmnd.rs/react-three-fiber/api/hooks#useframe
+- [Three.js LineLoop](https://threejs.org/docs/pages/LineLoop.html)：按连续顶点连线，并自动首尾闭合。
+- [Three.js RingGeometry](https://threejs.org/docs/pages/RingGeometry.html)：带内外半径的圆环面几何体，适用于 Mesh；不能直接将其三角形索引作为轨道线的连线顺序。
 
 ---
 

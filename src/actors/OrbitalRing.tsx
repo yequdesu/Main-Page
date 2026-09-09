@@ -1,4 +1,4 @@
-import { useRef } from 'react'
+import { useMemo, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import { type Group, type LineBasicMaterial } from 'three'
 import { SCENE_CENTER_Z, clamped, smoothstep, GRID_SHIFT_START } from '../r3f/ScrollRig'
@@ -6,7 +6,7 @@ import { useScrollStore } from '../stores/scrollStore'
 import type { OrbitalRingConfig } from '../types'
 
 /**
- * 单条轨道环 — 行星轨道面力学模拟。
+ * 单条外层进动轨道线 — 有序圆周折线与轨道面运动。
  *
  * ## 变换链
  *
@@ -43,17 +43,27 @@ interface OrbitalRingProps {
 export default function OrbitalRing({ config, speedScale = 1.0, color: colorOverride }: OrbitalRingProps) {
   const {
     radius,
-    innerRadius = radius - 0.04,
     inclination,
     eccentricity,
     speed,
     phase,
     color: configColor = '#cbd5e1',
     maxOpacity = 0.28,
-    segments = 96,
+    segments = 256,
   } = config
 
   const stretchX = 1 / Math.sqrt(1 - eccentricity * eccentricity)
+  const segmentCount = Math.max(3, Math.floor(segments))
+  const positions = useMemo(() => {
+    // LineLoop 按顶点顺序连线并自动闭合；不能使用 RingGeometry 的三角面索引。
+    const points = new Float32Array(segmentCount * 3)
+    for (let i = 0; i < segmentCount; i++) {
+      const theta = (i / segmentCount) * Math.PI * 2
+      points[i * 3] = Math.cos(theta) * radius
+      points[i * 3 + 1] = Math.sin(theta) * radius
+    }
+    return points
+  }, [radius, segmentCount])
 
   // 外层 group — Y 轴进动（黄道面法线）
   const outerGroupRef = useRef<Group>(null)
@@ -88,7 +98,10 @@ export default function OrbitalRing({ config, speedScale = 1.0, color: colorOver
         scale={[stretchX, 1, 1]}
       >
         <lineLoop renderOrder={2}>
-          <ringGeometry args={[innerRadius, radius, segments]} />
+          {/* 参数变化时重建几何体，避免沿用旧包围体；资源由 R3F 管理释放。 */}
+          <bufferGeometry key={`${radius}:${segmentCount}`}>
+            <bufferAttribute attach="attributes-position" args={[positions, 3]} />
+          </bufferGeometry>
           <lineBasicMaterial
             ref={matRef}
             color={colorOverride ?? configColor}

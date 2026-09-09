@@ -23,10 +23,8 @@ export const SCROLL_RIG = {
 // 援引：Murray & Dermott, Solar System Dynamics, §2.8
 // ============================================================
 export interface OrbitalRingConfig {
-  /** 轨道外半径 */
+  /** 拉伸前的轨道线半径 */
   radius: number
-  /** 轨道内半径，默认 radius - 0.04 */
-  innerRadius?: number
   /** 黄道面倾角 (rad) */
   inclination: number
   /** 偏心率 0–1（0=正圆） */
@@ -39,7 +37,7 @@ export interface OrbitalRingConfig {
   color?: string
   /** 最大透明度 0–1，默认 0.28 */
   maxOpacity?: number
-  /** 环分段数，默认 96 */
+  /** 闭合轨道线分段数，默认 256，向下取整且至少为 3 */
   segments?: number
 }
 
