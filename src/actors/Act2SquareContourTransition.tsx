@@ -557,10 +557,6 @@ export default function Act2SquareContourTransition() {
 
     if (scrollProgress <= TIMELINE.squareBfsWave.end) {
       if (circleMorph < 1) {
-        const revealPhase = Math.max(0, Math.min(1,
-          (scrollProgress - TIMELINE.squareBfsWave.start) /
-          (TIMELINE.squareCircleMorph.start - TIMELINE.squareBfsWave.start),
-        ))
         drawLogicalWave(
           ctx,
           getSquareWaveBandFrame(waveView.generation),
@@ -570,14 +566,6 @@ export default function Act2SquareContourTransition() {
           waveView.logicalSpacing,
           waveView.logicalSquareSize,
           1 - circleMorph,
-        )
-        pixelOrbitRef.current ??= createPixelOrbitRevealRenderer()
-        pixelOrbitRef.current(
-          ctx, width, height, initialCenterX, initialCenterY,
-          waveView.screenRadius,
-          waveView.logicalSpacing * waveView.zoom,
-          waveView.logicalSquareSize * waveView.zoom,
-          revealPhase,
         )
       }
       if (circleMorph > 0) {
@@ -594,6 +582,17 @@ export default function Act2SquareContourTransition() {
           circleMorph,
         )
       }
+    }
+
+    if (scrollProgress > TIMELINE.geometricOrbitExpand.start && scrollProgress < TIMELINE.geometricOrbitRetract.end) {
+      pixelOrbitRef.current ??= createPixelOrbitRevealRenderer()
+      pixelOrbitRef.current(
+        ctx, width, height, initialCenterX, initialCenterY,
+        waveView.screenRadius,
+        waveView.logicalSpacing * waveView.zoom,
+        waveView.logicalSquareSize * waveView.zoom,
+        scrollProgress, circleMorph,
+      )
     }
 
     const target = targetAnchor?.value
