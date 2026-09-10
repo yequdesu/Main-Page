@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import type { FocusEvent } from '../types'
 
 // ============================================================
 // Slice 类型
@@ -8,6 +9,7 @@ interface ScrollSlice {
 }
 
 interface FocusSlice {
+  focusEvent: FocusEvent | null
   focusedPlanetIdx: number
   hoveredIdx: number
   /** null 表示新一轮聚焦尚未由场景时钟开始计时。 */
@@ -25,7 +27,7 @@ interface FocusActions {
   setFocusedPlanet: (idx: number) => void
   setHoveredIdx: (idx: number) => void
   setFocusStartTime: (t: number) => void
-  clearFocus: () => void
+  clearFocus: (reason?: 'manual' | 'timeout' | 'scene') => void
 }
 
 // ============================================================
@@ -72,6 +74,7 @@ export const useScrollStore = create<ScrollStore>()((set) => ({
   setScrollProgress: (sp) => set({ scrollProgress: sp }),
 
   // ---- Focus slice ----
+  focusEvent: null,
   focusedPlanetIdx: -1,
   hoveredIdx: -1,
   focusStartTime: null,
@@ -84,10 +87,11 @@ export const useScrollStore = create<ScrollStore>()((set) => ({
   labelsGateOpen: false,
   dayNight: 'night' as DayNight,
 
-  setFocusedPlanet: (idx) => set({ focusedPlanetIdx: idx, focusStartTime: null }),
+  setFocusedPlanet: (idx) => set({ focusedPlanetIdx: idx, focusStartTime: null, focusEvent: { type: 'focus', planetIdx: idx } }),
   setHoveredIdx: (idx) => set({ hoveredIdx: idx }),
   setFocusStartTime: (t) => set({ focusStartTime: t }),
-  clearFocus: () => set({
+  clearFocus: (reason = 'manual') => set({
+    focusEvent: { type: 'exit', reason },
     focusedPlanetIdx: -1,
     hoveredIdx: -1,
     focusStartTime: null,

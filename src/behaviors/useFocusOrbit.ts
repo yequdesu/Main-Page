@@ -1,6 +1,7 @@
 import { PerspectiveCamera, Vector3 } from 'three'
 import type { ParticleData } from '../types'
 import { SCENE_CENTER_Z } from '../r3f/ScrollRig'
+import { FOCUS_TIMING, type FocusChannels } from './useFocusTimeline'
 import { createFocusPoseCalculator, focusFieldOfView } from './focusPose'
 
 const PHASE_STEPS = 180
@@ -8,6 +9,17 @@ const TAU = Math.PI * 2
 const COMMON_SPEED = -0.015
 const DRIFT_AMPLITUDE = 0.025
 const DRIFT_FREQUENCY = 0.12
+const ease = (u: number) => u * u * u * (10 + u * (-15 + 6 * u))
+const easeDerivative = (u: number) => 30 * u * u * (1 - u) * (1 - u)
+const settleIntegral = (u: number) => u * u * u - 0.5 * u * u * u * u
+interface ReturnPlan {
+  initialAngle: number
+  initialSpeed: number
+  settleDuration: number
+  gap: number
+  winding: number
+  duration: number
+}
 const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v))
 const shortest = (angle: number) => Math.atan2(Math.sin(angle), Math.cos(angle))
 const sq = (value: number) => value * value
@@ -82,50 +94,109 @@ export function chooseFocusPhases(data: ParticleData[], focused: number, aspect:
   return result
 }
 
-/** 只改变 orbitAngle；半径、轨道平面、模型缩放与相机跟随关系保持原有职责。 */
+/** 仅写入运动参数和角度，阶段计时与进度由聚焦时间轴提供。 */
 export function createFocusOrbitController(geometry: FocusGeometry) {
   const speeds = [0, 0, 0]
+  const references = [0, 0, 0]
+  const starts = [0, 0, 0]
+  const initialSpeeds = [0, 0, 0]
+  const offsets = [0, 0, 0]
+  const windings = [0, 0, 0]
+  const returns: (ReturnPlan | null)[] = [null, null, null]
   let initialized = false
-  let returning = false
   let active = -1
-  let aspect = 0
-  let startedAt = 0
   let phases = [0, 0, 0]
+  const initialize = (data: ParticleData[]) => {
+    if (initialized) return
+    data.forEach((d, i) => {
+      references[i] = d.orbitAngle
+      speeds[i] = d._baseSpeed * (1 - d.hoverFactor * 0.8)
+    })
+    initialized = true
+  }
   return {
     speeds,
-    step(data: ParticleData[], focused: number, camera: PerspectiveCamera, time: number, delta: number, envelopes: readonly number[], distanceScale: number, baseFov = 40) {
+    focus(data: ParticleData[], track: number, camera: PerspectiveCamera, envelopes: readonly number[], distanceScale: number, baseFov = 40) {
+      initialize(data)
+      active = track
+      returns.fill(null)
+      phases = chooseFocusPhases(data, track, camera.aspect, focusFieldOfView(camera.aspect, baseFov), envelopes, distanceScale, geometry)
+      data.forEach((d, i) => {
+        starts[i] = d.orbitAngle
+        initialSpeeds[i] = speeds[i]
+        const target = data[track].orbitAngle + phases[i] + DRIFT_AMPLITUDE * Math.sin(i * 2.1)
+        offsets[i] = shortest(d.orbitAngle - target)
+        windings[i] = d.orbitAngle - target - offsets[i]
+      })
+    },
+    exit(data: ParticleData[], settleDuration: number) {
+      initialize(data)
+      active = -1
+      return data.map((d, i) => {
+        // 预估制动结束的位置，使时间轴在退出事件发生时即可排好各轨道回位时长。
+        const natural = d._baseSpeed
+        const direction = Math.sign(natural) || -1
+        const settledAngle = d.orbitAngle + (speeds[i] + natural) * settleDuration / 2
+        const reference = references[i] + natural * settleDuration
+        const difference = reference - settledAngle
+        const gap = Math.abs(shortest(difference)) < 1e-8 ? 0 : ((direction * difference) % TAU + TAU) % TAU
+        const duration = Math.max(FOCUS_TIMING.returnMin, 1.875 * gap / FOCUS_TIMING.returnExtraSpeed)
+        returns[i] = { initialAngle: d.orbitAngle, initialSpeed: speeds[i], settleDuration,
+          gap, winding: settledAngle + direction * gap - reference, duration }
+        return duration
+      })
+    },
+    step(data: ParticleData[], delta: number, channels: FocusChannels) {
+      initialize(data)
       const dt = clamp(delta, 0, 0.1)
-      if (!initialized) {
-        data.forEach((d, i) => { speeds[i] = d._baseSpeed * (1 - d.hoverFactor * 0.8) })
-        initialized = true
-      }
-      if (focused !== active || (focused >= 0 && Math.abs(aspect - camera.aspect) > 0.02)) {
-        returning = focused < 0 && active >= 0
-        active = focused
-        aspect = camera.aspect
-        startedAt = time
-        if (active >= 0) phases = chooseFocusPhases(data, active, camera.aspect, focusFieldOfView(camera.aspect, baseFov), envelopes, distanceScale, geometry)
-      }
-      if (active < 0) {
+      data.forEach((d, i) => {
+        references[i] += (channels.mode === 'focus' || returns[i] ? d._baseSpeed : d._baseSpeed * (1 - d.hoverFactor * 0.8)) * dt
+      })
+      if (channels.mode === 'focus' && active >= 0) {
+        const elapsed = channels.elapsed
+        const speedU = Math.min(1, elapsed / FOCUS_TIMING.speed)
+        const v0 = initialSpeeds[active]
+        const speedEase = speedU * speedU * (3 - 2 * speedU)
+        speeds[active] = v0 + (COMMON_SPEED - v0) * speedEase
+        data[active].orbitAngle = starts[active] + v0 * Math.min(elapsed, FOCUS_TIMING.speed)
+          + (COMMON_SPEED - v0) * FOCUS_TIMING.speed * settleIntegral(speedU)
+          + COMMON_SPEED * Math.max(0, elapsed - FOCUS_TIMING.speed)
+        const u = channels.align
         data.forEach((d, i) => {
-          const natural = d._baseSpeed * (1 - d.hoverFactor * 0.8)
-          speeds[i] = returning ? speeds[i] + (natural - speeds[i]) * (1 - Math.exp(-dt / 0.65)) : natural
-          d.orbitAngle += speeds[i] * dt
+          if (i === active) return
+          const wave = elapsed * DRIFT_FREQUENCY + i * 2.1
+          const drift = DRIFT_AMPLITUDE * Math.sin(wave)
+          const driftSpeed = DRIFT_AMPLITUDE * DRIFT_FREQUENCY * Math.cos(wave)
+          const relativeSpeed = initialSpeeds[i] - v0 - DRIFT_AMPLITUDE * DRIFT_FREQUENCY * Math.cos(i * 2.1)
+          // Hermite 速度项保留打断瞬间的速度，起终点位置由原轨道相位决定。
+          const h = u * (1 - u) ** 3
+          const hPrime = (1 - u) ** 2 * (1 - 4 * u)
+          d.orbitAngle = data[active].orbitAngle + phases[i] + drift + windings[i]
+            + offsets[i] * (1 - ease(u)) + relativeSpeed * FOCUS_TIMING.align * h
+          speeds[i] = speeds[active] + driftSpeed - offsets[i] * easeDerivative(u) / FOCUS_TIMING.align + relativeSpeed * hPrime
         })
-        if (returning && data.every((d, i) => Math.abs(speeds[i] - d._baseSpeed * (1 - d.hoverFactor * 0.8)) < 1e-5)) returning = false
         return
       }
-      speeds[active] += (COMMON_SPEED - speeds[active]) * (1 - Math.exp(-dt / 0.65))
-      data[active].orbitAngle += speeds[active] * dt
       data.forEach((d, i) => {
-        if (i === active) return
-        const wave = (time - startedAt) * DRIFT_FREQUENCY + i * 2.1
-        const drift = DRIFT_AMPLITUDE * Math.sin(wave)
-        const driftSpeed = DRIFT_AMPLITUDE * DRIFT_FREQUENCY * Math.cos(wave)
-        const error = shortest(data[active].orbitAngle + phases[i] + drift - d.orbitAngle)
-        const desired = speeds[active] + driftSpeed + clamp(error * 2.8, -1.8, 1.8)
-        speeds[i] += (desired - speeds[i]) * (1 - Math.exp(-dt / 0.12))
-        d.orbitAngle += speeds[i] * dt
+        const plan = returns[i]
+        if (!plan) {
+          speeds[i] = d._baseSpeed * (1 - d.hoverFactor * 0.8)
+          d.orbitAngle += speeds[i] * dt
+          return
+        }
+        const natural = d._baseSpeed
+        const direction = Math.sign(natural) || -1
+        if (channels.settle < 1) {
+          const u = channels.settle
+          d.orbitAngle = plan.initialAngle + plan.initialSpeed * plan.settleDuration * u
+            + (natural - plan.initialSpeed) * plan.settleDuration * settleIntegral(u)
+          speeds[i] = plan.initialSpeed + (natural - plan.initialSpeed) * u * u * (3 - 2 * u)
+        } else {
+          const u = channels.returns[i]
+          d.orbitAngle = references[i] + plan.winding - direction * plan.gap * (1 - ease(u))
+          speeds[i] = natural + direction * plan.gap / plan.duration * easeDerivative(u)
+          if (u === 1) returns[i] = null
+        }
       })
     },
   }

@@ -1,3 +1,4 @@
+import { FocusAnimationProvider } from '../../r3f/FocusAnimationContext'
 import { afterEach, describe, expect, it } from 'vitest'
 import ReactThreeTestRenderer from '@react-three/test-renderer'
 import { Color, LineLoop, type LineBasicMaterial } from 'three'
@@ -41,7 +42,7 @@ function expectOrderedCircle(line: LineLoop, radius: number) {
 describe('OrbitalRing', () => {
   it.each([7.8, 9.4, 11])('半径 %s 的轨道沿单一圆周连续闭合', async radius => {
     const renderer = await ReactThreeTestRenderer.create(
-      <OrbitalRing config={{ ...config, radius }} />,
+      <FocusAnimationProvider><OrbitalRing config={{ ...config, radius }} /></FocusAnimationProvider>,
     )
     try {
       const line = renderer.scene.children[0].instance.children[0].children[0] as LineLoop
@@ -52,12 +53,12 @@ describe('OrbitalRing', () => {
   })
 
   it('调整半径和分段时更新轨道与包围体', async () => {
-    const renderer = await ReactThreeTestRenderer.create(<OrbitalRing config={config} />)
+    const renderer = await ReactThreeTestRenderer.create(<FocusAnimationProvider><OrbitalRing config={config} /></FocusAnimationProvider>)
     try {
       const root = renderer.scene.children[0].instance
       const line = root.children[0].children[0] as LineLoop
       line.geometry.computeBoundingSphere()
-      await renderer.update(<OrbitalRing config={{ ...config, radius: 11, segments: 128 }} />)
+      await renderer.update(<FocusAnimationProvider><OrbitalRing config={{ ...config, radius: 11, segments: 128 }} /></FocusAnimationProvider>)
       expectOrderedCircle(line, 11)
       expect(line.geometry.getAttribute('position').count).toBe(128)
       expect(line.geometry.boundingSphere).toBeNull()
@@ -70,7 +71,7 @@ describe('OrbitalRing', () => {
 
   it('保留倾角、拉伸、进动、冻结、滚动显隐和主题颜色覆盖', async () => {
     useScrollStore.setState({ scrollProgress: 0.85 })
-    const renderer = await ReactThreeTestRenderer.create(<OrbitalRing config={config} />)
+    const renderer = await ReactThreeTestRenderer.create(<FocusAnimationProvider><OrbitalRing config={config} /></FocusAnimationProvider>)
     try {
       const root = renderer.scene.children[0].instance
       const plane = root.children[0]
@@ -88,7 +89,7 @@ describe('OrbitalRing', () => {
 
       const frozenPhase = root.rotation.y
       const geometry = line.geometry
-      await renderer.update(<OrbitalRing config={config} speedScale={0} color="#123456" />)
+      await renderer.update(<FocusAnimationProvider><OrbitalRing config={config} speedScale={0} color="#123456" /></FocusAnimationProvider>)
       useScrollStore.setState({ scrollProgress: 1 })
       await renderer.advanceFrames(1, 0.5)
       expect(root.rotation.y).toBeCloseTo(frozenPhase)

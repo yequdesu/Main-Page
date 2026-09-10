@@ -5,6 +5,8 @@ import { useScrollStore } from '../stores/scrollStore'
 import { useRealtimeStore, type PlanetCoords } from '../stores/realtimeStore'
 import { useFrameCache } from '../behaviors/useFrameCache'
 import { CENTRAL_STAR_CORE_RADIUS } from './assets/centralStar'
+import { createFocusTimeline, type FocusEvent } from '../behaviors/useFocusTimeline'
+import { useFocusAnimation } from '../r3f/FocusAnimationContext'
 import { createFocusOrbitController } from '../behaviors/useFocusOrbit'
 import { calcOrbitPosition } from '../behaviors/useOrbitPosition'
 import { calcAppearance } from '../behaviors/useAppearanceFade'
@@ -51,6 +53,7 @@ export default function Planets() {
   const { camera, gl, invalidate } = useThree()
   const { project } = useScreenProjection(_planetWorldPositions)
   const { shouldSkip } = useFrameCache()
+  const focusChannels = useFocusAnimation()
   const baseFov = useRef((camera as PerspectiveCamera).fov).current
 
   // Pre-allocated reusable objects
@@ -137,8 +140,6 @@ export default function Planets() {
       }
     }
 
-    _mainPlanetIndices = planetIndices
-
     return {
       mainPlanets: assets.map(asset => asset.core), assets,
       dispose: () => {
@@ -149,10 +150,44 @@ export default function Planets() {
     }
   }, [])
 
+  // 发布已提交实例的索引，避免 StrictMode 的重复构造覆盖事件目标映射。
+  useEffect(() => { _mainPlanetIndices = mainPlanetIndices }, [mainPlanetIndices])
   useEffect(() => () => dispose(), [dispose])
   const focusOrbit = useMemo(() => createFocusOrbitController({ planetRadius: PLANET_BASE_RADIUS, starRadius: CENTRAL_STAR_CORE_RADIUS }), [])
   const orbitBodies = useMemo(() => mainPlanetIndices.map(i => particleData[i]), [mainPlanetIndices, particleData])
   const envelopes = useMemo(() => assets.map(asset => asset.visualRadiusScale), [assets])
+
+  const focusTimeline = useRef<ReturnType<typeof createFocusTimeline> | null>(null)
+  const pendingFocusEvent = useRef<FocusEvent | null>(null)
+  const sceneTime = useRef(0)
+  const focusAspect = useRef((camera as PerspectiveCamera).aspect)
+  useEffect(() => {
+    const timeline = createFocusTimeline(focusChannels, {
+      focus(track) {
+        focusAspect.current = (camera as PerspectiveCamera).aspect
+        focusOrbit.focus(orbitBodies, track, camera as PerspectiveCamera, envelopes, _planetFocusDistanceScales[track], baseFov)
+        useScrollStore.getState().setFocusStartTime(sceneTime.current)
+      },
+      exit: settle => focusOrbit.exit(orbitBodies, settle),
+      timeout: () => useScrollStore.getState().clearFocus('timeout'),
+    })
+    focusTimeline.current = timeline
+    const initial = useScrollStore.getState()
+    pendingFocusEvent.current = initial.focusedPlanetIdx >= 0
+      ? { type: 'focus', planetIdx: initial.focusedPlanetIdx } : null
+    const unsubscribe = useScrollStore.subscribe((state, previous) => {
+      if (state.focusEvent !== previous.focusEvent) {
+        pendingFocusEvent.current = state.focusEvent
+        invalidate()
+      }
+    })
+    return () => {
+      unsubscribe()
+      timeline.dispose()
+      focusTimeline.current = null
+      pendingFocusEvent.current = null
+    }
+  }, [camera, baseFov, focusChannels, focusOrbit, orbitBodies, envelopes, invalidate])
 
   // ---- Per-frame planet animation ----
   useFrame((state, delta) => {
@@ -170,8 +205,8 @@ export default function Planets() {
 
     // 行星始终在轨道 XZ，不参与 dust；从 VISIBLE_START 起由上方下落。
     const VISIBLE_START = 0.60
-    // 静止滚动时仍需驱动卫星公转；隐藏阶段不为行星请求连续帧。
-    if (sp >= VISIBLE_START) invalidate()
+    // 可见时驱动公转；离开场景后仍完成时间轴上的镜头退出与回位，再停止请求帧。
+    if (sp >= VISIBLE_START || focusChannels.mode !== 'idle') invalidate()
     const wc = getWindChimeProgress(sp)
     const inWindChime = wc.active
     const orbitSmooth3 = 1.0  // 始终轨道位置，永不 dust-lerp
@@ -179,8 +214,26 @@ export default function Planets() {
     const cx = 0, cy = -1.0, cz = SCENE_CENTER_Z
     const { hoveredIdx, focusedPlanetIdx } = useScrollStore.getState()
 
-    const focusedTrack = sp >= GRID_SHIFT_START ? mainPlanetIndices.indexOf(focusedPlanetIdx) : -1
-    focusOrbit.step(orbitBodies, focusedTrack, camera as PerspectiveCamera, time, delta, envelopes, _planetFocusDistanceScales[focusedTrack] ?? 1, baseFov)
+    sceneTime.current = time
+    const focusedTrack = mainPlanetIndices.indexOf(focusedPlanetIdx)
+    if (focusedPlanetIdx >= 0 && (sp < GRID_SHIFT_START || focusedTrack < 0)) {
+      useScrollStore.getState().clearFocus('scene')
+    }
+    const event = pendingFocusEvent.current
+    pendingFocusEvent.current = null
+    if (event) {
+      const track = event.type === 'focus' ? mainPlanetIndices.indexOf(event.planetIdx) : -1
+      if (event.type === 'exit' || (sp >= GRID_SHIFT_START && track >= 0)) focusTimeline.current?.dispatch(event, track)
+      else {
+        focusTimeline.current?.dispatch({ type: 'exit', reason: 'scene' })
+        useScrollStore.getState().clearFocus('scene')
+      }
+    } else if (focusChannels.mode === 'focus' && Math.abs(focusAspect.current - (camera as PerspectiveCamera).aspect) > 0.02) {
+      // 窗口比例改变也通过事件重建构图，从当前姿态衔接。
+      focusTimeline.current?.dispatch({ type: 'focus', planetIdx: focusedPlanetIdx }, focusedTrack)
+    }
+    focusTimeline.current?.advance(delta)
+    focusOrbit.step(orbitBodies, delta, focusChannels)
 
     // Focused planet world position for occlusion
     let focusedPlanetPos: Vector3 | null = null
@@ -308,7 +361,7 @@ export default function Planets() {
     if (hoverResult.currentIdx !== useScrollStore.getState().hoveredIdx) {
       useScrollStore.getState().setHoveredIdx(hoverResult.currentIdx)
     }
-  })
+  }, -1)
 
   // ---- Mouse move for hover NDC tracking ----
   const _mouseNDC = useRef({ x: 999, y: 999 })

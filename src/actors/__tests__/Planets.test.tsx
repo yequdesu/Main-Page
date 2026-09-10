@@ -1,7 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { useFrame } from '@react-three/fiber'
+import { extend, useFrame } from '@react-three/fiber'
 import ReactThreeTestRenderer from '@react-three/test-renderer'
-import { Mesh, MeshStandardMaterial, Vector3 } from 'three'
+import { Line, Mesh, MeshStandardMaterial, Vector3 } from 'three'
+import { FocusAnimationProvider, useFocusAnimation } from '../../r3f/FocusAnimationContext'
+import { StrictMode } from 'react'
+import Act3ContentPhase from '../../acts/Act3ContentPhase'
+import type { FocusChannels } from '../../behaviors/useFocusTimeline'
 import Planets, { _mainPlanetIndices, _planetWorldPositions } from '../Planets'
 import { useScrollStore } from '../../stores/scrollStore'
 import { useRealtimeStore } from '../../stores/realtimeStore'
@@ -10,6 +14,8 @@ import { PLANET_BASE_RADIUS } from '../assets/planet'
 import { SATELLITE } from '../assets/satellitePlanet'
 import { createPlanetCommandHandler } from '../../terminal/planetCommands'
 import { PLANET_LINKS } from '../../types'
+
+extend({ ThreeLine: Line })
 
 const initialScroll = useScrollStore.getState()
 const initialRealtime = useRealtimeStore.getState()
@@ -39,8 +45,62 @@ function TestClock() {
 }
 
 describe('主页行星类型', () => {
+  it('业务事件驱动同一会话：同目标重入、切换、超时、场景退出及卸载清理', async () => {
+    useScrollStore.setState({ scrollProgress: 1 })
+    let channels!: FocusChannels
+    function Observe() { channels = useFocusAnimation(); return null }
+    const renderer = await ReactThreeTestRenderer.create(<StrictMode><FocusAnimationProvider>
+      <TestClock /><Observe /><Planets /><Act3ContentPhase visible />
+    </FocusAnimationProvider></StrictMode>)
+    const frames = async (count: number) => {
+      for (let f = 0; f < count; f++) await renderer.advanceFrames(1, 1 / 60)
+    }
+    try {
+      await frames(1)
+      const store = useScrollStore.getState()
+      store.setFocusedPlanet(_mainPlanetIndices[1])
+      await frames(60)
+      expect(channels.mode).toBe('focus')
+      expect(channels.track).toBe(1)
+      expect(channels.camera).toBeGreaterThan(0)
+      expect(channels.orbitFocus).toBeGreaterThan(0)
+      const firstRevision = channels.revision
+      store.setFocusedPlanet(_mainPlanetIndices[1])
+      await frames(1)
+      expect(channels.revision).toBeGreaterThan(firstRevision)
+      expect(channels.elapsed).toBeLessThan(0.1)
+      store.setFocusedPlanet(_mainPlanetIndices[2])
+      await frames(1799)
+      expect(useScrollStore.getState().focusedPlanetIdx).toBe(_mainPlanetIndices[2])
+      await frames(2)
+      expect(useScrollStore.getState().focusedPlanetIdx).toBe(-1)
+      expect(useScrollStore.getState().focusEvent).toEqual({ type: 'exit', reason: 'timeout' })
+      expect(channels.mode).toBe('exit')
+      await frames(330)
+      expect(channels.mode).toBe('idle')
+      store.setFocusedPlanet(_mainPlanetIndices[0])
+      await frames(20)
+      store.clearFocus()
+      await frames(55)
+      store.setFocusedPlanet(_mainPlanetIndices[1])
+      await frames(10)
+      expect(channels.mode).toBe('focus')
+      expect(channels.track).toBe(1)
+      useScrollStore.setState({ scrollProgress: 0.5 })
+      await frames(1)
+      expect(useScrollStore.getState().focusEvent).toEqual({ type: 'exit', reason: 'scene' })
+      useScrollStore.setState({ scrollProgress: 1 })
+      store.setFocusedPlanet(999)
+      await frames(1)
+      expect(useScrollStore.getState().focusedPlanetIdx).toBe(-1)
+    } finally { await renderer.unmount() }
+    const revision = channels.revision
+    useScrollStore.getState().setFocusedPlanet(_mainPlanetIndices[0])
+    expect(channels.revision).toBe(revision)
+  })
+
   it('随机粒子索引下仍按内、中、外轨道对应普通、卫星、带环模型及导航', async () => {
-    const renderer = await ReactThreeTestRenderer.create(<><TestClock /><Planets /></>)
+    const renderer = await ReactThreeTestRenderer.create(<FocusAnimationProvider><TestClock /><Planets /></FocusAnimationProvider>)
     try {
       const roots = renderer.scene.children[0].instance.children
       expect(roots.map(root => root.name)).toEqual(['行星 1', '带卫星行星 2', '带环行星 3'])
@@ -69,7 +129,7 @@ describe('主页行星类型', () => {
 
   it('卫星随主体移动缩放且持续公转，环层跟随主体并随资产释放', async () => {
     useScrollStore.setState({ scrollProgress: 1 })
-    const renderer = await ReactThreeTestRenderer.create(<><TestClock /><Planets /></>)
+    const renderer = await ReactThreeTestRenderer.create(<FocusAnimationProvider><TestClock /><Planets /></FocusAnimationProvider>)
     const roots = renderer.scene.children[0].instance.children
     const core = roots[1].getObjectByName('planet_1') as Mesh
     const moon = roots[1].getObjectByName('卫星_1') as Mesh

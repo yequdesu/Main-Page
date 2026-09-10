@@ -1,3 +1,4 @@
+import { FocusAnimationProvider } from '../../r3f/FocusAnimationContext'
 import { describe, it, expect, beforeEach } from 'vitest'
 import React from 'react'
 import ReactThreeTestRenderer from '@react-three/test-renderer'
@@ -136,7 +137,7 @@ describe('R3F Component Scene Graph', () => {
     const { default: OrbitRings } = await import('../../actors/OrbitRings')
 
     const renderer = await ReactThreeTestRenderer.create(
-      <OrbitRings />,
+      <FocusAnimationProvider><OrbitRings /></FocusAnimationProvider>,
     )
 
     const graph = renderer.toGraph()

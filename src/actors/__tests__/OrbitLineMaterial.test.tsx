@@ -1,3 +1,7 @@
+import { useEffect, useMemo } from 'react'
+import { useFrame } from '@react-three/fiber'
+import { FocusAnimationProvider, useFocusAnimation } from '../../r3f/FocusAnimationContext'
+import { createFocusTimeline } from '../../behaviors/useFocusTimeline'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import ReactThreeTestRenderer from '@react-three/test-renderer'
 import { Line, ShaderLib, Vector3, type LineBasicMaterial } from 'three'
@@ -14,12 +18,31 @@ vi.mock('../Planets', () => ({
 const initialState = useScrollStore.getState()
 afterEach(() => useScrollStore.setState(initialState, true))
 
+function TestTimeline() {
+  const channels = useFocusAnimation()
+  const driver = useMemo(() => {
+    let target = -1
+    const timeline = createFocusTimeline(channels, { focus() {}, exit: () => [2, 3, 4], timeout() {} })
+    return { timeline, frame(delta: number) {
+      const store = useScrollStore.getState()
+      const next = store.scrollProgress >= 0.9 ? store.focusedPlanetIdx : -1
+      if (next !== target) {
+        timeline.dispatch(next < 0 ? { type: 'exit', reason: 'manual' } : { type: 'focus', planetIdx: next }, [10, 20, 30].indexOf(next))
+        target = next
+      }
+      timeline.advance(delta)
+    } }
+  }, [channels])
+  useEffect(() => () => driver.timeline.dispose(), [driver])
+  useFrame((_, delta) => driver.frame(delta), -1)
+  return null
+}
 function Lines() {
-  return <>
+  return <FocusAnimationProvider><TestTimeline />
     {[0, 1, undefined].map((trackIdx, i) => <threeLine key={i}>
       <OrbitLineMaterial color="#cbd5e1" maxOpacity={0.35} appearStart={0.94} trackIdx={trackIdx} />
     </threeLine>)}
-  </>
+  </FocusAnimationProvider>
 }
 
 describe('轨道聚焦视觉', () => {

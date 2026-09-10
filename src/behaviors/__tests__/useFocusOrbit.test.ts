@@ -1,6 +1,7 @@
+import { createOrbitHarness } from './focusHarness'
 import { describe, expect, it } from 'vitest'
 import { PerspectiveCamera, Vector3 } from 'three'
-import { chooseFocusPhases, createFocusOrbitController } from '../useFocusOrbit'
+import { chooseFocusPhases } from '../useFocusOrbit'
 import { createFocusPoseCalculator, focusFieldOfView } from '../focusPose'
 import { ORBIT_RADII, SCENE_CENTER_Z } from '../../r3f/ScrollRig'
 import type { ParticleData } from '../../types'
@@ -54,7 +55,7 @@ describe('原轨道上的聚焦构图', () => {
   it.each([30, 60, 120])('每秒 %i 帧：快速调相、切换目标后重新收敛，角速度与步长稳定', (fps) => {
     const data = bodies()
     const camera = new PerspectiveCamera(40, 16 / 9)
-    const controller = createFocusOrbitController(geometry)
+    const controller = createOrbitHarness(geometry)
     const error = (a: number) => Math.abs(Math.atan2(Math.sin(a), Math.cos(a)))
     for (const [start, track] of [[0, 0], [6, 2], [12, 1]]) {
       const phases = chooseFocusPhases(data, track, camera.aspect, focusFieldOfView(camera.aspect, 40), envelopes, scales[track], geometry)
@@ -70,12 +71,12 @@ describe('原轨道上的聚焦构图', () => {
     }
   })
 
-  it('到位后角速度近同步且有小幅差异，退出平滑恢复原角速度，不倒回旧相位', () => {
+  it('到位后角速度近同步且有小幅差异，退出先平滑衔接，再恢复原角速度', () => {
     const data = bodies()
     const originalRadii = data.map(d => d.orbitR)
     const originalSpeed = data.map(d => d._baseSpeed)
     const camera = new PerspectiveCamera(40, 16 / 9)
-    const controller = createFocusOrbitController(geometry)
+    const controller = createOrbitHarness(geometry)
     for (let f = 0; f < 1200; f++) controller.step(data, 1, camera, f / 60, 1 / 60, envelopes, 1.25)
     const speeds = [...controller.speeds]
     expect(Math.max(...speeds) - Math.min(...speeds)).toBeLessThan(0.01)

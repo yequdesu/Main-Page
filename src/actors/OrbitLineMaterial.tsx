@@ -1,9 +1,10 @@
 import { useMemo, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import { Vector4, type LineBasicMaterial } from 'three'
+import { useFocusAnimation } from '../r3f/FocusAnimationContext'
 import { useScrollStore } from '../stores/scrollStore'
-import { clamped, smoothstep, GRID_SHIFT_START } from '../r3f/ScrollRig'
-import { _mainPlanetIndices, _planetWorldPositions, _planetCoreWorldRadii } from './Planets'
+import { clamped, smoothstep } from '../r3f/ScrollRig'
+import { _planetWorldPositions, _planetCoreWorldRadii } from './Planets'
 
 interface OrbitLineMaterialProps {
   color: string
@@ -15,6 +16,7 @@ interface OrbitLineMaterialProps {
 
 /** 仅用于导航轨道线；保留 Three 内置线材质的主题、雾和深度测试。 */
 export default function OrbitLineMaterial({ color, maxOpacity, appearStart, trackIdx }: OrbitLineMaterialProps) {
+  const focusChannels = useFocusAnimation()
   const materialRef = useRef<LineBasicMaterial>(null)
   const state = useMemo(() => ({
     focus: { value: 0 },
@@ -48,15 +50,10 @@ export default function OrbitLineMaterial({ color, maxOpacity, appearStart, trac
     `)
   }, [state])
 
-  useFrame((_frame, delta) => {
-    const { scrollProgress: sp, focusedPlanetIdx } = useScrollStore.getState()
-    const focusedTrack = _mainPlanetIndices.indexOf(focusedPlanetIdx)
-    const focused = sp >= GRID_SHIFT_START && focusedPlanetIdx >= 0 && focusedTrack >= 0
-    // 与相机衔接同步渐变；切换目标和退出聚焦都沿用当前透明度，不产生跳变。
-    const alpha = 1 - Math.exp(-Math.min(delta, 0.1) / 0.8)
-    state.focus.value += ((focused ? 1 : 0) - state.focus.value) * alpha
-    const visibility = !focused ? 1 : trackIdx === undefined ? 0.12 : trackIdx === focusedTrack ? 0.45 : 0.18
-    state.visibility += (visibility - state.visibility) * alpha
+  useFrame(() => {
+    const sp = useScrollStore.getState().scrollProgress
+    state.focus.value = focusChannels.orbitFocus
+    state.visibility = focusChannels.orbitVisibility[trackIdx ?? 3]
     for (let i = 0; i < 3; i++) {
       const center = _planetWorldPositions[i]
       if (center) state.spheres.value[i].set(center.x, center.y, center.z, _planetCoreWorldRadii[i])

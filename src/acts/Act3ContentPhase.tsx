@@ -1,11 +1,12 @@
-import { useCallback, useMemo, memo } from 'react'
+import { useMemo, memo } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
-import { type PerspectiveCamera, Vector3 } from 'three'
+import { type PerspectiveCamera } from 'three'
+import { useFocusAnimation } from '../r3f/FocusAnimationContext'
 import OrbitRings from '../actors/OrbitRings'
 import { useScrollStore } from '../stores/scrollStore'
 import { useFrameCache } from '../behaviors/useFrameCache'
 import { createCameraFocusController } from '../behaviors/useCameraFocus'
-import { _planetWorldPositions, _mainPlanetIndices, _planetFocusDistanceScales } from '../actors/Planets'
+import { _planetWorldPositions, _planetFocusDistanceScales } from '../actors/Planets'
 
 /**
  * Act 3 "ContentPhase" — 轨道环、相机聚焦。
@@ -20,19 +21,15 @@ const Act3ContentPhase = memo(function Act3ContentPhase({ visible }: Act3Props) 
   const { shouldSkip } = useFrameCache()
   const updateCameraFocus = useMemo(createCameraFocusController, [])
 
-  const getPlanetPosition = useCallback((particleIdx: number): Vector3 | null => {
-    const trackIdx = _mainPlanetIndices.indexOf(particleIdx)
-    if (trackIdx === -1) return null
-    return _planetWorldPositions[trackIdx] || null
-  }, [])
+  const focusChannels = useFocusAnimation()
 
   useFrame((state, _delta) => {
     const sp = useScrollStore.getState().scrollProgress
     const time = state.clock.elapsedTime
     if (shouldSkip(time, sp)) return
 
-    const trackIdx = _mainPlanetIndices.indexOf(useScrollStore.getState().focusedPlanetIdx)
-    updateCameraFocus(camera as PerspectiveCamera, sp, time, getPlanetPosition, _planetFocusDistanceScales[trackIdx] ?? 1)
+    const trackIdx = focusChannels.track
+    updateCameraFocus(camera as PerspectiveCamera, focusChannels, _planetWorldPositions[trackIdx] ?? null, _planetFocusDistanceScales[trackIdx] ?? 1)
   })
 
   return (
