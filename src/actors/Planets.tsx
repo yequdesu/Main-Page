@@ -4,6 +4,8 @@ import { Color, Vector3, type PerspectiveCamera } from 'three'
 import { useScrollStore } from '../stores/scrollStore'
 import { useRealtimeStore, type PlanetCoords } from '../stores/realtimeStore'
 import { useFrameCache } from '../behaviors/useFrameCache'
+import { CENTRAL_STAR_CORE_RADIUS } from './assets/centralStar'
+import { createFocusOrbitController } from '../behaviors/useFocusOrbit'
 import { calcOrbitPosition } from '../behaviors/useOrbitPosition'
 import { calcAppearance } from '../behaviors/useAppearanceFade'
 import { calcOcclusionFade } from '../behaviors/useOcclusionFade'
@@ -49,6 +51,7 @@ export default function Planets() {
   const { camera, gl, invalidate } = useThree()
   const { project } = useScreenProjection(_planetWorldPositions)
   const { shouldSkip } = useFrameCache()
+  const baseFov = useRef((camera as PerspectiveCamera).fov).current
 
   // Pre-allocated reusable objects
   const _scratch = useRef(new Vector3()).current
@@ -147,6 +150,9 @@ export default function Planets() {
   }, [])
 
   useEffect(() => () => dispose(), [dispose])
+  const focusOrbit = useMemo(() => createFocusOrbitController({ planetRadius: PLANET_BASE_RADIUS, starRadius: CENTRAL_STAR_CORE_RADIUS }), [])
+  const orbitBodies = useMemo(() => mainPlanetIndices.map(i => particleData[i]), [mainPlanetIndices, particleData])
+  const envelopes = useMemo(() => assets.map(asset => asset.visualRadiusScale), [assets])
 
   // ---- Per-frame planet animation ----
   useFrame((state, delta) => {
@@ -173,6 +179,9 @@ export default function Planets() {
     const cx = 0, cy = -1.0, cz = SCENE_CENTER_Z
     const { hoveredIdx, focusedPlanetIdx } = useScrollStore.getState()
 
+    const focusedTrack = sp >= GRID_SHIFT_START ? mainPlanetIndices.indexOf(focusedPlanetIdx) : -1
+    focusOrbit.step(orbitBodies, focusedTrack, camera as PerspectiveCamera, time, delta, envelopes, _planetFocusDistanceScales[focusedTrack] ?? 1, baseFov)
+
     // Focused planet world position for occlusion
     let focusedPlanetPos: Vector3 | null = null
     if (focusedPlanetIdx >= 0) {
@@ -189,7 +198,7 @@ export default function Planets() {
       d.hoverFactor += (targetHover - d.hoverFactor) * 0.10
 
       // Position
-      const { x: px, y: py, z: pz } = calcOrbitPosition(d, time, delta, cx, cy, cz, orbitSmooth3)
+      const { x: px, y: py, z: pz } = calcOrbitPosition(d, time, 0, cx, cy, cz, orbitSmooth3)
 
       // Distance for appearance
       _scratch.set(px, py, pz)
@@ -255,7 +264,7 @@ export default function Planets() {
       if (trackIdx >= 0 && trackIdx < 3) {
         coords[trackIdx] = { x: px, y: py, z: pz }
         angles[trackIdx] = d.orbitAngle
-        speeds[trackIdx] = d._baseSpeed ?? d.orbitSpeed
+        speeds[trackIdx] = focusOrbit.speeds[trackIdx]
       }
       for (let oi = 0; oi < 3; oi++) {
         orbAngles[oi] = (orbAngles[oi] + delta * store.orbitSpeeds[oi]) % (Math.PI * 2)

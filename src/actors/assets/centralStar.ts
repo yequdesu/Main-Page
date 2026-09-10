@@ -4,7 +4,7 @@ import { makeHaloTexture } from './haloTexture'
 
 // -- 几何 --
 /** 核心半径  ↑=恒星更大更亮  ↓=恒星更小更收敛 */
-const CORE_RADIUS = 0.42
+export const CENTRAL_STAR_CORE_RADIUS = 0.42
 const CORE_SEGMENTS = 32
 /** 内层光晕半径  ↑=近场散射更扩散  ↓=光晕紧贴核心 */
 const INNER_GLOW_RADIUS = 0.70
@@ -63,7 +63,7 @@ export function createCentralStarAsset() {
   const root = new Group()
   root.name = '中央恒星'
   root.renderOrder = 1
-  const core = new Mesh(new SphereGeometry(CORE_RADIUS, CORE_SEGMENTS, CORE_SEGMENTS), new MeshBasicMaterial({ color: CORE_COLOR }))
+  const core = new Mesh(new SphereGeometry(CENTRAL_STAR_CORE_RADIUS, CORE_SEGMENTS, CORE_SEGMENTS), new MeshBasicMaterial({ color: CORE_COLOR }))
   core.name = '恒星核心'
   const glow = new Mesh(new SphereGeometry(INNER_GLOW_RADIUS, INNER_GLOW_SEGMENTS, INNER_GLOW_SEGMENTS), new MeshBasicMaterial({ color: INNER_GLOW_COLOR, transparent: true, opacity: GLOW_OPACITY_COEFF, depthWrite: false }))
   glow.name = '内层光晕'

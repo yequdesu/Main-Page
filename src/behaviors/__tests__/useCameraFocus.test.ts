@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { PerspectiveCamera, Vector3 } from 'three'
+import { createFocusPoseCalculator, focusFieldOfView } from '../focusPose'
 import { createCameraFocusController } from '../useCameraFocus'
 import { useScrollStore } from '../../stores/scrollStore'
 import { SCENE_CENTER_Z } from '../../r3f/ScrollRig'
@@ -18,6 +19,32 @@ beforeEach(() => useScrollStore.getState().clearFocus())
 afterEach(() => useScrollStore.setState(initialStore, true))
 
 describe('相机聚焦会话', () => {
+  it('从抬高位置开始缓慢抬升，保留相对行星的距离与 1.25 倍距离比例', () => {
+    const pose = createFocusPoseCalculator()
+    const position = new Vector3(), lookAt = new Vector3()
+    for (const scale of [1, 1.25]) {
+      pose(planets[0], 0, scale, position, lookAt)
+      const initialHeight = position.y
+      expect(initialHeight).toBeGreaterThan(0.5)
+      expect(position.distanceTo(planets[0])).toBeCloseTo(Math.hypot(2.5, 2.2) * scale, 10)
+      pose(planets[0], 30, scale, position, lookAt)
+      expect(position.y - initialHeight).toBeGreaterThan(0)
+      expect(position.y - initialHeight).toBeLessThan(0.3)
+    }
+  })
+
+  it('窄屏聚焦调整视野，退出后恢复原始视野', () => {
+    const update = createCameraFocusController()
+    const camera = new PerspectiveCamera(40, 390 / 844)
+    resetCamera(camera)
+    useScrollStore.getState().setFocusedPlanet(0)
+    for (let f = 0; f < 600; f++) update(camera, 1, f / 60, getPlanet)
+    expect(camera.fov).toBeCloseTo(focusFieldOfView(camera.aspect, 40), 5)
+    useScrollStore.getState().clearFocus()
+    for (let f = 600; f < 1200; f++) update(camera, 1, f / 60, getPlanet)
+    expect(camera.fov).toBeCloseTo(40, 5)
+  })
+
   it('R3F 时间为零时也能开始计时，满 30 秒退出并平滑回到全局姿态', () => {
     const update = createCameraFocusController()
     const camera = new PerspectiveCamera()
