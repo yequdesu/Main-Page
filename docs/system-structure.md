@@ -59,6 +59,46 @@ Act 3 展示公转轨道与可聚焦导航；Act 4 位于它下方，以左侧�
 
 使用单个 `Points + ShaderMaterial` 绘制，72 组确定性种子只分配一次，动画在顶点 shader 中计算。沿用 Act 4 的时钟和 `invalidate()`；每帧只更新时间与像素密度 uniform，不新增计时器或 CPU 粒子对象。关闭该点云的 CPU 视锥裁剪，因为种子位置不是实际 shader 位置；Act 的组可见性仍有效。点云几何体和材质由 Act 4 统一释放。实现依据：[Three.js Points](https://threejs.org/docs/pages/Points.html)、[ShaderMaterial](https://threejs.org/docs/pages/ShaderMaterial.html)。
 
+### 随机日珥与日冕物质抛射
+
+[stellarActivity.ts](../src/actors/assets/stellarActivity.ts) 在当前恒星旁添加两组日珥和一组间歇 CME。日珥从孤立、单侧伴随、大小交错、嵌套、低矮环簇和双侧伴随六类中抽选，避免连续及同时选择相同主类型；各类内部继续改变环系数量、足点与拱顶。嵌套拱廊和低矮环簇必须在同一事件内伴随另一种类型，不能单独生成；二者可相互伴随，共用生命周期和流线预算。可在[磁拱环 HTML 图鉴](actors/stellar-morphology-explainer.html)通过不同种子观察组合。磁拱环足点锚定并具有纵深；局部质量负载驱动形变，截面随场强变化，每个活动区共用 96 个沿场运动的等离子体团块。CME 高度由环形失稳方程积分得到，呈现较密核心、稀薄前缘、电流片与重联后拱廊；抛射团块使用亮金色 `#ffd34d`，与原来的暖白/冷白逸散圆点区分。
+
+物理依据、力学及冷却公式、数值求解与近似边界见[日面等离子体模型](stellar-plasma-model.md)。当前是有物理依据的降阶实时模拟，未求解完整三维 MHD；磁通绳构型、重联结构与前缘仍有现象学近似。亮金色、时间压缩和尺寸比例为展示设定。
+
+#### 位置分布
+
+几何与概率函数位于 [behaviors/stellarActivity.ts](../src/behaviors/stellarActivity.ts)。活动位置沿最终结构相机看向恒星的真实球面切圆取样。设相机为 `O`、球心为 `C`、球半径为 `R`、距离 `D=|C−O|`，切圆圆心为 `K=O+(1−R²/D²)(C−O)`，半径为 `r=R√(1−R²/D²)`。位置写作 `P(θ)=K+r(e₁ cosθ+e₂ sinθ)`，`e₁` 朝向屏幕右侧轮廓，`e₂` 为竖直方向。两端受视口高度的 ±43% 和左侧 −48.5% 宽度约束，保留边缘余量；二分求出对称角限 `θmax`。令 `x=θ/θmax∈[−1,1]`，它等价于这段切圆的归一化弧长，`x=0` 对应水平中线。布局随窗口尺寸更新，已经发生的事件保留其归一化位置。
+
+**日珥形成位置均匀分布**：`p_prominence(x)=1/2`。上下两侧不设固定发生点，也不因靠近中线降低日珥概率。
+
+**仅抛射事件使用中线抑制分布**。过渡宽度 `a=0.45`，令 `t=min(|x|/a,1)`、`S(t)=3t²−2t³`：
+
+```text
+p_CME(x) = 1/4 + S(t) / [2(2−a)]       (−1 ≤ x ≤ 1)
+∫₋₁¹ p_CME(x) dx = 1
+p_average = 1/2
+p_CME(0) = 1/4 = 0.5 × p_average
+```
+
+这里的“中线概率”指单位弧长的事件概率密度；连续分布在一个精确点上的概率均为零。`|x|≥a` 后密度保持约 0.57258，约为平均值的 1.145 倍，补偿中央减少的事件数量；中线与过渡边界的一阶导数连续。此分布并非将中线权重简单乘 0.5 后再任意归一化。通过解析 CDF 的二分逆变换抽样；事件间隔和大小独立随机，不采用改变分布的避让或固定上下分区规则。
+
+#### 事件与动画生命周期
+
+`createStellarActivityTimeline()` 接收 `prominence / cme` 事件。日珥占用两个固定通道，各自形成、维持和淡出，18–26 秒后在新位置形成；初次进入已有两个不同年龄、不同构型的日珥。结构权重和去重规则见[构型说明](stellar-plasma-model.md#大小环系可变拱顶与局部截面)。CME 首次在可见场景时间 3 秒后开始，随后每隔 18–30 秒发生一次，只有一个主抛射通道：
+
+| 时间轴阶段 | 时间 | 行为 |
+|---|---|---|
+| `cme:charge` | 0–2.5 秒 | 淡入活动区，数值积分已开始；物质原本存在于磁通绳中 |
+| `cme:observe` | 2.5–8 秒 | 显示失稳演化，径向方程决定抬升速度，前缘与重联结构随膨胀出现 |
+| `cme:fade` | 8–13 秒 | 特效逐渐淡出；物质随膨胀稀释 |
+| `cme:next` | 18–30 秒 | 自动派发下一次随机位置事件 |
+
+沿用现有聚焦模块的 `paused: true` GSAP Timeline，由 Act 4 的 `useFrame` 通过 `totalTime()` 推进。每帧间隔限制在 0–0.1 秒，隐藏 Act 或离开结构阶段时不推进；重返继续当前阶段。没有新增 `setTimeout`、独立 RAF、全局 ticker 或逐帧 React/Zustand 状态更新。旧通道在新事件接管时 `kill()`，控制器在 effect 清理中释放，避免无限累积子时间轴。
+
+活动区的基准尺度受视口宽、高共同限制，并按切点深度补偿透视大小；中线仍允许抛射。弧丝端部轻微嵌入日面，保留核心的自然深度遮挡。三个磁通绳弧丝 Mesh、三个团块 Mesh 和前缘、电流片、重联拱廊及上升支共十个对象显式设置 layer 1、`transparent=true`、`depthWrite=false`、`depthTest=true`。团块 `renderOrder=3`，其余为 2；双面材质使用单次绘制。Shader 动态定位的几何体关闭 CPU 视锥裁剪，组的显隐仍有效。六个几何体、十个材质及三张路径纹理均由 Act 4 实例释放。磁结构与团块按固定步长在 CPU 积分，共享路径表通过浮点纹理上传；其余结构由 uniform 驱动 Shader，不逐帧重建几何体。各流线依次改变连接关系，团块同步转入新分支，详见[连续重联过程](stellar-plasma-model.md#连接改变的连续过程)。旧恒星与微光资源保持原所有权。
+
+实现依据：[GSAP Timeline](https://gsap.com/docs/v3/GSAP/Timeline/)、[Three.js ShaderMaterial](https://threejs.org/docs/pages/ShaderMaterial.html)、[R3F 按需渲染](https://r3f.docs.pmnd.rs/advanced/scaling-performance#on-demand-rendering)。
+
 ### 带环行星自转与环面进动
 
 Act 4 使用共用带环资产的 `updateSpin()`，与 Act 3 沿用同一 R3F 场景时钟和 `PLANET_ORBIT_SPEEDS[2]`。Act 4 通过独立参数将自转周期设为正常公转周期的 0.7 倍，当前约 62.83 秒；Act 3 使用 1.4 倍周期（约 125.66 秒）；固定排列不表示停止自转。自转轴、速度基准与资源约束见[主页资产对应](../src/actors/README.md#主页轨道与资产对应)。
@@ -76,6 +116,8 @@ Act 4 调用 `updateSpin(..., true)` 开启环面进动，Act 3 与 Studio 默�
 ## 验证入口
 
 - [页面映射与取景测试](../src/behaviors/__tests__/usePageFlow.test.ts)：原阈值、快进落点、原子状态、宽窄屏投影、往返镜头和图层。
-- [结构图组件测试](../src/acts/__tests__/Act4SystemStructure.test.tsx)：图层、固定位置、卫星运动、显隐与资源释放。
+- [日面物理模型测试](../src/behaviors/__tests__/stellarPlasma.test.ts)：稳定阈值、积分收敛、足点锚定、沿场流动与跨帧率一致性。
+- [日面活动行为测试](../src/behaviors/__tests__/stellarActivity.test.ts)：概率归一化、中线密度、平滑过渡、逆采样、事件阶段和宽窄屏球面切点。
+- [结构图组件测试](../src/acts/__tests__/Act4SystemStructure.test.tsx)：图层、固定位置、卫星运动、日面活动显隐暂停与资源释放。
 - [点击测试](../src/r3f/__tests__/PlanetClickHandler.test.tsx)：结构图中禁用轨道场景点击与飞行器命令。
 - 浏览器检查 Act 1 点击、Act 3 聚焦、向下进入、返回、滚轮中断、窗口尺寸改变，以及日夜主题。构建不能代替这些视觉检查。

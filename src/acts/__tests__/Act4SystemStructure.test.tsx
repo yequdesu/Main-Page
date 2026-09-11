@@ -26,6 +26,14 @@ it('结构图只显示自身图层，主体固定排列，卫星继续公转，�
   const moon = root.getObjectByName('卫星_1') as Mesh
   const star = root.getObjectByName('恒星核心') as Mesh
   const radiation = root.getObjectByName('日面背景逸散微光') as Points<BufferGeometry, ShaderMaterial>
+  const ejection = root.getObjectByName('日冕抛射弧丝') as Mesh<BufferGeometry, ShaderMaterial>
+  const ejectionParticles = root.getObjectByName('日冕抛射金色粒子') as Mesh<BufferGeometry, ShaderMaterial>
+  expect(root.getObjectByName('重联后上升磁通')).toBeDefined()
+  const disposePaths = vi.spyOn(ejection.material.uniforms.uCurves.value, 'dispose')
+  const disposeRibbons = vi.spyOn(ejection.geometry, 'dispose')
+  const disposeEjection = vi.spyOn(ejection.material, 'dispose')
+  const disposeParticles = vi.spyOn(ejectionParticles.geometry, 'dispose')
+  const disposeParticleMaterial = vi.spyOn(ejectionParticles.material, 'dispose')
   const disposeRadiation = vi.spyOn(radiation.geometry, 'dispose')
   const disposeRadiationMaterial = vi.spyOn(radiation.material, 'dispose')
   const seeds = radiation.geometry.getAttribute('position').array
@@ -61,8 +69,17 @@ it('结构图只显示自身图层，主体固定排列，卫星继续公转，�
     expect(renderer.scene.children[0].instance).toBe(root)
     expect(root.visible).toBe(false)
     expect(dispose).not.toHaveBeenCalled()
+    const activityAge = ejection.material.uniforms.uAge.value
+    await renderer.advanceFrames(3, 0.016)
+    expect(ejection.material.uniforms.uAge.value).toBe(activityAge)
     await renderer.update(scene(true))
     expect(root.visible).toBe(true)
+    await renderer.advanceFrames(1, 0.016)
+    expect(ejection.material.uniforms.uAge.value).toBeGreaterThan(activityAge)
+    useScrollStore.getState().setPageProgress(1)
+    const pausedAge = ejection.material.uniforms.uAge.value
+    await renderer.advanceFrames(3, 0.016)
+    expect(ejection.material.uniforms.uAge.value).toBe(pausedAge)
     expect(useScrollStore.getState().focusedPlanetIdx).toBe(-1)
   } finally { await renderer.unmount() }
   expect(dispose).toHaveBeenCalledTimes(1)
@@ -70,4 +87,9 @@ it('结构图只显示自身图层，主体固定排列，卫星继续公转，�
   expect(disposeStar).toHaveBeenCalledTimes(1)
   expect(disposeRadiation).toHaveBeenCalledTimes(1)
   expect(disposeRadiationMaterial).toHaveBeenCalledTimes(1)
+  expect(disposePaths).toHaveBeenCalledTimes(1)
+  expect(disposeRibbons).toHaveBeenCalledTimes(1)
+  expect(disposeEjection).toHaveBeenCalledTimes(1)
+  expect(disposeParticles).toHaveBeenCalledTimes(1)
+  expect(disposeParticleMaterial).toHaveBeenCalledTimes(1)
 })

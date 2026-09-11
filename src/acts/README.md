@@ -11,7 +11,7 @@
 | [Act1OceanVoyage.tsx](Act1OceanVoyage.tsx) | `OceanWaves`、`LightBeam`、`LighthouseCapture` |
 | [Act2GridTransition.tsx](Act2GridTransition.tsx) | `GridLines`；保留基于进度的 `useFrame` 协调回调 |
 | [Act3ContentPhase.tsx](Act3ContentPhase.tsx) | `OrbitRings`；独占 `createCameraFocusController()` 实例，在 `useFrame` 中更新相机 |
-| [Act4SystemStructure.tsx](Act4SystemStructure.tsx) | 日面边缘、三种行星独立实例；固定排列并保留卫星公转 |
+| [Act4SystemStructure.tsx](Act4SystemStructure.tsx) | 日面边缘、随机日珥与日冕抛射、三种行星独立实例；固定排列并保留卫星公转 |
 | [SystemStructureOverlay.tsx](SystemStructureOverlay.tsx) | 结构图标题、行星说明和返回按钮；样式在 [SystemStructure.css](SystemStructure.css) |
 
 可见性条件由 [App.tsx](../App.tsx) 的 `needsAct1/2/3` 决定。当前 Act 1 的组保留到进度 0.86 之前，使海浪能在网格阶段继续使用；Act 2 从 0.39、Act 3 从 0.84 开始启用组可见性。边界含 0.01 的提前/延后余量，各对象还会根据自身进度计算透明度等属性。这与主页中概括的三个视觉阶段不是同一组边界。

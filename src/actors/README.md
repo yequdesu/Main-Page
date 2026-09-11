@@ -6,7 +6,7 @@
 
 ## 当前组件地图
 
-[Act4SystemStructure](../acts/Act4SystemStructure.tsx) 复用三种行星工厂创建独立实例，并使用 [assets/centralStar.ts](assets/centralStar.ts) 的完整恒星资产呈现日面边缘。`SceneLights` 在 Canvas 根层级提供 layer 1 的主光与补光；原行星、碎片和恒星保持原位置。日面特写由 [assets/stellarCloseup.ts](assets/stellarCloseup.ts) 提供边缘渐暗、轮廓外柔光和 15% 频率呼吸。[assets/stellarRadiation.ts](assets/stellarRadiation.ts) 提供日面后方的稀疏逸散微光。资源所有权与图层见[结构图说明](../../docs/system-structure.md)。
+[Act4SystemStructure](../acts/Act4SystemStructure.tsx) 复用三种行星工厂创建独立实例，并使用 [assets/centralStar.ts](assets/centralStar.ts) 的完整恒星资产呈现日面边缘。`SceneLights` 在 Canvas 根层级提供 layer 1 的主光与补光；原行星、碎片和恒星保持原位置。日面特写由 [assets/stellarCloseup.ts](assets/stellarCloseup.ts) 提供边缘渐暗、轮廓外柔光和 15% 频率呼吸。[assets/stellarRadiation.ts](assets/stellarRadiation.ts) 提供日面后方的稀疏逸散微光。[assets/stellarActivity.ts](assets/stellarActivity.ts) 另行提供六类空间构型的磁拱环、沿场团块、亮金色抛射前缘及连续重联的上下支，运动由 [stellarPlasma.ts](../behaviors/stellarPlasma.ts) 的降阶物理模型驱动；事件分布与时间轴由 [stellarActivity.ts](../behaviors/stellarActivity.ts) 管理。该资产的 `layoutLocal(width, height, worldHeight)` 供[磁拱环图鉴](../docs/stellar/README.md)使用，切换为局部切平面并按正交视口换算像素尺寸，仍复用模型和材质；调用常规 `layout()` 会恢复日面布局。资源所有权与图层见[结构图说明](../../docs/system-structure.md)。
 
 以下挂载位置描述主应用；Debug Studio 可通过模型注册表单独加载灯塔；`standalone` 模式不订阅主页滚动可见性，也不写入主页截图对象引用。灯塔烘焙的临时克隆共享源几何体，因此仅释放烘焙函数自己创建的材质与渲染器。
 

@@ -8,19 +8,20 @@ export default defineConfig({
   base: './',
   publicDir: false,
   plugins: [react(), {
-    name: 'pbd-formal-document',
+    name: 'supporting-documents',
     generateBundle() {
-      this.emitFile({
-        type: 'asset',
-        fileName: 'docs/actors/pbd-layout-formal.md',
-        source: readFileSync(resolve(__dirname, 'docs/actors/pbd-layout-formal.md'), 'utf8'),
-      })
+      for (const fileName of ['docs/actors/pbd-layout-formal.md', 'docs/stellar-plasma-model.md']) {
+        this.emitFile({ type: 'asset', fileName, source: readFileSync(resolve(__dirname, fileName), 'utf8') })
+      }
     },
   }],
   build: {
     outDir: 'dist-docs',
     rollupOptions: {
-      input: resolve(__dirname, 'docs/actors/pbd-layout-explainer.html'),
+      input: {
+        pbd: resolve(__dirname, 'docs/actors/pbd-layout-explainer.html'),
+        stellar: resolve(__dirname, 'docs/actors/stellar-morphology-explainer.html'),
+      },
     },
   },
 })

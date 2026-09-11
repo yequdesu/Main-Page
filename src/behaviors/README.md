@@ -34,6 +34,10 @@
 
 `useCameraFocus` 同时消费 `structureProgress`，在既有姿态基础上插值到结构图镜头，并同步相机图层。只有该控制器写相机；原聚焦算法继续保留，离开 Act 3 时由场景事件退出。布局公式、正反向滚动与渲染理由见[Act 4 说明](../../docs/system-structure.md)。
 
+## 日面活动
+
+[stellarActivity.ts](stellarActivity.ts) 提供 Act 4 的日面切圆取样、日冕抛射概率密度与独立事件时间轴。日珥位置按可见弧长均匀采样；只有 CME 使用中线密度为平均值一半的平滑分布。沿用聚焦模块的暂停 GSAP Timeline、R3F `delta` 推进及释放方式，不共享聚焦会话状态。[stellarPlasma.ts](stellarPlasma.ts) 提供环形失稳的 RK4 积分、大小环系、沿场物质输运和 CPU/GPU 共享路径表；[stellarMagnetism.ts](stellarMagnetism.ts) 提供拱顶形状、受迫形变模态、可变截面与连续重联映射；物理依据及近似边界见[降阶模型](../../docs/stellar-plasma-model.md)。[stellarMorphology.ts](stellarMorphology.ts) 负责六类日珥构型、权重抽样、足点布局和固定流线预算；事件层排除上次及另一通道的主类型。嵌套拱廊与低矮环簇由生成器绑定另一种类型，最多 6 个环系、12 条流线；返回 `companion` 与各环系的 `sourceKind`，同一事件同步显隐。可在[种子图鉴](../../docs/actors/stellar-morphology-explainer.html)重放组合。概率、颜色、阶段和资源约束见[日面活动说明](../../docs/system-structure.md#随机日珥与日冕物质抛射)。
+
 ## 聚焦会话
 
 业务入口使用 `setFocusedPlanet(idx)` / `focusVoyager()` / `clearFocus(reason)`，在 Zustand 中同时写入当前 UI 状态和新的 `focusEvent` 对象。`Planets` 订阅事件、请求渲染，并在下一帧交给 [useFocusTimeline.ts](useFocusTimeline.ts)。同一帧内多个请求采用最后一个；同目标再次请求也会重建会话。手动退出、时间轴超时、离开内容阶段或目标失效走同一个退出事件。
