@@ -59,13 +59,15 @@ const FAR_HALO_COLOR_STOPS: [number, string][] = [
 ]
 
 /** 主页与 Studio 共用的恒星视觉资产；实例独占节点、几何体、材质和贴图。 */
-export function createCentralStarAsset() {
+export function createCentralStarAsset(options: { segments?: number } = {}) {
   const root = new Group()
   root.name = '中央恒星'
   root.renderOrder = 1
-  const core = new Mesh(new SphereGeometry(CENTRAL_STAR_CORE_RADIUS, CORE_SEGMENTS, CORE_SEGMENTS), new MeshBasicMaterial({ color: CORE_COLOR }))
+  const coreSegments = options.segments ?? CORE_SEGMENTS
+  const glowSegments = options.segments ?? INNER_GLOW_SEGMENTS
+  const core = new Mesh(new SphereGeometry(CENTRAL_STAR_CORE_RADIUS, coreSegments, coreSegments), new MeshBasicMaterial({ color: CORE_COLOR }))
   core.name = '恒星核心'
-  const glow = new Mesh(new SphereGeometry(INNER_GLOW_RADIUS, INNER_GLOW_SEGMENTS, INNER_GLOW_SEGMENTS), new MeshBasicMaterial({ color: INNER_GLOW_COLOR, transparent: true, opacity: GLOW_OPACITY_COEFF, depthWrite: false }))
+  const glow = new Mesh(new SphereGeometry(INNER_GLOW_RADIUS, glowSegments, glowSegments), new MeshBasicMaterial({ color: INNER_GLOW_COLOR, transparent: true, opacity: GLOW_OPACITY_COEFF, depthWrite: false }))
   glow.name = '内层光晕'
   const haloTex = makeHaloTexture(HALO_COLOR_STOPS)
   const farHaloTex = makeHaloTexture(FAR_HALO_COLOR_STOPS)

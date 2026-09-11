@@ -36,6 +36,10 @@ it('缩小后的飞行器保留 16px 命中半径，空白退出，隐藏或未�
   expect(useScrollStore.getState().focusedVoyager).toBe(true)
   click(1000, 100)
   expect(useScrollStore.getState().focusedVoyager).toBe(false)
+  useScrollStore.getState().setPageProgress(1.22)
+  click(640, 360)
+  expect(useScrollStore.getState().focusedVoyager).toBe(false)
+  useScrollStore.getState().setPageProgress(1)
   voyagerState.opacity = 0
   click(640, 360)
   expect(useScrollStore.getState().focusedVoyager).toBe(false)
@@ -52,6 +56,10 @@ it('voyager 命令只在模型可用的太阳系场景发出聚焦事件', () =>
   expect(executeCommand('voyager')).toContain('Focusing Voyager')
   expect(useScrollStore.getState().focusEvent).toEqual({ type: 'voyager' })
   useScrollStore.getState().setFocusedPlanet(1)
+  expect(useScrollStore.getState().focusedVoyager).toBe(false)
+  useScrollStore.getState().clearFocus('manual')
+  useScrollStore.getState().setPageProgress(1.22)
+  expect(executeCommand('voyager')).toContain('available after')
   expect(useScrollStore.getState().focusedVoyager).toBe(false)
 })
 

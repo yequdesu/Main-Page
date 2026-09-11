@@ -8,7 +8,7 @@
 
 | 文件 | Slice | 用途 |
 |------|-------|------|
-| `scrollStore.ts` | `scrollSlice` | `scrollProgress` — 唯一真相源 |
+| `scrollStore.ts` | `scrollSlice` | `pageProgress`、`scrollProgress`、`structureProgress` — 整页位置及派生场景进度 |
 | | `focusSlice` | `focusedPlanetIdx`, `focusedVoyager`, `hoveredIdx`, `focusStartTime`, `focusEvent` |
 
 ## 读写模式
@@ -21,7 +21,7 @@
 
 ## 维护要点
 
-- **`scrollProgress` 只能由 App.tsx 的滚动物理系统写入**——不要在 Actor 中修改
+- **页面进度由 App.tsx 的滚动物理系统通过 `setPageProgress()` 写入**，一次更新三个字段；不要在 Actor 中修改。旧 `setScrollProgress()` 仅保留单字段兼容接口，不能用它导航到 Act 4。映射公式见[结构图说明](../../docs/system-structure.md#滚动坐标)
 - **新增渲染状态字段追加到对应 Slice**——不要混入 UI 状态
 - 在 `useFrame` 中通过 `getState()` 读取所需字段，避免每帧数据触发不必要的 React 订阅
 - `focusStartTime` 使用 **R3F 时钟域**（`state.clock.elapsedTime`），非 `performance.now()`；`null` 表示尚未开始计时，`0` 是有效时间。`setFocusedPlanet()` 重置该字段，由场景控制器在下一帧赋值，`clearFocus()` 清空计时与聚焦状态
@@ -31,7 +31,7 @@
 ## 依赖方向
 
 ```
-stores/ → types/
+stores/ → types/, behaviors/usePageFlow（纯映射，不读取场景）
 stores/ 不依赖 r3f/, actors/, acts/
 ```
 

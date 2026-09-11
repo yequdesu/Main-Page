@@ -6,6 +6,8 @@
 
 ## 当前组件地图
 
+[Act4SystemStructure](../acts/Act4SystemStructure.tsx) 复用三种行星工厂创建独立实例，并使用 [assets/centralStar.ts](assets/centralStar.ts) 的完整恒星资产呈现日面边缘。`SceneLights` 在 Canvas 根层级提供 layer 1 的主光与补光；原行星、碎片和恒星保持原位置。日面特写由 [assets/stellarCloseup.ts](assets/stellarCloseup.ts) 提供边缘渐暗、轮廓外柔光和 15% 频率呼吸。[assets/stellarRadiation.ts](assets/stellarRadiation.ts) 提供日面后方的稀疏逸散微光。资源所有权与图层见[结构图说明](../../docs/system-structure.md)。
+
 以下挂载位置描述主应用；Debug Studio 可通过模型注册表单独加载灯塔；`standalone` 模式不订阅主页滚动可见性，也不写入主页截图对象引用。灯塔烘焙的临时克隆共享源几何体，因此仅释放烘焙函数自己创建的材质与渲染器。
 
 恒星和行星通过 [共用恒星工厂](assets/centralStar.ts)、[共用行星工厂](assets/planet.ts) 创建视觉资产，[光晕纹理工厂](assets/haloTexture.ts) 绘制径向渐变。主页 Actor 保留滚动、轨道、聚焦与实时数据逻辑；Studio 的 [独立预览](../models/CelestialPreviews.tsx) 只复用视觉资产。每个实例拥有并释放自己的几何体、材质和贴图；行星贴图在同一系统内共享，Three.js 内部共享的 Sprite 几何体不由实例释放。
@@ -45,6 +47,10 @@
 [Planets.tsx](Planets.tsx) 的 `PLANET_FACTORIES` 按 `ORBIT_RADII` 由内到外选择普通、带卫星、带环工厂。随机粒子按粒子索引遍历，但资产必须写入 `assets[trackIdx]`，以保持更新、导航链接和聚焦目标一致。
 
 整个资产根节点随主页滚动显隐；核心位置和缩放更新后，统一调用资产的 `updateAppearance()`，使卫星和四层环同步跟随风铃下落、轨道运动、距离缩放与遮挡淡出。卫星使用主页 R3F 时钟，Studio 继续使用独立的可暂停预览时钟。行星可见时由 `Planets` 请求下一帧，保证停止滚动后卫星仍公转；不可见时不为行星继续请求帧，保留 Canvas 的 `frameloop="demand"`。依据：[R3F 按需渲染](https://r3f.docs.pmnd.rs/advanced/scaling-performance#on-demand-rendering)。
+
+带环行星在 Act 3 与 Act 4 中共用 `updateSpin(time, orbitAngularSpeed, periodRatio, precessRings)`：自转周期 `Tspin = periodRatio × Torbit`，角速度 `ωspin = ωorbit / periodRatio`。正常公转角速度统一由 [PLANET_ORBIT_SPEEDS](../types/index.ts) 提供，当前外轨为 −0.07 rad/s，对应约 89.76 秒公转一周；Act 3 保持默认 1.4 倍周期（125.66 秒自转一周），Act 4 使用独立的 0.7 倍周期（62.83 秒自转一周）。使用基础速度，不受悬停、聚焦调相或退出回位加速影响；Act 4 固定排列时沿用同一公转速度基准与场景时钟。
+
+基础自转轴为行星环平面的法线，核心与四层环围绕自身中心同向转动。Act 4 额外传入 `precessRings=true`，让四层环再绕资产局部 Y 轴共同进动，周期约 62.83 秒；倾角保持 26.7°，但朝向改变，使椭圆轮廓、遮挡和受光持续变化。进动不作用于核心，也不改变环的中心、尺寸或层间间隙。Act 3 默认关闭进动，保持原行为。角度按绝对时间解析计算，避免逐帧累积误差；`Quaternion` / `Vector3` 在工厂构建时分配。Act 3、Act 4 沿用原有 `useFrame` 和 `invalidate()`；Studio 未调用该接口，原预览行为保持不变。当前材质近似均匀、几何体轴对称，因此单纯轴向自转的视觉变化较含蓄；Act 4 通过环面进动提供可辨认的旋转效果。周期倍率位于 [ringedPlanet.ts](assets/ringedPlanet.ts) 的 `RINGED_PLANET_SPIN_PERIOD_RATIO`；Act 4 的覆盖值位于 [Act4SystemStructure.tsx](../acts/Act4SystemStructure.tsx) 的 `RINGED_SPIN_PERIOD_RATIO`。
 
 工厂返回的 `visualRadiusScale` 是相对核心半径的可见实体包络：普通行星取近场光晕边缘，带环行星取最外环外缘，带卫星行星取卫星完整公转范围。主页据此计算标签避让半径，避免标签遮住附件，同时避免半径随卫星相位摆动。相机聚焦后方距离和侧向距离使用 [Planets.tsx](Planets.tsx) 中的 `_planetFocusDistanceScales`：普通行星为 1.00 倍，带卫星和带环行星统一为 1.25 倍，以兼顾近景观察和附件边距。点击和导航仍以主行星中心为目标，卫星不是独立导航入口。
 

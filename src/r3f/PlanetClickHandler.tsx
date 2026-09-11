@@ -30,7 +30,7 @@ export default function PlanetClickHandler() {
 
     const onClickCanvas = (e: MouseEvent) => {
       const sp = useScrollStore.getState().scrollProgress
-      if (sp < GRID_SHIFT_START) return
+      if (sp < GRID_SHIFT_START || useScrollStore.getState().structureProgress > 0) return
 
       const store = useScrollStore.getState()
 

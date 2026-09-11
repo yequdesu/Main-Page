@@ -5,6 +5,9 @@ import { useGSAP } from '@gsap/react'
 import SceneCanvas from './r3f/Canvas'
 import Act1OceanVoyage from './acts/Act1OceanVoyage'
 import Act2GridTransition from './acts/Act2GridTransition'
+import Act4SystemStructure from './acts/Act4SystemStructure'
+import SystemStructureOverlay from './acts/SystemStructureOverlay'
+import { PAGE_FLOW } from './behaviors/usePageFlow'
 import Act3ContentPhase from './acts/Act3ContentPhase'
 import { useScrollStore } from './stores/scrollStore'
 import { WHITE_OUT_THRESHOLD, GRID_START, GRID_SHIFT_START } from './r3f/ScrollRig'
@@ -37,7 +40,7 @@ const MAX_VELOCITY = 0.025
  */
 export default function App() {
   // ---- Zustand store ----
-  const { scrollProgress, setScrollProgress } = useScrollStore()
+  const { scrollProgress, pageProgress, structureProgress, setPageProgress } = useScrollStore()
   const terminalMode = useScrollStore(s => s.terminalMode)
   const echoLines = useScrollStore(s => s.echoLines)
   const inputValue = useScrollStore(s => s.inputValue)
@@ -55,7 +58,7 @@ export default function App() {
   const [lighthouseImage, setLighthouseImage] = useState<string | null>(null)
   const focusedPlanetIdx = useScrollStore(s => s.focusedPlanetIdx)
   const focusedVoyager = useScrollStore(s => s.focusedVoyager)
-  const isAct3Focused = (focusedPlanetIdx >= 0 || focusedVoyager) && scrollProgress >= GRID_SHIFT_START
+  const isAct3Focused = (focusedPlanetIdx >= 0 || focusedVoyager) && scrollProgress >= GRID_SHIFT_START && structureProgress === 0
   const isTerminalActive = terminalMode === 'active'
 
   // ---- Act visibility ----
@@ -68,12 +71,13 @@ export default function App() {
   // ---- syncScrollbar ----
   const syncScrollbar = useCallback(() => {
     const h = document.body.scrollHeight - window.innerHeight
-    if (h > 0) window.scrollTo(0, physRef.current.target * h)
+    if (h > 0) window.scrollTo(0, physRef.current.target / PAGE_FLOW.end * h)
   }, [])
 
   // ---- ScrollTrigger (native scrollbar) ----
   useGSAP(() => {
-    document.body.style.height = window.innerHeight * SCROLL_VH + 'px'
+    const updateHeight = () => { document.body.style.height = window.innerHeight * (1 + (SCROLL_VH - 1) * PAGE_FLOW.end) + 'px' }
+    updateHeight()
 
     stRef.current = ScrollTrigger.create({
       trigger: document.body,
@@ -81,16 +85,26 @@ export default function App() {
       end: 'bottom bottom',
       scrub: 0,
       onUpdate: (self) => {
-        if (Math.abs(self.progress - physRef.current.target) < 0.0005) return
+        const progress = self.progress * PAGE_FLOW.end
+        if (Math.abs(progress - physRef.current.target) < 0.0005) return
         physRef.current.lastScrollbar = performance.now()
         physRef.current.velocity = 0
-        physRef.current.target = self.progress
-        setScrollProgress(self.progress)
+        physRef.current.target = progress
+        setPageProgress(progress)
         if (self.progress > 0.02 && hintVisible) setHintVisible(false)
       },
     })
 
-    return () => { stRef.current?.kill() }
+    const resize = () => {
+      const target = physRef.current.target
+      updateHeight()
+      stRef.current?.refresh()
+      physRef.current.target = target
+      setPageProgress(target)
+      syncScrollbar()
+    }
+    window.addEventListener('resize', resize)
+    return () => { window.removeEventListener('resize', resize); stRef.current?.kill() }
   }, [])
 
   // ---- GSAP physics ticker ----
@@ -109,12 +123,12 @@ export default function App() {
 
       p.target += p.velocity * dtFrames
       if (p.target <= 0) { p.target = 0; p.velocity = 0 }
-      if (p.target >= 1) { p.target = 1; p.velocity = 0 }
+      if (p.target >= PAGE_FLOW.end) { p.target = PAGE_FLOW.end; p.velocity = 0 }
 
       p.velocity *= Math.pow(FRICTION, dtFrames)
       if (Math.abs(p.velocity) < 0.00001) p.velocity = 0
 
-      setScrollProgress(p.target)
+      setPageProgress(p.target)
       syncScrollbar()
     }
     gsap.ticker.add(ticker)
@@ -136,31 +150,29 @@ export default function App() {
     physRef.current.velocity = Math.max(-MAX_VELOCITY, Math.min(MAX_VELOCITY, physRef.current.velocity))
   }, [isTerminalActive, isAct3Focused, isClickPlaying])
 
-  // ---- click fast-forward ----
-  const onClick = useCallback(() => {
-    if (isTerminalActive) return
-    if (isClickPlaying) return
-    if (isAct3Focused) return  // block fast-forward during planet focus
-    if (scrollProgress >= 0.995) return
+  // 同一页面滚动时间轴；普通点击固定停在 Act 3，结构视图由继续滚动或专用按钮进入。
+  const scrollToSection = useCallback((target: number) => {
+    clickTweenRef.current?.kill()
     setIsClickPlaying(true)
+    setHintVisible(false)
     physRef.current.velocity = 0
-
     const tweenObj = { val: physRef.current.target }
     clickTweenRef.current = gsap.to(tweenObj, {
-      val: 1.0,
+      val: target,
       duration: 2,
       ease: 'power2.inOut',
       onUpdate: () => {
         physRef.current.target = tweenObj.val
-        setScrollProgress(tweenObj.val)
+        setPageProgress(tweenObj.val)
         syncScrollbar()
       },
-      onComplete: () => {
-        setIsClickPlaying(false)
-        clickTweenRef.current = null
-      },
+      onComplete: () => { setIsClickPlaying(false); clickTweenRef.current = null },
     })
-  }, [isTerminalActive, isClickPlaying, isAct3Focused, scrollProgress, setScrollProgress, syncScrollbar])
+  }, [setPageProgress, syncScrollbar])
+  const onClick = useCallback(() => {
+    if (isTerminalActive || isClickPlaying || isAct3Focused || pageProgress >= 0.995) return
+    scrollToSection(PAGE_FLOW.act3Target)
+  }, [isTerminalActive, isClickPlaying, isAct3Focused, pageProgress, scrollToSection])
 
   // ---- event listeners ----
   useEffect(() => {
@@ -193,6 +205,7 @@ export default function App() {
   useEffect(() => {
     return () => {
       physRef.current.active = false
+      clickTweenRef.current?.kill()
       stRef.current?.kill()
       ScrollTrigger.getAll().forEach((t: ScrollTrigger) => t.kill())
       document.body.style.height = ''
@@ -220,7 +233,11 @@ export default function App() {
     }),
   ) as [LabelConfig, LabelConfig, LabelConfig]
   const handleBuildStatusLine = useCallback((sp: number) => {
-    const pct = Math.round(sp * 100)
+    if (sp > PAGE_FLOW.structureStart) {
+      const pct = Math.round(Math.max(0, Math.min(1, (sp - PAGE_FLOW.structureStart) / (PAGE_FLOW.structureEnd - PAGE_FLOW.structureStart))) * 100)
+      return `# Act 4 · SystemStructure · scroll ${pct}%`
+    }
+    const pct = Math.round(Math.min(1, sp) * 100)
     const actName = sp < 0.45 ? 'OceanVoyage' : sp < 0.85 ? 'GridTransition' : 'ContentPhase'
     const actNum = sp < 0.45 ? '1' : sp < 0.85 ? '2' : '3'
     return `# Act ${actNum} · ${actName} · scroll ${pct}%`
@@ -231,7 +248,8 @@ export default function App() {
       <SceneCanvas>
         <Act1OceanVoyage visible={needsAct1(sp)} />
         <Act2GridTransition visible={needsAct2(sp)} />
-        <Act3ContentPhase visible={needsAct3(sp)} />
+        <Act3ContentPhase visible={needsAct3(sp) && structureProgress < 1} />
+        <Act4SystemStructure visible={structureProgress > 0} />
       </SceneCanvas>
 
       <MainTerminal
@@ -241,7 +259,7 @@ export default function App() {
         onModeChange={handleModeChange}
         onEchoLinesChange={handleEchoLinesChange}
         onInputValueChange={handleInputChange}
-        scrollProgress={sp}
+        scrollProgress={pageProgress}
         buildStatusLine={handleBuildStatusLine}
         onThemeUpdate={handleThemeUpdate}
         themeKey={themeKey}
@@ -249,10 +267,10 @@ export default function App() {
       />
 
       {/* Info Panel Terminal — 仅 Act 3 (ContentPhase) 渲染 */}
-      {needsAct3(sp) && <InfoPanelTerminal />}
+      {needsAct3(sp) && structureProgress === 0 && <InfoPanelTerminal />}
 
       {/* Planet Labels — 仅 Act 3 可见，组件不卸载 */}
-      {needsAct3(sp) && (
+      {needsAct3(sp) && structureProgress === 0 && (
         <FloatingLabels
           configs={labelConfigs}
           sequenceStrategy="proximity"
@@ -269,6 +287,11 @@ export default function App() {
         />
       )}
 
+      {sp >= 0.995 && structureProgress === 0 && !isAct3Focused && (
+        <button className="structure-next" onClick={event => { event.stopPropagation(); scrollToSection(PAGE_FLOW.structureEnd) }}>继续向下 · 系统结构 ↓</button>
+      )}
+      <SystemStructureOverlay progress={structureProgress} onBack={() => scrollToSection(PAGE_FLOW.act3Target)} />
+
       {/* 滚动提示 */}
       {hintVisible && (
         <div className="scroll-hint" aria-hidden="true">
@@ -283,7 +306,7 @@ export default function App() {
         scrollProgress={sp}
         lighthouseImage={lighthouseImage}
         isClickPlaying={isClickPlaying}
-        isFocused={isAct3Focused}
+        isFocused={isAct3Focused || structureProgress > 0}
       />
 
       {/* 页脚 */}

@@ -11,7 +11,7 @@ R3F Canvas 配置、渲染循环桥接、全局场景管理。本目录的组件
 | `Canvas.tsx` | R3F `<Canvas>` 配置：`flat`（NoToneMapping）、`frameloop="demand"`、相机、初始背景/雾 | 始终挂载 |
 | `FocusAnimationContext.tsx` | 每个 Canvas 独立的聚焦动画进度，供行星、相机和轨道材质共享 | Provider 始终挂载 |
 | `ScrollRig.ts` | 所有滚动阈值常量导出 + `sceneApplyWhiteOut()`（背景色/雾密度） | 纯函数/常量 |
-| `ScrollInvalidator.tsx` | ① `subscribe` Zustand → `invalidate()` 桥接渲染循环 ② 每帧调用 `sceneApplyWhiteOut` | 始终挂载 |
+| `ScrollInvalidator.tsx` | ① `subscribe` Zustand 的 `scrollProgress` / `structureProgress` → `invalidate()` 桥接渲染循环 ② 每帧调用 `sceneApplyWhiteOut` | 始终挂载 |
 | `PlanetClickHandler.tsx` | 行星屏幕投影检测、飞行器核心网格射线检测与远景点击余量，`stopPropagation` 阻止快进 | 始终挂载 |
 
 ## 维护要点
@@ -20,6 +20,8 @@ R3F Canvas 配置、渲染循环桥接、全局场景管理。本目录的组件
 - **`frameloop="demand"` 不可改为 `always`**——由 `ScrollInvalidator` 响应滚动；行星可见或退出时间轴尚未完成时由 `Planets` 持续请求帧
 - **新增全局对象**（如灯光、粒子系统）应挂载在此层级，避免受 Act `visible` 影响
 - **修改阈值**统一在 `src/types/index.ts` 的 `SCROLL_RIG` 中，`ScrollRig.ts` 负责导出
+
+Act 4 复用同一 Canvas、相机与 demand 循环，以 layer 1 隔离结构图，根层级 `SceneLights` 提供对应灯光；其卫星和光晕在可见时请求帧。点击处理在结构过渡开始后禁用，避免误触原场景。原因与对象所有权见[结构图说明](../../docs/system-structure.md#布局与单相机渲染)。
 
 聚焦帧顺序为 `Planets(-1)` 推进 GSAP 时间轴和行星，再由相机与轨道材质消费结果。详见 [聚焦会话](../behaviors/README.md#聚焦会话)。
 

@@ -32,7 +32,7 @@ export default function ScrollInvalidator() {
   // ---- Frameloop bridge ----
   useEffect(() => {
     const unsub = useScrollStore.subscribe((state, prevState) => {
-      if (state.scrollProgress !== prevState.scrollProgress) {
+      if (state.scrollProgress !== prevState.scrollProgress || state.structureProgress !== prevState.structureProgress) {
         invalidate()
       }
     })

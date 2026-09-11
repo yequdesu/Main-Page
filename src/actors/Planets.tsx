@@ -17,7 +17,7 @@ import { smoothstep, clamped, SCENE_CENTER_Z, WHITE_OUT_THRESHOLD, WHITE_OUT_END
 import { createPlanetAsset, createPlanetHaloTexture, PLANET_BASE_RADIUS, ATMOS_HALO_SCALE, PLANET_CONTENT_COLOR } from './assets/planet'
 import { createSatellitePlanetAsset } from './assets/satellitePlanet'
 import { createRingedPlanetAsset } from './assets/ringedPlanet'
-import { type ParticleData } from '../types'
+import { PLANET_ORBIT_SPEEDS, type ParticleData } from '../types'
 import { WC_ANCHOR_Y, WC_DROP_START, WC_DROP_END, WC_RETRACT_END, getWindChimeProgress } from '../behaviors/useWindChime'
 import { useScreenProjection } from '../behaviors/useScreenProjection'
 
@@ -81,7 +81,9 @@ export default function Planets() {
       .sort((a, b) => b.size - a.size)
     const planetIndices = sorted.slice(0, ORBIT_COUNT).map(s => s.idx)
 
-    const assets: ReturnType<typeof createPlanetAsset>[] = []
+    const assets: (ReturnType<typeof createPlanetAsset> & {
+      updateSpin?: ReturnType<typeof createRingedPlanetAsset>['updateSpin']
+    })[] = []
     const data: ParticleData[] = []
 
     for (let i = 0; i < count; i++) {
@@ -105,7 +107,7 @@ export default function Planets() {
         ? ORBIT_RADII[planetIndices.indexOf(i)]
         : 2.5 + Math.random() * 4.5
       const orbitSpeed = isMain
-        ? -0.04 - planetIndices.indexOf(i) * 0.015
+        ? PLANET_ORBIT_SPEEDS[planetIndices.indexOf(i)]
         : -(0.03 + Math.random() * 0.08)
 
       const particle: ParticleData = {
@@ -213,19 +215,19 @@ export default function Planets() {
     const orbitSmooth3 = 1.0  // 始终轨道位置，永不 dust-lerp
 
     const cx = 0, cy = -1.0, cz = SCENE_CENTER_Z
-    const { hoveredIdx, focusedPlanetIdx, focusedVoyager } = useScrollStore.getState()
+    const { hoveredIdx, focusedPlanetIdx, focusedVoyager, structureProgress } = useScrollStore.getState()
 
     sceneTime.current = time
     const focusedTrack = mainPlanetIndices.indexOf(focusedPlanetIdx)
-    if (focusedPlanetIdx >= 0 && (sp < GRID_SHIFT_START || focusedTrack < 0)) {
+    if (focusedPlanetIdx >= 0 && (sp < GRID_SHIFT_START || focusedTrack < 0 || structureProgress > 0)) {
       useScrollStore.getState().clearFocus('scene')
     }
-    if (focusedVoyager && (sp < GRID_SHIFT_START || !voyagerState.available)) useScrollStore.getState().clearFocus('scene')
+    if (focusedVoyager && (sp < GRID_SHIFT_START || !voyagerState.available || structureProgress > 0)) useScrollStore.getState().clearFocus('scene')
     const event = pendingFocusEvent.current
     pendingFocusEvent.current = null
     if (event) {
       const track = event.type === 'focus' ? mainPlanetIndices.indexOf(event.planetIdx) : -1
-      if (event.type === 'exit' || (sp >= GRID_SHIFT_START && (track >= 0 || (event.type === 'voyager' && voyagerState.available)))) {
+      if (event.type === 'exit' || (sp >= GRID_SHIFT_START && structureProgress === 0 && (track >= 0 || (event.type === 'voyager' && voyagerState.available)))) {
         focusTimeline.current?.dispatch(event, track)
         if (event.type === 'voyager') useScrollStore.getState().setFocusStartTime(sceneTime.current)
       } else {
@@ -345,6 +347,7 @@ export default function Planets() {
         time, trackIdx, appearance.scale, planetOpacity, glowFactor,
         d.scale * d.scaleMult * ATMOS_HALO_SCALE,
       )
+      if (sp >= GRID_SHIFT_START) assets[trackIdx].updateSpin?.(time, d._baseSpeed)
     }
 
     // 发布屏幕视觉半径（供径向布局使用）

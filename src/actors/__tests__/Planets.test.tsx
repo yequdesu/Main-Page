@@ -107,6 +107,19 @@ describe('主页行星类型', () => {
       await frames(1652)
       expect(useScrollStore.getState().focusedVoyager).toBe(false)
       expect(useScrollStore.getState().focusEvent).toEqual({ type: 'exit', reason: 'timeout' })
+      for (const target of ['planet', 'voyager']) {
+        store.setPageProgress(1)
+        if (target === 'planet') store.setFocusedPlanet(_mainPlanetIndices[0])
+        else store.focusVoyager()
+        await frames(20)
+        expect(channels.mode).toBe('focus')
+        store.setPageProgress(1.1)
+        await frames(1)
+        expect(useScrollStore.getState().focusedPlanetIdx).toBe(-1)
+        expect(useScrollStore.getState().focusedVoyager).toBe(false)
+        expect(useScrollStore.getState().focusEvent).toEqual({ type: 'exit', reason: 'scene' })
+        expect(channels.mode).toBe('exit')
+      }
     } finally { await renderer.unmount() }
     const revision = channels.revision
     useScrollStore.getState().setFocusedPlanet(_mainPlanetIndices[0])
@@ -154,7 +167,9 @@ describe('主页行星类型', () => {
       await renderer.advanceFrames(1, 0.1)
       const start = moon.position.clone().sub(core.position).normalize()
       const previousCore = core.position.clone()
+      const previousSpin = ringCore.quaternion.clone()
       await renderer.advanceFrames(1, SATELLITE.period / 4)
+      expect(ringCore.quaternion.angleTo(previousSpin)).toBeCloseTo(SATELLITE.period / 4 * 0.07 / 1.4)
       const offset = new Vector3().subVectors(moon.position, core.position)
       expect(core.position.distanceTo(previousCore)).toBeGreaterThan(0)
       expect(offset.length()).toBeCloseTo(PLANET_BASE_RADIUS * core.scale.x * SATELLITE.orbitRadius)

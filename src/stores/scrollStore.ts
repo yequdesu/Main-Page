@@ -1,3 +1,4 @@
+import { getPageFlow } from '../behaviors/usePageFlow'
 import { create } from 'zustand'
 import type { FocusEvent } from '../types'
 
@@ -5,6 +6,8 @@ import type { FocusEvent } from '../types'
 // Slice 类型
 // ============================================================
 interface ScrollSlice {
+  pageProgress: number
+  structureProgress: number
   scrollProgress: number
 }
 
@@ -21,6 +24,7 @@ interface FocusSlice {
 // Actions
 // ============================================================
 interface ScrollActions {
+  setPageProgress: (progress: number) => void
   setScrollProgress: (sp: number) => void
 }
 
@@ -72,7 +76,10 @@ export type ScrollStore = ScrollSlice & FocusSlice & TerminalSlice & ScrollActio
 // ============================================================
 export const useScrollStore = create<ScrollStore>()((set) => ({
   // ---- Scroll slice ----
+  pageProgress: 0,
+  structureProgress: 0,
   scrollProgress: 0,
+  setPageProgress: (progress) => set(getPageFlow(progress)),
   setScrollProgress: (sp) => set({ scrollProgress: sp }),
 
   // ---- Focus slice ----

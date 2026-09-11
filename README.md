@@ -1,26 +1,28 @@
 # YeQuDesu · Personal Site
 
-YeQuDesu 的滚动驱动 3D 单页个人网站，用海洋灯塔、网格过渡和行星导航展示个人品牌，并连接个人服务与 GitHub。仓库同时包含开发用的 3D 模型调试工作台 Debug Studio。
+YeQuDesu 的滚动驱动 3D 单页个人网站，用海洋灯塔、网格过渡、行星导航和恒星系统结构图展示个人品牌，并连接个人服务与 GitHub。仓库同时包含开发用的 3D 模型调试工作台 Debug Studio。
 
 主应用使用全视口 WebGL Canvas，品牌文字、终端、浮动标签和标签牵引线叠加在 DOM/SVG 层。
 
 ## 页面体验
 
-页面高度当前为 **25 倍视口高度**，由 [App.tsx](src/App.tsx) 的 `SCROLL_VH` 控制。滚动进度 `scrollProgress` 从 0 到 1，贯穿三个视觉阶段：
+页面包含四个视觉阶段。原三幕保留 `scrollProgress` 的 0–1 区间；Act 4 接在其后，由独立的 `structureProgress` 控制。整页坐标及高度由 [App.tsx](src/App.tsx) 和 [PAGE_FLOW](src/types/index.ts) 共同确定，详见[结构图说明](docs/system-structure.md#滚动坐标)。
 
 | 阶段 | 主要进度区间 | 内容 |
 |------|------------|------|
 | OceanVoyage | 0–45% | 暗色海洋、灯塔、旋转光束与漂浮碎片 |
 | GridTransition | 40–85% | 雾效过渡、海浪展平与网格延伸，随后显示品牌文字 |
 | ContentPhase | 85–100% | 中央恒星、轨道环、三颗主行星及导航标签 |
+| SystemStructure | Act 3 之后 | 左侧日面边缘，向右排列普通、带卫星与带环行星，展示系统组成 |
 
 这些区间描述视觉阶段，不代表组件的挂载区间。海浪延续到网格阶段，跨幕对象常驻 Canvas 根层级，各对象按进度控制自身表现；日间主题会逐渐转为亮色背景，夜间主题保持暗色。共享阈值见 [SCROLL_RIG](src/types/index.ts)，背景和雾的计算见 [ScrollRig.ts](src/r3f/ScrollRig.ts)。
 
-- **滚动与快进**：滚轮有惯性；点击页面可用 2 秒动画快进到末尾。
+- **滚动与快进**：滚轮有惯性；点击页面可用 2 秒动画快进至 Act 3。继续向下滚动或点击结构图入口进入 Act 4，向上滚动或点击返回按钮回到轨道视图。
 - **行星导航**：由内到外为普通行星（FS）、带卫星行星（Code）和四层带环行星（GitHub），卫星随主体运动并绕其公转。点击与退出事件通过 GSAP 时间轴统一编排行星、相机和轨道显示。点击行星时，相机从抬高的初始姿态靠近观察；另外两颗行星沿各自轨道调相至恒星左右，形成包含恒星的三角构图，到位后近同步缓慢公转。聚焦视野适配窗口比例，再次点击当前行星打开链接；聚焦期间阻止滚轮，30 秒后自动平滑返回全局视角；退出时三颗行星沿原公转方向加速回到各自持续运行的参考位置，再恢复原速度。聚焦时导航轨道整体减弱，并在球体附近柔和淡出；返回全景后平滑恢复，实体行星环保留原有质感。
 - **外环巡航**：Voyager 1 Low Poly 探测器沿最外层倾斜椭圆巡航，随轨道面进动，高增益通信天线始终朝向恒星。点击飞行器天线或主体基座、或输入 `voyager` 命令进入朝向恒星的跟随近景，点击空白退出，30 秒自动返回；聚焦行星时随外环弱化。轨迹与参数见 [轨道系统](docs/orbital-system.md#voyager-最外环巡航)。
 - **主终端**：点击或按 `/` 激活，支持 `help`、`debug`、`day`、`night`、`voyager`、`clear`；`light`、`dark`、`cls` 为对应别名。
-- **场景信息与标签**：最后一幕显示行星、轨道、摄像机和碎片数据；行星标签由 PBD 融合布局管理，支持 `info`、`focus`、`open` 命令。算法的公式、SVG 动画和参数实验见 [交互说明](docs/actors/pbd-layout-explainer.html)。
+- **场景信息与标签**：Act 3 显示行星、轨道、摄像机和碎片数据；行星标签由 PBD 融合布局管理，支持 `info`、`focus`、`open` 命令。算法的公式、SVG 动画和参数实验见 [交互说明](docs/actors/pbd-layout-explainer.html)。
+- **结构示意**：Act 4 按由内向外的顺序固定排列三种行星，保留卫星公转、带环行星自转与环面进动、四层行星环和浅明暗面；尺寸与间距非等比例。
 - **主题与品牌**：支持日夜切换，灯塔图标由场景模型离屏渲染生成。主题由 CSS、场景混合和终端色板分别更新；海洋阶段的主终端保持夜间色板。
 
 当前行星入口由 [PLANET_LINKS](src/types/index.ts) 配置：
@@ -89,7 +91,7 @@ Studio 是独立的开发入口。当前 Vite 生产构建只使用 `index.html`
 |------|------|
 | [src/main.tsx](src/main.tsx)、[src/App.tsx](src/App.tsx) | 主应用入口、滚动物理、Act 编排及 DOM/SVG 叠加层 |
 | [src/r3f/](src/r3f/) | Canvas、渲染请求桥接、背景/雾和行星点击检测 |
-| [src/acts/](src/acts/) | 三幕分组与相机聚焦编排 |
+| [src/acts/](src/acts/) | 四幕分组、结构布局与相机聚焦编排 |
 | [src/actors/](src/actors/) | 灯塔、海浪、光束、行星、恒星、碎片、轨道，以及品牌和标签组件 |
 | [src/behaviors/](src/behaviors/) | 轨道、聚焦、投影、风铃过渡、标签布局等计算与 Hook |
 | [src/terminal/](src/terminal/) | 通用终端引擎、Slot 动画编排与命令系统 |
@@ -109,10 +111,11 @@ SceneCanvas
 ├── Lighthouse / WindChimeLines / CentralStar
 ├── Act1OceanVoyage → OceanWaves / LightBeam / LighthouseCapture
 ├── Act2GridTransition → GridLines
-└── Act3ContentPhase → OrbitRings，并更新相机聚焦
+├── Act3ContentPhase → OrbitRings，并统一更新相机
+└── Act4SystemStructure → 日面边缘 / 三种行星的独立实例
 ```
 
-三个 Act 保持挂载，通过 `visible` 控制组可见性。品牌、终端、浮动标签和标签牵引线由 App 的 DOM 层管理；主行星由 `Planets` 管理，`DustField` 负责碎片。
+四个 Act 保持挂载，通过 `visible` 控制组可见性。品牌、终端、浮动标签和标签牵引线由 App 的 DOM 层管理；主行星由 `Planets` 管理，`DustField` 负责碎片。
 
 主 Canvas 使用 `flat` 与 `frameloop="demand"`。滚动更新通过 `scrollStore` → `ScrollInvalidator` → `invalidate()` 请求一帧，再由 `useFrame` 更新场景；GSAP 与 DOM 标签也有自己的更新调度。修改动画时应同时核对渲染触发和组件生命周期，相关约定见 [AGENTS.md](AGENTS.md)。
 
@@ -128,7 +131,7 @@ SceneCanvas
 
 | 主题 | 文档入口 |
 |------|----------|
-| 场景组成 | [Act 说明](src/acts/README.md)、[Actor 说明](src/actors/README.md)、[R3F 基础设施](src/r3f/README.md) |
+| 场景组成 | [Act 4 结构图](docs/system-structure.md)、[Act 说明](src/acts/README.md)、[Actor 说明](src/actors/README.md)、[R3F 基础设施](src/r3f/README.md) |
 | 终端 | [操作手册](docs/terminal/operation-guide.md)、[维护手册](docs/terminal/maintenance-guide.md)、[技术规格](docs/terminal/specification.md) |
 | 主题 | [设计](docs/theme/design.md)、[操作](docs/theme/operation-guide.md)、[维护](docs/theme/maintenance-guide.md) |
 | 轨道与标签布局 | [轨道系统](docs/orbital-system.md)、[PBD 交互说明](docs/actors/pbd-layout-explainer.html)、[形式化公式](docs/actors/pbd-layout-formal.md)、[操作](docs/actors/pbd-layout-operation-guide.md)、[维护](docs/actors/pbd-layout-maintenance-guide.md) |

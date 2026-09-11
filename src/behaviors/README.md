@@ -8,6 +8,8 @@
 
 | 文件 | 类型 | 职责 |
 |------|------|------|
+| `usePageFlow.ts` | 纯函数 | 整页坐标映射到原三幕和 Act 4 进度，边界沿用共享 `PAGE_FLOW` |
+| `structureLayout.ts` | 纯函数 / 常量 | 结构图视口尺寸、行星排列和与 DOM 共用的比例 |
 | `useFrameCache.ts` | Hook | 帧缓存守卫——同帧同参数跳过更新（`shouldSkip` / `shouldSkipSp`）|
 | `useCameraFocus.ts` | 函数 | `createCameraFocusController()` 创建场景独占控制器：消费时间轴进度、固定抬高起点、更新相机位置/朝向/FOV；可由调用方传入复合行星的聚焦距离倍率（见 [资产对应](../actors/README.md#主页轨道与资产对应)） |
 | `useFocusTimeline.ts` | 有状态函数 | 事件触发 GSAP Timeline，统一编排镜头、调相、轨道淡化、回位与超时 |
@@ -27,6 +29,10 @@
 > [形式化公式](../../docs/actors/pbd-layout-formal.md) · [SVG 交互说明](../../docs/actors/pbd-layout-explainer.html)
 >
 > [历史设计（2026-06-21）](../../docs/superpowers/specs/2026-06-21-pbd-layout-design.md)
+
+## 第四幕取景
+
+`useCameraFocus` 同时消费 `structureProgress`，在既有姿态基础上插值到结构图镜头，并同步相机图层。只有该控制器写相机；原聚焦算法继续保留，离开 Act 3 时由场景事件退出。布局公式、正反向滚动与渲染理由见[Act 4 说明](../../docs/system-structure.md)。
 
 ## 聚焦会话
 

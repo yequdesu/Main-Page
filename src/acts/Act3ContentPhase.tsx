@@ -5,7 +5,6 @@ import { useFocusAnimation } from '../r3f/FocusAnimationContext'
 import { voyagerState } from '../actors/voyagerState'
 import OrbitRings from '../actors/OrbitRings'
 import { useScrollStore } from '../stores/scrollStore'
-import { useFrameCache } from '../behaviors/useFrameCache'
 import { createCameraFocusController } from '../behaviors/useCameraFocus'
 import { _planetWorldPositions, _planetFocusDistanceScales } from '../actors/Planets'
 
@@ -19,21 +18,18 @@ interface Act3Props {
 
 const Act3ContentPhase = memo(function Act3ContentPhase({ visible }: Act3Props) {
   const { camera } = useThree()
-  const { shouldSkip } = useFrameCache()
   const updateCameraFocus = useMemo(createCameraFocusController, [])
 
   const focusChannels = useFocusAnimation()
 
-  useFrame((state, _delta) => {
-    const sp = useScrollStore.getState().scrollProgress
-    const time = state.clock.elapsedTime
-    if (shouldSkip(time, sp)) return
+  useFrame(() => {
+    const { structureProgress } = useScrollStore.getState()
 
     const trackIdx = focusChannels.track
     if (focusChannels.target === 'voyager') {
-      updateCameraFocus(camera as PerspectiveCamera, focusChannels, voyagerState.available ? voyagerState.position : null, 1, voyagerState.radius)
+      updateCameraFocus(camera as PerspectiveCamera, focusChannels, voyagerState.available ? voyagerState.position : null, 1, voyagerState.radius, structureProgress)
     } else {
-      updateCameraFocus(camera as PerspectiveCamera, focusChannels, _planetWorldPositions[trackIdx] ?? null, _planetFocusDistanceScales[trackIdx] ?? 1)
+      updateCameraFocus(camera as PerspectiveCamera, focusChannels, _planetWorldPositions[trackIdx] ?? null, _planetFocusDistanceScales[trackIdx] ?? 1, 0, structureProgress)
     }
   })
 

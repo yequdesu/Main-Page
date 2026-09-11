@@ -53,7 +53,7 @@ export const commandRegistry: Command[] = [
     description: 'Focus the Voyager spacecraft',
     handler: () => {
       const store = useScrollStore.getState()
-      if (store.scrollProgress < GRID_SHIFT_START || !voyagerState.available) return 'Voyager is available after entering the solar system and loading the model.'
+      if (store.scrollProgress < GRID_SHIFT_START || store.structureProgress > 0 || !voyagerState.available) return 'Voyager is available after entering the solar system and loading the model.'
       store.focusVoyager()
       return 'Focusing Voyager · click empty space to return · auto return in 30s'
     },

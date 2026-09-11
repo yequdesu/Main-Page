@@ -1,11 +1,14 @@
 import { Vector3, type PerspectiveCamera } from 'three'
-import { SCENE_CENTER_Z } from '../r3f/ScrollRig'
+import { STRUCTURE_LAYOUT } from './structureLayout'
+import { smoothstep, SCENE_CENTER_Z } from '../r3f/ScrollRig'
 import { createFocusPoseCalculator, focusFieldOfView } from './focusPose'
 import type { FocusChannels } from './useFocusTimeline'
 
 /** 时间轴只提供进度；此控制器是相机位置、朝向与 FOV 的唯一写入方。 */
 export function createCameraFocusController() {
   const globalPosition = new Vector3(0, 0.25, 8)
+  const structurePosition = new Vector3(0, STRUCTURE_LAYOUT.centerY, STRUCTURE_LAYOUT.cameraZ)
+  const structureLookAt = new Vector3(0, STRUCTURE_LAYOUT.centerY, STRUCTURE_LAYOUT.planeZ)
   const globalLookAt = new Vector3(0, -0.65, SCENE_CENTER_Z - 8)
   const startPosition = new Vector3()
   const startLookAt = new Vector3()
@@ -20,7 +23,7 @@ export function createCameraFocusController() {
   let revision = -1
   let baseFov: number | null = null
   let startFov = 40
-  return (camera: PerspectiveCamera, channels: FocusChannels, planet: Vector3 | null, distanceScale = 1, targetRadius = 0) => {
+  return (camera: PerspectiveCamera, channels: FocusChannels, planet: Vector3 | null, distanceScale = 1, targetRadius = 0, structureProgress = 0) => {
     baseFov ??= camera.fov
     if (revision !== channels.revision) {
       revision = channels.revision
@@ -58,8 +61,14 @@ export function createCameraFocusController() {
     const progress = channels.mode === 'idle' ? 1 : channels.camera
     camera.position.lerpVectors(startPosition, targetPosition, progress)
     lookAt.lerpVectors(startLookAt, targetLookAt, progress)
+    const structure = smoothstep(structureProgress)
+    camera.position.lerp(structurePosition, structure)
+    lookAt.lerp(structureLookAt, structure)
     camera.lookAt(lookAt)
-    const nextFov = startFov + (fov - startFov) * progress
+    camera.layers.set(structure >= 1 ? STRUCTURE_LAYOUT.layer : 0)
+    if (structure > 0) camera.layers.enable(STRUCTURE_LAYOUT.layer)
+    const sceneFov = startFov + (fov - startFov) * progress
+    const nextFov = sceneFov + (STRUCTURE_LAYOUT.fov - sceneFov) * structure
     if (Math.abs(nextFov - camera.fov) > 1e-6) {
       camera.fov = nextFov
       camera.updateProjectionMatrix()

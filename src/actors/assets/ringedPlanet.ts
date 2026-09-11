@@ -1,5 +1,7 @@
-import { Mesh, MeshStandardMaterial, TorusGeometry, type Texture } from 'three'
+import { Mesh, MeshStandardMaterial, Quaternion, TorusGeometry, Vector3, type Texture } from 'three'
 import { createPlanetAsset, PLANET_BASE_RADIUS } from './planet'
+
+export const RINGED_PLANET_SPIN_PERIOD_RATIO = 1.4
 
 // 比例均相对于行星核心半径；先压扁 Torus 的局部 Z 轴，再放到倾斜的赤道面。
 export const PLANET_RING = {
@@ -77,10 +79,27 @@ export function createRingedPlanetAsset(trackIdx: number, haloTexture: Texture) 
   // 保持已有两层的节点路径，新增细节追加到对象树。
   planet.root.add(ring, outerRing, innerRing, outermostRing)
   planet.root.name = `带环行星 ${trackIdx + 1}`
+  const tilt = PLANET_RING.tiltDegrees * Math.PI / 180
+  // 环面倾角已烘焙进几何体；绕它的法线自转不会改变环面朝向。
+  const spinAxis = new Vector3(Math.sin(tilt), Math.cos(tilt), 0)
+  const axialTilt = new Quaternion().setFromAxisAngle(new Vector3(0, 0, 1), -tilt)
+  const spin = new Quaternion()
+  const verticalAxis = new Vector3(0, 1, 0)
+  const precession = new Quaternion()
+  const ringRotation = new Quaternion()
 
   return {
     ...planet, ring, outerRing, innerRing, outermostRing,
     visualRadiusScale: Math.max(planet.visualRadiusScale, outermostRadius + PLANET_OUTERMOST_RING.tube),
+    updateSpin(time: number, orbitAngularSpeed: number, periodRatio: number = RINGED_PLANET_SPIN_PERIOD_RATIO, precessRings = false) {
+      const angle = (time * orbitAngularSpeed / periodRatio) % (Math.PI * 2)
+      spin.setFromAxisAngle(spinAxis, angle)
+      planet.core.quaternion.copy(spin).multiply(axialTilt)
+      // 先轴向自转，再绕局部竖直轴进动；核心不受进动影响。
+      precession.setFromAxisAngle(verticalAxis, precessRings ? angle : 0)
+      ringRotation.multiplyQuaternions(precession, spin)
+      for (const layer of layers) layer.mesh.quaternion.copy(ringRotation)
+    },
     updateAppearance(time: number, phase: number, scale: number, opacity: number, glowFactor: number, haloScale: number) {
       planet.updateAppearance(time, phase, scale, opacity, glowFactor, haloScale)
       for (const layer of layers) {

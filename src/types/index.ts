@@ -18,6 +18,9 @@ export const SCROLL_RIG = {
   IDLE_RESET_DELAY: 1.5,
 } as const
 
+/** 三颗导航行星的正常公转角速度（rad/s）；聚焦调相不修改此基准。 */
+export const PLANET_ORBIT_SPEEDS = [-0.04, -0.055, -0.07] as const
+
 // ============================================================
 // 轨道环配置（可扩展）
 // 援引：Murray & Dermott, Solar System Dynamics, §2.8
@@ -122,3 +125,11 @@ export type FocusEvent =
   | { type: 'focus'; planetIdx: number }
   | { type: 'voyager' }
   | { type: 'exit'; reason: 'manual' | 'timeout' | 'scene' }
+
+/** 页面滚动坐标：前三幕沿用 0–1，结构视图向后追加。 */
+export const PAGE_FLOW = {
+  act3Target: 1,
+  structureStart: 1.02,
+  structureEnd: 1.22,
+  end: 1.30,
+} as const
