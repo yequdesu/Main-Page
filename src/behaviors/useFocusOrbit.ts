@@ -38,7 +38,8 @@ export function chooseFocusPhases(data: ParticleData[], focused: number, aspect:
   const pose = createFocusPoseCalculator()
   const focal = new Vector3(data[focused].orbitR, -1, SCENE_CENTER_Z)
   const remaining = [0, 1, 2].filter(i => i !== focused)
-  const samples = [0, 5, 10, 15, 20, 25, 30].map(elapsed => {
+  // 加密持续运镜的预测，避免附件包络在稀疏采样之间触及视口边缘。
+  const samples = Array.from({ length: 31 }, (_, elapsed) => {
     pose(focal, elapsed, distanceScale, position, lookAt)
     camera.position.copy(position)
     camera.lookAt(lookAt)
@@ -76,7 +77,8 @@ export function chooseFocusPhases(data: ParticleData[], focused: number, aspect:
       for (const p of [one, two]) {
         // 视口边界与实体包络优先；主行星的原有近景尺寸不参与重新缩放。
         score += 1e6 * (sq(Math.max(0, Math.abs(p.x) + p.radius + 0.035 - aspect)) + sq(Math.max(0, Math.abs(p.y) + p.radius + 0.035 - 1)))
-        score += 800 * sq(Math.max(0, sample.star.radius + p.radius + 0.04 - Math.hypot(p.x - sample.star.x, p.y - sample.star.y)))
+        // 持续抬升时优先避开恒星主体，避免用轻微遮挡换取更对称的构图。
+        score += 8000 * sq(Math.max(0, sample.star.radius + p.radius + 0.04 - Math.hypot(p.x - sample.star.x, p.y - sample.star.y)))
         score += 500 * sq(Math.max(0, sample.main.radius + p.radius + 0.04 - Math.hypot(p.x - sample.main.x, p.y - sample.main.y)))
       }
       score += 1000 * (sq(Math.max(0, left.x + left.radius + 0.05 - sample.star.x)) + sq(Math.max(0, sample.star.x + right.radius + 0.05 - right.x)))
@@ -150,7 +152,7 @@ export function createFocusOrbitController(geometry: FocusGeometry) {
       initialize(data)
       const dt = clamp(delta, 0, 0.1)
       data.forEach((d, i) => {
-        references[i] += (channels.mode === 'focus' || returns[i] ? d._baseSpeed : d._baseSpeed * (1 - d.hoverFactor * 0.8)) * dt
+        references[i] += ((channels.mode === 'focus' && channels.target === 'planet') || returns[i] ? d._baseSpeed : d._baseSpeed * (1 - d.hoverFactor * 0.8)) * dt
       })
       if (channels.mode === 'focus' && active >= 0) {
         const elapsed = channels.elapsed

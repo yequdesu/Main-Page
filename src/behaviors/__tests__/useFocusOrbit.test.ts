@@ -23,7 +23,8 @@ describe('原轨道上的聚焦构图', () => {
     const camera = new PerspectiveCamera(fov, aspect)
     const pose = createFocusPoseCalculator()
     const p = new Vector3(), look = new Vector3()
-    for (const rotation of [0, 1.7, 4.3]) for (const elapsed of [0, 5, 10, 15, 20, 25, 30]) {
+    // 每秒检查，覆盖预测采样之间的时间及 3 秒加速结束点。
+    for (const rotation of [0, 1.7, 4.3]) for (let elapsed = 0; elapsed <= 30; elapsed++) {
       const angles = phases.map((phase, i) => phase + rotation + (i === track ? 0 : 0.025 * Math.sin(elapsed * 0.12 + i * 2.1)))
       pose(new Vector3(Math.cos(rotation) * data[track].orbitR, -1, SCENE_CENTER_Z + Math.sin(rotation) * data[track].orbitR), elapsed, scales[track], p, look)
       camera.position.copy(p); camera.lookAt(look); camera.updateMatrixWorld()
@@ -42,8 +43,15 @@ describe('原轨道上的聚焦构图', () => {
         const distance = world.distanceTo(camera.position)
         const depth = -world.clone().applyMatrix4(camera.matrixWorldInverse).z
         const radius = geometry.planetRadius * data[i].scale * 0.7 * data[i].sizeBoost * data[i].scaleMult * 22 / Math.max(5, distance) * envelopes[i] * 1.35 / (depth * Math.tan(fov * Math.PI / 360))
+        const starWorld = new Vector3(0, -1, SCENE_CENTER_Z)
+        const starDepth = -starWorld.applyMatrix4(camera.matrixWorldInverse).z
+        const starRadius = geometry.starRadius / (starDepth * Math.tan(fov * Math.PI / 360))
+        const coreRadius = radius / envelopes[i]
+        const starSeparation = Math.hypot((points[i].x - star.x) * aspect, points[i].y - star.y)
+        // 调相完成后的稳定构图中，行星主体应与恒星主体分离。
+        if (elapsed >= 4) expect(starSeparation, `star clearance ${i}, ${elapsed}`).toBeGreaterThan(starRadius + coreRadius)
         expect(Math.abs(points[i].x) + radius / aspect, `horizontal envelope ${i}, ${elapsed}`).toBeLessThan(0.99)
-        expect(Math.abs(points[i].y) + radius, `vertical envelope ${i}, ${elapsed}`).toBeLessThan(0.99)
+        expect(Math.abs(points[i].y) + radius, `vertical envelope ${i}, ${elapsed}, rotation ${rotation}, phases ${phases}`).toBeLessThan(0.99)
       }
       const cross = (a: Vector3, b: Vector3) => (a.x - star.x) * (b.y - star.y) - (a.y - star.y) * (b.x - star.x)
       const signs = [cross(points[0], points[1]), cross(points[1], points[2]), cross(points[2], points[0])]

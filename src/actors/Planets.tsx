@@ -6,6 +6,7 @@ import { useRealtimeStore, type PlanetCoords } from '../stores/realtimeStore'
 import { useFrameCache } from '../behaviors/useFrameCache'
 import { CENTRAL_STAR_CORE_RADIUS } from './assets/centralStar'
 import { createFocusTimeline, type FocusEvent } from '../behaviors/useFocusTimeline'
+import { voyagerState } from './voyagerState'
 import { useFocusAnimation } from '../r3f/FocusAnimationContext'
 import { createFocusOrbitController } from '../behaviors/useFocusOrbit'
 import { calcOrbitPosition } from '../behaviors/useOrbitPosition'
@@ -173,7 +174,7 @@ export default function Planets() {
     })
     focusTimeline.current = timeline
     const initial = useScrollStore.getState()
-    pendingFocusEvent.current = initial.focusedPlanetIdx >= 0
+    pendingFocusEvent.current = initial.focusedVoyager ? { type: 'voyager' } : initial.focusedPlanetIdx >= 0
       ? { type: 'focus', planetIdx: initial.focusedPlanetIdx } : null
     const unsubscribe = useScrollStore.subscribe((state, previous) => {
       if (state.focusEvent !== previous.focusEvent) {
@@ -212,23 +213,26 @@ export default function Planets() {
     const orbitSmooth3 = 1.0  // 始终轨道位置，永不 dust-lerp
 
     const cx = 0, cy = -1.0, cz = SCENE_CENTER_Z
-    const { hoveredIdx, focusedPlanetIdx } = useScrollStore.getState()
+    const { hoveredIdx, focusedPlanetIdx, focusedVoyager } = useScrollStore.getState()
 
     sceneTime.current = time
     const focusedTrack = mainPlanetIndices.indexOf(focusedPlanetIdx)
     if (focusedPlanetIdx >= 0 && (sp < GRID_SHIFT_START || focusedTrack < 0)) {
       useScrollStore.getState().clearFocus('scene')
     }
+    if (focusedVoyager && (sp < GRID_SHIFT_START || !voyagerState.available)) useScrollStore.getState().clearFocus('scene')
     const event = pendingFocusEvent.current
     pendingFocusEvent.current = null
     if (event) {
       const track = event.type === 'focus' ? mainPlanetIndices.indexOf(event.planetIdx) : -1
-      if (event.type === 'exit' || (sp >= GRID_SHIFT_START && track >= 0)) focusTimeline.current?.dispatch(event, track)
-      else {
+      if (event.type === 'exit' || (sp >= GRID_SHIFT_START && (track >= 0 || (event.type === 'voyager' && voyagerState.available)))) {
+        focusTimeline.current?.dispatch(event, track)
+        if (event.type === 'voyager') useScrollStore.getState().setFocusStartTime(sceneTime.current)
+      } else {
         focusTimeline.current?.dispatch({ type: 'exit', reason: 'scene' })
         useScrollStore.getState().clearFocus('scene')
       }
-    } else if (focusChannels.mode === 'focus' && Math.abs(focusAspect.current - (camera as PerspectiveCamera).aspect) > 0.02) {
+    } else if (focusChannels.mode === 'focus' && focusChannels.target === 'planet' && Math.abs(focusAspect.current - (camera as PerspectiveCamera).aspect) > 0.02) {
       // 窗口比例改变也通过事件重建构图，从当前姿态衔接。
       focusTimeline.current?.dispatch({ type: 'focus', planetIdx: focusedPlanetIdx }, focusedTrack)
     }

@@ -54,7 +54,8 @@ export default function App() {
   const [isClickPlaying, setIsClickPlaying] = useState(false)
   const [lighthouseImage, setLighthouseImage] = useState<string | null>(null)
   const focusedPlanetIdx = useScrollStore(s => s.focusedPlanetIdx)
-  const isAct3Focused = focusedPlanetIdx >= 0 && scrollProgress >= GRID_SHIFT_START
+  const focusedVoyager = useScrollStore(s => s.focusedVoyager)
+  const isAct3Focused = (focusedPlanetIdx >= 0 || focusedVoyager) && scrollProgress >= GRID_SHIFT_START
   const isTerminalActive = terminalMode === 'active'
 
   // ---- Act visibility ----

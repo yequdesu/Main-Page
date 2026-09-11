@@ -45,7 +45,8 @@ const FloatingLabels = memo(function FloatingLabels(props: FloatingLabelsProps) 
   const centralStar = useRealtimeStore(s => s.centralStarScreen)
   const focusedPlanetIdx = useScrollStore(s => s.focusedPlanetIdx)
   const labelsGateOpen = useScrollStore(s => s.labelsGateOpen)
-  const isAnyFocused = focusedPlanetIdx >= 0
+  const focusedVoyager = useScrollStore(s => s.focusedVoyager)
+  const isAnyFocused = focusedPlanetIdx >= 0 || focusedVoyager
 
   // ---- 折叠态 typewriter 完成后自收缩宽度 ----
   // DOM 实时测量：读 <span> 的 getBoundingClientRect，比 Canvas measureText

@@ -1,4 +1,4 @@
-import { useMemo, useRef } from 'react'
+import { useMemo, useRef, type ReactNode } from 'react'
 import { useFrame } from '@react-three/fiber'
 import { type Group } from 'three'
 import { SCENE_CENTER_Z, GRID_SHIFT_START } from '../r3f/ScrollRig'
@@ -38,9 +38,11 @@ interface OrbitalRingProps {
   speedScale?: number
   /** 覆盖 config.color，用于 day/night 主题切换 */
   color?: string
+  /** 随轨道面进动的对象；挂在拉伸组之外，避免模型被非均匀缩放。 */
+  children?: ReactNode
 }
 
-export default function OrbitalRing({ config, speedScale = 1.0, color: colorOverride }: OrbitalRingProps) {
+export default function OrbitalRing({ config, speedScale = 1.0, color: colorOverride, children }: OrbitalRingProps) {
   const {
     radius,
     inclination,
@@ -72,7 +74,7 @@ export default function OrbitalRing({ config, speedScale = 1.0, color: colorOver
     if (outerGroupRef.current) {
       outerGroupRef.current.rotation.y += delta * speed * speedScale
     }
-  })
+  }, -0.75)
 
   return (
     <group
@@ -97,6 +99,7 @@ export default function OrbitalRing({ config, speedScale = 1.0, color: colorOver
           />
         </lineLoop>
       </group>
+      {children}
     </group>
   )
 }

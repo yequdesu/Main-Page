@@ -16,6 +16,8 @@
 
 静态资源 URL 分别为 `/models/voyager-1.glb` 和 `/models/voyager-1-low-poly.glb`；文件名大小写必须与磁盘一致。
 
+`voyager-1-low-poly.glb` 同时由主页 [VoyagerOrbiter](../actors/VoyagerOrbiter.tsx) 使用，沿最外层轨道巡航；主页独立克隆节点和材质，保留 Studio 的模型与视口状态。当前文件声明的是 `KHR_draco_mesh_compression`，由 `useGLTF` 自动解码（沿用 Drei 默认解码器地址），以 GLB 元数据为准；旧烘焙脚本的 meshopt 注释不代表当前文件格式。
+
 ## 程序化资产
 
 恒星和行星的视觉构造在 [centralStar.ts](../actors/assets/centralStar.ts)、[planet.ts](../actors/assets/planet.ts)，由主页 Actor 与 Studio 共用。[celestialPreview.ts](celestialPreview.ts) 提供独立预览场景，完整显示光晕，不读取或写入主页的滚动、聚焦与实时数据。

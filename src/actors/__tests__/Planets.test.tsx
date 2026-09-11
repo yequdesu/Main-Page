@@ -1,9 +1,11 @@
+vi.mock('../VoyagerOrbiter', () => ({ default: () => null }))
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { extend, useFrame } from '@react-three/fiber'
 import ReactThreeTestRenderer from '@react-three/test-renderer'
 import { Line, Mesh, MeshStandardMaterial, Vector3 } from 'three'
 import { FocusAnimationProvider, useFocusAnimation } from '../../r3f/FocusAnimationContext'
 import { StrictMode } from 'react'
+import { voyagerState } from '../voyagerState'
 import Act3ContentPhase from '../../acts/Act3ContentPhase'
 import type { FocusChannels } from '../../behaviors/useFocusTimeline'
 import Planets, { _mainPlanetIndices, _planetWorldPositions } from '../Planets'
@@ -34,6 +36,7 @@ beforeEach(() => {
 })
 afterEach(() => {
   vi.restoreAllMocks()
+  voyagerState.available = false
   useScrollStore.setState(initialScroll, true)
   useRealtimeStore.setState(initialRealtime, true)
 })
@@ -93,6 +96,17 @@ describe('主页行星类型', () => {
       store.setFocusedPlanet(999)
       await frames(1)
       expect(useScrollStore.getState().focusedPlanetIdx).toBe(-1)
+      voyagerState.available = true
+      voyagerState.position.set(10, 1, -16)
+      voyagerState.radius = 0.3
+      store.focusVoyager()
+      await frames(150)
+      expect(channels.target).toBe('voyager')
+      expect(channels.voyagerFocus).toBe(1)
+      expect(useScrollStore.getState().focusedVoyager).toBe(true)
+      await frames(1652)
+      expect(useScrollStore.getState().focusedVoyager).toBe(false)
+      expect(useScrollStore.getState().focusEvent).toEqual({ type: 'exit', reason: 'timeout' })
     } finally { await renderer.unmount() }
     const revision = channels.revision
     useScrollStore.getState().setFocusedPlanet(_mainPlanetIndices[0])

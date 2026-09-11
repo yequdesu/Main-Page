@@ -1,3 +1,5 @@
+import { voyagerState } from '../actors/voyagerState'
+import { GRID_SHIFT_START } from '../r3f/ScrollRig'
 import { useScrollStore } from '../stores/scrollStore'
 
 export interface Command {
@@ -44,6 +46,16 @@ export const commandRegistry: Command[] = [
     handler: () => {
       useScrollStore.getState().setDayNight('night')
       return 'switched to night mode'
+    },
+  },
+  {
+    name: 'voyager',
+    description: 'Focus the Voyager spacecraft',
+    handler: () => {
+      const store = useScrollStore.getState()
+      if (store.scrollProgress < GRID_SHIFT_START || !voyagerState.available) return 'Voyager is available after entering the solar system and loading the model.'
+      store.focusVoyager()
+      return 'Focusing Voyager · click empty space to return · auto return in 30s'
     },
   },
   {

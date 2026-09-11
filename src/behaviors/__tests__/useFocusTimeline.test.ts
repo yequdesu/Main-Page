@@ -15,6 +15,25 @@ function setup() {
 }
 
 describe('事件驱动的 GSAP 聚焦会话', () => {
+  it('飞行器接管会取消旧超时并让行星回位，共用显隐和退出进度', () => {
+    const { channels, actions, timeline, advance } = setup()
+    timeline.dispatch({ type: 'focus', planetIdx: 0 }, 0)
+    advance(29)
+    timeline.dispatch({ type: 'voyager' })
+    advance(5)
+    expect(channels.target).toBe('voyager')
+    expect(channels.track).toBe(-1)
+    expect(channels.voyagerFocus).toBe(1)
+    expect([...channels.returns]).toEqual([1, 1, 1])
+    expect(actions.timeout).not.toHaveBeenCalled()
+    advance(25)
+    expect(actions.timeout).toHaveBeenCalledTimes(1)
+    timeline.dispatch({ type: 'exit', reason: 'timeout' })
+    advance(6)
+    expect(channels.voyagerFocus).toBe(0)
+    expect(channels.mode).toBe('idle')
+  })
+
   it('同一时间轴驱动镜头、调相、轨道淡化与 30 秒超时，只触发一次', () => {
     const { channels, actions, timeline, advance } = setup()
     timeline.dispatch({ type: 'focus', planetIdx: 10 }, 1)

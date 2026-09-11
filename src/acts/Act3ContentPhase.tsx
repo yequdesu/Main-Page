@@ -2,6 +2,7 @@ import { useMemo, memo } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
 import { type PerspectiveCamera } from 'three'
 import { useFocusAnimation } from '../r3f/FocusAnimationContext'
+import { voyagerState } from '../actors/voyagerState'
 import OrbitRings from '../actors/OrbitRings'
 import { useScrollStore } from '../stores/scrollStore'
 import { useFrameCache } from '../behaviors/useFrameCache'
@@ -29,7 +30,11 @@ const Act3ContentPhase = memo(function Act3ContentPhase({ visible }: Act3Props) 
     if (shouldSkip(time, sp)) return
 
     const trackIdx = focusChannels.track
-    updateCameraFocus(camera as PerspectiveCamera, focusChannels, _planetWorldPositions[trackIdx] ?? null, _planetFocusDistanceScales[trackIdx] ?? 1)
+    if (focusChannels.target === 'voyager') {
+      updateCameraFocus(camera as PerspectiveCamera, focusChannels, voyagerState.available ? voyagerState.position : null, 1, voyagerState.radius)
+    } else {
+      updateCameraFocus(camera as PerspectiveCamera, focusChannels, _planetWorldPositions[trackIdx] ?? null, _planetFocusDistanceScales[trackIdx] ?? 1)
+    }
   })
 
   return (

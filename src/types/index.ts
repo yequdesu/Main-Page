@@ -120,4 +120,5 @@ export interface Act2State {
 /** 业务入口发出的行星聚焦事件；同目标再次请求也产生新事件。 */
 export type FocusEvent =
   | { type: 'focus'; planetIdx: number }
+  | { type: 'voyager' }
   | { type: 'exit'; reason: 'manual' | 'timeout' | 'scene' }

@@ -1,5 +1,6 @@
+vi.mock('../../actors/VoyagerOrbiter', () => ({ default: () => null }))
 import { FocusAnimationProvider } from '../../r3f/FocusAnimationContext'
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach, vi } from 'vitest'
 import React from 'react'
 import ReactThreeTestRenderer from '@react-three/test-renderer'
 

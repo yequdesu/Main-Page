@@ -9,7 +9,7 @@
 | 文件 | Slice | 用途 |
 |------|-------|------|
 | `scrollStore.ts` | `scrollSlice` | `scrollProgress` — 唯一真相源 |
-| | `focusSlice` | `focusedPlanetIdx`, `hoveredIdx`, `focusStartTime`, `focusEvent` |
+| | `focusSlice` | `focusedPlanetIdx`, `focusedVoyager`, `hoveredIdx`, `focusStartTime`, `focusEvent` |
 
 ## 读写模式
 
@@ -26,7 +26,7 @@
 - 在 `useFrame` 中通过 `getState()` 读取所需字段，避免每帧数据触发不必要的 React 订阅
 - `focusStartTime` 使用 **R3F 时钟域**（`state.clock.elapsedTime`），非 `performance.now()`；`null` 表示尚未开始计时，`0` 是有效时间。`setFocusedPlanet()` 重置该字段，由场景控制器在下一帧赋值，`clearFocus()` 清空计时与聚焦状态
 
-聚焦业务入口必须使用 `setFocusedPlanet()` / `clearFocus()`，让状态和事件一起更新；直接写 `focusedPlanetIdx` 不会发出动画事件。`focusEvent` 为类型化的 `focus` / `exit` 事件，退出原因包括 `manual`、`timeout`、`scene`。同一帧多个请求以最后一个为准。每帧动画进度由 Canvas 内的 Context 保存，不进入此 store；`focusStartTime` 仅作场景起点记录，超时由 GSAP 时间轴控制。
+聚焦业务入口必须使用 `setFocusedPlanet()` / `focusVoyager()` / `clearFocus()`，让状态和事件一起更新；直接写 `focusedPlanetIdx` 不会发出动画事件。`focusEvent` 为类型化的 `focus` / `voyager` / `exit` 事件，退出原因包括 `manual`、`timeout`、`scene`。同一帧多个请求以最后一个为准。每帧动画进度由 Canvas 内的 Context 保存，不进入此 store；`focusStartTime` 仅作场景起点记录，超时由 GSAP 时间轴控制。
 
 ## 依赖方向
 

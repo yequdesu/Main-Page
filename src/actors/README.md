@@ -30,6 +30,7 @@
 | [LighthouseCaptureTypes.ts](LighthouseCaptureTypes.ts) | 截图模块 | 截图类型、默认参数和离屏渲染函数 |
 | [GridLines.tsx](GridLines.tsx) | Act 2 | 网格线与节点的延伸、位移和透明度 |
 | [OrbitRings.tsx](OrbitRings.tsx) | Act 3 | 轨道参考线与陀螺仪环编排 |
+| [VoyagerOrbiter.tsx](VoyagerOrbiter.tsx) | 最外层 `OrbitalRing` 的进动组 | 低模探测器的椭圆巡航、天线对星姿态、显隐与独立资源管理 |
 | [OrbitalRing.tsx](OrbitalRing.tsx) | `OrbitRings` 内 | 外层进动轨道线：有序圆周顶点、首尾闭合、进动和显隐 |
 | [OrbitLineMaterial.tsx](OrbitLineMaterial.tsx) | 静态及外层轨道线 | 聚焦时整体弱化、球体附近的局部渐隐，保留内置线材质的深度与雾 |
 | [BrandTitle.tsx](BrandTitle.tsx) | App DOM 层 | 品牌标题与灯塔截图图标 |
@@ -58,6 +59,22 @@
 局部渐隐以三个行星核心的实时世界坐标与球体半径为依据，来自 `Planets` 的 `_planetWorldPositions` / `_planetCoreWorldRadii`。对轨道片元位置 `p`，取各球体渐隐系数的最小值：`min_i smoothstep(1.08 r_i, 1.65 r_i, distance(p, c_i))`，再按聚焦渐变量混入透明度。这样在球体表面之外留出很窄的断口，并在外侧连续恢复线条；世界空间计算支持外层环的倾斜、拉伸与进动。使用球体真实半径而非附件包络，避免卫星和实体行星环周围出现巨大缺口。仅导航线应用此效果，实体行星环材质不受影响。
 
 轨道保留 `transparent=true`、`depthWrite=false`、`depthTest=true` 和具体线对象的 `renderOrder=2`；球体以 `renderOrder=1` 写入深度，遮挡后方轨道。局部渐隐只修改内置 `LineBasicMaterial` 的片元透明度，不替换雾、主题色和深度流程。实现通过 `onBeforeCompile` 添加世界坐标与 uniform，并提供固定 shader 缓存键；升级 Three.js 时需核对 `project_vertex` / `opaque_fragment` 注入点。依据：[Three.js Material 文档](https://threejs.org/docs/pages/Material.html)中的 `onBeforeCompile`、`customProgramCacheKey`、`depthTest` 和 `depthWrite`。材质由 R3F 释放，向量和 uniform 在挂载时分配，逐帧复用；动画沿用可见阶段 `Planets` 的 `invalidate()`。
+
+## Voyager 外环巡航
+
+最外层 `GYRO_RINGS` 配置挂载 [VoyagerOrbiter](VoyagerOrbiter.tsx)，模型和轨道共用同一个进动父组；模型位于非均匀拉伸组之外，避免航天器外形被拉伸。进入 Act 3 时按需加载模块和 GLB，局部 Suspense 与错误边界将加载等待或失败限制在探测器内。模型失败时刷新页面重试。
+
+[轨迹采样](../behaviors/useVoyagerOrbit.ts) 给出与轨道线相同的椭圆位置和切线，巡航周期 90 秒，最长尺寸归一化至 0.4125 个场景单位（前一版 0.55 的 75%）；`speedScale` 同时缩放巡航和父轨道进动，设为 0 可冻结。退出内容阶段后卸载实例，再次进入从初始巡航相位开始。自身请求可见阶段渲染，保留 demand 模式；逐帧复用向量和矩阵。聚焦行星时沿用时间轴的外环显隐通道（12%），距镜头 4–8 单位时额外平滑淡出。
+
+[资产克隆](assets/voyager.ts) 共享缓存几何体和贴图，独占节点与去重后的材质；只释放自己的材质，保留 Studio 加载缓存。具体 Mesh 设置 `renderOrder=1`、`transparent=true`、`depthTest=true`，完整显示时沿用源材质深度写入，淡出时关闭写入；源色同色微弱自发光托住暗面，仍接受场景灯光。来源与许可证见 [模型说明](../models/README.md#来源与许可证)。
+
+旋转、取景和点击中心使用天线与主体基座组合的精确包围盒中心，当前源模型坐标约为 `(0.07769, 1.89051, 0.17659)`；[资产克隆](assets/voyager.ts) 的 `VOYAGER_CORE_NODES` 包含碟面、馈源、中央支架和基座，不含长悬杆。加载时重新核算中心；部件匹配使用 GLTFLoader 保留的 `userData.name` 原名，避免节点名清理时丢失句点导致漏匹配。整体尺寸归一化仍沿用全模型尺寸。资产 +Y（天线开口）朝向恒星；资产 +Z 的磁力仪悬杆对齐对星视角的左上方，以恒星方向和世界竖直方向约束滚转。
+
+[共享状态](voyagerState.ts) 分别发布围绕核心中心的完整模型半径 `radius`、核心半径 `hitRadius` 和核心网格白名单 `hitTargets`。`radius` 从全部实际顶点计算，只用于完整取景；近景点击由射线检测核心网格，悬杆与旧大包围球内的空白区域不会拦截退出。非飞行器近景时保留核心周围至少 16px 的点击余量；主终端 `voyager` 提供另一入口。
+
+镜头位于主体的外侧右上方，聚焦完成后始终注视恒星，主体落在恒星左下方，给中央画面留出空间。自身聚焦时 `voyagerFocus` 恢复完整显示，近镜头不会淡出；点击空白或 30 秒超时返回。若从行星近景切入，原调相行星仍在同一时间轴上顺行回位。更新顺序为时间轴/行星 `-1` → 轨道进动 `-0.75` → 飞行器 `-0.5` → 相机 `0`，避免镜头追随上一帧位置。
+
+资源所有权依据：[R3F primitives 与释放](https://r3f.docs.pmnd.rs/api/objects#putting-already-existing-objects-into-the-scene-graph)、[Drei useGLTF](https://drei.docs.pmnd.rs/loaders/gltf-use-gltf)。
 
 ## 渲染和共享数据
 
