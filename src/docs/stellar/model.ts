@@ -2,12 +2,13 @@ import { Vector3 } from 'three'
 import { PROMINENCE_MORPHOLOGIES, type ProminenceMorphology } from '../../behaviors/stellarMorphology'
 import { createFluxRopeSimulation } from '../../behaviors/stellarPlasma'
 import { MAGNETIC } from '../../behaviors/stellarMagnetism'
+import { MAGNETIC_LIFETIME } from '../../behaviors/stellarLifecycle'
 
 export const DEFAULT_SEED = 0.47
 export const DEFAULT_KIND: ProminenceMorphology = 'isolated'
 export const SEED_PRESETS = [0.17, 0.47, 0.79] as const
-export const PREVIEW_AGE = 4
-export const MAX_AGE = 15
+export const PREVIEW_AGE = 8
+export const MAX_AGE = MAGNETIC_LIFETIME
 export const DESCRIPTIONS: Record<ProminenceMorphology, { count: string; summary: string; relation: string; changes: string; watch: string }> = {
   isolated: { count: '1 个环系', summary: '一个主环独立展开，周围不添加小环。', relation: '两端锚定在日面，流线围绕同一条空间轴扭转。', changes: '跨度、高度、拱顶偏斜、凹陷与扭转程度。', watch: '细丝有纵深和间距；多条细丝共同描述一个环系，不等于多个独立拱环。' },
   'one-sided': { count: '2–3 个环系', summary: '主环的一侧，伴随一到两个较小的环。', relation: '小环集中在同一侧的足点区域，整体可朝左或朝右。', changes: '伴随环数量、所在侧、大小比例、距离和朝向。', watch: '更换种子时，主环旁侧会出现一组或两组小环，而另一侧保持空出。' },
@@ -28,13 +29,21 @@ export function readSelection(search: string) {
   const kind = PROMINENCE_MORPHOLOGIES.find(item => item.kind === candidate)?.kind ?? DEFAULT_KIND
   return { kind, seed: parseSeed(params.get('seed') ?? '') ?? DEFAULT_SEED }
 }
-export function selectionSearch(kind: ProminenceMorphology, seed: number) {
-  return `?${new URLSearchParams({ type: kind, seed: String(seed) })}`
+export function readPreviewAge(search: string) {
+  const raw = new URLSearchParams(search).get('t')
+  const age = raw?.trim() ? Number(raw) : NaN
+  return Number.isFinite(age) && age >= 0 && age <= MAX_AGE ? age : PREVIEW_AGE
+}
+export function selectionSearch(kind: ProminenceMorphology, seed: number, age?: number) {
+  const params = new URLSearchParams({ type: kind, seed: String(seed) })
+  if (age !== undefined) params.set('t', age.toFixed(3))
+  return `?${params}`
 }
 
-/** SVG 概览与足点直接来自现行模型的初态；不维护第二套绘图曲线。 */
+/** SVG 概览取共享模型第 8 秒的稳定轮廓，足点在完整生命周期内保持固定。 */
 export function createOverview(seed: number, kind: ProminenceMorphology) {
   const model = createFluxRopeSimulation(seed, false, kind)
+  model.advanceTo(PREVIEW_AGE)
   const p = new Vector3()
   const paths = Array.from({ length: MAGNETIC.strands }, (_, strand) => {
     const points: string[] = []

@@ -104,7 +104,7 @@ export function createStellarActivity(channels: ReturnType<typeof createStellarA
   }
   const patches = [...channels.prominences, channels.cme].map((channel, index) => {
     const cme = index === 2
-    const model = createFluxRopeSimulation(channel.seed, cme, channel.morphology)
+    const model = createFluxRopeSimulation(channel.seed, cme, channel.morphology, channel.duration)
     const texture = new DataTexture(model.curveData, MAGNETIC.samples, MAGNETIC.strands * 3, RGBAFormat, FloatType)
     texture.minFilter = NearestFilter; texture.magFilter = NearestFilter
     texture.needsUpdate = true
@@ -279,7 +279,7 @@ export function createStellarActivity(channels: ReturnType<typeof createStellarA
           }`,
       }), '重联电流片')
     }
-    return { uniforms, channel, cme, parcels, model, texture, index, ejectionVisual, lastAge: -1, seed: channel.seed, morphology: channel.morphology, serial: channel.serial, exported: new Uint8Array(CME_DISSOLUTION.count) }
+    return { uniforms, channel, cme, parcels, model, texture, index, ejectionVisual, lastAge: -1, seed: channel.seed, morphology: channel.morphology, duration: channel.duration, serial: channel.serial, exported: new Uint8Array(CME_DISSOLUTION.count) }
   })
   const tails = createCmeTailVisual(commonShader, patches[2].uniforms.uColor)
   root.add(tails.mesh)
@@ -310,15 +310,16 @@ export function createStellarActivity(channels: ReturnType<typeof createStellarA
       for (const patch of patches) {
         const { uniforms: u, channel: c, parcels } = patch
         u.uAge.value = c.age
-        const reset = patch.seed !== c.seed || patch.morphology !== c.morphology || c.age < patch.lastAge || patch.serial !== c.serial
+        const reset = patch.seed !== c.seed || patch.morphology !== c.morphology || patch.duration !== c.duration || c.age < patch.lastAge || patch.serial !== c.serial
         if (c.opacity <= 0 && (!patch.cme || (!reset && patch.lastAge >= CME_TAIL.eventEnd))) { u.uOpacity.value = 0; continue }
         if (reset) {
           if (patch.cme && channels.time === null) tails.pool.clear()
-          patch.model = createFluxRopeSimulation(c.seed, patch.cme, c.morphology)
+          patch.model = createFluxRopeSimulation(c.seed, patch.cme, c.morphology, c.duration)
           patch.texture.image.data = patch.model.curveData
           patch.seed = c.seed
           patch.morphology = c.morphology
           patch.serial = c.serial
+          patch.duration = c.duration
           patch.exported.fill(0)
         }
         patch.lastAge = c.age
@@ -345,7 +346,7 @@ export function createStellarActivity(channels: ReturnType<typeof createStellarA
           u.uRadius.value = sunRadius
         }
         u.uPixelSize.value.set(1 / pixelWidth, 1 / pixelHeight)
-        u.uAge.value = c.age; u.uSeed.value = c.seed; u.uOpacity.value = c.opacity
+        u.uAge.value = c.age; u.uSeed.value = c.seed; u.uOpacity.value = c.opacity * (patch.cme ? 1 : model.lifecycle.opacity)
         u.uRopeRadius.value = r
         // 展示用重联进度；各通道的连接切换由相同的径向阶段决定。
         u.uReconnection.value = magneticEase((magneticStage(r, 5, c.seed) - 0.20) / 0.80)

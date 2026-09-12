@@ -1,4 +1,5 @@
 import { Vector3 } from 'three'
+import { magneticFormationDrive, type MagneticLifecycle } from './stellarLifecycle'
 
 export const MAGNETIC = { strands: 12, dip: 0.24, cut: 0.22, contact: 0.45, samples: 113, modes: 5 } as const
 export type MagneticBranch = 0 | 1 | 2 // 原连接 / 上方局部闭合磁通 / 下方足点拱廊
@@ -18,7 +19,7 @@ export function magneticSourceCoordinate(s: number, branch: MagneticBranch) {
 }
 
 /** 线性化张力的低阶模态，叠加在径向失稳参考轴上；不是完整的磁场方程求解器。 */
-export function createMagneticDeformation(seed: number) {
+export function createMagneticDeformation(seed: number, lifecycle?: MagneticLifecycle) {
   const displacement = new Float64Array(MAGNETIC.modes * 3), velocity = new Float64Array(displacement.length)
   const force = new Float64Array(displacement.length)
   const evaluated = new Float64Array(6)
@@ -32,17 +33,22 @@ export function createMagneticDeformation(seed: number) {
   const span = 0.72 + 0.70 * fract(seed * 3.17)
   const height = 0.76 + 0.53 * fract(seed * 7.13)
   const twist = 0.55 + 0.80 * fract(seed * 5.71)
+  // 启用生命周期时，从中性轮廓出发。参考轮廓积分驱动历史，不能预先抽取最终拱顶。
+  const roof = lifecycle ? [1.35, 0, 0.09, 0.5, 0.15] : [
+    1.0 + 0.9 * fract(seed * 9.23), 0.65 * (fract(seed * 6.41) - 0.5),
+    0.035 + 0.31 * fract(seed * 2.83), 0.34 + 0.32 * fract(seed * 8.37), 0.10 + 0.13 * fract(seed * 11.17),
+  ]
   for (let m = 0; m < MAGNETIC.modes; m++) for (let axis = 0; axis < 3; axis++) {
     displacement[m * 3 + axis] = 0.028 * Math.sin((m + 1) * (axis + 2) + seed * TAU) / (m + 1)
   }
   updateNeck()
   return {
     displacement, span, height, twist, neck,
-    apexPower: 1.0 + 0.9 * fract(seed * 9.23),
-    apexSkew: 0.65 * (fract(seed * 6.41) - 0.5),
-    dipDepth: 0.035 + 0.31 * fract(seed * 2.83),
-    dipCenter: 0.34 + 0.32 * fract(seed * 8.37),
-    dipWidth: 0.10 + 0.13 * fract(seed * 11.17),
+    get apexPower() { return roof[0] + (1.15 - roof[0]) * (lifecycle?.relaxation ?? 0) * 0.8 },
+    get apexSkew() { return roof[1] * (1 - 0.7 * (lifecycle?.relaxation ?? 0)) },
+    get dipDepth() { return roof[2] * (1 - 0.9 * (lifecycle?.relaxation ?? 0)) },
+    get dipCenter() { return roof[3] },
+    get dipWidth() { return roof[4] },
     component(s: number, axis: number, derivative = false) {
       if (s !== evaluatedS) {
         evaluatedS = s; evaluated.fill(0)
@@ -72,11 +78,27 @@ export function createMagneticDeformation(seed: number) {
           force[m * 3 + 1] += weight * (0.10 * temperature[i] - 0.20 * (1 - temperature[i]))
         }
       }
+      if (lifecycle) {
+        const { age, drive, relaxation } = lifecycle
+        // 热负载和时变外部应力共同留下形态记忆；驱动消失后保留积分结果。
+        const load = force[1]
+        roof[0] = Math.max(1.02, Math.min(2.15, roof[0] + dt * drive * (0.22 * magneticFormationDrive(age, seed, 0, 0) - 0.18 * load)))
+        roof[1] = Math.max(-0.43, Math.min(0.43, roof[1] + dt * drive * 0.18 * magneticFormationDrive(age, seed, 1, 1)))
+        roof[2] = Math.max(0.015, Math.min(0.36, roof[2] + dt * drive * (0.075 * magneticFormationDrive(age, seed, 2, 2) - 0.32 * load)))
+        roof[3] = Math.max(0.32, Math.min(0.68, roof[3] + dt * drive * 0.055 * magneticFormationDrive(age, seed, 1, 0)))
+        roof[4] = Math.max(0.10, Math.min(0.23, roof[4] + dt * drive * 0.025 * magneticFormationDrive(age, seed, 0, 2)))
+        for (let m = 0; m < MAGNETIC.modes; m++) for (let axis = 0; axis < 3; axis++) {
+          const i = m * 3 + axis
+          force[i] = force[i] * (1 - 0.96 * relaxation)
+            + drive * 0.42 * magneticFormationDrive(age, seed, m, axis) / (m + 1) ** 1.3
+        }
+      }
       for (let m = 0; m < MAGNETIC.modes; m++) {
         const omega2 = 0.14 * ((m + 1) * Math.PI / span) ** 2
+        const damping = lifecycle ? 0.8 + 0.9 * (1 - lifecycle.drive) + lifecycle.relaxation * (1 + m * 0.4) : 0.65
         for (let axis = 0; axis < 3; axis++) {
           const i = m * 3 + axis
-          velocity[i] += (force[i] - omega2 * displacement[i] - 0.65 * velocity[i]) * dt
+          velocity[i] += (force[i] - omega2 * displacement[i] - damping * velocity[i]) * dt
           displacement[i] += velocity[i] * dt
         }
       }
@@ -161,4 +183,3 @@ export function sampleMagneticStrand(s: number, strand: number, radius: number, 
   }
   return target
 }
-

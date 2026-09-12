@@ -36,6 +36,8 @@
 
 ## 日面活动
 
+[stellarLifecycle.ts](stellarLifecycle.ts) 提供生长、动态定形、松弛和回缩的共享包络。普通事件为 30–38 秒，消退持续 14 秒；CME 残留拱廊的主要回缩约 4.4 秒。`stellarMagnetism` 在形成期积分参考拱顶与形变模态，保留形成历史；`stellarPlasma` 相对足点弦线施加几何包络，弧丝与团块共用路径。事件时间轴仅提供年龄和寿命；文档 seek 以相同固定步重放，未新增独立时钟。磁能释放后也可能出现收缩振荡，较强阻尼与这组时间比例是展示选择，详见[非对称生命周期](../../docs/stellar-plasma-model.md#足点锚定的非对称生命周期)。
+
 [stellarParticleDensity.ts](stellarParticleDensity.ts) 共享背景微光的数量/范围与 CME 缩放标尺，用局部面积估算尾迹预算，当前取原预算的两倍（4–16 个）；[stellarEjection.ts](stellarEjection.ts) 固定尾迹选择及释放后错峰淡出，保持同一种子可重放。[stellarTail.ts](stellarTail.ts) 提供 300 秒解析漂移、末段淡出和固定容量池；由活动时间轴的连续场景时间驱动，保留跨事件尾迹，离开 Act 4 后暂停。
 
 [stellarMist.ts](stellarMist.ts) 从 CME 原外流样本构建自适应雾核：按邻点间距扩张、沿局部速度拉长，并补偿密集重叠；不移动或收拢粒子。参数与覆盖验证见[薄雾模型](../../docs/stellar-plasma-model.md#跟随粒子扩散的连续雾场)。

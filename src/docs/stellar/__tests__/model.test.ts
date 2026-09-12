@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest'
-import { createOverview, DEFAULT_KIND, DEFAULT_SEED, parseSeed, readSelection, selectionSearch } from '../model'
+import { createOverview, DEFAULT_KIND, DEFAULT_SEED, parseSeed, PREVIEW_AGE, readSelection, readPreviewAge, selectionSearch } from '../model'
 import { createFluxRopeSimulation } from '../../../behaviors/stellarPlasma'
 import { MAGNETIC } from '../../../behaviors/stellarMagnetism'
 
@@ -8,10 +8,14 @@ it('种子输入拒绝非数值及越界值，URL 可复现并安全回退', () 
   for (const value of ['0', '.47', ' 0.999999 ', '0.']) expect(parseSeed(value)).toBe(Number(value))
   expect(readSelection('?type=unknown&seed=oops')).toEqual({ kind: DEFAULT_KIND, seed: DEFAULT_SEED })
   expect(readSelection(selectionSearch('nested', 0.173))).toEqual({ kind: 'nested', seed: 0.173 })
+  for (const invalid of ['', '?t=', '?t=-1', '?t=37', '?t=Infinity']) expect(readPreviewAge(invalid)).toBe(PREVIEW_AGE)
+  expect(readPreviewAge(selectionSearch('nested', 0.173, 21.5))).toBe(21.5)
+  expect(readPreviewAge('?t=0')).toBe(0)
 })
 
 it('SVG 直接投影共享模型路径，种子改变构型，相同选择可重放', () => {
   const overview = createOverview(0.47, 'nested'), model = createFluxRopeSimulation(0.47, false, 'nested')
+  model.advanceTo(PREVIEW_AGE)
   expect(overview).toEqual(createOverview(0.47, 'nested'))
   expect(overview.paths).not.toEqual(createOverview(0.17, 'nested').paths)
   expect(overview.structure).toEqual(model.structure)

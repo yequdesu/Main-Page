@@ -2,6 +2,7 @@ import { gsap } from 'gsap'
 import { selectProminenceMorphology, type ProminenceMorphology } from './stellarMorphology'
 import { Vector3 } from 'three'
 import { STRUCTURE_LAYOUT, type getStructureLayout } from './structureLayout'
+import { MAGNETIC_LIFETIME, magneticLifecycleTiming } from './stellarLifecycle'
 
 /** x 是可见日面切圆上的归一化弧长，范围 [-1, 1]，0 为水平中线。 */
 export const CME_TRANSITION_WIDTH = 0.45
@@ -27,7 +28,7 @@ export function sampleCmePosition(u: number) {
 }
 
 export function createStellarActivityChannels() {
-  const channel = () => ({ position: 0, seed: 0, opacity: 0, age: 0, serial: 0, morphology: null as ProminenceMorphology | null })
+  const channel = () => ({ position: 0, seed: 0, opacity: 0, age: 0, duration: MAGNETIC_LIFETIME, serial: 0, morphology: null as ProminenceMorphology | null })
   return { prominences: [channel(), channel()], cme: channel(), time: null as number | null }
 }
 export type StellarActivityChannel = ReturnType<typeof createStellarActivityChannels>['cme']
@@ -62,10 +63,15 @@ export function createStellarActivityTimeline(channels: ReturnType<typeof create
         .to(channel, { age: cycle, duration: cycle }, 0)
         .addLabel('cme:next', cycle)
     } else {
-      const life = 18 + random() * 8
+      const life = 30 + random() * 8
+      channel.duration = life
+      channel.opacity = 1 // 几何与末段可见度由 age 对应的共享生命周期求值。
+      const timing = magneticLifecycleTiming(life, channel.seed)
       tl.addLabel('prominence:form', 0)
-        .to(channel, { opacity: 1, duration: 3.5, ease: 'sine.inOut' }, 0)
-        .to(channel, { opacity: 0, duration: 4, ease: 'sine.inOut' }, life - 4)
+        .addLabel('prominence:settle', timing.grown)
+        .addLabel('prominence:stable', timing.settled)
+        .addLabel('prominence:relax', timing.decay)
+        .addLabel('prominence:retreat', timing.decay + 1.8)
         .to(channel, { age: life, duration: life }, 0)
     }
   }

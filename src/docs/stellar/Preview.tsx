@@ -12,6 +12,7 @@ export interface PreviewProps {
   kind: ProminenceMorphology
   seed: number
   playback: Playback
+  speed: number
   view: 'front' | 'oblique'
   viewRevision: number
   markers: boolean
@@ -20,7 +21,7 @@ export interface PreviewProps {
   onEnd: () => void
 }
 
-function Scene({ kind, seed, playback, view, viewRevision, markers, feet, onTime, onEnd }: PreviewProps) {
+function Scene({ kind, seed, playback, speed, view, viewRevision, markers, feet, onTime, onEnd }: PreviewProps) {
   const { camera, size, invalidate } = useThree()
   const controls = useRef<ComponentRef<typeof OrbitControls>>(null)
   const age = useRef(PREVIEW_AGE), reported = useRef(-1)
@@ -52,7 +53,7 @@ function Scene({ kind, seed, playback, view, viewRevision, markers, feet, onTime
   }, [camera, size.width, size.height, view, viewRevision, target, invalidate])
 
   useFrame((_, delta) => {
-    if (playback.playing && !document.hidden) age.current = Math.min(MAX_AGE, age.current + Math.min(delta, 0.05))
+    if (playback.playing && !document.hidden) age.current = Math.min(MAX_AGE, age.current + Math.min(delta, 0.05) * speed)
     const ortho = camera as OrthographicCamera
     asset.layoutLocal(size.width, size.height, (ortho.top - ortho.bottom) / ortho.zoom)
     channels.prominences[0].age = age.current

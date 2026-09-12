@@ -17,6 +17,7 @@ $$
 - [stellarMagnetism.ts](../src/behaviors/stellarMagnetism.ts)：形变模态、局部磁通截面、磁拱环构型和重联连接映射。
 - [stellarPlasma.ts](../src/behaviors/stellarPlasma.ts)：径向 RK4 积分、大小环系、沿场团块、热状态和共享路径采样。
 - [stellarActivity.ts](../src/behaviors/stellarActivity.ts)：随机事件和 GSAP 时间轴。
+- [stellarLifecycle.ts](../src/behaviors/stellarLifecycle.ts)：足点锚定的生长/回缩包络、形成驱动与松弛阶段。
 - [stellarMist.ts](../src/behaviors/stellarMist.ts)：跟随外流样本的雾核宽度、伸长率与局部密度补偿。
 - [视觉资产](../src/actors/assets/stellarActivity.ts)：弧丝、等离子体团块、稀薄前缘、电流片及重联后拱廊。
 
@@ -32,6 +33,7 @@ $$
 | [NASA：Magnetic Reconfiguration in CMEs/Ejective Flares](https://ntrs.nasa.gov/citations/20090008529) | 上升磁通绳后方的电流片及低处重联拱廊 | 电阻 MHD、磁拓扑自洽改变、真实重联率和粒子加速谱 |
 | [Luna 等 2016：Cross-sectional area variation for thin tubes](https://arxiv.org/abs/1607.02996) | 场强和磁通管截面沿程变化，而非整圈同粗 | 论文的特定场构型与线性本征模解 |
 | [NASA：Three-Part Structure of CMEs](https://ntrs.nasa.gov/citations/20080017207) | 较亮前缘、低密度空腔、较密核心的形态层次 | 白光日冕仪观测中的汤姆孙散射与视线积分 |
+| [Russell、Simões & Fletcher 2015：日冕环收缩与振荡](https://arxiv.org/abs/1506.07716) | 磁能释放后的收缩可伴随振荡，结构趋向新的平衡 | 本实验选择较强阻尼、平滑回缩；不把这种表现视为所有磁环的消退规律 |
 
 这是一套有物理依据的实时降阶模型，包含真正的数值运动积分与现象学渲染。它不求解完整的连续性、动量、能量和感应方程组，不提供日冕物质质量、温度、速度或事件时间的定量预测。页面时间与尺寸经过压缩；亮金色 `#ffd34d` 是用户指定的展示配色，不表示肉眼能看到金色 CME，也不代表某条特定谱线。
 
@@ -73,7 +75,7 @@ $$
 
 这只适用于所选细电流环、自相似等假设，不是所有真实 CME 的统一临界值。初始条件为 $\rho=1$、$\mathrm{d}\rho/\mathrm{d}\tau=0.005$，微小速度扰动在稳定场中不产生持续膨胀。
 
-日珥使用 $n=1.1$；抛射事件使用 $n=2.2+0.45\,\mathrm{seed}$。随机事件相当于选择一个已达到超临界状态的活动区，并非模拟其数天的磁能积累。CME 使用 $\tau=0.92\,\mathrm{age}$，静态日珥使用 $\tau=0.55\,\mathrm{age}$。四阶 Runge–Kutta 以固定场景步长 $\Delta t=\tfrac{1}{120}\,\mathrm{s}$ 积分，动力学步长再乘上述时间倍率。没有 GSAP 对高度或速度的补间。GSAP 只决定事件播放头、淡入、淡出与下次事件时间。
+日珥使用 $n=1.1$；抛射事件使用 $n=2.2+0.45\,\mathrm{seed}$。随机事件相当于选择一个已达到超临界状态的活动区，并非模拟其数天的磁能积累。CME 使用 $\tau=0.92\,\mathrm{age}$，普通日珥使用 $\tau=0.55\,\mathrm{age}$。四阶 Runge–Kutta 以固定场景步长 $\Delta t=\tfrac{1}{120}\,\mathrm{s}$ 积分，动力学步长再乘上述时间倍率。径向动力学保持独立；事件播放头另外驱动下面的几何生命周期包络。GSAP 决定事件年龄、时长、阶段标签和 CME 整体淡出，不另开动画时钟。
 
 $\rho$ 驱动参考轴的上升与密度稀释；横截面另由局部场强闭合关系计算。径向方程的自由环近似与下面的足点锚定几何是降阶组合，二者不是完整自洽的磁场解。
 
@@ -137,7 +139,7 @@ y_{\mathrm{ref}}(s,\rho)&=h_0\left[\rho a^p(1+ku)-d a^2G(s)\right].
 \end{aligned}
 $$
 
-不同环系独立选择 $h_0$、$p\in[1,1.9]$、偏斜 $k$、凹陷深度 $d\in[0.035,0.345]$、凹陷中心 $s_d\in[0.34,0.66]$ 和宽度 $w_d\in[0.10,0.23]$。因此峰位、顶部曲率与肩部凹陷不同，不只是对同一个帽形做等比缩放。横向跨度、足点剪切及扭转圈数也随活动区变化；这些范围是无量纲展示参数，未经观测分布标定。
+不同环系独立选择高度尺度 $h_0$、跨度、足点剪切及扭转圈数。启用生命周期的现行模拟中，拱顶从中性参数 $(p,k,d,s_d,w_d)=(1.35,0,0.09,0.5,0.15)$ 出发，在形成期积分时变应力与局部负载，分别限制在 $[1.02,2.15]$、$[-0.43,0.43]$、$[0.015,0.36]$、$[0.32,0.68]$ 和 $[0.10,0.23]$ 内。最终峰位、曲率与凹陷由形成历史逐渐确定；种子控制环境及驱动序列，不预先抽取最终拱顶。这些范围是无量纲展示参数，未经观测分布标定。不传生命周期的底层几何工具仍保留静态参考参数，供独立几何验证使用。
 
 参考轴叠加五个数值演化的形变模态：
 
@@ -146,16 +148,82 @@ $$
 \mathbf P_{\mathrm{axis}}(s,t)
 &=\mathbf P_{\mathrm{ref}}\bigl(s,\rho(t)\bigr)
 +\sum_{m=1}^{5}\mathbf q_m(t)\sin(m\pi s), \\
-\ddot{\mathbf q}_m+0.65\dot{\mathbf q}_m
+\ddot{\mathbf q}_m+\gamma_m(t)\dot{\mathbf q}_m
 +0.14\left(\frac{m\pi}{\mathrm{span}}\right)^2\mathbf q_m
-&=\mathbf F_m, \\
+&=(1-0.96r(t))\mathbf F_m+\frac{0.42D(t)}{m^{1.3}}\boldsymbol\xi_m(t), \\
 F_{m,g,y}
 &=\frac{2}{N_g}\sum_{\substack{j\in\mathcal J_g\\ \mathrm{branch}_j=0}}
 \sin(m\pi s_j)\left[0.10\theta_j-0.20(1-\theta_j)\right].
 \end{aligned}
 $$
 
-其中 $\mathcal J_g$ 为环系 $g$ 的团块索引集合，$N_g$ 为该环系的团块数量，$\mathbf q_m$ 为第 $m$ 个向量形变模态。横向与深度分量另受种子决定的非均匀约束项驱动（系数见 `createMagneticDeformation()`）；高阶模态由张力更强地抑制，阻尼消散振荡。模态用固定 $\Delta t=\tfrac{1}{120}\,\mathrm{s}$ 的半隐式 Euler 积分；只有径向方程用 RK4。冷团块使局部下沉，热状态提供定性的膨胀驱动；同一 $\rho$ 也可以对应不同形状。$\sin(m\pi s)$ 保证两端锚定。该式是**线性化受迫弦的降阶近似**，所列力项不是从局部 MHD 压强/洛伦兹力网格求出的；真实反馈到径向电流、磁能和热压方程尚未实现。
+其中 $\mathcal J_g$ 为环系 $g$ 的团块索引集合，$N_g$ 为该环系的团块数量，$\mathbf q_m$ 为第 $m$ 个向量形变模态。横向与深度分量另受种子决定的非均匀约束项驱动（系数见 `createMagneticDeformation()`）。$D$ 是形成驱动包络，$r$ 是消退松弛进度，$\boldsymbol\xi_m$ 是连续的确定性时变驱动，定义见下一节。阻尼为 $\gamma_m=0.8+0.9(1-D)+r[1+0.4(m-1)]$。高阶模态受到更强的张力与退场阻尼；模态用固定 $\Delta t=\tfrac{1}{120}\,\mathrm{s}$ 的半隐式 Euler 积分，只有径向方程用 RK4。冷团块使局部下沉，热状态提供定性的膨胀驱动；同一 $\rho$ 也可以对应不同形状。$\sin(m\pi s)$ 保证两端锚定。该式是**线性化受迫弦的降阶近似**，所列力项不是从局部 MHD 压强/洛伦兹力网格求出的；真实反馈到径向电流、磁能和热压方程尚未实现。
+
+## 足点锚定的非对称生命周期
+
+[HTML 实验](actors/stellar-morphology-explainer.html?type=isolated&seed=0.47&t=0)提供初生、生长、稳定、松弛、回缩和结束跳转，以及慢放、固定足点标记和 SVG 包络图。六类图鉴取第 8 秒的共享模型路径，复制链接保存类型、种子和时间。页面用 36 秒示例；主页由事件时间轴选择 30–38 秒的寿命，最后 14 秒用于普通磁拱环消退，保留完整的形成和稳定阶段。
+
+普通磁拱环采用“磁场逐渐减弱”的慢消退：先松弛，1.8 秒后逐渐降低拱体，主要下降过程持续 12.2 秒；CME 下方拱廊采用“快速释放后重组”的快回缩，主要下降过程约 4.4 秒。这是为了区分两种驱动机制的展示时间尺度，不声称所有真实 CME 残留拱廊都比所有普通环衰减更快；实际还受重联持续时间、结构尺度、热状态及观测波段影响。
+
+令 $E(x)=6u^5-15u^4+10u^3$，其中 $u=\operatorname{clamp}(x,0,1)$。对事件年龄 $t$、寿命 $T$、种子 $\sigma$：
+
+$$
+\begin{aligned}
+t_g&=5.8+0.6\sigma,\qquad t_s=t_g+1.6,\qquad t_d=T-14,\\
+D(t)&=E(t/0.7)\left[1-E\!\left(\frac{t-t_g+1.8}{t_s-t_g+1.8}\right)\right],\\
+r(t)&=E\!\left(\frac{t-t_d}{6.4}\right),\\
+H(t)&=\left[0.045+0.955E(t/t_g)\right]
+\left[1-0.965E\!\left(\frac{t-t_d-1.8}{12.2}\right)\right].
+\end{aligned}
+$$
+
+$H$ 缩放相对足点弦线的偏离，不是整个对象的缩放；足点间距不变。对完整参考流线 $\mathbf P$ 和固定足点 $\mathbf F_0,\mathbf F_1$：
+
+$$
+\mathbf B(s)=(1-s)\mathbf F_0+s\mathbf F_1,\qquad
+\mathbf P_{\mathrm{life}}(s,t)=\mathbf B(s)+H(t)\left[\mathbf P(s,t)-\mathbf B(s)\right].
+$$
+
+因此 $\mathbf P_{\mathrm{life}}(0,t)=\mathbf F_0$、$\mathbf P_{\mathrm{life}}(1,t)=\mathbf F_1$。生命周期变换发生在局部足点坐标中，随后再应用环系的宽高、朝向与位移；弧丝和沿场团块读取同一变换后的路径。非零的最低高度防止退化路径；初段仅用 0.3 秒淡入，末段用 1.15 秒淡出，主要可见变化来自拱体升降。
+
+形成扰动以环系种子 $\sigma_g$ 为相位，$m=1,\ldots,5$，空间分量 $a=0,1,2$：
+
+$$
+\begin{aligned}
+\phi_g&=2\pi\sigma_g,\\
+\xi_{m,a}(t)&=0.62\sin(0.73t+\phi_g+1.9a)\\
+&\quad+0.38\sin\!\left([1.13+0.21(m-1)]t+1.7\phi_g+1.37(m-1)+0.8a\right).
+\end{aligned}
+$$
+
+这是平滑、有时间相关性的展示驱动，不是每帧独立随机顶点或观测磁场噪声谱。各环系共用生命周期包络，局部种子和质量负载决定不同形变；所有细丝跟随所属环系，不各自抖动。
+
+参考轮廓也积累形成历史。以拱顶指数 $p$ 为例，固定步更新为：
+
+$$
+p_{n+1}=\operatorname{clamp}\!\left(
+p_n+\Delta t\,D(t_n)\left[0.22\xi_{1,0}(t_n)-0.18F_{1,g,y}(t_n)\right],
+1.02,2.15\right).
+$$
+
+其他四个参考参数使用各自的驱动分量与限制范围，具体系数在 `createMagneticDeformation()`。$D=0$ 后保留形成结果，稳定期不继续随机更换拱顶。退场时，展示指数以 $0.8r$ 的权重趋向 1.15，偏斜乘 $1-0.7r$，凹陷深度乘 $1-0.9r$；先松弛轮廓，再明显降低 $H$，并继续从已有位移和速度积分，因而不是形成动画倒放。
+
+**物理边界：磁能释放后的收缩不一定温和。** [Russell 等人的观测与模型](https://arxiv.org/abs/1506.07716)同时出现收缩与振荡，系统对新平衡的响应取决于驱动时间尺度等因素。本轮用较强阻尼强调平滑回缩，是艺术取向。几何高度、驱动包络和透明度均不等于真实磁能；可见结构变暗也不等于磁场消失。足点锚定作为短时近似，不表示真实日面足点永远不移动。
+
+### CME 上下分支的生命周期
+
+CME 的形成包络用 $t_g=2.5$、$t_s=3.5$ 秒，早于闭合重联；$r=0$，原连接仅应用生长因子。上升闭合支保留径向动力学、粒子化和长期尾迹，不应用普通日珥的回缩包络。
+
+下方足点拱廊按每条流线的闭合时刻独立计时，$\tau=t-t_{\mathrm{close},i}$：
+
+$$
+r_{\mathrm{lower}}=E\!\left(\frac{\tau-0.6}{2.8}\right),\qquad
+H_{\mathrm{lower}}=1-0.9E\!\left(\frac{\tau-1.1}{4.4}\right).
+$$
+
+在原来的连续重联映射之后，拱顶以 $0.8r_{\mathrm{lower}}$ 的权重趋向同足点的平滑正弦拱，再乘 $H_{\mathrm{lower}}$；横向与深度偏离弦线乘 $1-0.9r_{\mathrm{lower}}$。闭合瞬间这两个包络尚未动作，保留重联位置连续性。下方松弛与回缩不影响已经逸出的上方物质。现有末段冷却和 CME 事件淡出继续生效。
+
+## 局部截面
 
 截面采用磁通守恒闭合关系：
 

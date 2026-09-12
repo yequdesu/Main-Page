@@ -137,7 +137,7 @@ SceneCanvas
 | 终端 | [操作手册](docs/terminal/operation-guide.md)、[维护手册](docs/terminal/maintenance-guide.md)、[技术规格](docs/terminal/specification.md) |
 | 主题 | [设计](docs/theme/design.md)、[操作](docs/theme/operation-guide.md)、[维护](docs/theme/maintenance-guide.md) |
 | 轨道与标签布局 | [轨道系统](docs/orbital-system.md)、[PBD 交互说明](docs/actors/pbd-layout-explainer.html)、[形式化公式](docs/actors/pbd-layout-formal.md)、[操作](docs/actors/pbd-layout-operation-guide.md)、[维护](docs/actors/pbd-layout-maintenance-guide.md) |
-| 恒星活动 | [磁拱环交互图鉴](docs/actors/stellar-morphology-explainer.html)、[CME 逸散实验](docs/actors/cme-dissolution-explainer.html)、[日珥与 CME 降阶模型](docs/stellar-plasma-model.md) |
+| 恒星活动 | [磁拱环图鉴与生长/回缩实验](docs/actors/stellar-morphology-explainer.html)、[CME 逸散实验](docs/actors/cme-dissolution-explainer.html)、[日珥与 CME 降阶模型](docs/stellar-plasma-model.md) |
 | 渲染效果 | [Actor 设计](docs/actors/design.md)、[操作](docs/actors/operation-guide.md)、[维护](docs/actors/maintenance-guide.md) |
 | 开发排障 | [维护手册](docs/MAINTENANCE.md)、[调试记录](docs/dev-blog/) |
 
