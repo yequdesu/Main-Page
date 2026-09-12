@@ -6,6 +6,13 @@ import { gsap } from 'gsap'
 import { ScrollTrigger } from 'gsap/ScrollTrigger'
 import App from './App'
 
+// 保存图标配置只刷新主页，保留 Debug Studio 的相机和未保存草稿。
+if (import.meta.hot) {
+  const reloadCapture = () => window.location.reload()
+  import.meta.hot.on('lighthouse-config-updated', reloadCapture)
+  import.meta.hot.dispose(() => import.meta.hot?.off('lighthouse-config-updated', reloadCapture))
+}
+
 // Register non-standard THREE classes for declarative R3F usage
 extend({ ThreeLine, LineLoop, InstancedMesh2 })
 

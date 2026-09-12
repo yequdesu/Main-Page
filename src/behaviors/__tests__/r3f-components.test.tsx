@@ -1,4 +1,6 @@
-import { describe, it, expect, beforeEach } from 'vitest'
+vi.mock('../../actors/VoyagerOrbiter', () => ({ default: () => null }))
+import { FocusAnimationProvider } from '../../r3f/FocusAnimationContext'
+import { describe, it, expect, beforeEach, vi } from 'vitest'
 import React from 'react'
 import ReactThreeTestRenderer from '@react-three/test-renderer'
 
@@ -26,7 +28,7 @@ describe('R3F Component Scene Graph', () => {
       scrollProgress: 0,
       focusedPlanetIdx: -1,
       hoveredIdx: -1,
-      overlayData: { focused: false },
+      focusStartTime: null,
     })
   })
 
@@ -136,7 +138,7 @@ describe('R3F Component Scene Graph', () => {
     const { default: OrbitRings } = await import('../../actors/OrbitRings')
 
     const renderer = await ReactThreeTestRenderer.create(
-      <OrbitRings />,
+      <FocusAnimationProvider><OrbitRings /></FocusAnimationProvider>,
     )
 
     const graph = renderer.toGraph()

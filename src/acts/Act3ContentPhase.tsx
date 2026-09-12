@@ -1,13 +1,15 @@
-import { useCallback, memo } from 'react'
+import { readPlanetWorldPoint, vector3FromPoint } from '../composition/coreAnchors'
+import { PLANET_FOCUS_DISTANCE_SCALES } from '../types'
+import { touchActorFrame, useActorRuntime } from '../composition/actorRuntime'
+import { TIMELINE } from '../composition/timeline'
+import { useMemo, memo } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
-import { type PerspectiveCamera, Vector3 } from 'three'
+import { Vector3, type PerspectiveCamera } from 'three'
+import { useFocusAnimation } from '../r3f/FocusAnimationContext'
+import { voyagerState } from '../actors/voyagerState'
 import OrbitRings from '../actors/OrbitRings'
 import { useScrollStore } from '../stores/scrollStore'
-import { useFrameCache } from '../behaviors/useFrameCache'
-import { smoothstep, clamped } from '../r3f/ScrollRig'
-import { TIMELINE } from '../composition/timeline'
-import { updateCameraFocus } from '../behaviors/useCameraFocus'
-import { readPlanetWorldByParticleIndex, vector3FromPoint } from '../composition/coreAnchors'
+import { createCameraFocusController } from '../behaviors/useCameraFocus'
 
 /**
  * Act 3 "ContentPhase" — 轨道环、相机聚焦。
@@ -18,23 +20,24 @@ interface Act3Props {
 }
 
 const Act3ContentPhase = memo(function Act3ContentPhase({ visible }: Act3Props) {
+  useActorRuntime('cameraFocus', visible)
+  const planetPosition = useMemo(() => new Vector3(), [])
   const { camera } = useThree()
-  const { shouldSkip } = useFrameCache()
+  const updateCameraFocus = useMemo(createCameraFocusController, [])
 
-  const getPlanetPosition = useCallback((particleIdx: number): Vector3 | null => {
-    const point = readPlanetWorldByParticleIndex(particleIdx)
-    return point ? vector3FromPoint(point, new Vector3()) : null
-  }, [])
+  const focusChannels = useFocusAnimation()
 
-  useFrame((state, _delta) => {
-    if (!visible) return
-    const sp = useScrollStore.getState().scrollProgress
-    const time = state.clock.elapsedTime
-    if (shouldSkip(time, sp)) return
+  useFrame(state => {
+    touchActorFrame('cameraFocus', Math.round(state.clock.elapsedTime * 60), useScrollStore.getState().scrollProgress >= TIMELINE.act3Shift.start)
+    const { structureProgress } = useScrollStore.getState()
 
-    const progress = clamped(sp, TIMELINE.act3Shift.start, 1.0)
-    void smoothstep(progress)
-    updateCameraFocus(camera as PerspectiveCamera, sp, time, getPlanetPosition)
+    const trackIdx = focusChannels.track
+    if (focusChannels.target === 'voyager') {
+      updateCameraFocus(camera as PerspectiveCamera, focusChannels, voyagerState.available ? voyagerState.position : null, 1, voyagerState.radius, structureProgress)
+    } else {
+      const point = readPlanetWorldPoint(trackIdx)
+      updateCameraFocus(camera as PerspectiveCamera, focusChannels, point ? vector3FromPoint(point, planetPosition) : null, PLANET_FOCUS_DISTANCE_SCALES[trackIdx] ?? 1, 0, structureProgress)
+    }
   })
 
   return (

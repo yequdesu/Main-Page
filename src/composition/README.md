@@ -154,3 +154,13 @@ If debug mode cannot answer these questions, the animation is probably still too
 - Use effect scopes for side-effect cleanup.
 - Keep `composition/` declarative; keep heavy visual implementation in `actors/` and math helpers in `behaviors/`.
 
+
+## 与四幕场景和实验资产共存
+
+主应用的滚动坐标以 `PAGE_FLOW` 为准；`TIMELINE` 继续描述原三幕的 `scrollProgress`，Act 4 使用独立的 `structureProgress`。App 的快进 tween 由 `EffectScope` 管理，普通点击目标固定为 Act 3。
+
+三类行星由共享工厂构建，`Planets` 用既有 `-20` 优先级发布世界坐标、核心半径与粒子索引锚点。点击、镜头和轨道渐隐读取这些锚点；聚焦转场由 `useFocusTimeline` 的 GSAP 时间轴统一控制，runtime 记录相机状态，不再使用旧的 `updateCameraFocus` 或 `focusOverlay`。进入 Act 4 时重置标签入场序列，返回后重新触发。
+
+Voyager 的网格命中数据暂由专用 `voyagerState` 管理，Act 4 恒星活动使用自己的事件通道；本次合并保留这些已有边界，运行面板尚不逐项列出它们。独立 Studio 与说明页继续使用视觉工厂和独立预览时钟。
+
+`useEffectScope` 在 React 提交后的 effect 中注册本地实例并通知运行面板；渲染期间只构造实例。卸载和 owner 切换清理对应实例，StrictMode 重挂载会重新注册，避免渲染期触发订阅组件更新。非 React 调用方仍可使用 `getEffectScope`。

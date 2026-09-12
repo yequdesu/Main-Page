@@ -1,112 +1,67 @@
-# Debug 系统说明
+# Debug Studio
 
-`src/debug/` 目录包含 LighthouseCapture 离线烘焙截图的实时参数调试工具。
+独立的开发用 3D 模型工作台，入口为 [debug.html](../../debug.html) → [debug.tsx](../debug.tsx) → [StudioShell.tsx](StudioShell.tsx)。默认生产构建只输出主应用，不包含 Debug 页面。
 
-## pnpm debug vs pnpm dev
-
-两条命令的行为由 `VITE_DEBUG_ONLY` 环境变量 + `vite.config.ts` 中的 `debugOnlyPlugin` 控制。
-
-### pnpm dev
+## 启动
 
 ```bash
-VITE_DEBUG_ONLY=0（默认） → 插件跳过 302 重定向，保留默认 printUrls
+pnpm dev      # / 为主页，/debug.html 为 Studio
+pnpm debug    # / 与 /index.html 重定向到 /debug.html
 ```
 
-- `localhost:5173/` → `index.html` → `main.tsx` → 主应用
-- `localhost:5173/debug.html` → 调试面板（手动访问）
-- 回显显示 Local + Network + Debug 提示
+默认端口为 5173，端口占用时以 Vite 输出为准。两种开发模式都提供图标配置 API。`VITE_DEBUG_ONLY` 非空时启用独立模式，不要将字符串 `0` 当作关闭开关。
 
-### pnpm debug
+## 当前能力
 
-```bash
-VITE_DEBUG_ONLY=1 → 插件激活 302 重定向 + 接管 printUrls
-```
+- 程序化资产：灯塔、中央恒星、单颗行星、带环行星与带卫星行星实验；恒星/行星复用主页视觉工厂，带环样本添加倾斜薄圆环面，默认暂停且完整显示，可在对象页签播放光晕呼吸和带卫星样本的卫星公转。
+- 左侧对象树：加载完成后生成层级；按名称或类型搜索，选中、聚焦、隐藏、隔离和恢复显示。
+- 中间视口：单视图、实体/线框对比、正视/侧视/顶视/透视四视图；模型归一化居中、自动取景，支持适配全部与重置方向。
+- 右侧场景：灯光预设、辅助工具、活动相机数值、模型变换、自动旋转和背景；Leva 面板在侧栏内部滚动。
+- 右侧对象：来源、节点与只读材质检查；GLB 有动画时显示片段、播放、暂停、停止和速度。
+- 灯塔图标：与主页共用烘焙函数，提供日夜预览、PNG 下载、配置保存、重新读取、本地恢复默认与未保存提示。
+- 导出：活动视口或全部视口拼图，选择分辨率、透明背景和辅助线框。
+- 状态栏：活动视口的实际渲染采样；静止时显示“空闲 · 按需渲染”。
 
-- `localhost:5173/` → 302 → `/debug.html`（无法访问主应用）
-- `localhost:5173/debug.html` → 调试面板（唯一入口）
-- 回显仅显示 Debug URL
-- 中间件注册顺序：YAML 端点 → 302 重定向（YAML API 不受影响）
+侧栏支持拖动、键盘左右键调整宽度和顶部按钮收起。不宽于 720px 时侧栏默认收起，展开后覆盖在视口上；完整编辑推荐桌面窗口。同一页面内切换模型保留各模型参数、对象显示状态和相机姿态；布局设置沿用工作台当前选择。刷新后重新初始化，只有已保存的图标参数持久化到文件。
 
-### 插件决策树
-
-```
-debugOnlyPlugin.configureServer(server)
-  │
-  ├─ YAML watcher + 端点（dev / debug 都注册）
-  │   ├─ GET  /__debug/config
-  │   ├─ POST /__debug/save-config
-  │   └─ DELETE /__debug/config
-  │
-  └─ VITE_DEBUG_ONLY ?
-       ├─ yes → 302 中间件 + 自定义 printUrls（仅 Debug 行）
-       └─ no  → 扩展 printUrls（默认行 + Debug 提示行）
-```
-
-### 对比表
-
-| | `pnpm dev` | `pnpm debug` |
-|---|---|---|
-| 主应用 (`/`) | ✅ 正常访问 | ❌ 302 → `/debug.html` |
-| 调试面板 (`/debug.html`) | ✅ 手动访问 | ✅ 唯一入口 |
-| `/__debug/*` API | ✅ 可用 | ✅ 可用 |
-| YAML HMR | ✅ 文件变更 → full-reload | ✅ 文件变更 → full-reload |
-| 回显 | Local + Network + Debug 提示 | 仅 Debug URL |
-| 适用场景 | 日常开发，同时调试主应用和截图 | 专注调参，隔离主应用干扰 |
-
-## 系统架构
-
-```
-debug.html                         Vite 入口（独立于 index.html）
-  └─ src/debug.tsx                 挂载点（R3F extend 注册 + createRoot）
-       └─ LighthousePreviewPanel   双栏调试面板
-
-vite.config.ts                     Vite 插件
-  ├─ GET  /__debug/config         读取 YAML → JSON（供面板初始化）
-  ├─ POST /__debug/save-config    保存当前参数 → YAML
-  ├─ DELETE /__debug/config       删除 YAML（恢复默认值）
-  ├─ define: __LIGHTHOUSE_CONFIG__ 编译时注入（供生产烘焙读取）
-  └─ watcher: full-reload          YAML 变更时自动刷新主应用
-```
-
-## 配置流
-
-```
-调试面板 (Leva)               生产烘焙 (LighthouseCapture)
-──────────────                ──────────────────────────────
-调整参数                       启动时 define 注入 YAML 配置
-  │                                   │
-  ├─ Save → POST /__debug/save-config │
-  │         → 写入 YAML 文件           │
-  │         → Vite watcher full-reload │
-  │                                   ↓
-  └─ Load ← GET /__debug/config   运行时 fetch 最新 YAML
-              → 初始化 Leva 控件    → 合并 DEFAULT → 烘焙截图
-```
-
-配置优先级（高→低）：
-1. `config` prop（调用方显式传入）
-2. YAML 运行时配置（dev 模式 `GET /__debug/config`）
-3. YAML 编译时配置（Vite `define` 注入，prod 构建时读取）
-4. `DEFAULT_CAPTURE_CONFIG`（`LighthouseCaptureTypes.ts`）
-
-## 文件清单
+## 文件职责
 
 | 文件 | 职责 |
 |------|------|
-| `debug.html` | 独立 HTML 入口，`<script type="module" src="/src/debug.tsx">` |
-| `../debug.tsx` | 挂载点，`createRoot` → `<LighthousePreviewPanel />` |
-| `LighthousePreviewPanel.tsx` | 双栏面板：左侧 R3F Canvas + 右侧 Leva + 烘焙预览 |
-| `LighthousePreviewPanel.css` | 双栏布局样式 |
-| `useLevaCaptureConfig.ts` | Leva `useControls` hook，6 个折叠组 17 个参数 |
-| `../actors/LighthouseCaptureTypes.ts` | `CaptureConfig` 类型 + `DEFAULT_CAPTURE_CONFIG` + `offscreenCapture()` 纯函数 |
-| `../actors/LighthouseCapture.tsx` | 生产烘焙组件，消费 YAML 配置 |
+| [StudioShell.tsx](StudioShell.tsx) | 模型会话、共享交互状态、侧栏编排与拼图导出 |
+| [StudioToolbar.tsx](StudioToolbar.tsx) | 模型、布局、适配、侧栏和导出入口 |
+| [SceneExplorer.tsx](SceneExplorer.tsx) | 搜索、层级、对象选择与显示操作 |
+| [StudioViewport.tsx](StudioViewport.tsx) | 独立 Canvas、加载反馈、相机、灯光、选中框与动画 |
+| [studioModel.ts](studioModel.ts) | 克隆资源所有权、局部包围盒、稳定节点路径与相机取景 |
+| [previewPlayback.ts](previewPlayback.ts) | 程序化预览的会话时钟，多视口共享播放时间，支持暂停、速度和停止归零 |
+| [studioTypes.ts](studioTypes.ts) | 视口句柄与共享状态类型 |
+| [PropertyPanel.tsx](PropertyPanel.tsx) | 相机编辑、只读材质检查与动画操作 |
+| [ModelPreviewControls.tsx](ModelPreviewControls.tsx) | 工作台灯光、变换、旋转与背景的局部 Leva store |
+| [CapturePanel.tsx](CapturePanel.tsx) | 图标草稿、保存状态、读取与实际烘焙预览 |
+| [useLevaCaptureConfig.ts](useLevaCaptureConfig.ts) | 图标专用的局部 Leva store |
+| [captureSettings.ts](captureSettings.ts) | 前后端共用的保存字段、数值/枚举/颜色校验与脏状态签名 |
+| [captureViewport.ts](captureViewport.ts) | 显式离屏渲染、像素读回与临时状态恢复 |
+| [StatusBar.tsx](StatusBar.tsx) | 读取活动视口实际帧数和绘制统计 |
+| [studioUI.ts](studioUI.ts)、[StudioLayout.css](StudioLayout.css) | 主题、下载工具、布局与交互样式 |
 
-## 依赖
+模型接入见 [模型说明](../models/README.md)。预览场景参数与灯塔图标参数分别管理；主视口的线框、隐藏和变换不会写入主页图标配置。
 
-- `leva` — 参数调试 GUI（pmndrs 出品）
-- `js-yaml` — YAML 读写（devDependency，仅 Vite 插件侧使用）
+## 图标配置流
 
-## 相关文档
+```text
+图标参数草稿 → offscreenCapture → 实际 PNG / 品牌效果预览
+      │ 保存
+      ↓
+POST /__debug/save-config → lighthouse-capture.yaml
+      ├─ GET /__debug/config → 编辑器重新加载
+      ├─ 自定义 HMR 事件 → 已打开的主页刷新，Studio 保留编辑状态
+      └─ 下次生产构建 → __LIGHTHOUSE_CONFIG__ 注入
+```
 
-- [操作手册](./OPERATION.md) — 如何使用调试面板
-- [维护指南](./MAINTENANCE.md) — 如何扩展和维护
+默认参数在 [LighthouseCaptureTypes.ts](../actors/LighthouseCaptureTypes.ts)，覆盖文件为 [lighthouse-capture.yaml](lighthouse-capture.yaml)。保存字段由 [captureSettings.ts](captureSettings.ts) 定义；预览分辨率、抗锯齿及相机裁剪面不保存。配置合并仍由 [LighthouseCapture.tsx](../actors/LighthouseCapture.tsx) 负责。
+
+## 文档
+
+- [操作手册](OPERATION.md)：实际使用流程。
+- [维护指南](MAINTENANCE.md)：状态边界、资源生命周期、API、扩展和验证。
+- [本轮治理与验收记录](../../docs/dev-blog/debug-studio-governance.md)：变更原因与本次验证范围。

@@ -163,8 +163,17 @@ export function removeEffectScope(owner: string): void {
 }
 
 export function useEffectScope(owner: string): EffectScope {
-  const scope = useMemo(() => getEffectScope(owner), [owner])
-  useEffect(() => () => removeEffectScope(owner), [owner])
+  // 渲染只创建本地实例；提交后再发布，避免通知正在订阅的运行面板。
+  const scope = useMemo(() => new EffectScope(owner), [owner])
+  useEffect(() => {
+    scopes.set(owner, scope)
+    emitScopesChanged()
+    return () => {
+      scope.cancel('unmount')
+      if (scopes.get(owner) === scope) scopes.delete(owner)
+      emitScopesChanged()
+    }
+  }, [owner, scope])
   return scope
 }
 

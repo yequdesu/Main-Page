@@ -18,15 +18,19 @@ export const SCROLL_RIG = {
   IDLE_RESET_DELAY: 1.5,
 } as const
 
+/** 三颗导航行星的正常公转角速度（rad/s）；聚焦调相不修改此基准。 */
+/** 内、中、外轨道的聚焦距离倍率。 */
+export const PLANET_FOCUS_DISTANCE_SCALES = [1, 1.25, 1.25] as const
+
+export const PLANET_ORBIT_SPEEDS = [-0.04, -0.055, -0.07] as const
+
 // ============================================================
 // 轨道环配置（可扩展）
 // 援引：Murray & Dermott, Solar System Dynamics, §2.8
 // ============================================================
 export interface OrbitalRingConfig {
-  /** 轨道外半径 */
+  /** 拉伸前的轨道线半径 */
   radius: number
-  /** 轨道内半径，默认 radius - 0.04 */
-  innerRadius?: number
   /** 黄道面倾角 (rad) */
   inclination: number
   /** 偏心率 0–1（0=正圆） */
@@ -39,7 +43,7 @@ export interface OrbitalRingConfig {
   color?: string
   /** 最大透明度 0–1，默认 0.28 */
   maxOpacity?: number
-  /** 环分段数，默认 96 */
+  /** 闭合轨道线分段数，默认 256，向下取整且至少为 3 */
   segments?: number
 }
 
@@ -105,19 +109,6 @@ export interface GridLineData {
 }
 
 // ============================================================
-// 屏幕覆盖数据
-// ============================================================
-export interface ScreenCircle { x: number; y: number; r: number }
-export interface TangentLine { x1: number; y1: number; x2: number; y2: number }
-
-export interface OverlayData {
-  focused: boolean
-  star?: ScreenCircle
-  planet?: ScreenCircle
-  tangents?: TangentLine[]
-}
-
-// ============================================================
 // Act 引用（从 act.exit 保存到 ctx 的数据）
 // ============================================================
 export interface Act1State {
@@ -131,3 +122,17 @@ export interface Act1State {
 export interface Act2State {
   gridVerticalLines: GridLineData[]
 }
+
+/** 业务入口发出的行星聚焦事件；同目标再次请求也产生新事件。 */
+export type FocusEvent =
+  | { type: 'focus'; planetIdx: number }
+  | { type: 'voyager' }
+  | { type: 'exit'; reason: 'manual' | 'timeout' | 'scene' }
+
+/** 页面滚动坐标：前三幕沿用 0–1，结构视图向后追加。 */
+export const PAGE_FLOW = {
+  act3Target: 1,
+  structureStart: 1.02,
+  structureEnd: 1.22,
+  end: 1.30,
+} as const

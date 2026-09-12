@@ -5,6 +5,9 @@ import { useGSAP } from '@gsap/react'
 import SceneCanvas from './r3f/Canvas'
 import Act1OceanVoyage from './acts/Act1OceanVoyage'
 import Act2GridTransition from './acts/Act2GridTransition'
+import Act4SystemStructure from './acts/Act4SystemStructure'
+import SystemStructureOverlay from './acts/SystemStructureOverlay'
+import { PAGE_FLOW } from './behaviors/usePageFlow'
 import Act3ContentPhase from './acts/Act3ContentPhase'
 import { useScrollStore } from './stores/scrollStore'
 import { TIMELINE } from './composition/timeline'
@@ -15,7 +18,6 @@ import InfoPanelTerminal from './InfoPanelTerminal'
 import FloatingLabels from './actors/FloatingLabels'
 import BrandTitle from './actors/BrandTitle'
 import CompositionPanel from './composition/debug/CompositionPanel'
-import { useActorRuntime } from './composition/actorRuntime'
 import { registerCoreActors } from './composition/coreActors'
 import { registerCoreSequences } from './composition/coreSequences'
 import { resetSequence, useSignal } from './composition/sequenceStore'
@@ -48,7 +50,7 @@ export default function App() {
   }, [])
 
   // ---- Zustand store ----
-  const { scrollProgress, setScrollProgress } = useScrollStore()
+  const { scrollProgress, pageProgress, structureProgress, setPageProgress } = useScrollStore()
   const terminalMode = useScrollStore(s => s.terminalMode)
   const debugMode = useScrollStore(s => s.debugMode)
   const echoLines = useScrollStore(s => s.echoLines)
@@ -66,9 +68,10 @@ export default function App() {
 
   // ---- UI state (React — triggers re-render) ----
   const [isClickPlaying, setIsClickPlaying] = useState(false)
-  const [isAct3Focused, setIsAct3Focused] = useState(false)
   const [lighthouseImage, setLighthouseImage] = useState<string | null>(null)
-  const overlayData = useScrollStore(s => s.overlayData)
+  const focusedPlanetIdx = useScrollStore(s => s.focusedPlanetIdx)
+  const focusedVoyager = useScrollStore(s => s.focusedVoyager)
+  const isAct3Focused = (focusedPlanetIdx >= 0 || focusedVoyager) && scrollProgress >= TIMELINE.act3Shift.start && structureProgress === 0
   const isTerminalActive = terminalMode === 'active'
 
   // ---- Act visibility ----
@@ -81,12 +84,13 @@ export default function App() {
   // ---- syncScrollbar ----
   const syncScrollbar = useCallback(() => {
     const h = document.body.scrollHeight - window.innerHeight
-    if (h > 0) window.scrollTo(0, physRef.current.target * h)
+    if (h > 0) window.scrollTo(0, physRef.current.target / PAGE_FLOW.end * h)
   }, [])
 
   // ---- ScrollTrigger (native scrollbar) ----
   useGSAP(() => {
-    document.body.style.height = window.innerHeight * SCROLL_VH + 'px'
+    const updateHeight = () => { document.body.style.height = window.innerHeight * (1 + (SCROLL_VH - 1) * PAGE_FLOW.end) + 'px' }
+    updateHeight()
 
     stRef.current = ScrollTrigger.create({
       trigger: document.body,
@@ -94,15 +98,25 @@ export default function App() {
       end: 'bottom bottom',
       scrub: 0,
       onUpdate: (self) => {
-        if (Math.abs(self.progress - physRef.current.target) < 0.0005) return
+        const progress = self.progress * PAGE_FLOW.end
+        if (Math.abs(progress - physRef.current.target) < 0.0005) return
         physRef.current.lastScrollbar = performance.now()
         physRef.current.velocity = 0
-        physRef.current.target = self.progress
-        setScrollProgress(self.progress)
+        physRef.current.target = progress
+        setPageProgress(progress)
       },
     })
 
-    return () => { stRef.current?.kill() }
+    const resize = () => {
+      const target = physRef.current.target
+      updateHeight()
+      stRef.current?.refresh()
+      physRef.current.target = target
+      setPageProgress(target)
+      syncScrollbar()
+    }
+    window.addEventListener('resize', resize)
+    return () => { window.removeEventListener('resize', resize); stRef.current?.kill() }
   }, [])
 
   // ---- GSAP physics ticker ----
@@ -121,12 +135,12 @@ export default function App() {
 
       p.target += p.velocity * dtFrames
       if (p.target <= 0) { p.target = 0; p.velocity = 0 }
-      if (p.target >= 1) { p.target = 1; p.velocity = 0 }
+      if (p.target >= PAGE_FLOW.end) { p.target = PAGE_FLOW.end; p.velocity = 0 }
 
       p.velocity *= Math.pow(FRICTION, dtFrames)
       if (Math.abs(p.velocity) < 0.00001) p.velocity = 0
 
-      setScrollProgress(p.target)
+      setPageProgress(p.target)
       syncScrollbar()
     }
     gsap.ticker.add(ticker)
@@ -149,32 +163,29 @@ export default function App() {
     physRef.current.velocity = Math.max(-MAX_VELOCITY, Math.min(MAX_VELOCITY, physRef.current.velocity))
   }, [isTerminalActive, isAct3Focused, isClickPlaying, scrollEffectScope])
 
-  // ---- click fast-forward ----
-  const onClick = useCallback(() => {
-    if (isTerminalActive) return
-    if (isClickPlaying) return
-    if (isAct3Focused) return  // block fast-forward during planet focus
-    if (scrollProgress >= 0.995) return
+  // 同一页面滚动时间轴；普通点击固定停在 Act 3，结构视图由继续滚动或专用按钮进入。
+  const scrollToSection = useCallback((target: number) => {
+    clickTweenRef.current?.kill()
     setIsClickPlaying(true)
     physRef.current.velocity = 0
-
     const tweenObj = { val: physRef.current.target }
     scrollEffectScope.cancel('replace click tween')
     clickTweenRef.current = scrollEffectScope.addTween(gsap.to(tweenObj, {
-      val: 1.0,
+      val: target,
       duration: 2,
       ease: 'power2.inOut',
       onUpdate: () => {
         physRef.current.target = tweenObj.val
-        setScrollProgress(tweenObj.val)
+        setPageProgress(tweenObj.val)
         syncScrollbar()
       },
-      onComplete: () => {
-        setIsClickPlaying(false)
-        clickTweenRef.current = null
-      },
+      onComplete: () => { setIsClickPlaying(false); clickTweenRef.current = null },
     }))
-  }, [isTerminalActive, isClickPlaying, isAct3Focused, scrollProgress, setScrollProgress, syncScrollbar, scrollEffectScope])
+  }, [setPageProgress, syncScrollbar, scrollEffectScope])
+  const onClick = useCallback(() => {
+    if (isTerminalActive || isClickPlaying || isAct3Focused || pageProgress >= 0.995) return
+    scrollToSection(PAGE_FLOW.act3Target)
+  }, [isTerminalActive, isClickPlaying, isAct3Focused, pageProgress, scrollToSection])
 
   // ---- event listeners ----
   useEffect(() => {
@@ -186,14 +197,8 @@ export default function App() {
     }
   }, [onWheel, onClick])
 
-  // ---- Act 3 focus state (block scroll wheel) ----
   useEffect(() => {
-    const focused = overlayData.focused && scrollProgress >= TIMELINE.act3Shift.start
-    setIsAct3Focused(focused)
-  }, [overlayData.focused, scrollProgress])
-
-  useEffect(() => {
-    const visible = needsAct3(scrollProgress)
+    const visible = needsAct3(scrollProgress) && structureProgress === 0
     if (visible === act3VisibleRef.current) return
     act3VisibleRef.current = visible
     if (visible) {
@@ -202,7 +207,7 @@ export default function App() {
       resetSequence('act3.entry')
       resetSequence('labelReveal')
     }
-  }, [scrollProgress, signalAct3])
+  }, [scrollProgress, structureProgress, signalAct3])
 
   // ---- lighthouse screenshot ----
   useEffect(() => {
@@ -233,7 +238,6 @@ export default function App() {
   }, [scrollEffectScope])
 
   const sp = scrollProgress
-  useActorRuntime('focusOverlay', overlayData.focused)
 
   // ---- Terminal callbacks ----
   const handleModeChange = useCallback((m: typeof terminalMode) => {
@@ -254,7 +258,11 @@ export default function App() {
     }),
   ) as [LabelConfig, LabelConfig, LabelConfig]
   const handleBuildStatusLine = useCallback((sp: number) => {
-    const pct = Math.round(sp * 100)
+    if (sp > PAGE_FLOW.structureStart) {
+      const pct = Math.round(Math.max(0, Math.min(1, (sp - PAGE_FLOW.structureStart) / (PAGE_FLOW.structureEnd - PAGE_FLOW.structureStart))) * 100)
+      return `# Act 4 · SystemStructure · scroll ${pct}%`
+    }
+    const pct = Math.round(Math.min(1, sp) * 100)
     const actName = sp < 0.45 ? 'OceanVoyage' : sp < TIMELINE.act3Shift.start ? 'GridTransition' : 'ContentPhase'
     const actNum = sp < 0.45 ? '1' : sp < TIMELINE.act3Shift.start ? '2' : '3'
     return `# Act ${actNum} · ${actName} · scroll ${pct}%`
@@ -265,7 +273,8 @@ export default function App() {
       <SceneCanvas>
         <Act1OceanVoyage visible={needsAct1(sp)} />
         <Act2GridTransition visible={needsAct2(sp)} />
-        <Act3ContentPhase visible={needsAct3(sp)} />
+        <Act3ContentPhase visible={needsAct3(sp) && structureProgress < 1} />
+        <Act4SystemStructure visible={structureProgress > 0} />
       </SceneCanvas>
 
       <MainTerminal
@@ -275,7 +284,7 @@ export default function App() {
         onModeChange={handleModeChange}
         onEchoLinesChange={handleEchoLinesChange}
         onInputValueChange={handleInputChange}
-        scrollProgress={sp}
+        scrollProgress={pageProgress}
         buildStatusLine={handleBuildStatusLine}
         onThemeUpdate={handleThemeUpdate}
         themeKey={themeKey}
@@ -283,10 +292,10 @@ export default function App() {
       />
 
       {/* Info Panel Terminal — 仅 Act 3 (ContentPhase) 渲染 */}
-      {needsAct3(sp) && <InfoPanelTerminal />}
+      {needsAct3(sp) && structureProgress === 0 && <InfoPanelTerminal />}
 
       {/* Planet Labels — 仅 Act 3 可见，组件不卸载 */}
-      {needsAct3(sp) && (
+      {needsAct3(sp) && structureProgress === 0 && (
         <FloatingLabels
           configs={labelConfigs}
           sequenceStrategy="proximity"
@@ -303,31 +312,18 @@ export default function App() {
         />
       )}
 
+      {sp >= 0.995 && structureProgress === 0 && !isAct3Focused && (
+        <button className="structure-next" onClick={event => { event.stopPropagation(); scrollToSection(PAGE_FLOW.structureEnd) }}>继续向下 · 系统结构 ↓</button>
+      )}
+      <SystemStructureOverlay progress={structureProgress} onBack={() => scrollToSection(PAGE_FLOW.act3Target)} />
+
       {/* 品牌标题（Act 2-3） */}
       <BrandTitle
         scrollProgress={sp}
         lighthouseImage={lighthouseImage}
         isClickPlaying={isClickPlaying}
-        isFocused={overlayData.focused && sp >= TIMELINE.act3Shift.start}
+        isFocused={isAct3Focused || structureProgress > 0}
       />
-
-      {/* 聚焦 SVG 叠加层 */}
-      {overlayData.focused && (
-        <svg className="focus-overlay" width="100%" height="100%">
-          {overlayData.star && (
-            <circle cx={overlayData.star.x} cy={overlayData.star.y} r={overlayData.star.r + 10}
-              fill="none" stroke="#64748b" strokeWidth={1} strokeDasharray="4 6" className="overlay-ring" />
-          )}
-          {overlayData.planet && (
-            <circle cx={overlayData.planet.x} cy={overlayData.planet.y} r={overlayData.planet.r + 8}
-              fill="none" stroke="#64748b" strokeWidth={1} strokeDasharray="4 6" className="overlay-ring" />
-          )}
-          {overlayData.tangents?.map((t: any, i: number) => (
-            <line key={i} x1={t.x1} y1={t.y1} x2={t.x2} y2={t.y2}
-              stroke="#94a3b8" strokeWidth={0.5} className="overlay-line" />
-          ))}
-        </svg>
-      )}
 
       {/* 页脚 */}
       <footer className="app-footer">

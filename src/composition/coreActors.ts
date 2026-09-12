@@ -75,6 +75,8 @@ export const CORE_ACTORS: ActorSpec[] = [
       'anchor.planet.0.screenRadius',
       'anchor.planet.1.screenRadius',
       'anchor.planet.2.screenRadius',
+      'anchor.planet.*.coreRadius',
+      'anchor.planet.*.particleIndex',
       'realtime.planetData',
     ],
     interaction: { pointer: 'none', hoverSource: 'screen' },
@@ -129,10 +131,10 @@ export const CORE_ACTORS: ActorSpec[] = [
     id: 'cameraFocus',
     domain: 'logic',
     lifecycle: { mount: 'always', dispose: 'none' },
-    timing: { clocks: ['scroll', 'elapsedTime'], ranges: ['act3Shift'] },
+    timing: { clocks: ['scroll', 'delta', 'signal'], ranges: ['act3Shift'] },
     frame: { phase: 'camera', after: ['planets'], before: ['projection'] },
-    consumes: ['scroll.sp', 'clock.elapsedTime', 'interaction.focusedPlanet', 'anchor.planet.*.world'],
-    produces: ['camera.position', 'anchor.focusOverlay.geometry'],
+    consumes: ['scroll.sp', 'scroll.structureProgress', 'focus.channels', 'anchor.planet.*.world', 'voyager.state'],
+    produces: ['camera.position', 'camera.orientation', 'camera.fov'],
     interaction: { pointer: 'none', blocksScrollWhenActive: true, blocksFastForwardWhenActive: true },
   },
   {
@@ -173,7 +175,7 @@ export const CORE_ACTORS: ActorSpec[] = [
     layer: 'dom.planetLabels',
     lifecycle: { mount: { sequence: 'act3.entry', phase: 'labelsReveal' }, resetOn: ['act3.exit'], dispose: 'none' },
     timing: { clocks: ['signal'], sequences: ['act3.entry', 'labelReveal'] },
-    frame: { phase: 'layout.solve', after: ['projection'], before: ['focusOverlay'] },
+    frame: { phase: 'layout.solve', after: ['projection'] },
     consumes: [
       'anchor.planet.*.screen',
       'anchor.planet.*.screenRadius',
@@ -191,15 +193,6 @@ export const CORE_ACTORS: ActorSpec[] = [
     },
     interaction: { pointer: 'autoWhenVisible', capturesFocus: true, priority: 30 },
     effects: { ownsTimers: true, ownsRaf: true, cancelOnReset: true, cancelOnUnmount: true },
-  },
-  {
-    id: 'focusOverlay',
-    domain: 'svg',
-    layer: 'svg.focusOverlay',
-    lifecycle: { mount: 'always', activeWhen: 'interaction.focusedPlanet >= 0', dispose: 'none' },
-    frame: { phase: 'dom.apply', after: ['cameraFocus', 'projection'] },
-    consumes: ['anchor.focusOverlay.geometry'],
-    interaction: { pointer: 'none' },
   },
 ]
 

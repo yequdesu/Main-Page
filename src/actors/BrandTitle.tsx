@@ -37,7 +37,7 @@ export interface BrandTitleProps {
   lighthouseImage: string | null
   /** 点击快进期间禁用 CSS transition */
   isClickPlaying: boolean
-  /** 行星聚焦状态（由 App 从 overlayData.focused 计算） */
+  /** 行星聚焦状态（由 App 从 focusedPlanetIdx 计算） */
   isFocused: boolean
 }
 

@@ -1,33 +1,31 @@
 /**
- * usePBDLayout — 连续时间约束动力学标签布局系统。
+ * usePBDLayout — 屏幕空间动态标签布局，PBD 风格的混合求解器。
  *
  * ## 解决的问题
  *
- *   行星标签布局是一个带约束的几何装箱问题（NP-Hard 的 CMLP 变体）。
- *   我们将其转化为连续时间动力学：每帧从上一帧的实际位置出发，通过
- *   速度预测、力驱动约束、速度积分三个步骤平滑演化，天然帧间连续。
+ *   从上一帧的位置、速度和目标历史出发，跟随行星并处理避让偏好。
+ *   本实现混用速度增量与位置投影，不保证所有几何约束同时满足。
  *
  * ## 架构
  *
- *   阶段 1 — 预测（速度前馈 + 位置修正）
+ *   阶段 1 — 目标、速度前馈与位置反馈、阻尼限速、位置积分
  *     计算 label 在当前帧的目标位置（shadow 方向 + 相位偏移），通过
  *     target 速度前馈主动匹配行星运动，再叠加上位置修正弹簧力。
- *     输出：预测位置 predPos。
+ *     直接更新 body 的速度与位置。
  *
  *   阶段 2 — 约束投影（迭代 SOLVER_ITERS 次）
- *     对 predPos 施加 5 类约束，全部使用力驱动（加速度应用于速度，
- *     而非直接修正位置），确保约束间渐变融合、无硬阈值跳变。
+ *     六类约束：A/A2/E 改速度，B/C/D 改位置；每轮使用完整 dt。
  *        A. 锚点向心   — anchors 超出 anchorRangeRadius 时施加向行星的拉力
- *        A2.近距离排斥 — label 中心侵入行星 5px 排斥区时推开
+ *        A2.近距离排斥 — label 中心侵入行星边缘外 10px 区域时排斥
  *        B. 行星遮挡   — label 中心不得进入任意行星视觉圆（位置投影）
  *        C. 恒星遮挡   — label 中心不得进入中央恒星光晕圆（位置投影）
  *        D. 视口约束   — 硬截断到视口内
  *        E. 标签互斥   — 加速度排斥（线性于穿透深度）+ 动量传递（弹性碰撞）
  *
- *   阶段 3 — 积分
- *     将累积速度和加速度写入实际位置。
+ *   阶段 3 — 输出位置和锚点
+ *     不再积分，也不依据位置投影重建速度。A/A2/E 的速度带入下一帧。
  *
- *   B/C/D 保留位置投影（低频触发），A/A2/E 已升级为力驱动。
+ *   完整公式、执行细节与 SVG 实验：docs/actors/pbd-layout-formal.md。
  *
  * ## 外部依赖
  *
@@ -62,8 +60,7 @@ const EPSILON = 0.001
  * 原理：desiredVelocity = targetVelocity + K_CORRECT × (target − current)
  *       K_CORRECT 越大，标签贴 target 越紧，但过大可能引起过冲。
  *
- * 值 3.0 意味着距离 target 每 1px，产生 3 px/s 的修正速度。
- * 在 60fps (dt≈0.016s) 下，100px 偏差约 0.8s 内收敛。
+ * 值 2.5 意味着距离 target 每 1px，产生 2.5 px/s 的修正速度。
  */
 const K_CORRECT = 2.5
 
@@ -84,23 +81,22 @@ const VEL_MATCH = 0.65
  *
  * 作用：耗散动能，防止无界振荡。
  * 原理：v *= DAMPING
- *       在没有任何外力时，速度每帧衰减 8%。配合 K_CORRECT 和 VEL_MATCH，
- *       系统呈「过阻尼」特性——快速收敛，无振荡。
+ *       此步骤每帧衰减 8%；系数不按 dt 换算，不保证跨帧率等价或无振荡。
  */
 const DAMPING = 0.92
 
 /**
  * 约束求解器迭代次数。
  *
- * 每次迭代顺序执行所有约束。迭代次数越多，约束满足精度越高，
- * 但计算量线性增长。5 次迭代在精度和性能间平衡。
+ * 每次迭代顺序执行所有约束。增加次数也增加 A/A2/E 的速度累计量，
+ * 因此不只是精度变化；五轮不是五个 dt/5 子步。
  */
 const SOLVER_ITERS = 5
 
-/** 单帧最大位移（px），防止异常帧导致瞬移。800px ≈ 全屏高度 */
+/** 阶段 1 的速度模长上限（px/s），不限制后续的位置投影 */
 const MAX_SPEED = 800
 
-/** 速度修正中的最大加速度上限（px/s²），防止碰撞时无限加速 */
+/** E 中已乘 dt 的速度增量幅值上限（px/s）；沿用原变量名 */
 const MAX_ACCEL = 200
 
 // -- 锚点约束 -------------------------------------------------
@@ -110,12 +106,11 @@ const MAX_ACCEL = 200
  *
  * 作用：label 的左右侧边中点离开 anchorRangeRadius 时，
  *       施加指向行星中心的加速度，线性于越出深度。
- * 计算：acceleration = exceedance(px) × ANCHOR_STIFFNESS × dt
+ * 计算：deltaVelocity = exceedance(px) × ANCHOR_STIFFNESS × dt
  *       exceedance = max(0, dist(anchor, planetCenter) − anchorRangeRadius)
  *
- * 值 20 意味着越出 10px 时，加速度约 20×10×0.016 = 3.2 px/s²。
- * 需 < SEPARATION_STIFFNESS (180)，否则碰撞后向心力会淹没动量传递，
- * 导致标签"弹不开"。
+ * 值 20 意味着越出 10px、dt=0.016 时，本轮速度增量为 3.2 px/s。
+ * 相对分离刚度的大小影响约束竞争，但单靠调参不保证有可行布局。
  */
 const ANCHOR_STIFFNESS = 20
 
@@ -127,18 +122,18 @@ const ANCHOR_STIFFNESS = 20
  * 作用：label 中心距行星表面 ≤ CLOSE_REPEL_MARGIN 时触发排斥力。
  *       label 会被轻柔推出此区域，形成行星与标签之间的最小呼吸间距。
  *
- * 调试可见：灰白色虚线圆（半径 = planetScreenRadius + 5px）。
+ * 调试可见：灰白色虚线圆（半径 = planetScreenRadius + 10px）。
  */
 const CLOSE_REPEL_MARGIN = 10
 
 /**
  * 近距离排斥力刚度。
  *
- * 计算：acceleration = penetration(px) × CLOSE_REPEL_STIFFNESS × dt
+ * 计算：deltaVelocity = penetration(px) × CLOSE_REPEL_STIFFNESS × dt
  *       penetration = (planetScreenRadius + CLOSE_REPEL_MARGIN) − dist(labelCenter, planetCenter)
  *
  * 值 400 高于 ANCHOR_STIFFNESS (20)，确保排斥力 > 向心力。
- * 日常不触发（shadow target 天然在排斥区外），仅在碰撞挤压时激活。
+ * target 是否处于排斥区外取决于 gap；也可由碰撞挤压触发。
  */
 const CLOSE_REPEL_STIFFNESS = 400
 
@@ -148,9 +143,9 @@ const CLOSE_REPEL_STIFFNESS = 400
  * 分离力刚度。
  *
  * 作用：两标签重叠时，沿最小渗透轴施加排斥加速度，线性于穿透深度。
- * 计算：acceleration = penetration × SEPARATION_STIFFNESS × dt
+ * 计算：deltaVelocity = penetration × SEPARATION_STIFFNESS × dt
  *
- * 值 120 意味着重叠 10px 时加速度约 120×10×0.016 = 19 px/s²。
+ * 值 180、重叠 10px、dt=0.016 时，本轮增量幅值为 28.8 px/s，两者各分一半。
  * 与 ANCHOR_STIFFNESS 的比值 (180:20 = 9:1) 决定了碰撞时
  * 推开力 vs 回正力的竞争关系。
  */
@@ -171,7 +166,7 @@ const SEPARATION_RESTITUTION = 0.4
  * 分离最小重叠阈值（迟滞）。
  *
  * 作用：重叠 ≤ 此值不触发分离，防止接近边界时高频抖动。
- * 2px 的迟滞为标签间日常微距波动提供了"缓冲区"。
+ * 这是按轴判断的触发阈值，不保证最终穿透深度小于 2px。
  */
 const SEPARATION_THRESHOLD = 2
 
@@ -180,7 +175,7 @@ const SEPARATION_THRESHOLD = 2
 /** 视口边距（px），标签矩形必须完全在距视口边缘此值之内 */
 const VP_MARGIN = 12
 
-/** 约束 B（行星遮挡）的最小安全边距（px）。标签矩形需与行星视觉边缘保持此距离 */
+/** 约束 B 的中心距离近似中，额外加在行星半径上的边距（px） */
 export const PLANET_AVOID_MARGIN = 4
 
 /** 约束 C（恒星遮挡）的固定安全边距（px），不叠加 label 半宽 */
@@ -198,7 +193,7 @@ const HALF = 0.5
  * sx, sy: 行星屏幕投影中心
  * pr: 行星屏幕视觉半径
  * visible: 行星当前是否在视口内
- * lw, lh: label 矩形宽高
+ * lw, lh: 调用方传入的矩形宽高；当前求解器实际使用独立的宽高参数
  */
 export interface PBDInput {
   sx: number; sy: number; pr: number
@@ -220,7 +215,7 @@ export interface PBDResult {
 export interface PBDParams {
   /** 锚点范围半径（px），默认 90 */
   anchorRangeRadius?: number
-  /** label 内边到 planet 视觉边缘的最小间隙（px），默认 6 */
+  /** 目标中心相对行星视觉半径的额外偏移（px），默认 6；不保证矩形边缘间隙 */
   gap?: number
   /** 各 label 的 shadow 方向偏移角（°），[label0, label1, label2]，默认 8 */
   shadowAngleSpread?: number
@@ -422,7 +417,7 @@ export function stepPBD(
         if (cd > EPSILON) {
           const nx = (inp.sx - cx) / cd  // 指向行星中心
           const ny = (inp.sy - cy) / cd
-          // 加速度 = 越出深度 × 刚度 × 时间步长
+          // 速度增量 = 越出深度 × 刚度 × 时间步长
           const accel = exceedMax * ANCHOR_STIFFNESS * dtClamped
           b.vx += nx * accel
           b.vy += ny * accel
@@ -430,7 +425,7 @@ export function stepPBD(
       }
 
       // ---- A2: 近距离排斥 ----
-      // label 中心不得侵入行星的 5px 安全区
+      // 对侵入行星边缘外 10px 区域的 label 中心施加排斥速度增量
       {
         const dToPlanet = dist(cx, cy, inp.sx, inp.sy)
         const repelDist = inp.pr + CLOSE_REPEL_MARGIN

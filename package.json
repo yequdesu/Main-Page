@@ -7,7 +7,9 @@
     "dev": "vite",
     "debug": "VITE_DEBUG_ONLY=1 vite",
     "build": "tsc -b && vite build",
+    "build:docs": "tsc -b && vite build --config vite.docs.config.ts",
     "preview": "vite preview",
+    "preview:docs": "vite preview --config vite.docs.config.ts",
     "clean": "rm -rf dist node_modules/.vite tsconfig.tsbuildinfo",
     "mirror": "bash scripts/mirror.sh",
     "test": "vitest",
@@ -15,6 +17,7 @@
   },
   "dependencies": {
     "@gsap/react": "^2.1.2",
+    "@react-three/drei": "^10.7.7",
     "@react-three/fiber": "^9.6.1",
     "@three.ez/instanced-mesh": "^0.3.15",
     "gsap": "^3.15.0",

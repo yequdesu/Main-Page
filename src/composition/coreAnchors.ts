@@ -33,6 +33,10 @@ export function planetScreenAnchorId(trackIdx: number): DataRef {
   return `anchor.planet.${trackIdx}.screen`
 }
 
+export function planetCoreRadiusAnchorId(trackIdx: number): DataRef {
+  return `anchor.planet.${trackIdx}.coreRadius`
+}
+
 export function planetScreenRadiusAnchorId(trackIdx: number): DataRef {
   return `anchor.planet.${trackIdx}.screenRadius`
 }

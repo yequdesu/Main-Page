@@ -1,33 +1,39 @@
+import { getPageFlow } from '../behaviors/usePageFlow'
 import { create } from 'zustand'
-import type { OverlayData } from '../types'
+import type { FocusEvent } from '../types'
 
 // ============================================================
 // Slice 类型
 // ============================================================
 interface ScrollSlice {
+  pageProgress: number
+  structureProgress: number
   scrollProgress: number
 }
 
 interface FocusSlice {
+  focusEvent: FocusEvent | null
   focusedPlanetIdx: number
+  focusedVoyager: boolean
   hoveredIdx: number
-  focusStartTime: number
-  overlayData: OverlayData
+  /** null 表示新一轮聚焦尚未由场景时钟开始计时。 */
+  focusStartTime: number | null
 }
 
 // ============================================================
 // Actions
 // ============================================================
 interface ScrollActions {
+  setPageProgress: (progress: number) => void
   setScrollProgress: (sp: number) => void
 }
 
 interface FocusActions {
   setFocusedPlanet: (idx: number) => void
+  focusVoyager: () => void
   setHoveredIdx: (idx: number) => void
   setFocusStartTime: (t: number) => void
-  setOverlayData: (data: OverlayData) => void
-  clearFocus: () => void
+  clearFocus: (reason?: 'manual' | 'timeout' | 'scene') => void
 }
 
 // ============================================================
@@ -70,14 +76,18 @@ export type ScrollStore = ScrollSlice & FocusSlice & TerminalSlice & ScrollActio
 // ============================================================
 export const useScrollStore = create<ScrollStore>()((set) => ({
   // ---- Scroll slice ----
+  pageProgress: 0,
+  structureProgress: 0,
   scrollProgress: 0,
+  setPageProgress: (progress) => set(getPageFlow(progress)),
   setScrollProgress: (sp) => set({ scrollProgress: sp }),
 
   // ---- Focus slice ----
+  focusEvent: null,
   focusedPlanetIdx: -1,
+  focusedVoyager: false,
   hoveredIdx: -1,
-  focusStartTime: 0,
-  overlayData: { focused: false },
+  focusStartTime: null,
 
   // ---- Terminal slice ----
   terminalMode: 'typing' as TerminalMode,
@@ -87,15 +97,16 @@ export const useScrollStore = create<ScrollStore>()((set) => ({
   dayNight: 'night' as DayNight,
   debugMode: false,
 
-  setFocusedPlanet: (idx) => set({ focusedPlanetIdx: idx }),
+  setFocusedPlanet: (idx) => set({ focusedVoyager: false, focusedPlanetIdx: idx, focusStartTime: null, focusEvent: { type: 'focus', planetIdx: idx } }),
+  focusVoyager: () => set({ focusedVoyager: true, focusedPlanetIdx: -1, hoveredIdx: -1, focusStartTime: null, focusEvent: { type: 'voyager' } }),
   setHoveredIdx: (idx) => set({ hoveredIdx: idx }),
   setFocusStartTime: (t) => set({ focusStartTime: t }),
-  setOverlayData: (data) => set({ overlayData: data }),
-  clearFocus: () => set({
+  clearFocus: (reason = 'manual') => set({
+    focusEvent: { type: 'exit', reason },
     focusedPlanetIdx: -1,
+    focusedVoyager: false,
     hoveredIdx: -1,
-    focusStartTime: 0,
-    overlayData: { focused: false },
+    focusStartTime: null,
   }),
 
   // ---- Terminal actions ----

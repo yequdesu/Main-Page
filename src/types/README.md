@@ -8,7 +8,7 @@ TypeScript 类型定义、滚动阈值常量（`SCROLL_RIG`）、行星链接数
 
 | 文件 | 内容 |
 |------|------|
-| `index.ts` | `SCROLL_RIG`（阈值）、`ParticleData`、`PlanetLink`、`PLANET_LINKS`、`WaveLineData`、`GridLineData`、`OverlayData`、`Act1State`、`Act2State` |
+| `index.ts` | `SCROLL_RIG`（阈值）、`ParticleData`、`PlanetLink`、`PLANET_LINKS`、`PLANET_ORBIT_SPEEDS`（正常公转速度）、`WaveLineData`、`GridLineData`、`Act1State`、`Act2State` |
 
 ## 维护要点
 
@@ -29,5 +29,5 @@ types/ → 无外部依赖（纯类型定义）
 |------|------|
 | [`../../docs/orbital-system.md`](../../docs/orbital-system.md) | `OrbitalRingConfig` 各字段含义和取值建议 |
 | [`../actors/README.md`](../actors/README.md) | 使用这些类型的 Actor 组件 |
-| [`../stores/README.md`](../stores/README.md) | `OverlayData`、`focusSlice` 等 store 类型 |
+| [`../stores/README.md`](../stores/README.md) | `focusSlice` 等 store 类型 |
 | [`../../README.md`](../../README.md) | SCROLL_RIG 阈值在项目中的使用位置 |

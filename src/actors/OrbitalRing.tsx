@@ -1,14 +1,14 @@
-import { useRef } from 'react'
-import { useFrame } from '@react-three/fiber'
-import { type Group, type LineBasicMaterial } from 'three'
-import { SCENE_CENTER_Z, clamped, smoothstep } from '../r3f/ScrollRig'
-import { useScrollStore } from '../stores/scrollStore'
-import { getWebglLayer } from '../composition/layerRegistry'
 import { TIMELINE } from '../composition/timeline'
+import { getWebglLayer } from '../composition/layerRegistry'
+import { useMemo, useRef, type ReactNode } from 'react'
+import { useFrame } from '@react-three/fiber'
+import { type Group } from 'three'
+import { SCENE_CENTER_Z } from '../r3f/ScrollRig'
+import OrbitLineMaterial from './OrbitLineMaterial'
 import type { OrbitalRingConfig } from '../types'
 
 /**
- * 单条轨道环 — 行星轨道面力学模拟。
+ * 单条外层进动轨道线 — 有序圆周折线与轨道面运动。
  *
  * ## 变换链
  *
@@ -40,44 +40,44 @@ interface OrbitalRingProps {
   speedScale?: number
   /** 覆盖 config.color，用于 day/night 主题切换 */
   color?: string
+  /** 随轨道面进动的对象；挂在拉伸组之外，避免模型被非均匀缩放。 */
+  children?: ReactNode
 }
 
-export default function OrbitalRing({ config, speedScale = 1.0, color: colorOverride }: OrbitalRingProps) {
+export default function OrbitalRing({ config, speedScale = 1.0, color: colorOverride, children }: OrbitalRingProps) {
   const layer = getWebglLayer('webgl.grid')
   const {
     radius,
-    innerRadius = radius - 0.04,
     inclination,
     eccentricity,
     speed,
     phase,
     color: configColor = '#cbd5e1',
     maxOpacity = 0.28,
-    segments = 96,
+    segments = 256,
   } = config
 
   const stretchX = 1 / Math.sqrt(1 - eccentricity * eccentricity)
+  const segmentCount = Math.max(3, Math.floor(segments))
+  const positions = useMemo(() => {
+    // LineLoop 按顶点顺序连线并自动闭合；不能使用 RingGeometry 的三角面索引。
+    const points = new Float32Array(segmentCount * 3)
+    for (let i = 0; i < segmentCount; i++) {
+      const theta = (i / segmentCount) * Math.PI * 2
+      points[i * 3] = Math.cos(theta) * radius
+      points[i * 3 + 1] = Math.sin(theta) * radius
+    }
+    return points
+  }, [radius, segmentCount])
 
   // 外层 group — Y 轴进动（黄道面法线）
   const outerGroupRef = useRef<Group>(null)
-  // 环材质 — 透明度由 scroll 驱动
-  const matRef = useRef<LineBasicMaterial>(null)
-
   useFrame((_state, delta) => {
-    const sp = useScrollStore.getState().scrollProgress
-    const act3Progress = clamped(sp, TIMELINE.act3Shift.start, 1.0)
-    const smooth3 = smoothstep(act3Progress)
-
-    // 透明度（scroll 驱动）
-    if (matRef.current) {
-      matRef.current.opacity = smooth3 * maxOpacity
-    }
-
     // 进动（时间驱动）
     if (outerGroupRef.current) {
       outerGroupRef.current.rotation.y += delta * speed * speedScale
     }
-  })
+  }, -0.75)
 
   return (
     <group
@@ -91,17 +91,18 @@ export default function OrbitalRing({ config, speedScale = 1.0, color: colorOver
         scale={[stretchX, 1, 1]}
       >
         <lineLoop renderOrder={layer.renderOrder}>
-          <ringGeometry args={[innerRadius, radius, segments]} />
-          <lineBasicMaterial
-            ref={matRef}
+          {/* 参数变化时重建几何体，避免沿用旧包围体；资源由 R3F 管理释放。 */}
+          <bufferGeometry key={`${radius}:${segmentCount}`}>
+            <bufferAttribute attach="attributes-position" args={[positions, 3]} />
+          </bufferGeometry>
+          <OrbitLineMaterial
             color={colorOverride ?? configColor}
-            transparent={layer.transparent}
-            opacity={0}
-            depthWrite={layer.depthWrite}
-            depthTest={layer.depthTest}
+            maxOpacity={maxOpacity}
+            appearStart={TIMELINE.act3Shift.start}
           />
         </lineLoop>
       </group>
+      {children}
     </group>
   )
 }

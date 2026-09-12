@@ -1,113 +1,69 @@
+import { getWebglLayer } from '../composition/layerRegistry'
+import { TIMELINE } from '../composition/timeline'
+import { touchActorFrame, useActorRuntime } from '../composition/actorRuntime'
+import { R3F_FRAME_PRIORITY } from '../composition/frameScheduler'
+import { makeCoreAnchor, planetOrbitAnchorId, planetParticleIndexAnchorId, planetScreenRadiusAnchorId, planetCoreRadiusAnchorId, planetWorldAnchorId, pointFromVector3, setCoreAnchor, setCoreAnchors } from '../composition/coreAnchors'
+import { useAnchorStore, type AnchorInput } from '../composition/anchorStore'
 import { useMemo, useRef, useEffect } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
-import { Mesh, SphereGeometry, MeshBasicMaterial, ShaderMaterial, BackSide, Sprite, SpriteMaterial, CanvasTexture, AdditiveBlending, LinearFilter, Color, Vector3, type PerspectiveCamera } from 'three'
+import { Color, Vector3, type PerspectiveCamera } from 'three'
 import { useScrollStore } from '../stores/scrollStore'
 import { useRealtimeStore, type PlanetCoords } from '../stores/realtimeStore'
 import { useFrameCache } from '../behaviors/useFrameCache'
+import { CENTRAL_STAR_CORE_RADIUS } from './assets/centralStar'
+import { createFocusTimeline, type FocusEvent } from '../behaviors/useFocusTimeline'
+import { voyagerState } from './voyagerState'
+import { useFocusAnimation } from '../r3f/FocusAnimationContext'
+import { createFocusOrbitController } from '../behaviors/useFocusOrbit'
 import { calcOrbitPosition } from '../behaviors/useOrbitPosition'
 import { calcAppearance } from '../behaviors/useAppearanceFade'
 import { calcOcclusionFade } from '../behaviors/useOcclusionFade'
 import { calcScreenSpaceHover } from '../behaviors/useScreenSpaceHover'
 import { smoothstep, clamped, SCENE_CENTER_Z, ORBIT_RADII, ORBIT_COUNT } from '../r3f/ScrollRig'
-import { atmosphereVertex, atmosphereFragment } from '../shaders/AtmosphereShader'
-import { type ParticleData } from '../types'
+import { createPlanetAsset, createPlanetHaloTexture, PLANET_BASE_RADIUS, ATMOS_HALO_SCALE, PLANET_CONTENT_COLOR } from './assets/planet'
+import { createSatellitePlanetAsset } from './assets/satellitePlanet'
+import { createRingedPlanetAsset } from './assets/ringedPlanet'
+import { PLANET_ORBIT_SPEEDS, PLANET_FOCUS_DISTANCE_SCALES, type ParticleData } from '../types'
 import { WC_ANCHOR_Y, WC_DROP_START, WC_DROP_END, WC_RETRACT_END, getWindChimeProgress, getWindChimePlanetPoint } from '../behaviors/useWindChime'
 import { useScreenProjection } from '../behaviors/useScreenProjection'
-import { TIMELINE } from '../composition/timeline'
-import { getWebglLayer } from '../composition/layerRegistry'
-import { touchActorFrame, useActorRuntime } from '../composition/actorRuntime'
-import { R3F_FRAME_PRIORITY } from '../composition/frameScheduler'
-import {
-  makeCoreAnchor,
-  planetOrbitAnchorId,
-  planetParticleIndexAnchorId,
-  planetScreenRadiusAnchorId,
-  planetWorldAnchorId,
-  pointFromVector3,
-  setCoreAnchor,
-  setCoreAnchors,
-} from '../composition/coreAnchors'
-import type { AnchorInput } from '../composition/anchorStore'
 
-const PLANET_BASE_RADIUS = 0.015
-const GEO_SEGMENTS = 32
 const MAIN_PLANET_ORBIT_ANGLES = [4.0, 5.15, 5.35]
 
-const ATMOS_SHELL_SCALE = 1.03
-const ATMOS_SHELL_OPACITY = 0.35
-const ATMOS_HALO_SCALE = 1.0
-const ATMOS_HALO_OPACITY = 0.32
-const INNER_GLOW_SCALE = 1.1
-const INNER_GLOW_OPACITY = 0.20
-
-const PLANET_CORE_COLOR = '#f0f8ff'
-const INNER_GLOW_COLOR = '#f6f7f9'
-const FRESNEL_SHELL_COLOR = '#d0d5de'
+/** Act1 基准色（冷白） */
 const COLOR_ACT1 = '#f0f8ff'
-const COLOR_ACT3 = '#64748b'
 
-const GLOW_PULSE_FREQ_1 = 1.1
-const GLOW_PULSE_AMP_1 = 0.01
-const GLOW_PULSE_FREQ_2 = 1.6
-const GLOW_PULSE_AMP_2 = 0.01
-
-const SPRITE_PULSE_FREQ_1 = 1.1
-const SPRITE_PULSE_AMP_1 = 0.02
-const SPRITE_PULSE_FREQ_2 = 1.5
-const SPRITE_PULSE_AMP_2 = 0.02
-
-const HALO_TEX_SIZE = 128
-const HALO_COLOR_STOPS: [number, string][] = [
-  [0,    'rgba(220,225,235,0.35)'],
-  [0.15, 'rgba(200,210,225,0.18)'],
-  [0.4,  'rgba(180,195,215,0.04)'],
-  [0.7,  'rgba(160,175,200,0.005)'],
-  [1,    'rgba(0,0,0,0)'],
-]
-
-let _haloTexture: CanvasTexture | null = null
-function getHaloTexture(): CanvasTexture {
-  if (_haloTexture) return _haloTexture
-  const c = document.createElement('canvas')
-  c.width = c.height = HALO_TEX_SIZE
-  const ctx = c.getContext('2d')!
-  const gradient = ctx.createRadialGradient(
-    HALO_TEX_SIZE / 2, HALO_TEX_SIZE / 2, 0,
-    HALO_TEX_SIZE / 2, HALO_TEX_SIZE / 2, HALO_TEX_SIZE / 2,
-  )
-  for (const [pos, color] of HALO_COLOR_STOPS) {
-    gradient.addColorStop(pos, color)
-  }
-  ctx.fillStyle = gradient
-  ctx.fillRect(0, 0, HALO_TEX_SIZE, HALO_TEX_SIZE)
-  _haloTexture = new CanvasTexture(c)
-  _haloTexture.minFilter = LinearFilter
-  return _haloTexture
-}
+// 与 ORBIT_RADII / PLANET_LINKS 一致，按由内到外的轨道顺序构造。
+const PLANET_FACTORIES = [createPlanetAsset, createSatellitePlanetAsset, createRingedPlanetAsset] as const
 
 /**
- * Three main planet meshes plus atmosphere and halo effects.
+ * Planets — 3 颗主行星（独立 Mesh，非 InstancedMesh）。
+ *
+ * 核心 renderOrder = 1、depthWrite = true；附件沿用各自工厂的绘制与深度设置。
+ * 原 DustField 中行星逻辑剥离至此处。
+ *
+ * 援引：
+ *   混合方案（TECH_STACK_EVALUATION.md 第十节）
+ *   R3F InstancedMesh + individual <mesh> for interactive objects
  */
 export default function Planets() {
   useActorRuntime('planets', true)
-  const { camera, gl } = useThree()
+  const planetWorldPositionsRef = useRef<(Vector3 | null)[]>([null, null, null])
+  const { camera, gl, invalidate } = useThree()
   const { project } = useScreenProjection()
   const { shouldSkip } = useFrameCache()
-  const planetLayer = getWebglLayer('webgl.planets')
-  const planetEffectsLayer = getWebglLayer('webgl.planetEffects')
-  const planetHaloLayer = getWebglLayer('webgl.planetHalo')
+  const focusChannels = useFocusAnimation()
+  const baseFov = useRef((camera as PerspectiveCamera).fov).current
 
   // Pre-allocated reusable objects
   const _scratch = useRef(new Vector3()).current
   const _scratch2 = useRef(new Color()).current
   const _color2 = useRef(new Color()).current
   const _colorAct1 = useRef(new Color(COLOR_ACT1)).current
-  const _colorAct3 = useRef(new Color(COLOR_ACT3)).current
-  const planetWorldPositionsRef = useRef<(Vector3 | null)[]>([null, null, null])
+  const _colorAct3 = useRef(new Color(PLANET_CONTENT_COLOR)).current
 
   // ---- Create 3 planet meshes + atmosphere (one-time) ----
-  const { mainPlanets, innerGlows, atmosShells, haloSpriteMats, haloSprites, mainPlanetIndices, particleData } = useMemo(() => {
-    const haloTexture = getHaloTexture()
+  const { mainPlanets, assets, mainPlanetIndices, particleData, dispose } = useMemo(() => {
+    const haloTexture = createPlanetHaloTexture()
     const count = 83
     const dustConfigs: { scale: number; sizeBoost: number; totalSize: number }[] = []
 
@@ -122,17 +78,13 @@ export default function Planets() {
       .sort((a, b) => b.size - a.size)
     const planetIndices = sorted.slice(0, ORBIT_COUNT).map(s => s.idx)
 
-    const highPolyGeo = new SphereGeometry(PLANET_BASE_RADIUS, GEO_SEGMENTS, GEO_SEGMENTS)
-    const planets: Mesh[] = []
-    const innerGlows: Mesh[] = []
-    const shells: Mesh[] = []
-    const spriteMats: SpriteMaterial[] = []
-    const sprites: Sprite[] = []
+    const assets: (ReturnType<typeof createPlanetAsset> & {
+      updateSpin?: ReturnType<typeof createRingedPlanetAsset>['updateSpin']
+    })[] = []
     const data: ParticleData[] = []
 
     for (let i = 0; i < count; i++) {
       const isMain = planetIndices.includes(i)
-      const mainTrackIdx = isMain ? planetIndices.indexOf(i) : -1
       const cfg = dustConfigs[i]
 
       const worldOrigin = new Vector3(0, -2.5 + 2.96 * 0.7, SCENE_CENTER_Z)
@@ -149,10 +101,10 @@ export default function Planets() {
       const grayHex = '#' + gray.toString(16).padStart(2, '0').repeat(3)
 
       const orbitR = isMain
-        ? ORBIT_RADII[mainTrackIdx]
+        ? ORBIT_RADII[planetIndices.indexOf(i)]
         : 2.5 + Math.random() * 4.5
       const orbitSpeed = isMain
-        ? -0.04 - mainTrackIdx * 0.015
+        ? PLANET_ORBIT_SPEEDS[planetIndices.indexOf(i)]
         : -(0.03 + Math.random() * 0.08)
 
       const particle: ParticleData = {
@@ -164,11 +116,11 @@ export default function Planets() {
         scale: cfg.scale,
         sizeBoost: cfg.sizeBoost,
         grayHex,
-        orbitAngle: isMain ? MAIN_PLANET_ORBIT_ANGLES[mainTrackIdx] : Math.random() * Math.PI * 2,
+        orbitAngle: isMain ? MAIN_PLANET_ORBIT_ANGLES[planetIndices.indexOf(i)] : Math.random() * Math.PI * 2,
         orbitR,
         orbitSpeed,
         _baseSpeed: orbitSpeed,
-        scaleMult: isMain ? 2.4 + mainTrackIdx * 0.2 : 0.4 + Math.random() * 0.9,
+        scaleMult: isMain ? 2.4 + planetIndices.indexOf(i) * 0.2 : 0.4 + Math.random() * 0.9,
         isMainPlanet: isMain,
         hoverFactor: 0.0,
         orbitTilt: 0,
@@ -180,92 +132,78 @@ export default function Planets() {
       if (isMain) {
         const trackIdx = planetIndices.indexOf(i)
 
-        // Planet core
-        const geo = highPolyGeo.clone()
-        const mat = new MeshBasicMaterial({
-          color: PLANET_CORE_COLOR,
-          transparent: planetLayer.transparent,
-          opacity: 0,
-          depthWrite: planetLayer.depthWrite,
-          depthTest: planetLayer.depthTest,
-        })
-        const mesh = new Mesh(geo, mat)
-        mesh.renderOrder = planetLayer.renderOrder
-        mesh.position.set(wx, wy, wz)
-        mesh.name = `planet_${trackIdx}`
-        planets.push(mesh)
-
-        // Inner glow sphere (pulsing, depthWrite=false)
-        const glowGeo = new SphereGeometry(PLANET_BASE_RADIUS * INNER_GLOW_SCALE, GEO_SEGMENTS, GEO_SEGMENTS)
-        const glowMat = new MeshBasicMaterial({
-          color: INNER_GLOW_COLOR,
-          transparent: planetEffectsLayer.transparent,
-          opacity: 0,
-          depthWrite: planetEffectsLayer.depthWrite,
-          depthTest: planetEffectsLayer.depthTest,
-        })
-        const glow = new Mesh(glowGeo, glowMat)
-        glow.renderOrder = planetEffectsLayer.renderOrder
-        glow.name = `glow_${trackIdx}`
-        innerGlows.push(glow)
-
-        // Fresnel atmosphere shell (BackSide)
-        const shellGeo = new SphereGeometry(PLANET_BASE_RADIUS * ATMOS_SHELL_SCALE, GEO_SEGMENTS, GEO_SEGMENTS)
-        const shellMat = new ShaderMaterial({
-          vertexShader: atmosphereVertex,
-          fragmentShader: atmosphereFragment,
-          uniforms: { uOpacity: { value: 0 }, uColor: { value: new Color(FRESNEL_SHELL_COLOR) } },
-          transparent: planetEffectsLayer.transparent,
-          depthWrite: planetEffectsLayer.depthWrite,
-          depthTest: planetEffectsLayer.depthTest,
-          side: BackSide,
-        })
-        const shell = new Mesh(shellGeo, shellMat)
-        shell.renderOrder = planetEffectsLayer.renderOrder
-        shell.name = `atmos_${trackIdx}`
-        shells.push(shell)
-
-        // Sprite halo (shared texture, AdditiveBlending)
-        const sMat = new SpriteMaterial({
-          map: haloTexture, blending: AdditiveBlending,
-          transparent: planetHaloLayer.transparent,
-          opacity: 0,
-          depthWrite: planetHaloLayer.depthWrite,
-          depthTest: planetHaloLayer.depthTest,
-        })
-        const sprite = new Sprite(sMat)
-        sprite.renderOrder = planetHaloLayer.renderOrder
-        sprite.name = `halo_${trackIdx}`
-        spriteMats.push(sMat)
-        sprites.push(sprite)
+        const asset = PLANET_FACTORIES[trackIdx](trackIdx, haloTexture)
+        for (const [object, layer] of [
+          [asset.core, getWebglLayer('webgl.planets')],
+          [asset.glow, getWebglLayer('webgl.planetEffects')],
+          [asset.atmosphere, getWebglLayer('webgl.planetEffects')],
+          [asset.halo, getWebglLayer('webgl.planetHalo')],
+        ] as const) {
+          object.renderOrder = layer.renderOrder
+          object.material.transparent = layer.transparent
+          object.material.depthWrite = layer.depthWrite
+          object.material.depthTest = layer.depthTest
+        }
+        asset.core.position.set(wx, wy, wz)
+        asset.root.visible = false
+        // 粒子遍历顺序不等于轨道顺序，后续更新、标签和聚焦都按 trackIdx 读取。
+        assets[trackIdx] = asset
       }
     }
 
     return {
-      mainPlanets: planets, innerGlows, atmosShells: shells,
-      haloSpriteMats: spriteMats, haloSprites: sprites,
+      mainPlanets: assets.map(asset => asset.core), assets,
+      dispose: () => {
+        assets.forEach(asset => asset.dispose())
+        haloTexture.dispose()
+      },
       mainPlanetIndices: planetIndices, particleData: data,
     }
-  }, [
-    planetEffectsLayer.depthTest,
-    planetEffectsLayer.depthWrite,
-    planetEffectsLayer.renderOrder,
-    planetEffectsLayer.transparent,
-    planetHaloLayer.depthTest,
-    planetHaloLayer.depthWrite,
-    planetHaloLayer.renderOrder,
-    planetHaloLayer.transparent,
-    planetLayer.depthTest,
-    planetLayer.depthWrite,
-    planetLayer.renderOrder,
-    planetLayer.transparent,
-  ])
+  }, [])
 
+  // 发布已提交实例的索引，避免 StrictMode 的重复构造覆盖事件目标映射。
   useEffect(() => {
     mainPlanetIndices.forEach((particleIdx, trackIdx) => {
       setCoreAnchor(planetParticleIndexAnchorId(trackIdx), particleIdx, 'world', 'planets')
     })
+    return () => useAnchorStore.getState().clearProducer('planets')
   }, [mainPlanetIndices])
+  useEffect(() => () => dispose(), [dispose])
+  const focusOrbit = useMemo(() => createFocusOrbitController({ planetRadius: PLANET_BASE_RADIUS, starRadius: CENTRAL_STAR_CORE_RADIUS }), [])
+  const orbitBodies = useMemo(() => mainPlanetIndices.map(i => particleData[i]), [mainPlanetIndices, particleData])
+  const envelopes = useMemo(() => assets.map(asset => asset.visualRadiusScale), [assets])
+
+  const focusTimeline = useRef<ReturnType<typeof createFocusTimeline> | null>(null)
+  const pendingFocusEvent = useRef<FocusEvent | null>(null)
+  const sceneTime = useRef(0)
+  const focusAspect = useRef((camera as PerspectiveCamera).aspect)
+  useEffect(() => {
+    const timeline = createFocusTimeline(focusChannels, {
+      focus(track) {
+        focusAspect.current = (camera as PerspectiveCamera).aspect
+        focusOrbit.focus(orbitBodies, track, camera as PerspectiveCamera, envelopes, PLANET_FOCUS_DISTANCE_SCALES[track], baseFov)
+        useScrollStore.getState().setFocusStartTime(sceneTime.current)
+      },
+      exit: settle => focusOrbit.exit(orbitBodies, settle),
+      timeout: () => useScrollStore.getState().clearFocus('timeout'),
+    })
+    focusTimeline.current = timeline
+    const initial = useScrollStore.getState()
+    pendingFocusEvent.current = initial.focusedVoyager ? { type: 'voyager' } : initial.focusedPlanetIdx >= 0
+      ? { type: 'focus', planetIdx: initial.focusedPlanetIdx } : null
+    const unsubscribe = useScrollStore.subscribe((state, previous) => {
+      if (state.focusEvent !== previous.focusEvent) {
+        pendingFocusEvent.current = state.focusEvent
+        invalidate()
+      }
+    })
+    return () => {
+      unsubscribe()
+      timeline.dispose()
+      focusTimeline.current = null
+      pendingFocusEvent.current = null
+    }
+  }, [camera, baseFov, focusChannels, focusOrbit, orbitBodies, envelopes, invalidate])
 
   // ---- Per-frame planet animation ----
   useFrame((state, delta) => {
@@ -274,21 +212,49 @@ export default function Planets() {
     touchActorFrame('planets', Math.round(time * 60), sp >= TIMELINE.planetVisible.start)
     if (shouldSkip(time, sp)) return
 
+    // 本帧待写入的屏幕视觉半径（main planet 3 个）
     const _screenRadii: [number, number, number] = [0, 0, 0]
     const anchorWrites: AnchorInput[] = []
 
     const wof = clamped(sp, TIMELINE.whiteOut.start, TIMELINE.whiteOut.end)
-    const ORBIT_START = TIMELINE.gridRetract.end
+    const ORBIT_START = TIMELINE.gridRetract.end  // 重组延迟到回收完毕后
     const act3Progress = clamped(sp, ORBIT_START, 1.0)
     const smooth3 = smoothstep(act3Progress)
 
+    // 行星始终在轨道 XZ，不参与 dust；从 VISIBLE_START 起由上方下落。
     const VISIBLE_START = TIMELINE.planetVisible.start
+    // 可见时驱动公转；离开场景后仍完成时间轴上的镜头退出与回位，再停止请求帧。
+    if (sp >= VISIBLE_START || focusChannels.mode !== 'idle') invalidate()
     const wc = getWindChimeProgress(sp)
     const inWindChime = wc.active
-    const orbitSmooth3 = 1.0
+    const orbitSmooth3 = 1.0  // 始终轨道位置，永不 dust-lerp
 
     const cx = 0, cy = -1.0, cz = SCENE_CENTER_Z
-    const { hoveredIdx, focusedPlanetIdx } = useScrollStore.getState()
+    const { hoveredIdx, focusedPlanetIdx, focusedVoyager, structureProgress } = useScrollStore.getState()
+
+    sceneTime.current = time
+    const focusedTrack = mainPlanetIndices.indexOf(focusedPlanetIdx)
+    if (focusedPlanetIdx >= 0 && (sp < TIMELINE.act3Shift.start || focusedTrack < 0 || structureProgress > 0)) {
+      useScrollStore.getState().clearFocus('scene')
+    }
+    if (focusedVoyager && (sp < TIMELINE.act3Shift.start || !voyagerState.available || structureProgress > 0)) useScrollStore.getState().clearFocus('scene')
+    const event = pendingFocusEvent.current
+    pendingFocusEvent.current = null
+    if (event) {
+      const track = event.type === 'focus' ? mainPlanetIndices.indexOf(event.planetIdx) : -1
+      if (event.type === 'exit' || (sp >= TIMELINE.act3Shift.start && structureProgress === 0 && (track >= 0 || (event.type === 'voyager' && voyagerState.available)))) {
+        focusTimeline.current?.dispatch(event, track)
+        if (event.type === 'voyager') useScrollStore.getState().setFocusStartTime(sceneTime.current)
+      } else {
+        focusTimeline.current?.dispatch({ type: 'exit', reason: 'scene' })
+        useScrollStore.getState().clearFocus('scene')
+      }
+    } else if (focusChannels.mode === 'focus' && focusChannels.target === 'planet' && Math.abs(focusAspect.current - (camera as PerspectiveCamera).aspect) > 0.02) {
+      // 窗口比例改变也通过事件重建构图，从当前姿态衔接。
+      focusTimeline.current?.dispatch({ type: 'focus', planetIdx: focusedPlanetIdx }, focusedTrack)
+    }
+    focusTimeline.current?.advance(delta)
+    focusOrbit.step(orbitBodies, delta, focusChannels)
 
     // Focused planet world position for occlusion
     let focusedPlanetPos: Vector3 | null = null
@@ -300,30 +266,26 @@ export default function Planets() {
     for (let i = 0; i < particleData.length; i++) {
       const d = particleData[i]
       if (!d.isMainPlanet) continue
-      const trackIdx = mainPlanetIndices.indexOf(i)
 
       // Hover/focus target
       const targetHover = (i === hoveredIdx && act3Progress >= 0.95) ? 1.0 : 0.0
       d.hoverFactor += (targetHover - d.hoverFactor) * 0.10
 
-      if (trackIdx >= 0 && sp < TIMELINE.orbitGlow.start) {
-        d.orbitAngle = MAIN_PLANET_ORBIT_ANGLES[trackIdx]
-      }
-
       // Position
-      let { x: px, y: py, z: pz } = calcOrbitPosition(d, time, delta, cx, cy, cz, orbitSmooth3)
-      const usingWindChimeLayout = trackIdx >= 0 && sp < TIMELINE.orbitGlow.start
+      const trackIdx = mainPlanetIndices.indexOf(i)
+      const usingWindChimeLayout = sp < TIMELINE.orbitGlow.start
+      if (usingWindChimeLayout) d.orbitAngle = MAIN_PLANET_ORBIT_ANGLES[trackIdx]
+      let { x: px, y: py, z: pz } = calcOrbitPosition(d, time, 0, cx, cy, cz, orbitSmooth3)
       if (usingWindChimeLayout) {
         const point = getWindChimePlanetPoint(trackIdx, wc.smoothP)
-        px = point.x
-        py = point.y
-        pz = point.z
+        px = point.x; py = point.y; pz = point.z
       }
 
       // Distance for appearance
       _scratch.set(px, py, pz)
       const cd = _scratch.distanceTo(camera.position)
 
+      // Appearance — 主行星用 orbitSmooth3 避免风铃阶段显示为 dust
       const isMain = mainPlanetIndices.includes(i)
       const appearanceSmooth3 = isMain ? orbitSmooth3 : smooth3
       const appearance = calcAppearance(d, sp, wof, appearanceSmooth3, cd, 0)
@@ -335,19 +297,24 @@ export default function Planets() {
       const mesh = mainPlanets[trackIdx]
       if (!mesh) continue
 
+      // 风铃期间：行星靠前(+Z) + 从上方垂落
+      // 存轨道目标供 WindChimeLines 计算线位置
       if (trackIdx >= 0 && trackIdx < 3) {
         anchorWrites.push(makeCoreAnchor(planetOrbitAnchorId(trackIdx), { x: px, y: py, z: pz }, 'world', 'planets'))
       }
 
       mesh.position.set(px, py, pz)
+      // 下落早于风铃线开始，到 WC_DROP_END 到位。
       if (sp >= VISIBLE_START && sp < WC_DROP_END) {
         const dropOnly = clamped(sp, VISIBLE_START, WC_DROP_END)
         mesh.position.y = WC_ANCHOR_Y + (py - WC_ANCHOR_Y) * smoothstep(dropOnly)
       }
+      // 风铃期间拉近摄像机
       if (inWindChime && !usingWindChimeLayout) {
         mesh.position.z += 6 * wc.smoothP
       }
       mesh.visible = sp >= VISIBLE_START
+      assets[trackIdx].root.visible = mesh.visible
       mesh.scale.setScalar(appearance.scale)
 
       // Track world position
@@ -355,10 +322,14 @@ export default function Planets() {
         if (!planetWorldPositionsRef.current[trackIdx]) planetWorldPositionsRef.current[trackIdx] = new Vector3()
         planetWorldPositionsRef.current[trackIdx]!.copy(mesh.position)
         anchorWrites.push(makeCoreAnchor(planetWorldAnchorId(trackIdx), pointFromVector3(mesh.position), 'world', 'planets', mesh.visible))
+        anchorWrites.push(makeCoreAnchor(planetCoreRadiusAnchorId(trackIdx), mesh.visible ? PLANET_BASE_RADIUS * appearance.scale : 0, 'world', 'planets', mesh.visible))
 
-        const _worldR = PLANET_BASE_RADIUS * appearance.scale * INNER_GLOW_SCALE
+        // 计算该行星的屏幕视觉半径（px），供径向布局使用
+        // 标签避让覆盖环带外缘或卫星整圈公转范围，不随卫星相位抖动。
+        const _worldR = PLANET_BASE_RADIUS * appearance.scale * assets[trackIdx].visualRadiusScale
         const _pcam = camera as PerspectiveCamera
         const _fovY = (_pcam.fov * Math.PI) / 180
+        // 屏幕半径 = worldRadius / 距离处的 frustum 高度 × 视口高度
         const _screenR = (_worldR * gl.domElement.clientHeight) / (2 * cd * Math.tan(_fovY / 2))
         _screenRadii[trackIdx] = Math.round(_screenR)
         anchorWrites.push(makeCoreAnchor(planetScreenRadiusAnchorId(trackIdx), _screenRadii[trackIdx], 'screenPx', 'planets', mesh.visible))
@@ -373,7 +344,7 @@ export default function Planets() {
       if (trackIdx >= 0 && trackIdx < 3) {
         coords[trackIdx] = { x: px, y: py, z: pz }
         angles[trackIdx] = d.orbitAngle
-        speeds[trackIdx] = d._baseSpeed ?? d.orbitSpeed
+        speeds[trackIdx] = focusOrbit.speeds[trackIdx]
       }
       for (let oi = 0; oi < 3; oi++) {
         orbAngles[oi] = (orbAngles[oi] + delta * store.orbitSpeeds[oi]) % (Math.PI * 2)
@@ -381,7 +352,7 @@ export default function Planets() {
       store.setPlanetData(coords, angles, speeds, store.orbitSpeeds, orbAngles as [number, number, number])
 
       // Opacity with occlusion
-      const mat = mesh.material as MeshBasicMaterial
+      const mat = mesh.material
       let planetOpacity = appearance.opacity
       if (focusedPlanetPos && focusedPlanetIdx >= 0 && i !== focusedPlanetIdx) {
         _scratch.set(px, py, pz)
@@ -390,43 +361,20 @@ export default function Planets() {
       mat.opacity = planetOpacity
       mat.color.copy(_scratch2)
 
+      // ---- Glow delay: 线条回收完毕后(sp≥0.94)才启辉光 ----
       const glowFactor = clamped(sp, TIMELINE.orbitGlow.start, TIMELINE.orbitGlow.end)
 
-      // ---- Inner glow (pulse, follows core appearance scale) ----
-      const glow = innerGlows[trackIdx]
-      if (glow) {
-        const gPulse = 1 + Math.sin(time * GLOW_PULSE_FREQ_1 + trackIdx * 2.1) * GLOW_PULSE_AMP_1 + Math.sin(time * GLOW_PULSE_FREQ_2 + trackIdx) * GLOW_PULSE_AMP_2
-        glow.position.copy(mesh.position)
-        glow.scale.setScalar(appearance.scale * gPulse)
-        const gMat = glow.material as MeshBasicMaterial
-        gMat.opacity = planetOpacity * INNER_GLOW_OPACITY * gPulse * glowFactor
-      }
-
-      // ---- Atmosphere shell (follows core appearance scale) ----
-      const shell = atmosShells[trackIdx]
-      if (shell) {
-        shell.position.copy(mesh.position)
-        shell.scale.setScalar(appearance.scale)
-        const sMat = shell.material as ShaderMaterial
-        sMat.uniforms.uOpacity.value = planetOpacity * ATMOS_SHELL_OPACITY * glowFactor
-      }
-
-      // ---- Halo sprite (pulse) ----
-      const sMat2 = haloSpriteMats[trackIdx]
-      const sprite = haloSprites[trackIdx]
-      if (sprite && sMat2) {
-        const pulse = 1 + Math.sin(time * SPRITE_PULSE_FREQ_1 + trackIdx * 2.1) * SPRITE_PULSE_AMP_1 + Math.sin(time * SPRITE_PULSE_FREQ_2 + trackIdx) * SPRITE_PULSE_AMP_2
-        sprite.position.copy(mesh.position)
-        const baseScale = d.scale * d.scaleMult * ATMOS_HALO_SCALE
-        sprite.scale.set(baseScale * pulse, baseScale * pulse, 1)
-        sMat2.opacity = planetOpacity * ATMOS_HALO_OPACITY * pulse * glowFactor
-      }
+      assets[trackIdx].updateAppearance(
+        time, trackIdx, appearance.scale, planetOpacity, glowFactor,
+        d.scale * d.scaleMult * ATMOS_HALO_SCALE,
+      )
+      if (sp >= TIMELINE.act3Shift.start) assets[trackIdx].updateSpin?.(time, d._baseSpeed)
     }
 
-    // Publish world/screen anchors for downstream consumers.
-    if (anchorWrites.length > 0) setCoreAnchors(anchorWrites)
+    // 发布屏幕视觉半径（供径向布局使用）
+    setCoreAnchors(anchorWrites)
 
-    // Project planet world anchors to screen anchors for DOM labels/guides.
+    // 投影行星世界坐标到屏幕坐标（供 FloatingLabels 消费）
     project()
 
     // ---- Hover detection ----
@@ -459,13 +407,8 @@ export default function Planets() {
 
   return (
     <group>
-      {mainPlanets.map((mesh, idx) => (
-        <group key={`planet-group-${idx}`}>
-          <primitive object={mesh} />
-          <primitive object={innerGlows[idx]} />
-          <primitive object={atmosShells[idx]} />
-          <primitive object={haloSprites[idx]} />
-        </group>
+      {assets.map((asset, idx) => (
+        <primitive key={idx} object={asset.root} dispose={null} />
       ))}
     </group>
   )

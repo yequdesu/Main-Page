@@ -123,7 +123,8 @@ const FloatingLabels = memo(function FloatingLabels(props: FloatingLabelsProps) 
   const screenCoords: [ScreenPoint, ScreenPoint, ScreenPoint] = [screen0, screen1, screen2]
   const screenRadii: [number, number, number] = [radius0, radius1, radius2]
   const focusedPlanetIdx = useScrollStore(s => s.focusedPlanetIdx)
-  const isAnyFocused = focusedPlanetIdx >= 0
+  const focusedVoyager = useScrollStore(s => s.focusedVoyager)
+  const isAnyFocused = focusedPlanetIdx >= 0 || focusedVoyager
   const labelsLayer = getDomLayer('dom.planetLabels')
   const expandedLayer = getDomLayer('dom.planetLabelExpanded')
   const backdropLayer = getDomLayer('dom.planetLabelBackdrop')

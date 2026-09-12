@@ -224,6 +224,8 @@
 
 .terminal-input-text {
   color: var(--tw-input, #e2e8f0);
+  white-space: pre;
+  flex-shrink: 0;
 }
 
 .terminal-typing-cursor {
