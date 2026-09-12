@@ -53,7 +53,7 @@ export default function App() {
     <section className="intro" id="intro">
       <p className="eyebrow">STELLAR MORPHOLOGY · ACT 04</p>
       <h1>磁拱环，如何长出不同的形状。</h1>
-      <p>足点留在原处，拱顶在生长中定形。拖动时间，比较不对称的形成与消退过程。</p>
+      <p>磁通区域留在原处，环系错峰生长，连接有时会在消退中重组。拖动时间，观察同一区域的不同命运。</p>
       <div className="intro-note"><span className="live-dot" />预览复用 Act 4 的生成模型与发光材质<span className="note-separator">/</span><span className="note-detail">相同类型与种子，可以复现相同结构</span></div>
     </section>
 
@@ -72,8 +72,8 @@ export default function App() {
             <button className="quiet-button" onClick={() => seek(0)}>回到初态</button>
             <label className="time-control"><span className="sr-only">模拟时间</span><input aria-label="模拟时间" type="range" min="0" max={MAX_AGE} step="0.1" value={age} onChange={event => { const value = Number(event.target.value); setAge(value); setPlayback({ playing: false, seek: value }) }} /><output aria-live="off">{age.toFixed(1)} <small>/ {MAX_AGE} s</small></output></label>
           </div>
-          <div className="legend"><span className="legend-gold">— 发光环系</span><label>速度 <select aria-label="播放速度" value={speed} onChange={event => setSpeed(Number(event.target.value))}><option value="0.35">0.35×</option><option value="1">1×</option><option value="2">2×</option></select></label><label><input type="checkbox" checked={markers} onChange={event => setMarkers(event.target.checked)} />标出足点</label></div>
-          <Lifecycle seed={seed} age={age} seek={seek} />
+          <div className="legend"><span className="legend-gold">— 发光环系</span><label>速度 <select aria-label="播放速度" value={speed} onChange={event => setSpeed(Number(event.target.value))}><option value="0.35">0.35×</option><option value="1">1×</option><option value="2">2×</option></select></label><label><input type="checkbox" checked={markers} onChange={event => setMarkers(event.target.checked)} />磁通区域</label></div>
+          <Lifecycle plans={current.evolution} age={age} seek={seek} />
         </div>
 
         <aside className="explanation" aria-label="所选结构说明与种子设置">
@@ -99,12 +99,13 @@ export default function App() {
     <section className="reading" id="lifecycle" aria-labelledby="lifecycle-title">
       <div className="section-heading"><div><p className="eyebrow">GROWTH, MEMORY, RELAXATION</p><h2 id="lifecycle-title">生长留下形态，回缩释放形变。</h2></div></div>
       <div className="reading-grid">
-        <article><span className="step-number">01 / 形成</span><h3>先有足点，再逐渐抬升</h3><p>从贴近日面的低矮结构生长。连续的时变驱动改变拱顶偏斜、凹陷与肩部；张力和惯性让变化连贯。相同种子复现相同的驱动历史。</p></article>
+        <article><span className="step-number">01 / 形成</span><h3>固定磁通区域，错峰抬升</h3><p>各环系拥有自己的出生、成形与松弛时刻。同一活动区共享背景，但局部驱动并不同步。每种组成保留一个支撑环，维持低簇与嵌套的伴随关系。</p></article>
         <article><span className="step-number">02 / 定形</span><h3>轮廓在生长过程中确定</h3><p>参考拱顶从中性形状出发，积累外部应力与局部热负载的影响。形成驱动衰减后，保留已经形成的轮廓，细丝仍有轻微动态。</p></article>
-        <article><span className="step-number">03 / 消退</span><h3>用更长时间回到低处</h3><p>普通磁拱环用约 14 秒逐步松弛与回缩，表现磁场缓慢减弱；CME 残留拱廊的主要回缩约 4.4 秒。普通环最后约 1 秒才淡出，消退继承已有轮廓与速度。</p></article>
+        <article><span className="step-number">03 / 消退</span><h3>有时回缩，有时局部换接</h3><p>普通环系用 12–15.6 秒松弛与回缩。部分大环在末段与预存弱背景连接接触，交换配对，形成更快消退的短环；同一主环不再保留旧长连接，其他独立环系继续演化。</p></article>
       </div>
       <div className="model-note"><div><h3>收缩不一定温和</h3><p>磁能释放后，日冕环可以同时收缩和振荡。本轮选择较强阻尼，强调平滑回缩；这是一种展示取向，并非所有真实事件的规律。发光结构的变暗也不等于磁场消失，足点固定仅作为短时近似。</p><a href="https://arxiv.org/abs/1506.07716" target="_blank" rel="noreferrer">日冕环收缩与振荡研究 ↗</a></div><div><h3>CME 的上下两支分别处理</h3><p>CME 形成后，上方闭环继续向外喷出、粒子化与扩散。下方连接日面的残留拱廊在重联后松弛回缩；不把已经喷出的物质收回日面。</p><a href="./cme-dissolution-explainer.html?seed=0.47&t=9">观察 CME 重联后的回缩 ↗</a></div></div>
-      <p className="section-intro">上方 SVG 与三维模型共用生命周期包络；本页展示 {MAX_AGE} 秒完整事件。主页普通事件为 30–38 秒，末尾 14 秒消退。这组时间用于区分缓慢减弱与快速释放，并非真实事件的统一比例。<a href="../stellar-plasma-model.md#足点锚定的非对称生命周期">查看 LaTeX 公式与实现边界 ↗</a></p>
+      <div className="model-note"><div><h3>固定区域，允许连接改变</h3><p>根部附近的小尺度混合极性磁通，为局部重联提供了一种可能的环境。图中的区域位置作为短时近似固定，连接关系可以变化；同一条示踪线不必永远连接同一对端点。</p><a href="https://arxiv.org/abs/1610.07484" target="_blank" rel="noreferrer">混合极性与日冕环根部环境 ↗</a></div><div><h3>自然消退也可能伴随重联</h3><p>非 CME 不等于没有磁重联。观测支持局部重联形成新环，但不支持“所有大环都必然碎成小环”。本实验保留概率触发与直接回缩两条路径，概率为展示设定。</p><a href="https://arxiv.org/abs/2105.03199" target="_blank" rel="noreferrer">局部重联形成日冕环的观测 ↗</a></div></div>
+      <p className="section-intro">上方 SVG 与三维模型共用演化方案；本页展示 {MAX_AGE} 秒完整事件，主页普通事件为 30–38 秒。普通环系慢消退，CME 下方拱廊主要回缩约 4.4 秒；这组时间并非真实事件的统一比例。<a href="../stellar-plasma-model.md#固定磁通区域与局部连接重组">查看 LaTeX 公式与实现边界 ↗</a></p>
     </section>
 
     <section className="atlas" id="atlas" aria-labelledby="atlas-title">

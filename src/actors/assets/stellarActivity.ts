@@ -75,6 +75,7 @@ function createParcelGeometry() {
   const geometry = new InstancedBufferGeometry()
   geometry.setAttribute('position', new BufferAttribute(new Float32Array([-1,-1,0, 1,-1,0, -1,1,0, 1,-1,0, 1,1,0, -1,1,0]), 3))
   for (const name of ['aCenter', 'aDirection', 'aState']) geometry.setAttribute(name, new InstancedBufferAttribute(new Float32Array(PLASMA_COUNT * 3), 3))
+  geometry.setAttribute('aVisibility', new InstancedBufferAttribute(new Float32Array(PLASMA_COUNT), 1))
   geometry.setAttribute('aConversion', new InstancedBufferAttribute(new Float32Array(PLASMA_COUNT), 1))
   geometry.instanceCount = PLASMA_COUNT
   return geometry
@@ -116,6 +117,7 @@ export function createStellarActivity(channels: ReturnType<typeof createStellarA
       uPixelSize: { value: new Vector2() }, uUnitPixels: { value: 1 }, uBranch: { value: 0 },
       uClosureTimes: { value: new Float32Array(12).fill(-1) }, uEjection: { value: 1 }, uMistStrength: { value: 1 }, uFirstClosure: { value: -1 },
       uCurves: { value: texture }, uNeck: { value: new Vector3() }, uApex: { value: new Vector3() },
+      uCurveOpacity: { value: model.curveOpacity },
       uShape: { value: new Vector2(model.shape.span, model.shape.height) },
       uColor: { value: new Color(STELLAR_ACTIVITY_STYLE.filamentColor) },
       uGold: { value: new Color(STELLAR_ACTIVITY_STYLE.particleColor) },
@@ -125,6 +127,7 @@ export function createStellarActivity(channels: ReturnType<typeof createStellarA
       vertexShader: `${commonShader}
         uniform sampler2D uCurves;
         uniform float uBranch;
+        uniform float uCurveOpacity[36];
         varying vec3 vRibbon;
         varying float vVisible, vPulse;
         vec4 curve(float t,float strand) {
@@ -145,12 +148,12 @@ export function createStellarActivity(channels: ReturnType<typeof createStellarA
           mv.xy+=across*position.y*point.w*uScale*(0.8+0.4*uCondensation);
           gl_Position=projectionMatrix*mv;
           float source=t;
-          if(uBranch>1.5) source=t<0.5 ? 0.44*t : 1.0-0.44*(1.0-t);
-          else if(uBranch>0.5) source=0.22+0.56*t;
+          if(uCme>0.5 && uBranch>1.5) source=t<0.5 ? 0.44*t : 1.0-0.44*(1.0-t);
+          else if(uCme>0.5 && uBranch>0.5) source=0.22+0.56*t;
           vRibbon=vec3(source,position.y,strand);
           float stage=clamp((uRopeRadius-(1.48+0.32*fract(strand*0.618+uSeed)))/1.38,0.0,1.0);
           float split=step(0.45,stage)*uCme;
-          vVisible=uBranch<0.5 ? 1.0-split : split;
+          vVisible=uCme>0.5 ? (uBranch<0.5 ? 1.0-split : split) : uCurveOpacity[int(uBranch*12.0+strand)];
           float closedAt=uClosureTimes[int(strand)];
           float afterClose=closedAt<0.0 ? -1.0 : uAge-closedAt;
           vPulse=exp(-pow((stage-0.45)/0.10,2.0))*uCme*(1.0-uEjection*smoothstep(0.04,0.30,afterClose));
@@ -168,7 +171,7 @@ export function createStellarActivity(channels: ReturnType<typeof createStellarA
           float feet=smoothstep(0.0,0.045,t)*(1.0-smoothstep(0.955,1.0,t));
           float neck=exp(-pow((abs(t-0.5)-0.28)/0.045,2.0))*vPulse;
           float elapsed=uClosureTimes[int(strand)]<0.0 ? -1.0 : uAge-uClosureTimes[int(strand)];
-          float transfer=(uBranch>0.5 && uBranch<1.5) ? cmeConversion(elapsed,(t-0.22)/0.56)*uEjection : 0.0;
+          float transfer=(uCme>0.5 && uBranch>0.5 && uBranch<1.5) ? cmeConversion(elapsed,(t-0.22)/0.56)*uEjection : 0.0;
           float cooling=uBranch>1.5 ? arcadeCooling(elapsed) : 1.0;
           float alpha=(emission+neck*0.35*0.75)*edge*feet*uOpacity*vVisible*(1.0-transfer)*cooling;
           gl_FragColor=vec4(mix(uColor,uHighlight,neck*0.5),alpha);
@@ -176,6 +179,9 @@ export function createStellarActivity(channels: ReturnType<typeof createStellarA
         }`,
     }
     add(ribbonGeometry, new ShaderMaterial({ uniforms, ...ribbonShaders, ...transparentPlasma }), cme ? '日冕抛射弧丝' : `日珥弧丝_${index}`)
+    if (!cme) add(ribbonGeometry, new ShaderMaterial({
+      uniforms: { ...uniforms, uBranch: { value: 1 } }, ...ribbonShaders, ...transparentPlasma,
+    }), `日珥局部换接_${index}`)
     const parcels = createParcelGeometry()
     geometries.push(parcels)
     add(parcels, new ShaderMaterial({
@@ -184,8 +190,8 @@ export function createStellarActivity(channels: ReturnType<typeof createStellarA
         uniform vec2 uPixelSize;
         uniform float uUnitPixels;
         attribute vec3 aCenter, aDirection, aState;
-        attribute float aConversion;
-        varying float vConversion;
+        attribute float aConversion, aVisibility;
+        varying float vConversion, vVisibility;
         varying vec2 vParticle;
         varying vec3 vState;
         void main() {
@@ -198,20 +204,20 @@ export function createStellarActivity(channels: ReturnType<typeof createStellarA
           float halfWidth = max(0.48,uUnitPixels*(0.018+0.012*cold));
           gl_Position = projectionMatrix * mv;
           gl_Position.xy += (along*position.x*halfLength + across*position.y*halfWidth)*uPixelSize*2.0*gl_Position.w;
-          vParticle = position.xy; vState = aState; vConversion=aConversion;
+          vParticle = position.xy; vState = aState; vConversion=aConversion; vVisibility=aVisibility;
         }`,
       fragmentShader: `${commonShader}
         uniform vec3 uColor, uGold, uHighlight;
         varying vec2 vParticle;
         varying vec3 vState;
-        varying float vConversion;
+        varying float vConversion, vVisibility;
         void main() {
           float glow = exp(-vParticle.y*vParticle.y*4.5)*pow(max(0.0,1.0-vParticle.x*vParticle.x),1.2);
           float cold = 1.0-smoothstep(0.15,0.85,vState.x);
           float emission = min(1.0,pow(vState.y,0.65))*(0.22+0.78*cold);
           emission = mix(emission,min(1.0,pow(vState.y,0.40))*(0.6+0.4*cold),uCme);
           vec3 tint = mix(uColor,mix(uGold,uHighlight,vState.z*0.22),uCme);
-          gl_FragColor = vec4(tint,glow*emission*uOpacity*0.95*(1.0-vConversion*uEjection));
+          gl_FragColor = vec4(tint,glow*emission*uOpacity*vVisibility*0.95*(1.0-vConversion*uEjection));
           #include <colorspace_fragment>
         }`,
     }), cme ? '日冕抛射金色粒子' : `日珥等离子体_${index}`, 3)
@@ -346,7 +352,8 @@ export function createStellarActivity(channels: ReturnType<typeof createStellarA
           u.uRadius.value = sunRadius
         }
         u.uPixelSize.value.set(1 / pixelWidth, 1 / pixelHeight)
-        u.uAge.value = c.age; u.uSeed.value = c.seed; u.uOpacity.value = c.opacity * (patch.cme ? 1 : model.lifecycle.opacity)
+        u.uAge.value = c.age; u.uSeed.value = c.seed; u.uOpacity.value = c.opacity
+        u.uCurveOpacity.value = model.curveOpacity
         u.uRopeRadius.value = r
         // 展示用重联进度；各通道的连接切换由相同的径向阶段决定。
         u.uReconnection.value = magneticEase((magneticStage(r, 5, c.seed) - 0.20) / 0.80)
@@ -357,16 +364,19 @@ export function createStellarActivity(channels: ReturnType<typeof createStellarA
         const directions = parcels.getAttribute('aDirection') as InstancedBufferAttribute
         const states = parcels.getAttribute('aState') as InstancedBufferAttribute
         const conversion = parcels.getAttribute('aConversion') as InstancedBufferAttribute
+        const visibility = parcels.getAttribute('aVisibility') as InstancedBufferAttribute
         centers.array.set(model.centers); directions.array.set(model.tangents)
         let condensation = 0
         for (let i = 0; i < PLASMA_COUNT; i++) {
           const closedAt = model.ejection?.closureTimes[Math.floor(i / PLASMA.parcelsPerStrand)] ?? -1
           conversion.setX(i, model.branches[i] === 1 && closedAt >= 0 ? cmeConversion(c.age - closedAt, model.position[i]) : 0)
           states.setXYZ(i, model.temperature[i], model.density[i], (i * 0.6180339) % 1)
+          visibility.setX(i, model.curveOpacity[model.branches[i] * PLASMA.strands + Math.floor(i / PLASMA.parcelsPerStrand)])
           condensation += Math.max(0, 1 - model.temperature[i]) / PLASMA_COUNT
         }
         u.uCondensation.value = condensation
         conversion.needsUpdate = true
+        visibility.needsUpdate = true
         centers.needsUpdate = true; directions.needsUpdate = true; states.needsUpdate = true
         if (model.ejection) {
           const state = model.ejection, eventStart = now - c.age

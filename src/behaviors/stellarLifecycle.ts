@@ -9,25 +9,26 @@ const smooth = (value: number) => {
 
 export function magneticLifecycleTiming(duration = MAGNETIC_LIFETIME, seed = 0.47, eruptive = false) {
   const grown = eruptive ? 2.5 : 5.8 + 0.6 * seed
-  return { grown, settled: grown + (eruptive ? 1 : 1.6), decay: duration - MAGNETIC_DECAY_DURATION, end: duration }
+  return { birth: 0, grown, settled: grown + (eruptive ? 1 : 1.6), decay: duration - MAGNETIC_DECAY_DURATION, end: duration }
 }
+export type MagneticTiming = ReturnType<typeof magneticLifecycleTiming>
 
 /** 时间由现有事件播放头提供；固定步积分与文档 seek 使用同一个包络。 */
-export function createMagneticLifecycle(duration = MAGNETIC_LIFETIME, seed = 0.47, eruptive = false) {
-  const timing = magneticLifecycleTiming(duration, seed, eruptive)
+export function createMagneticLifecycle(duration = MAGNETIC_LIFETIME, seed = 0.47, eruptive = false, timing = magneticLifecycleTiming(duration, seed, eruptive)) {
   const state = {
     age: 0, height: 0.045, drive: 0, relaxation: 0, opacity: 0,
-    phase: '初生' as '初生' | '生长' | '稳定' | '松弛' | '回缩' | '结束',
+    phase: '初生' as '待生' | '初生' | '生长' | '稳定' | '松弛' | '回缩' | '结束',
     timing,
     advanceTo(age: number) {
       state.age = Math.max(0, age)
-      const growth = smooth(age / timing.grown)
-      state.drive = smooth(age / 0.7) * (1 - smooth((age - timing.grown + 1.8) / (timing.settled - timing.grown + 1.8)))
-      state.relaxation = eruptive ? 0 : smooth((age - timing.decay) / 6.4)
-      const retreat = eruptive ? 0 : smooth((age - timing.decay - 1.8) / 12.2)
+      const localAge = age - timing.birth, decayScale = (timing.end - timing.decay) / MAGNETIC_DECAY_DURATION
+      const growth = smooth(localAge / (timing.grown - timing.birth))
+      state.drive = smooth(localAge / 0.7) * (1 - smooth((age - timing.grown + 1.8) / (timing.settled - timing.grown + 1.8)))
+      state.relaxation = eruptive ? 0 : smooth((age - timing.decay) / (6.4 * decayScale))
+      const retreat = eruptive ? 0 : smooth((age - timing.decay - 1.8 * decayScale) / (12.2 * decayScale))
       state.height = (0.045 + 0.955 * growth) * (1 - 0.965 * retreat)
-      state.opacity = smooth(age / 0.3) * (eruptive ? 1 : 1 - smooth((age - duration + 1.15) / 1.15))
-      state.phase = age < 0.8 ? '初生' : age < timing.settled ? '生长' : eruptive || age < timing.decay ? '稳定' : age < timing.decay + 2.4 ? '松弛' : age < duration ? '回缩' : '结束'
+      state.opacity = smooth(localAge / 0.3) * (eruptive ? 1 : 1 - smooth((age - timing.end + 1.15) / 1.15))
+      state.phase = localAge < 0 ? '待生' : localAge < 0.8 ? '初生' : age < timing.settled ? '生长' : eruptive || age < timing.decay ? '稳定' : age < timing.decay + 2.4 * decayScale ? '松弛' : age < timing.end ? '回缩' : '结束'
       return state
     },
   }

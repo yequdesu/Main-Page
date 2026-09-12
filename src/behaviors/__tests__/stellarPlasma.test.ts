@@ -48,7 +48,7 @@ it('所有结构类型保持足点锚定，物质沿实际变化的路径运动'
     for (let i = 0; i < model.position.length; i++) {
       const strand = Math.floor(i / PLASMA.parcelsPerStrand)
       const actual = new Vector3().fromArray(model.centers, i * 3)
-      expect(model.sample(model.position[i], strand, 0, point).distanceTo(actual)).toBeLessThan(0.004)
+      expect(model.sample(model.position[i], strand, model.branches[i] as 0 | 1 | 2, point).distanceTo(actual)).toBeLessThan(0.004)
       expect(model.position[i]).toBeGreaterThan(0.025)
       expect(model.position[i]).toBeLessThan(0.975)
       expect(Number.isFinite(model.temperature[i])).toBe(true)

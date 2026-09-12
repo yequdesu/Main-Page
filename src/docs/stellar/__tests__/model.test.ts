@@ -21,7 +21,7 @@ it('SVG 直接投影共享模型路径，种子改变构型，相同选择可重
   expect(overview.structure).toEqual(model.structure)
   expect(overview.structure.companion).not.toBe('nested')
   expect(overview.paths).toHaveLength(MAGNETIC.strands)
-  expect(overview.feet).toHaveLength(model.structure.families.length * 2)
+  expect(overview.feet).toHaveLength(model.structure.families.length * 2 + (model.reorganization ? 2 : 0))
   const first = `M${(160 + model.curveData[0] * 66).toFixed(2)},${(143 - model.curveData[1] * 76).toFixed(2)}`
   expect(overview.paths[0].startsWith(first)).toBe(true)
   expect(overview.paths.join('')).not.toMatch(/NaN|Infinity/)

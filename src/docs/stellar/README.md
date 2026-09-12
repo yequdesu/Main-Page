@@ -9,7 +9,7 @@
 | [main.tsx](main.tsx) | React 入口 |
 | [App.tsx](App.tsx) | 六类说明、种子表单、URL、播放控制与 SVG 图鉴 |
 | [Preview.tsx](Preview.tsx) | 正交相机、旋转控制、局部日面预览及资源所有权 |
-| [Lifecycle.tsx](Lifecycle.tsx) | 共用生命周期的 SVG 包络图、阶段显示与跳转 |
+| [Lifecycle.tsx](Lifecycle.tsx) | 分环系 SVG 包络、条件重组的配对示意与阶段跳转 |
 | [model.ts](model.ts) | 种子校验、说明文案、共享模拟路径的 SVG 正投影 |
 | [style.css](style.css) | 桌面与移动端布局 |
 | [model.test.ts](__tests__/model.test.ts) | URL/种子边界、可复现性和真实路径投影验证 |
@@ -22,12 +22,12 @@
 
 SVG 卡片直接投影模拟第 8 秒的路径表；三维预览默认也暂停于第 8 秒。支持 0.35×、1×、2× 播放，阶段按钮覆盖初生、生长、稳定、松弛、回缩与结束。复制链接重放类型、种子、时间和默认正视图，不保存拖动后的相机。六类卡片随种子重新积分一次，播放时不重算卡片。
 
-生命周期由 [stellarLifecycle.ts](../../behaviors/stellarLifecycle.ts) 提供。SVG 显示几何高度包络和形成驱动，不把它们称为真实拱顶高度或磁能。拱顶由形成历史逐渐确定；足点固定，普通环的消退为 14 秒，显著长于 CME 残留拱廊约 4.4 秒的主要回缩。本页普通事件为 36 秒，主页为 30–38 秒。说明中补充了磁能释放后的收缩可伴随振荡，并明确本轮较强阻尼和时间比例属于展示选择。形式化公式见[非对称生命周期](../../../docs/stellar-plasma-model.md#足点锚定的非对称生命周期)。
+生命周期公式由 [stellarLifecycle.ts](../../behaviors/stellarLifecycle.ts) 提供，[stellarReorganization.ts](../../behaviors/stellarReorganization.ts) 为各环系生成独立时序、弱背景磁通配置和条件重组方案。SVG 显示各原有环系的高度包络乘可见度；配对示意显示固定区域之间的连接改变，两者均不表示磁能。普通环系消退为 12–15.6 秒，显著长于 CME 残留拱廊约 4.4 秒的主要回缩。局部换接用 0.7 秒靠拢、0.65 秒连续收为短环，接头用扩展 Hermite 邻域圆滑；重组分支提供接近、换接与短环回缩跳转，同时显示本种子的倾向值和抽样结果。本页普通事件为 36 秒，主页为 30–38 秒。说明中补充了磁能释放后的收缩可伴随振荡，并明确本轮较强阻尼和时间比例属于展示选择。形式化公式见[非对称生命周期](../../../docs/stellar-plasma-model.md#足点锚定的非对称生命周期)。
 
 ## 渲染与生命周期
 
 采用 `flat`、`frameloop="demand"` 和正交相机。换种子、时间回退与视角变动请求新帧；播放中由 `useFrame` 推进并调用 `invalidate()`，暂停时停止连续请求。Drei OrbitControls 响应拖动/缩放并请求渲染。页面隐藏或预览离开视口时暂停，返回后需手动播放。没有额外 RAF 或定时器。依据：[R3F 按需渲染](https://r3f.docs.pmnd.rs/advanced/scaling-performance)、[invalidate API](https://r3f.docs.pmnd.rs/api/hooks)。
 
-预览拥有一个 [stellarActivity](../../actors/assets/stellarActivity.ts) 实例，仅开启首个日珥通道。使用工厂的 `layoutLocal()` 在局部切平面绘制，复用现行发光材质、物质团块及共享路径表；其余通道透明度保持为零。常规 `layout()` 可恢复主页日面坐标。种子/类型变化或时间回退只重建 CPU 模拟，保留 GPU 纹理对象；卸载释放该实例的几何体、材质和路径纹理。旋转控制与足点资源由 R3F/Drei 管理。
+预览拥有一个 [stellarActivity](../../actors/assets/stellarActivity.ts) 实例，仅开启首个日珥通道。使用工厂的 `layoutLocal()` 在局部切平面绘制，复用现行发光材质、物质团块及共享路径表；其余通道透明度保持为零。常规 `layout()` 可恢复主页日面坐标。种子/类型变化或时间回退只重建 CPU 模拟，保留 GPU 纹理对象；卸载释放该实例的几何体、材质和路径纹理。旋转控制与磁通区域标记由 R3F/Drei 管理。发生重组的种子从初始时刻就标出 C、D 两个弱背景区域；卡片仍仅显示原有主体环系，分类描述初始构型，不强制退场保持同一拓扑。
 
 新增类型时同步更新共享注册表、模型约束与本文案；不要另写一套 SVG 曲线公式。验证覆盖种子、组合、初态回退与资源释放；视觉修改还需检查桌面/窄屏的预览、表单、播放、切换视角、足点与卡片。

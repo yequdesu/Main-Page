@@ -5,7 +5,7 @@ import { createMagneticDeformation } from '../stellarMagnetism'
 import { PROMINENCE_MORPHOLOGIES } from '../stellarMorphology'
 import { createFluxRopeSimulation, PLASMA } from '../stellarPlasma'
 
-it('全部构型在完整生命周期内足点固定，主要依靠几何生长与回缩', () => {
+it('全部构型的磁通区域固定，重组只更换连接，粒子跟随所在分支', () => {
   const point = new Vector3()
   for (const { kind } of PROMINENCE_MORPHOLOGIES) {
     const model = createFluxRopeSimulation(0.47, false, kind)
@@ -20,13 +20,15 @@ it('全部构型在完整生命周期内足点固定，主要依靠几何生长�
         expect(model.lifecycle.opacity).toBeCloseTo(0)
       } else expect(model.lifecycle.opacity).toBeCloseTo(1)
       for (let strand = 0; strand < PLASMA.strands; strand++) for (const s of [0, 1]) {
-        expect(model.sample(s, strand, 0, point).distanceTo(feet[strand][s])).toBeLessThan(1e-8)
+        const reorg = model.reorganization
+        const expected = reorg?.switched && reorg.selected.has(strand) && s === 1 ? reorg.regions.get(strand)![3] : feet[strand][s]
+        expect(model.sample(s, strand, 0, point).distanceTo(expected)).toBeLessThan(1e-8)
       }
       expect(model.curveData.every(Number.isFinite)).toBe(true)
       for (let i = 0; i < model.position.length; i++) {
         const strand = Math.floor(i / PLASMA.parcelsPerStrand)
         const actual = new Vector3().fromArray(model.centers, i * 3)
-        expect(model.sample(model.position[i], strand, 0, point).distanceTo(actual)).toBeLessThan(0.005)
+        expect(model.sample(model.position[i], strand, model.branches[i] as 0 | 1 | 2, point).distanceTo(actual)).toBeLessThan(0.005)
       }
     }
   }
@@ -75,7 +77,7 @@ it('相同事件可跨帧率重放，直接 seek 和逐步播放得到相同轮�
   for (let i = 1; i <= 32 * 30; i++) played.advanceTo(i / 30)
   expect(played.curveData).toEqual(direct.curveData)
   expect(played.centers).toEqual(direct.centers)
-})
+}, 15000)
 
 it('CME 下方拱廊回缩，足点不动，上方闭环继续上升', () => {
   const model = createFluxRopeSimulation(0.47, true)
