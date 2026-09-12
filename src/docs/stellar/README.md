@@ -1,6 +1,6 @@
 # 磁拱环交互图鉴
 
-入口为 [stellar-morphology-explainer.html](../../../docs/actors/stellar-morphology-explainer.html)。运行 `pnpm dev` 后访问 `/docs/actors/stellar-morphology-explainer.html`；`pnpm build:docs` 与 `pnpm preview:docs` 独立构建和预览 PBD、磁拱环两份说明，不改变主应用入口。独立构建不复制模型资源目录。
+入口为 [stellar-morphology-explainer.html](../../../docs/actors/stellar-morphology-explainer.html)。运行 `pnpm dev` 后访问 `/docs/actors/stellar-morphology-explainer.html`；`pnpm build:docs` 与 `pnpm preview:docs` 独立构建和预览 PBD、磁拱环与 [CME 逸散](../cme/README.md)说明，不改变主应用入口。独立构建不复制模型资源目录。
 
 ## 文件与职责
 

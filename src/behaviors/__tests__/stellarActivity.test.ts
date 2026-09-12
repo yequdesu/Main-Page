@@ -35,22 +35,30 @@ it('日珥位置保持均匀抽样；只有抛射按专用分布取样，事件�
     expect(channels.prominences[1].position).toBeCloseTo(0.2)
     expect(channels.prominences[0].opacity).toBe(1)
     expect(channels.cme.opacity).toBe(0)
+    expect(channels.time).toBe(0)
     tick(3.1)
+    expect(channels.time).toBeCloseTo(3.1)
     expect(channels.cme.position).toBeCloseTo(sampleCmePosition(0.6))
     expect(channels.cme.position).toBeGreaterThan(0.2)
     tick(6)
     expect(channels.cme.opacity).toBe(1)
     tick(7)
     expect(channels.cme.opacity).toBe(0)
+    const previousTime = channels.time!, previousSerial = channels.cme.serial
     timeline.dispatch({ type: 'cme' })
     expect(channels.cme.age).toBe(0)
+    expect(channels.time).toBe(previousTime)
+    expect(channels.cme.serial).toBe(previousSerial + 1)
     timeline.advance(100)
     expect(channels.cme.age).toBeCloseTo(0.1) // 后台恢复不跳完整次事件。
+    expect(channels.time).toBeCloseTo(previousTime + 0.1)
   } finally { timeline.dispose() }
   const snapshot = { ...channels.cme }
+  const sceneTime = channels.time
   timeline.advance(1)
   timeline.dispatch({ type: 'cme' })
   expect(channels.cme).toEqual(snapshot)
+  expect(channels.time).toBe(sceneTime)
 })
 
 it('宽屏和窄屏采样均落在可见球面切圆，法线与沿边缘切线正交，中心对应水平中线', () => {

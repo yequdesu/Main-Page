@@ -50,7 +50,7 @@ pnpm dev
 | `pnpm debug` | 专注模型调试，根路径重定向到 `/debug.html` |
 | `pnpm build` | 执行 TypeScript 检查和 Vite 构建，输出到 `dist/` |
 | `pnpm preview` | 本地预览已构建的主应用 |
-| `pnpm build:docs` | 独立构建 PBD 与磁拱环交互说明，输出到 `dist-docs/` |
+| `pnpm build:docs` | 独立构建 PBD、磁拱环与 CME 交互说明，输出到 `dist-docs/` |
 | `pnpm preview:docs` | 预览已构建的交互说明 |
 | `pnpm test` | Vitest 开发测试 |
 | `pnpm test --run` | 单次运行测试 |
@@ -59,7 +59,7 @@ pnpm dev
 
 命令以 [package.json](package.json) 为准。测试覆盖数学工具、部分 R3F 组件、PBD 布局、终端命令、打字机和滚动容器；具体数量与通过情况以本次运行结果为准。
 
-运行开发服务后，访问 [PBD 交互说明](http://localhost:5173/docs/actors/pbd-layout-explainer.html)，可调整布局参数、播放 SVG 动画、逐帧观察并比较求解帧率。独立构建的默认预览地址为 [文档预览](http://localhost:4173/docs/actors/pbd-layout-explainer.html)。还可访问[磁拱环图鉴](http://localhost:5173/docs/actors/stellar-morphology-explainer.html)，通过种子生成六类结构、查看伴随组合，并旋转或播放三维预览。独立构建使用相同路径，默认端口为 4173。这两项文档命令不改变主应用的生产入口。
+运行开发服务后，访问 [PBD 交互说明](http://localhost:5173/docs/actors/pbd-layout-explainer.html)，可调整布局参数、播放 SVG 动画、逐帧观察并比较求解帧率。独立构建后运行 `pnpm preview:docs`，默认打开 [实验目录](http://localhost:4173/)，根地址自动进入三个实验的导航页。开发服务也可访问 [实验目录](http://localhost:5173/docs/index.html)。还可访问[磁拱环图鉴](http://localhost:5173/docs/actors/stellar-morphology-explainer.html)，通过种子生成六类结构、查看伴随组合，并旋转或播放三维预览。[CME 逸散实验](http://localhost:5173/docs/actors/cme-dissolution-explainer.html)展示闭环转为金色粒子与薄雾的过程，支持逐阶段观察、300 秒尾迹扩散回放和原始结构对照。独立构建使用相同路径，默认端口为 4173。这两项文档命令不改变主应用的生产入口。
 
 ## Debug Studio 与模型
 
@@ -100,6 +100,7 @@ Studio 是独立的开发入口。当前 Vite 生产构建只使用 `index.html`
 | [src/debug/](src/debug/)、[src/models/](src/models/) | Debug Studio、模型注册表与 GLB 组件 |
 | [src/docs/pbd/](src/docs/pbd/README.md) | PBD 交互说明的 SVG、公式、实验与几何诊断 |
 | [src/docs/stellar/](src/docs/stellar/README.md) | 磁拱环六类结构、可复现种子、三维预览与 SVG 图鉴 |
+| [src/docs/cme/](src/docs/cme/README.md) | CME 粒子化逸散、阶段回放、对照实验与公式 |
 | [src/shaders/](src/shaders/)、[src/utils/](src/utils/)、[src/types/](src/types/) | Shader、数学工具、共享类型和配置 |
 
 主场景的组装关系以 [Canvas.tsx](src/r3f/Canvas.tsx) 为准：
@@ -136,7 +137,7 @@ SceneCanvas
 | 终端 | [操作手册](docs/terminal/operation-guide.md)、[维护手册](docs/terminal/maintenance-guide.md)、[技术规格](docs/terminal/specification.md) |
 | 主题 | [设计](docs/theme/design.md)、[操作](docs/theme/operation-guide.md)、[维护](docs/theme/maintenance-guide.md) |
 | 轨道与标签布局 | [轨道系统](docs/orbital-system.md)、[PBD 交互说明](docs/actors/pbd-layout-explainer.html)、[形式化公式](docs/actors/pbd-layout-formal.md)、[操作](docs/actors/pbd-layout-operation-guide.md)、[维护](docs/actors/pbd-layout-maintenance-guide.md) |
-| 恒星活动 | [磁拱环交互图鉴](docs/actors/stellar-morphology-explainer.html)、[日珥与 CME 降阶模型](docs/stellar-plasma-model.md) |
+| 恒星活动 | [磁拱环交互图鉴](docs/actors/stellar-morphology-explainer.html)、[CME 逸散实验](docs/actors/cme-dissolution-explainer.html)、[日珥与 CME 降阶模型](docs/stellar-plasma-model.md) |
 | 渲染效果 | [Actor 设计](docs/actors/design.md)、[操作](docs/actors/operation-guide.md)、[维护](docs/actors/maintenance-guide.md) |
 | 开发排障 | [维护手册](docs/MAINTENANCE.md)、[调试记录](docs/dev-blog/) |
 

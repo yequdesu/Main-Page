@@ -27,8 +27,8 @@ export function sampleCmePosition(u: number) {
 }
 
 export function createStellarActivityChannels() {
-  const channel = () => ({ position: 0, seed: 0, opacity: 0, age: 0, morphology: null as ProminenceMorphology | null })
-  return { prominences: [channel(), channel()], cme: channel() }
+  const channel = () => ({ position: 0, seed: 0, opacity: 0, age: 0, serial: 0, morphology: null as ProminenceMorphology | null })
+  return { prominences: [channel(), channel()], cme: channel(), time: null as number | null }
 }
 export type StellarActivityChannel = ReturnType<typeof createStellarActivityChannels>['cme']
 export type StellarActivityEvent = { type: 'prominence'; slot: number } | { type: 'cme' }
@@ -36,6 +36,7 @@ export type StellarActivityEvent = { type: 'prominence'; slot: number } | { type
 /** 独立事件通道；沿用聚焦时间轴的 paused Timeline + R3F delta，不使用额外 ticker/定时器。 */
 export function createStellarActivityTimeline(channels: ReturnType<typeof createStellarActivityChannels>, random = Math.random) {
   const lanes: (gsap.core.Timeline | null)[] = [null, null, null]
+  channels.time = 0
   let disposed = false
   function dispatch(event: StellarActivityEvent) {
     if (disposed) return
@@ -46,7 +47,7 @@ export function createStellarActivityTimeline(channels: ReturnType<typeof create
     const channel = cme ? channels.cme : channels.prominences[slot]
     Object.assign(channel, {
       position: cme ? sampleCmePosition(random()) : random() * 2 - 1,
-      seed: random(), opacity: 0, age: 0,
+      seed: random(), opacity: 0, age: 0, serial: channel.serial + 1,
       morphology: cme ? null : selectProminenceMorphology(random(), channel.morphology, channels.prominences[1 - slot].morphology),
     })
     const tl = gsap.timeline({ paused: true, defaults: { ease: 'none' } })
@@ -79,6 +80,7 @@ export function createStellarActivityTimeline(channels: ReturnType<typeof create
     advance(delta: number) {
       if (disposed) return
       const step = Math.min(0.1, Math.max(0, delta))
+      channels.time = (channels.time ?? 0) + step
       for (let i = 0; i < lanes.length; i++) {
         const timeline = lanes[i]!
         timeline.totalTime(timeline.totalTime() + step, false)

@@ -1,9 +1,11 @@
 import { AdditiveBlending, BufferAttribute, BufferGeometry, Color, Points, ShaderMaterial } from 'three'
 import { STRUCTURE_LAYOUT, type getStructureLayout } from '../../behaviors/structureLayout'
+import { STELLAR_PARTICLE_DIAMETER_PX } from './stellarParticleAppearance'
+import { STELLAR_RADIATION_DISTRIBUTION } from '../../behaviors/stellarParticleDensity'
 
 /** 日面背景的艺术化逸散微光；不是霍金辐射的物理模拟。 */
 export function createStellarRadiation() {
-  const count = 72
+  const { count, heightSpan, driftMin, driftSpread } = STELLAR_RADIATION_DISTRIBUTION
   const seeds = new Float32Array(count * 3)
   for (let i = 0; i < count; i++) {
     seeds[i * 3] = (i * 0.61803398875) % 1
@@ -24,7 +26,7 @@ export function createStellarRadiation() {
       varying float vFade, vTint;
       void main() {
         float phase = fract(position.x + uTime / (10.0 + 8.0 * position.z));
-        float y = (position.y - 0.5) * uHeight * 1.15;
+        float y = (position.y - 0.5) * uHeight * ${heightSpan};
         y += sin(phase * 3.14159 + position.z * 6.28318) * uHeight * 0.008;
         float qy = y / uDistance;
         float a = uDistance * uDistance - uRadius * uRadius;
@@ -33,12 +35,12 @@ export function createStellarRadiation() {
         float discriminant = uSunX * uSunX * uDistance * uDistance - a * c;
         // 由透视球体的切线求当前高度的日面边缘，随后缓慢向外逸散。
         float limb = (uSunX * uDistance + sqrt(max(0.0, discriminant))) / a;
-        float x = limb * uDistance + uWidth * (0.002 + phase * (0.035 + 0.04 * position.z));
+        float x = limb * uDistance + uWidth * (0.002 + phase * (${driftMin} + ${driftSpread} * position.z));
         float depth = uRadius * 1.6;
         float projectionScale = (uDistance + depth) / uDistance;
         vec3 p = vec3(x * projectionScale, y * projectionScale, -depth);
         gl_Position = projectionMatrix * modelViewMatrix * vec4(p, 1.0);
-        gl_PointSize = (1.5 + 2.0 * position.z) * uPixelRatio;
+        gl_PointSize = mix(${STELLAR_PARTICLE_DIAMETER_PX.min}, ${STELLAR_PARTICLE_DIAMETER_PX.max}, position.z) * uPixelRatio;
         vFade = smoothstep(0.0, 0.15, phase) * (1.0 - smoothstep(0.45, 1.0, phase));
         vFade *= step(0.0, discriminant);
         vTint = step(0.82, position.z);

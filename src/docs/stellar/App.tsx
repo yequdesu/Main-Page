@@ -45,7 +45,7 @@ export default function App() {
   return <main className="stellar-doc">
     <header className="doc-header">
       <a className="wordmark" href="#intro">YEQUDESU <span> / 场景说明</span></a>
-      <nav aria-label="说明页导航"><a href="#atlas">六类图鉴</a><a href="../stellar-plasma-model.md">模型原理 ↗</a><a href="./pbd-layout-explainer.html">PBD 说明 ↗</a></nav>
+      <nav aria-label="说明页导航"><a href="#atlas">六类图鉴</a><a href="./cme-dissolution-explainer.html">CME 逸散实验 ↗</a><a href="../stellar-plasma-model.md">模型原理 ↗</a><a href="./pbd-layout-explainer.html">PBD 说明 ↗</a></nav>
     </header>
     <section className="intro" id="intro">
       <p className="eyebrow">STELLAR MORPHOLOGY · ACT 04</p>

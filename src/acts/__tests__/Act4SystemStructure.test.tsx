@@ -28,12 +28,15 @@ it('结构图只显示自身图层，主体固定排列，卫星继续公转，�
   const radiation = root.getObjectByName('日面背景逸散微光') as Points<BufferGeometry, ShaderMaterial>
   const ejection = root.getObjectByName('日冕抛射弧丝') as Mesh<BufferGeometry, ShaderMaterial>
   const ejectionParticles = root.getObjectByName('日冕抛射金色粒子') as Mesh<BufferGeometry, ShaderMaterial>
+  const tailParticles = root.getObjectByName('CME 长寿命尾迹') as Mesh<BufferGeometry, ShaderMaterial>
   expect(root.getObjectByName('重联后上升磁通')).toBeDefined()
   const disposePaths = vi.spyOn(ejection.material.uniforms.uCurves.value, 'dispose')
   const disposeRibbons = vi.spyOn(ejection.geometry, 'dispose')
   const disposeEjection = vi.spyOn(ejection.material, 'dispose')
   const disposeParticles = vi.spyOn(ejectionParticles.geometry, 'dispose')
   const disposeParticleMaterial = vi.spyOn(ejectionParticles.material, 'dispose')
+  const disposeTail = vi.spyOn(tailParticles.geometry, 'dispose')
+  const disposeTailMaterial = vi.spyOn(tailParticles.material, 'dispose')
   const disposeRadiation = vi.spyOn(radiation.geometry, 'dispose')
   const disposeRadiationMaterial = vi.spyOn(radiation.material, 'dispose')
   const seeds = radiation.geometry.getAttribute('position').array
@@ -92,4 +95,6 @@ it('结构图只显示自身图层，主体固定排列，卫星继续公转，�
   expect(disposeEjection).toHaveBeenCalledTimes(1)
   expect(disposeParticles).toHaveBeenCalledTimes(1)
   expect(disposeParticleMaterial).toHaveBeenCalledTimes(1)
+  expect(disposeTail).toHaveBeenCalledTimes(1)
+  expect(disposeTailMaterial).toHaveBeenCalledTimes(1)
 })

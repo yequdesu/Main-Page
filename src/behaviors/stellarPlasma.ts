@@ -1,4 +1,5 @@
 import { Vector3 } from 'three'
+import { createCmeDissolution } from './stellarEjection'
 import { createProminenceStructure, type ProminenceMorphology } from './stellarMorphology'
 import { MAGNETIC, createMagneticDeformation, magneticFluxRadius, magneticStage, sampleMagneticStrand, type MagneticBranch } from './stellarMagnetism'
 
@@ -113,10 +114,13 @@ export function createFluxRopeSimulation(seed: number, eruptive: boolean, morpho
     sample(low, strand, branch, before); sample(high, strand, branch, after)
     return after.sub(before).multiplyScalar(1 / (branch === 1 ? 0.002 : high - low))
   }
+  const ejection = eruptive ? createCmeDissolution(seed) : null
+  const sampleUpper = (s: number, strand: number, out: Vector3) => sample(s, strand, 1, out)
   function integrate() {
     const dt = PLASMA.step
     stepTorus(torus, dt * (eruptive ? 0.92 : 0.55), decayIndex)
     for (const group of groups) group.deformation.step(dt, torus.radius, position, temperature, branches, group.first, group.end)
+    ejection?.step(dt, time + dt, torus.radius, sampleUpper)
     switchConnections()
     fillDensity()
     for (let i = 0; i < PLASMA_COUNT; i++) {
@@ -167,7 +171,7 @@ export function createFluxRopeSimulation(seed: number, eruptive: boolean, morpho
   }
   fillDensity(); writePositions()
   return {
-    torus, shape: groups[0].deformation, structure, decayIndex, position, velocity, branches, temperature, density, centers, tangents, curveData, sample,
+    torus, ejection, shape: groups[0].deformation, structure, decayIndex, position, velocity, branches, temperature, density, centers, tangents, curveData, sample,
     advanceTo(age: number) {
       const target = Math.min(eruptive ? 13 : 30, age)
       while (time + PLASMA.step <= target + 1e-9) integrate()

@@ -5,6 +5,10 @@ import {
 import { createStellarLimbFrame, type createStellarActivityChannels } from '../../behaviors/stellarActivity'
 import { createFluxRopeSimulation, PLASMA, PLASMA_COUNT } from '../../behaviors/stellarPlasma'
 import { MAGNETIC, magneticEase, magneticStage } from '../../behaviors/stellarMagnetism'
+import { CME_DISSOLUTION, cmeConversion } from '../../behaviors/stellarEjection'
+import { CME_SCREEN_SCALE, CME_TAIL } from '../../behaviors/stellarParticleDensity'
+import { createCmeEjectionVisual } from './cmeEjectionVisual'
+import { createCmeTailVisual } from './cmeTailVisual'
 import { STRUCTURE_LAYOUT, type getStructureLayout } from '../../behaviors/structureLayout'
 
 export const STELLAR_ACTIVITY_STYLE = {
@@ -16,6 +20,11 @@ export const STELLAR_ACTIVITY_STYLE = {
 
 const commonShader = `
   uniform vec3 uAnchor, uTangent, uNormal;
+  uniform float uClosureTimes[12], uEjection, uFirstClosure;
+  float cmeConversion(float elapsed,float s) {
+    float t=clamp((elapsed-${CME_DISSOLUTION.delay}-${CME_DISSOLUTION.propagation}*pow(sin(3.14159265*s),2.0))/${CME_DISSOLUTION.conversion},0.0,1.0);
+    return t*t*t*(10.0+t*(-15.0+6.0*t));
+  }
   uniform float uScale, uRadius, uAge, uSeed, uOpacity, uRopeRadius, uReconnection, uCondensation, uCme;
   vec3 basis(vec3 p) { return uTangent * p.x + uNormal * p.y + cross(uTangent, uNormal) * p.z; }
   vec3 worldPoint(vec3 p) {
@@ -27,6 +36,20 @@ const commonShader = `
   float noise(vec2 p) {
     vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
     return mix(mix(hash(i), hash(i + vec2(1,0)), f.x), mix(hash(i + vec2(0,1)), hash(i + vec2(1,1)), f.x), f.y);
+  }
+  // 弧丝与逸散颗粒共用密度和发光标尺，避免颗粒化后突然变成高亮光点。
+  float filamentEmissionAt(float t,float strand,float age,float seed,float condensation) {
+    float direction=mod(strand,2.0)*2.0-1.0;
+    float filaments=noise(vec2(t*27.0-direction*age*0.7,strand*3.7+seed*7.0));
+    filaments*=noise(vec2(t*61.0-direction*age*0.45,strand+seed*9.0))*0.5+0.5;
+    float dip=exp(-pow((t-0.5)/0.24,4.0));
+    return (0.09+filaments*(0.40+dip*condensation*0.7))*0.75;
+  }
+  float filamentEmission(float t,float strand) {
+    return filamentEmissionAt(t,strand,uAge,uSeed,uCondensation);
+  }
+  float arcadeCooling(float elapsed) {
+    return mix(1.0,0.55,smoothstep(0.7,4.0,elapsed)*uEjection);
   }
 `
 const transparentPlasma = {
@@ -52,6 +75,7 @@ function createParcelGeometry() {
   const geometry = new InstancedBufferGeometry()
   geometry.setAttribute('position', new BufferAttribute(new Float32Array([-1,-1,0, 1,-1,0, -1,1,0, 1,-1,0, 1,1,0, -1,1,0]), 3))
   for (const name of ['aCenter', 'aDirection', 'aState']) geometry.setAttribute(name, new InstancedBufferAttribute(new Float32Array(PLASMA_COUNT * 3), 3))
+  geometry.setAttribute('aConversion', new InstancedBufferAttribute(new Float32Array(PLASMA_COUNT), 1))
   geometry.instanceCount = PLASMA_COUNT
   return geometry
 }
@@ -67,6 +91,8 @@ export function createStellarActivity(channels: ReturnType<typeof createStellarA
   const textures: DataTexture[] = []
   let viewWidth = 1, viewHeight = 1, sunRadius = 1, pixelWidth = 1280, pixelHeight = 720
   let localWorldHeight: number | null = null
+  let lastTime = -1
+  const tailPoint = new Vector3(), tailVelocity = new Vector3(), binormal = new Vector3()
   function add(geometry: BufferGeometry, material: ShaderMaterial, name: string, order = 2) {
     const mesh = new Mesh(geometry, material)
     mesh.name = name
@@ -88,6 +114,7 @@ export function createStellarActivity(channels: ReturnType<typeof createStellarA
       uScale: { value: 1 }, uRadius: { value: 1 }, uAge: { value: 0 }, uSeed: { value: 0 }, uOpacity: { value: 0 },
       uRopeRadius: { value: 1 }, uReconnection: { value: 0 }, uCondensation: { value: 0 }, uCme: { value: cme ? 1 : 0 },
       uPixelSize: { value: new Vector2() }, uUnitPixels: { value: 1 }, uBranch: { value: 0 },
+      uClosureTimes: { value: new Float32Array(12).fill(-1) }, uEjection: { value: 1 }, uMistStrength: { value: 1 }, uFirstClosure: { value: -1 },
       uCurves: { value: texture }, uNeck: { value: new Vector3() }, uApex: { value: new Vector3() },
       uShape: { value: new Vector2(model.shape.span, model.shape.height) },
       uColor: { value: new Color(STELLAR_ACTIVITY_STYLE.filamentColor) },
@@ -124,7 +151,9 @@ export function createStellarActivity(channels: ReturnType<typeof createStellarA
           float stage=clamp((uRopeRadius-(1.48+0.32*fract(strand*0.618+uSeed)))/1.38,0.0,1.0);
           float split=step(0.45,stage)*uCme;
           vVisible=uBranch<0.5 ? 1.0-split : split;
-          vPulse=exp(-pow((stage-0.45)/0.10,2.0))*uCme;
+          float closedAt=uClosureTimes[int(strand)];
+          float afterClose=closedAt<0.0 ? -1.0 : uAge-closedAt;
+          vPulse=exp(-pow((stage-0.45)/0.10,2.0))*uCme*(1.0-uEjection*smoothstep(0.04,0.30,afterClose));
         }`,
       fragmentShader: `${commonShader}
         uniform vec3 uColor, uHighlight;
@@ -133,16 +162,15 @@ export function createStellarActivity(channels: ReturnType<typeof createStellarA
         varying float vVisible, vPulse;
         void main() {
           float t=vRibbon.x, strand=vRibbon.z;
-          float direction=mod(strand,2.0)*2.0-1.0;
-          float filaments=noise(vec2(t*27.0-direction*uAge*0.7,strand*3.7+uSeed*7.0));
-          filaments*=noise(vec2(t*61.0-direction*uAge*0.45,strand+uSeed*9.0))*0.5+0.5;
-          float dip=exp(-pow((t-0.5)/0.24,4.0));
           float dilution=uBranch>1.5 ? 1.0 : pow(uRopeRadius,0.65);
-          float density=(0.09+filaments*(0.40+dip*uCondensation*0.7))/dilution;
+          float emission=filamentEmission(t,strand)/dilution;
           float edge=exp(-vRibbon.y*vRibbon.y*4.0)*(1.0-smoothstep(0.7,1.0,abs(vRibbon.y)));
           float feet=smoothstep(0.0,0.045,t)*(1.0-smoothstep(0.955,1.0,t));
           float neck=exp(-pow((abs(t-0.5)-0.28)/0.045,2.0))*vPulse;
-          float alpha=(density+neck*0.35)*edge*feet*uOpacity*vVisible*0.75;
+          float elapsed=uClosureTimes[int(strand)]<0.0 ? -1.0 : uAge-uClosureTimes[int(strand)];
+          float transfer=(uBranch>0.5 && uBranch<1.5) ? cmeConversion(elapsed,(t-0.22)/0.56)*uEjection : 0.0;
+          float cooling=uBranch>1.5 ? arcadeCooling(elapsed) : 1.0;
+          float alpha=(emission+neck*0.35*0.75)*edge*feet*uOpacity*vVisible*(1.0-transfer)*cooling;
           gl_FragColor=vec4(mix(uColor,uHighlight,neck*0.5),alpha);
           #include <colorspace_fragment>
         }`,
@@ -156,6 +184,8 @@ export function createStellarActivity(channels: ReturnType<typeof createStellarA
         uniform vec2 uPixelSize;
         uniform float uUnitPixels;
         attribute vec3 aCenter, aDirection, aState;
+        attribute float aConversion;
+        varying float vConversion;
         varying vec2 vParticle;
         varying vec3 vState;
         void main() {
@@ -168,22 +198,28 @@ export function createStellarActivity(channels: ReturnType<typeof createStellarA
           float halfWidth = max(0.48,uUnitPixels*(0.018+0.012*cold));
           gl_Position = projectionMatrix * mv;
           gl_Position.xy += (along*position.x*halfLength + across*position.y*halfWidth)*uPixelSize*2.0*gl_Position.w;
-          vParticle = position.xy; vState = aState;
+          vParticle = position.xy; vState = aState; vConversion=aConversion;
         }`,
       fragmentShader: `${commonShader}
         uniform vec3 uColor, uGold, uHighlight;
         varying vec2 vParticle;
         varying vec3 vState;
+        varying float vConversion;
         void main() {
           float glow = exp(-vParticle.y*vParticle.y*4.5)*pow(max(0.0,1.0-vParticle.x*vParticle.x),1.2);
           float cold = 1.0-smoothstep(0.15,0.85,vState.x);
           float emission = min(1.0,pow(vState.y,0.65))*(0.22+0.78*cold);
           emission = mix(emission,min(1.0,pow(vState.y,0.40))*(0.6+0.4*cold),uCme);
           vec3 tint = mix(uColor,mix(uGold,uHighlight,vState.z*0.22),uCme);
-          gl_FragColor = vec4(tint,glow*emission*uOpacity*0.95);
+          gl_FragColor = vec4(tint,glow*emission*uOpacity*0.95*(1.0-vConversion*uEjection));
           #include <colorspace_fragment>
         }`,
     }), cme ? '日冕抛射金色粒子' : `日珥等离子体_${index}`, 3)
+    const ejectionVisual = cme ? createCmeEjectionVisual(commonShader, uniforms) : null
+    if (ejectionVisual) {
+      root.add(...ejectionVisual.meshes)
+      geometries.push(...ejectionVisual.geometries); materials.push(...ejectionVisual.materials)
+    }
     if (cme) {
       add(shellGeometry, new ShaderMaterial({
         uniforms, ...transparentPlasma,
@@ -205,7 +241,8 @@ export function createStellarActivity(channels: ReturnType<typeof createStellarA
             float rim = pow(1.0-abs(dot(normalize(vNormal),normalize(vView))),2.8);
             float cap = smoothstep(-0.1,0.55,vShell.y);
             float texture = 0.55+0.45*noise(vShell.xy*14.0+uSeed*8.0);
-            float alpha = rim*cap*texture*uReconnection*uOpacity*0.27/sqrt(uRopeRadius);
+            float elapsed=uClosureTimes[5]<0.0 ? -1.0 : uAge-uClosureTimes[5];
+            float alpha = rim*cap*texture*uReconnection*uOpacity*0.27/sqrt(uRopeRadius)*(1.0-uEjection*smoothstep(0.0,0.8,elapsed));
             gl_FragColor = vec4(uGold,alpha);
             #include <colorspace_fragment>
           }`,
@@ -235,15 +272,26 @@ export function createStellarActivity(channels: ReturnType<typeof createStellarA
             float edge = exp(-vSheet.x*vSheet.x*8.0);
             float ends = max(0.0,1.0-vSheet.y*vSheet.y);
             float plasmoids = pow(0.5+0.5*sin(abs(vSheet.y)*28.0-uAge*7.0),6.0);
-            gl_FragColor = vec4(uGold,edge*ends*uReconnection*uOpacity*(0.05+0.20*plasmoids));
+            float sinceFirst=uFirstClosure<0.0 ? -1.0 : uAge-uFirstClosure;
+            float fade=1.0-0.98*uEjection*smoothstep(0.0,0.45,sinceFirst);
+            gl_FragColor = vec4(uGold,edge*ends*uReconnection*uOpacity*(0.05+0.20*plasmoids)*fade);
             #include <colorspace_fragment>
           }`,
       }), '重联电流片')
     }
-    return { uniforms, channel, cme, parcels, model, texture, index, lastAge: -1, seed: channel.seed, morphology: channel.morphology }
+    return { uniforms, channel, cme, parcels, model, texture, index, ejectionVisual, lastAge: -1, seed: channel.seed, morphology: channel.morphology, serial: channel.serial, exported: new Uint8Array(CME_DISSOLUTION.count) }
   })
+  const tails = createCmeTailVisual(commonShader, patches[2].uniforms.uColor)
+  root.add(tails.mesh)
   return {
     root,
+    /** 对照实验只改变可见表现，求解器与时钟保持同一实例。 */
+    setEjectionAppearance(enabled: boolean, mistStrength = 1) {
+      const u = patches[2].uniforms
+      u.uEjection.value = enabled ? 1 : 0
+      u.uMistStrength.value = Math.max(0, Math.min(2, mistStrength))
+      tails.mesh.visible = enabled
+    },
     layout(layout: ReturnType<typeof getStructureLayout>, width = 1280, height = 720) {
       localWorldHeight = null
       limb.layout(layout)
@@ -256,20 +304,33 @@ export function createStellarActivity(channels: ReturnType<typeof createStellarA
       localWorldHeight = Math.max(0.01, worldHeight)
     },
     update() {
+      const now = channels.time ?? channels.cme.age
+      if (now < lastTime) { tails.pool.clear(); patches[2].exported.fill(0) }
+      lastTime = now
       for (const patch of patches) {
         const { uniforms: u, channel: c, parcels } = patch
         u.uAge.value = c.age
-        if (c.opacity <= 0) { u.uOpacity.value = 0; continue }
-        if (patch.seed !== c.seed || patch.morphology !== c.morphology || c.age < patch.lastAge) {
+        const reset = patch.seed !== c.seed || patch.morphology !== c.morphology || c.age < patch.lastAge || patch.serial !== c.serial
+        if (c.opacity <= 0 && (!patch.cme || (!reset && patch.lastAge >= CME_TAIL.eventEnd))) { u.uOpacity.value = 0; continue }
+        if (reset) {
+          if (patch.cme && channels.time === null) tails.pool.clear()
           patch.model = createFluxRopeSimulation(c.seed, patch.cme, c.morphology)
           patch.texture.image.data = patch.model.curveData
           patch.seed = c.seed
           patch.morphology = c.morphology
+          patch.serial = c.serial
+          patch.exported.fill(0)
         }
         patch.lastAge = c.age
         patch.model.advanceTo(c.age)
         patch.texture.needsUpdate = true
         const model = patch.model, r = model.torus.radius
+        if (model.ejection) {
+          u.uClosureTimes.value.set(model.ejection.closureTimes)
+          let first = Infinity
+          for (const time of model.ejection.closureTimes) if (time >= 0) first = Math.min(first, time)
+          u.uFirstClosure.value = Number.isFinite(first) ? first : -1
+        }
         if (localWorldHeight !== null) {
           u.uAnchor.value.set(0, 0, 0); u.uTangent.value.set(1, 0, 0); u.uNormal.value.set(0, 1, 0)
           u.uScale.value = 1; u.uUnitPixels.value = pixelHeight / localWorldHeight
@@ -278,7 +339,7 @@ export function createStellarActivity(channels: ReturnType<typeof createStellarA
           limb.sample(c.position, u.uAnchor.value, u.uTangent.value, u.uNormal.value)
           const distance = STRUCTURE_LAYOUT.cameraZ - STRUCTURE_LAYOUT.planeZ
           const projectionScale = (distance - u.uAnchor.value.z) / distance
-          const scale = Math.min(viewWidth * (patch.cme ? 0.018 : 0.028), viewHeight * (patch.cme ? 0.035 : 0.050)) * (0.9 + c.seed * 0.2) * (patch.index === 1 ? 0.58 : 1)
+          const scale = Math.min(viewWidth * (patch.cme ? CME_SCREEN_SCALE.width : 0.028), viewHeight * (patch.cme ? CME_SCREEN_SCALE.height : 0.050)) * (0.9 + c.seed * 0.2) * (patch.index === 1 ? 0.58 : 1)
           u.uScale.value = scale * projectionScale
           u.uUnitPixels.value = scale / viewHeight * pixelHeight
           u.uRadius.value = sunRadius
@@ -294,20 +355,54 @@ export function createStellarActivity(channels: ReturnType<typeof createStellarA
         const centers = parcels.getAttribute('aCenter') as InstancedBufferAttribute
         const directions = parcels.getAttribute('aDirection') as InstancedBufferAttribute
         const states = parcels.getAttribute('aState') as InstancedBufferAttribute
+        const conversion = parcels.getAttribute('aConversion') as InstancedBufferAttribute
         centers.array.set(model.centers); directions.array.set(model.tangents)
         let condensation = 0
         for (let i = 0; i < PLASMA_COUNT; i++) {
+          const closedAt = model.ejection?.closureTimes[Math.floor(i / PLASMA.parcelsPerStrand)] ?? -1
+          conversion.setX(i, model.branches[i] === 1 && closedAt >= 0 ? cmeConversion(c.age - closedAt, model.position[i]) : 0)
           states.setXYZ(i, model.temperature[i], model.density[i], (i * 0.6180339) % 1)
           condensation += Math.max(0, 1 - model.temperature[i]) / PLASMA_COUNT
         }
         u.uCondensation.value = condensation
+        conversion.needsUpdate = true
         centers.needsUpdate = true; directions.needsUpdate = true; states.needsUpdate = true
+        if (model.ejection) {
+          const state = model.ejection, eventStart = now - c.age
+          const width = localWorldHeight === null ? viewWidth : 9, height = localWorldHeight === null ? viewHeight : 6.2
+          binormal.crossVectors(u.uTangent.value, u.uNormal.value)
+          for (let i = 0; i < state.particleTail.length; i += CME_DISSOLUTION.particleStride) {
+            if (patch.exported[i] || state.tailTransferTimes[i] < 0) continue
+            patch.exported[i] = 1
+            const k = i * 3, scale = u.uScale.value
+            const x = state.tailPositions[k], vx = state.tailVelocities[k]
+            tailPoint.copy(u.uAnchor.value).addScaledVector(u.uTangent.value, x * scale)
+              .addScaledVector(u.uNormal.value, state.tailPositions[k + 1] * scale - x * x * scale * scale / (2 * u.uRadius.value) - scale * 0.014)
+              .addScaledVector(binormal, state.tailPositions[k + 2] * scale)
+            tailVelocity.copy(u.uTangent.value).multiplyScalar(vx * scale)
+              .addScaledVector(u.uNormal.value, state.tailVelocities[k + 1] * scale - x * vx * scale * scale / u.uRadius.value)
+              .addScaledVector(binormal, state.tailVelocities[k + 2] * scale)
+            const random = (i * 0.754877 + 0.37) % 1, speed = 0.0024 + 0.0012 * random
+            tails.pool.add({
+              born: eventStart + state.releaseTimes[i], depart: eventStart + state.tailTransferTimes[i],
+              origin: [tailPoint.x / width, tailPoint.y / height, tailPoint.z / height],
+              velocity: [tailVelocity.x / width, tailVelocity.y / height, tailVelocity.z / height],
+              drift: localWorldHeight === null ? [speed, u.uNormal.value.y * 0.0005 + (random - 0.5) * 0.0003, 0] : [(random - 0.5) * 0.0003, speed, 0],
+              wave: localWorldHeight === null ? [0.008, 0.02, 0.006] : [0.02, 0.008, 0.006],
+              phase: c.seed * Math.PI * 2 + i * 0.618, random,
+              appearance: [state.coordinates[i], Math.floor(i / CME_DISSOLUTION.perStrand), c.seed, state.tailTransferTimes[i]],
+            }, now)
+          }
+          patch.ejectionVisual?.update(state)
+        }
       }
+      tails.update(now, localWorldHeight === null ? viewWidth : 9, localWorldHeight === null ? viewHeight : 6.2, pixelWidth, pixelHeight)
     },
     dispose() {
       geometries.forEach(geometry => geometry.dispose())
       materials.forEach(material => material.dispose())
       textures.forEach(texture => texture.dispose())
+      tails.dispose()
     },
   }
 }

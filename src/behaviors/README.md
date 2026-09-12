@@ -36,7 +36,11 @@
 
 ## 日面活动
 
-[stellarActivity.ts](stellarActivity.ts) 提供 Act 4 的日面切圆取样、日冕抛射概率密度与独立事件时间轴。日珥位置按可见弧长均匀采样；只有 CME 使用中线密度为平均值一半的平滑分布。沿用聚焦模块的暂停 GSAP Timeline、R3F `delta` 推进及释放方式，不共享聚焦会话状态。[stellarPlasma.ts](stellarPlasma.ts) 提供环形失稳的 RK4 积分、大小环系、沿场物质输运和 CPU/GPU 共享路径表；[stellarMagnetism.ts](stellarMagnetism.ts) 提供拱顶形状、受迫形变模态、可变截面与连续重联映射；物理依据及近似边界见[降阶模型](../../docs/stellar-plasma-model.md)。[stellarMorphology.ts](stellarMorphology.ts) 负责六类日珥构型、权重抽样、足点布局和固定流线预算；事件层排除上次及另一通道的主类型。嵌套拱廊与低矮环簇由生成器绑定另一种类型，最多 6 个环系、12 条流线；返回 `companion` 与各环系的 `sourceKind`，同一事件同步显隐。可在[种子图鉴](../../docs/actors/stellar-morphology-explainer.html)重放组合。概率、颜色、阶段和资源约束见[日面活动说明](../../docs/system-structure.md#随机日珥与日冕物质抛射)。
+[stellarParticleDensity.ts](stellarParticleDensity.ts) 共享背景微光的数量/范围与 CME 缩放标尺，用局部面积估算尾迹预算，当前取原预算的两倍（4–16 个）；[stellarEjection.ts](stellarEjection.ts) 固定尾迹选择及释放后错峰淡出，保持同一种子可重放。[stellarTail.ts](stellarTail.ts) 提供 300 秒解析漂移、末段淡出和固定容量池；由活动时间轴的连续场景时间驱动，保留跨事件尾迹，离开 Act 4 后暂停。
+
+[stellarMist.ts](stellarMist.ts) 从 CME 原外流样本构建自适应雾核：按邻点间距扩张、沿局部速度拉长，并补偿密集重叠；不移动或收拢粒子。参数与覆盖验证见[薄雾模型](../../docs/stellar-plasma-model.md#跟随粒子扩散的连续雾场)。
+
+[stellarActivity.ts](stellarActivity.ts) 提供 Act 4 的日面切圆取样、日冕抛射概率密度与独立事件时间轴。日珥位置按可见弧长均匀采样；只有 CME 使用中线密度为平均值一半的平滑分布。沿用聚焦模块的暂停 GSAP Timeline、R3F `delta` 推进及释放方式，不共享聚焦会话状态。[stellarPlasma.ts](stellarPlasma.ts) 提供环形失稳的 RK4 积分、大小环系、沿场物质输运和 CPU/GPU 共享路径表；[stellarMagnetism.ts](stellarMagnetism.ts) 提供拱顶形状、受迫形变模态、可变截面与连续重联映射；物理依据及近似边界见[降阶模型](../../docs/stellar-plasma-model.md)。[stellarMorphology.ts](stellarMorphology.ts) 负责六类日珥构型、权重抽样、足点布局和固定流线预算；事件层排除上次及另一通道的主类型。嵌套拱廊与低矮环簇由生成器绑定另一种类型，最多 6 个环系、12 条流线；返回 `companion` 与各环系的 `sourceKind`，同一事件同步显隐。可在[种子图鉴](../../docs/actors/stellar-morphology-explainer.html)重放组合。[stellarEjection.ts](stellarEjection.ts) 由原固定步驱动，在每条流线闭合后按弧长错位布点、按出生高度减少底部可见颗粒，释放后短暂舒展局部拥挤区域；雾共用完整运动样本，复用事件时钟；显示层及实验边界见 [CME 说明页](../../docs/actors/cme-dissolution-explainer.html)。概率、颜色、阶段和资源约束见[日面活动说明](../../docs/system-structure.md#随机日珥与日冕物质抛射)。
 
 ## 聚焦会话
 
