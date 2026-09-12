@@ -143,3 +143,7 @@ behaviors/ → types/ (ParticleData 等)
 | [`../../docs/COMPOSABILITY_TESTABILITY.md`](../../docs/COMPOSABILITY_TESTABILITY.md) | 纯函数测试策略分析（L1/L2 分层） |
 | [`../../docs/MAINTENANCE.md`](../../docs/MAINTENANCE.md) §4.5 | 测试运行命令 |
 | [`../utils/README.md`](../utils/README.md) | 底层数学工具函数（smoothstep, toward 等） |
+
+### CME 拱顶旋扭
+
+[cmeRotation.ts](cmeRotation.ts)按种子固定主角度、手性、启动尺度和高度分布，由原径向运动与固定步推进。收颈下方不转，上方绕局部日面法线连续转向；闭合后同向延续少量角度并停止。`stellarPlasma` 的原连接、闭合支、团块与逸散采样共用该变换，普通日珥不参与。旋扭开关只供实验对照，重新模拟到当前时间，不能只旋转显示 Mesh。公式、取值及来源见[拱顶旋扭专题](../../docs/stellar-plasma-model.md#cme-收颈阶段的拱顶旋扭)。

@@ -197,3 +197,28 @@ it('喷发结束和下一次同种子事件不清空尾迹，300 秒到期后按
     expect(tail.geometry.instanceCount).toBe(0)
   } finally { asset.dispose() }
 })
+
+
+it('旋扭对照按当前年龄重放，复用纹理并重建尾迹，重新开启恢复同一结果', () => {
+  const channels = createStellarActivityChannels(), asset = createStellarActivity(channels)
+  Object.assign(channels.cme, { opacity: 1, seed: 0.47, age: 10 })
+  const arc = asset.root.getObjectByName('日冕抛射弧丝') as Mesh<never, ShaderMaterial>
+  const tail = asset.root.getObjectByName('CME 长寿命尾迹') as Mesh<import('three').InstancedBufferGeometry, ShaderMaterial>
+  try {
+    asset.layoutLocal(800, 500, 6); asset.update()
+    const texture = arc.material.uniforms.uCurves.value
+    const path = texture.image.data.slice()
+    const count = tail.geometry.instanceCount
+    const positions = tail.geometry.getAttribute('aCenter').array.slice(0, count * 3)
+    asset.setCmeRotation(false); asset.update()
+    expect(arc.material.uniforms.uCurves.value).toBe(texture)
+    expect(texture.image.data).not.toEqual(path)
+    const reference = createFluxRopeSimulation(0.47, true, undefined, undefined, false)
+    reference.advanceTo(10)
+    expect(texture.image.data).toEqual(reference.curveData)
+    asset.setCmeRotation(true); asset.update()
+    expect(texture.image.data).toEqual(path)
+    expect(tail.geometry.instanceCount).toBe(count)
+    expect(tail.geometry.getAttribute('aCenter').array.slice(0, count * 3)).toEqual(positions)
+  } finally { asset.dispose() }
+})

@@ -8,6 +8,8 @@ it('说明页阶段时刻与实际模型的逐流线闭合事件一致', () => {
     simulation.advanceTo(timing.last + 0.02)
     timing.times.forEach((t, i) => expect(t).toBeCloseTo(simulation.ejection!.closureTimes[i], 5))
     expect(timing.last).toBeGreaterThan(timing.first)
+    expect(timing.rotationStart).toBeLessThan(timing.first)
+    expect(timing.rotationSettled).toBeGreaterThan(timing.rotationStart)
     expect(cmeStage(-0.1)).toBe(0)
     expect(cmeStage(0.4)).toBe(1)
     expect(cmeStage(1.5)).toBe(2)
