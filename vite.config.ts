@@ -117,7 +117,7 @@ function debugOnlyPlugin(): Plugin {
         next()
       })
 
-      // ---- debug-only：302 重定向 + 覆盖 printUrls ----
+      // ---- debug-only：302 重定向 ----
       if (IS_DEBUG) {
         server.middlewares.use((req, res, next) => {
           const url = req.url ?? ''
@@ -129,17 +129,17 @@ function debugOnlyPlugin(): Plugin {
           next()
         })
 
-        server.printUrls = () => {
-          const port = server.config.server.port
-          logger.info(`\n  ${G('➜')}  ${B('Debug:')}   http://localhost:${port}/debug.html`)
-        }
-      } else {
-        const original = server.printUrls.bind(server)
-        server.printUrls = () => {
-          original()
-          const port = server.config.server.port
-          logger.info(`  ${G('➜')}  ${B('Debug:')}   http://localhost:${port}/debug.html`)
-        }
+      }
+
+      // 使用实际监听地址，端口回退或 --host / --base 覆盖后链接仍然有效。
+      const original = server.printUrls.bind(server)
+      server.printUrls = () => {
+        if (!IS_DEBUG) original()
+        const baseUrl = server.resolvedUrls?.local[0] ?? server.resolvedUrls?.network[0]
+        if (!baseUrl) return
+        logger.info(`  ${G('➜')}  ${B('Debug:')}   ${new URL('debug.html', baseUrl).href}`)
+        logger.info(`  ${G('➜')}  ${B('Docs:')}    ${new URL('docs/index.html', baseUrl).href}`)
+        logger.info('  独立 docs 预览（默认 http://localhost:4173/）：另开终端运行 npm run build:docs && npm run preview:docs')
       }
     },
   }

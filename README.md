@@ -44,6 +44,8 @@ pnpm dev
 
 默认访问 [主应用](http://localhost:5173/)；同一开发服务也提供 [Debug Studio](http://localhost:5173/debug.html)。端口被占用时，以 Vite 实际输出为准。
 
+`pnpm dev`（或 `npm run dev`）和 `pnpm debug` 的启动输出包含 `Debug`、`Docs` 快捷链接，均使用实际监听地址；`Docs` 进入交互实验目录，无需提前构建。启动输出也会提示独立 docs 预览命令；默认端口 `4173` 需要另行运行 `npm run build:docs && npm run preview:docs`，开发命令不会自动启动该服务。
+
 | 命令 | 用途 |
 |------|------|
 | `pnpm dev` | 启动主应用和 Debug Studio |
