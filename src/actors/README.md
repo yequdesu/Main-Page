@@ -54,6 +54,8 @@
 
 场景组装以 [Canvas.tsx](../r3f/Canvas.tsx) 和 [App.tsx](../App.tsx) 为准。常驻 Canvas 不代表对象始终可见，需继续核对 Actor 内部的进度与透明度逻辑。
 
+普通日珥在 Act 4 通过 [stellarPlacement.ts](../behaviors/stellarPlacement.ts) 共用事件级方位与尺寸；路径生成后才应用随机摆放，并以两个切向分量贴合球面。随机化不改变局部构型或重组时序，局部图鉴继续使用单位尺度。范围、分布与适用边界见[活动区摆放](../../docs/system-structure.md#活动区朝向尺寸与球面贴合)。
+
 ## 主页轨道与资产对应
 
 [Planets.tsx](Planets.tsx) 的 `PLANET_FACTORIES` 按 `ORBIT_RADII` 由内到外选择普通、带卫星、带环工厂。随机粒子按粒子索引遍历，但资产必须写入 `assets[trackIdx]`，以保持更新、导航链接和聚焦目标一致。

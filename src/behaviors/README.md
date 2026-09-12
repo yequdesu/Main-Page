@@ -50,6 +50,8 @@
 
 [stellarActivity.ts](stellarActivity.ts) 提供 Act 4 的日面切圆取样、日冕抛射概率密度与独立事件时间轴。日珥位置按可见弧长均匀采样；只有 CME 使用中线密度为平均值一半的平滑分布。沿用聚焦模块的暂停 GSAP Timeline、R3F `delta` 推进及释放方式，不共享聚焦会话状态。[stellarPlasma.ts](stellarPlasma.ts) 提供环形失稳的 RK4 积分、大小环系、沿场物质输运和 CPU/GPU 共享路径表；[stellarMagnetism.ts](stellarMagnetism.ts) 提供拱顶形状、受迫形变模态、可变截面与连续重联映射；物理依据及近似边界见[降阶模型](../../docs/stellar-plasma-model.md)。[stellarMorphology.ts](stellarMorphology.ts) 负责六类日珥构型、权重抽样、足点布局和固定流线预算；事件层排除上次及另一通道的主类型。嵌套拱廊与低矮环簇由生成器绑定另一种类型，最多 6 个环系、12 条流线；返回 `companion` 与各环系的 `sourceKind`，共享事件播放头，但各环系错峰演化，每种组成保留一个支撑环维持伴随关系。可在[种子图鉴](../../docs/actors/stellar-morphology-explainer.html)重放组合。[stellarEjection.ts](stellarEjection.ts) 由原固定步驱动，在每条流线闭合后按弧长错位布点、按出生高度减少底部可见颗粒，释放后短暂舒展局部拥挤区域；雾共用完整运动样本，复用事件时钟；显示层及实验边界见 [CME 说明页](../../docs/actors/cme-dissolution-explainer.html)。概率、颜色、阶段和资源约束见[日面活动说明](../../docs/system-structure.md#随机日珥与日冕物质抛射)。
 
+[stellarPlacement.ts](stellarPlacement.ts) 根据事件种子生成普通活动区的整体方位和尺寸，事件存续期间固定；主环、伴随环和重组短环共用结果。方位绕局部日面法线取样，尺寸分布偏向大值，第二通道保留原有较小比例；该模块不改变内部动力学或 CME 旋扭。分布、球面映射及图鉴与主页的差异见[活动区摆放公式](../../docs/system-structure.md#活动区朝向尺寸与球面贴合)。
+
 ## 聚焦会话
 
 业务入口使用 `setFocusedPlanet(idx)` / `focusVoyager()` / `clearFocus(reason)`，在 Zustand 中同时写入当前 UI 状态和新的 `focusEvent` 对象。`Planets` 订阅事件、请求渲染，并在下一帧交给 [useFocusTimeline.ts](useFocusTimeline.ts)。同一帧内多个请求采用最后一个；同目标再次请求也会重建会话。手动退出、时间轴超时、离开内容阶段或目标失效走同一个退出事件。

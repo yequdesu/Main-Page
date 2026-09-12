@@ -3,6 +3,7 @@ import {
   InstancedBufferGeometry, InstancedBufferAttribute, PlaneGeometry, SphereGeometry, DataTexture, FloatType, RGBAFormat, NearestFilter,
 } from 'three'
 import { createStellarLimbFrame, type createStellarActivityChannels } from '../../behaviors/stellarActivity'
+import { createProminencePlacement } from '../../behaviors/stellarPlacement'
 import { createFluxRopeSimulation, PLASMA, PLASMA_COUNT } from '../../behaviors/stellarPlasma'
 import { MAGNETIC, magneticEase, magneticStage } from '../../behaviors/stellarMagnetism'
 import { CME_DISSOLUTION, cmeConversion } from '../../behaviors/stellarEjection'
@@ -29,7 +30,21 @@ const commonShader = `
   vec3 basis(vec3 p) { return uTangent * p.x + uNormal * p.y + cross(uTangent, uNormal) * p.z; }
   vec3 worldPoint(vec3 p) {
     vec3 result = uAnchor + basis(p) * uScale;
-    result -= uNormal * (p.x * p.x * uScale * uScale / (2.0 * uRadius) + uScale * 0.014);
+    float drop = p.x * p.x * uScale * uScale / (2.0 * uRadius);
+    if (uCme < 0.5) {
+      // 两个切向分量共同贴球面，方位旋转后足点不会因纵深而悬空。
+      float r2 = dot(p.xz, p.xz) * uScale * uScale;
+      drop = r2 / (uRadius + sqrt(max(0.000001, uRadius * uRadius - r2)));
+    }
+    result -= uNormal * (drop + uScale * 0.014);
+    return result;
+  }
+  vec3 worldDirection(vec3 p, vec3 direction) {
+    vec3 result = basis(direction);
+    if (uCme < 0.5) {
+      float r2 = dot(p.xz, p.xz) * uScale * uScale;
+      result -= uNormal * dot(p.xz, direction.xz) * uScale / sqrt(max(0.000001, uRadius * uRadius - r2));
+    }
     return result;
   }
   float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
@@ -152,7 +167,7 @@ export function createStellarActivity(channels: ReturnType<typeof createStellarA
           vec3 direction=curve(min(1.0,t+0.002),strand).xyz-curve(max(0.0,t-0.002),strand).xyz;
           // 视空间展宽，避免纵深扭转时带状线条侧向消失。
           vec4 mv=modelViewMatrix*vec4(worldPoint(point.xyz),1.0);
-          vec3 viewDirection=mat3(modelViewMatrix)*basis(direction);
+          vec3 viewDirection=mat3(modelViewMatrix)*worldDirection(point.xyz,direction);
           vec2 across=normalize(vec2(-viewDirection.y,viewDirection.x)+vec2(0.000001));
           mv.xy+=across*position.y*point.w*uScale*(0.8+0.4*uCondensation);
           gl_Position=projectionMatrix*mv;
@@ -214,7 +229,7 @@ export function createStellarActivity(channels: ReturnType<typeof createStellarA
         varying vec3 vState;
         void main() {
           vec4 mv = modelViewMatrix * vec4(worldPoint(aCenter),1.0);
-          vec3 dir = mat3(modelViewMatrix) * basis(aDirection);
+          vec3 dir = mat3(modelViewMatrix) * worldDirection(aCenter,aDirection);
           vec2 along = normalize(dir.xy + vec2(0.00001));
           vec2 across = vec2(-along.y,along.x);
           float cold = 1.0 - smoothstep(0.15,0.85,aState.x);
@@ -319,7 +334,7 @@ export function createStellarActivity(channels: ReturnType<typeof createStellarA
           }`,
       }), '重联电流片')
     }
-    return { uniforms, channel, cme, parcels, model, texture, redrawTexture, index, ejectionVisual, rotationEnabled: true, lastAge: -1, seed: channel.seed, morphology: channel.morphology, duration: channel.duration, serial: channel.serial, exported: new Uint8Array(CME_DISSOLUTION.count) }
+    return { uniforms, channel, cme, parcels, model, texture, redrawTexture, index, ejectionVisual, placement: createProminencePlacement(channel.seed), rotationEnabled: true, lastAge: -1, seed: channel.seed, morphology: channel.morphology, duration: channel.duration, serial: channel.serial, exported: new Uint8Array(CME_DISSOLUTION.count) }
   })
   const tails = createCmeTailVisual(commonShader, patches[2].uniforms.uColor)
   root.add(tails.mesh)
@@ -369,6 +384,7 @@ export function createStellarActivity(channels: ReturnType<typeof createStellarA
         if (reset) {
           if (patch.cme && channels.time === null) tails.pool.clear()
           patch.model = createFluxRopeSimulation(c.seed, patch.cme, c.morphology, c.duration, cmeRotationEnabled)
+          patch.placement = createProminencePlacement(c.seed)
           patch.rotationEnabled = cmeRotationEnabled
           patch.texture.image.data = patch.model.curveData
           if (patch.redrawTexture) patch.redrawTexture.image.data = patch.model.redrawData
@@ -395,9 +411,11 @@ export function createStellarActivity(channels: ReturnType<typeof createStellarA
           u.uRadius.value = 1e6 // 局部切平面，不在文档视口叠加整颗恒星的曲率。
         } else {
           limb.sample(c.position, u.uAnchor.value, u.uTangent.value, u.uNormal.value)
+          if (!patch.cme) u.uTangent.value.applyAxisAngle(u.uNormal.value, patch.placement.azimuth)
           const distance = STRUCTURE_LAYOUT.cameraZ - STRUCTURE_LAYOUT.planeZ
           const projectionScale = (distance - u.uAnchor.value.z) / distance
-          const scale = Math.min(viewWidth * (patch.cme ? CME_SCREEN_SCALE.width : 0.028), viewHeight * (patch.cme ? CME_SCREEN_SCALE.height : 0.050)) * (0.9 + c.seed * 0.2) * (patch.index === 1 ? 0.58 : 1)
+          const variation = patch.cme ? 0.9 + c.seed * 0.2 : patch.placement.scale
+          const scale = Math.min(viewWidth * (patch.cme ? CME_SCREEN_SCALE.width : 0.028), viewHeight * (patch.cme ? CME_SCREEN_SCALE.height : 0.050)) * variation * (patch.index === 1 ? 0.58 : 1)
           u.uScale.value = scale * projectionScale
           u.uUnitPixels.value = scale / viewHeight * pixelHeight
           u.uRadius.value = sunRadius
