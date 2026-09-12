@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { PROMINENCE_MORPHOLOGIES, type ProminenceMorphology } from '../../behaviors/stellarMorphology'
+import type { ShortLoopArcDiagnostic } from '../../behaviors/stellarShortLoop'
 import Preview, { type Playback } from './Preview'
 import Lifecycle from './Lifecycle'
 import { createOverview, DESCRIPTIONS, MAX_AGE, morphologyLabel, parseSeed, PREVIEW_AGE, readSelection, readPreviewAge, SEED_PRESETS, selectionSearch } from './model'
@@ -11,6 +12,7 @@ export default function App() {
   const [playback, setPlayback] = useState<Playback>(() => ({ playing: false, seek: readPreviewAge(window.location.search) }))
   const [age, setAge] = useState(() => readPreviewAge(window.location.search))
   const [speed, setSpeed] = useState(1)
+  const [arc, setArc] = useState<ShortLoopArcDiagnostic[] | null>(null)
   const [view, setView] = useState<'front' | 'oblique'>('front'), [viewRevision, setViewRevision] = useState(0)
   const [redraw, setRedraw] = useState(false)
   const [markers, setMarkers] = useState(true), [announcement, setAnnouncement] = useState('')
@@ -65,7 +67,7 @@ export default function App() {
           <div className="preview" ref={previewRef}>
             <div className="preview-label"><span>0{index + 1} / {kind.toUpperCase()}</span><strong>{current.label}</strong></div>
             <div className="view-picker" aria-label="预览视角"><button aria-pressed={view === 'front'} onClick={() => changeView('front')}>正视 / 复位</button><button aria-pressed={view === 'oblique'} onClick={() => changeView('oblique')}>斜视</button></div>
-            <Preview kind={kind} seed={seed} playback={playback} speed={speed} view={view} viewRevision={viewRevision} markers={markers} redraw={redraw} feet={current.feet} onTime={onTime} onEnd={onEnd} />
+            <Preview kind={kind} seed={seed} playback={playback} speed={speed} view={view} viewRevision={viewRevision} markers={markers} redraw={redraw} feet={current.feet} onArc={setArc} onTime={onTime} onEnd={onEnd} />
             <div className="preview-hint">拖动旋转 · 滚轮缩放<span>日面局部切平面</span></div>
           </div>
           <div className="transport">
@@ -74,6 +76,11 @@ export default function App() {
             <label className="time-control"><span className="sr-only">模拟时间</span><input aria-label="模拟时间" type="range" min="0" max={MAX_AGE} step="0.02" value={age} onChange={event => { const value = Number(event.target.value); setAge(value); setPlayback({ playing: false, seek: value }) }} /><output aria-live="off">{age.toFixed(2)} <small>/ {MAX_AGE} s</small></output></label>
           </div>
           <div className="legend"><span className="legend-gold">— 发光环系</span><label>速度 <select aria-label="播放速度" value={speed} onChange={event => setSpeed(Number(event.target.value))}><option value="0.35">0.35×</option><option value="1">1×</option><option value="2">2×</option></select></label><label><input type="checkbox" checked={markers} onChange={event => setMarkers(event.target.checked)} />磁通区域</label><label><input type="checkbox" checked={redraw} onChange={event => setRedraw(event.target.checked)} />显示丝线层次</label></div>
+          {arc && <div className="lifecycle-panel" aria-label="当前三维弧长校验">
+            <div className="lifecycle-heading"><strong>当前三维弧长校验</strong><span>允许变化 ±20%</span></div>
+            {arc.map((item, i) => <p key={i}>{i === 0 ? '左侧短环' : '右侧短环'}：弧长 {item.length.toFixed(3)} / 参考 {item.reference.toFixed(3)} · 全束最大偏差 {(100 * item.maxStrain).toFixed(1)}% · 约束修正 {(100 * item.projection).toFixed(1)}%</p>)}
+            <p>读取预览中交接、形变与空间分隔之后的三维路径。弧长为同侧丝线的均值，最大偏差逐条检查；消退时参考弧长趋近固定足点的间距。</p>
+          </div>}
           <Lifecycle plans={current.evolution} age={age} seek={seek} />
         </div>
 
@@ -102,9 +109,9 @@ export default function App() {
       <div className="reading-grid">
         <article><span className="step-number">01 / 形成</span><h3>固定磁通区域，错峰抬升</h3><p>各环系拥有自己的出生、成形与松弛时刻。丝线按内到外的次序生成，每条沿自己的方向逐渐绘出；达到上限后，内层退出，新的外层补入，反复更新直到稳定。同一活动区共享背景，但局部驱动并不同步。低簇与嵌套在生成时伴随其他类型，各环系独立演化。</p></article>
         <article><span className="step-number">02 / 定形</span><h3>轮廓在生长过程中确定</h3><p>参考拱顶从中性形状出发，积累外部应力与局部热负载的影响。形成驱动衰减后，保留已经形成的轮廓与完整的丝线，细丝仍有轻微动态。</p></article>
-        <article><span className="step-number">03 / 消退</span><h3>有时回缩，有时局部换接</h3><p>普通环系用 12–15.6 秒松弛与回缩：外层旧丝线逐渐擦除，新的内层丝线持续补入，末段才停止补入。部分大环在末段先让短环预生长至局部交接高度，两侧短环承接外肩、中央过渡环承接拱顶；旧长连接在 0.65 秒内沿线退出。中央环交错保留约一半丝线，每隔 0.12 秒启动其中一条的回落与沿线擦除，三支受共享空间分隔约束；左右短环在不同的随机驱动下鼓胀、压扁与偏斜，随后错峰整束回落；丝线按每条间隔 0.18 秒由外向内擦除，几何回落不再逐条错峰。其他独立环系继续演化。</p></article>
+        <article><span className="step-number">03 / 消退</span><h3>有时回缩，有时局部换接</h3><p>普通环系用 12–15.6 秒松弛与回缩：外层旧丝线逐渐擦除，新的内层丝线持续补入，末段才停止补入。部分大环在末段先让短环预生长至局部交接高度，两侧短环承接外肩、中央过渡环承接拱顶；旧长连接在 0.65 秒内沿线退出。中央环交错保留约一半丝线，每隔 0.12 秒启动其中一条的回落与沿线擦除，三支受共享空间分隔约束；左右短环在交接期间便受到不同的侧向激发，拱顶过冲、两肩延迟跟随，随后回摆并融入鼓胀、压扁与错峰整束回落；丝线按每条间隔 0.18 秒由外向内擦除，几何回落不再逐条错峰。其他独立环系继续演化。</p></article>
       </div>
-      <div className="model-note"><div><h3>收缩不一定温和</h3><p>磁能释放后，日冕环可以同时收缩和振荡。本轮让左右短环独立起落，以不规则上下脉冲激发柔性回弹；高度与两肩形变相互关联，轮廓持续鼓胀或压扁，中央保持较弱响应。这是一种展示取向，并非所有真实事件的规律。中央过渡环是短暂显亮的背景连接，不表示重联必然生成三个短环。发光结构的变暗也不等于磁场消失，足点固定仅作为短时近似。</p><a href="https://arxiv.org/abs/1506.07716" target="_blank" rel="noreferrer">日冕环收缩与振荡研究 ↗</a></div><div><h3>CME 的上下两支分别处理</h3><p>CME 形成后，上方闭环继续向外喷出、粒子化与扩散。下方连接日面的残留拱廊在重联后松弛回缩；不把已经喷出的物质收回日面。</p><a href="./cme-dissolution-explainer.html?seed=0.47&t=9">观察 CME 重联后的回缩 ↗</a></div></div>
+      <div className="model-note"><div><h3>收缩不一定温和</h3><p>磁能释放后，日冕环可以同时收缩和振荡。本轮让左右短环在交接期间受到独立的侧向激发，先过冲再反向回摆；横摆、升降与两肩共享弧长张力，侧倾时压扁、回摆时重新鼓起；参考弧长在消退时收缩，振荡逐渐稳定。20% 限制相对弧长变化，不是拱顶位移。中央保持较弱响应。这是一种展示取向，并非所有真实事件的规律。中央过渡环是短暂显亮的背景连接，不表示重联必然生成三个短环。发光结构的变暗也不等于磁场消失，足点固定仅作为短时近似。</p><a href="https://arxiv.org/abs/1506.07716" target="_blank" rel="noreferrer">日冕环收缩与振荡研究 ↗</a></div><div><h3>CME 的上下两支分别处理</h3><p>CME 形成后，上方闭环继续向外喷出、粒子化与扩散。下方连接日面的残留拱廊在重联后松弛回缩；不把已经喷出的物质收回日面。</p><a href="./cme-dissolution-explainer.html?seed=0.47&t=9">观察 CME 重联后的回缩 ↗</a></div></div>
       <div className="model-note"><div><h3>固定区域，允许连接改变</h3><p>根部附近的小尺度混合极性磁通，为局部重联提供了一种可能的环境。图中的区域位置作为短时近似固定，连接关系可以变化；同一条示踪线不必永远连接同一对端点。</p><a href="https://arxiv.org/abs/1610.07484" target="_blank" rel="noreferrer">混合极性与日冕环根部环境 ↗</a></div><div><h3>自然消退也可能伴随重联</h3><p>非 CME 不等于没有磁重联。观测支持局部重联形成新环，但不支持“所有大环都必然碎成小环”。本实验保留概率触发与直接回缩两条路径，概率为展示设定。丝线换代描述发光结构的更新，不代表磁场线逐条断灭，也不是逐粒子追踪完整的重联过程。</p><a href="https://arxiv.org/abs/2105.03199" target="_blank" rel="noreferrer">局部重联形成日冕环的观测 ↗</a></div></div>
       <p className="section-intro">上方 SVG 与三维模型共用演化方案；本页展示 {MAX_AGE} 秒完整事件，主页普通事件为 30–38 秒。普通环系慢消退，CME 下方拱廊主要回缩约 4.4 秒；这组时间并非真实事件的统一比例。<a href="../stellar-plasma-model.md#固定磁通区域与局部连接重组">查看 LaTeX 公式与实现边界 ↗</a></p>
     </section>

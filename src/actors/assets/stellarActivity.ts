@@ -325,6 +325,11 @@ export function createStellarActivity(channels: ReturnType<typeof createStellarA
   root.add(tails.mesh)
   return {
     root,
+    /** 返回首个普通通道最终三维路径的弧长统计；调用方复制后用于低频 UI 展示。 */
+    getShortLoopDiagnostics() {
+      const patch = patches[0], route = patch.model.reorganization
+      return route && patch.channel.age >= route.plan.contact ? route.arcDiagnostics() : null
+    },
     /** 改变几何需在下一次 update 按当前年龄重放，继续复用 GPU 缓冲。 */
     setCmeRotation(enabled: boolean) {
       cmeRotationEnabled = enabled

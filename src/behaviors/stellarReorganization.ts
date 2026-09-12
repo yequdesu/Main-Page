@@ -1,9 +1,10 @@
 import { Vector3 } from 'three'
+import { createArcBundle } from './stellarArcConstraint'
 import { clamp01, redrawEase, traceFront, REDRAW } from './stellarRedraw'
 import { createMagneticLifecycle, MAGNETIC_LIFETIME, type MagneticTiming } from './stellarLifecycle'
 import type { ProminenceFamily } from './stellarMorphology'
 import { createShortRecoil } from './stellarRecoil'
-import { createShortLoopPlans, createShortLoopMotion, shortLoopCollapse, shortLoopProfile, SHORT_LOOP_ERASE, type ShortLoopPlan } from './stellarShortLoop'
+import { createShortLoopPlans, createShortLoopMotion, shortLoopCollapse, shortLoopProfile, shortLoopDeflection, shortLoopRestShape, SHORT_LOOP_ERASE, type ShortLoopPlan } from './stellarShortLoop'
 
 const ease = (value: number) => { const t = Math.max(0, Math.min(1, value)); return t * t * (3 - 2 * t) }
 export const LOCAL_RECONNECTION = { approach: 0.30, exchange: 0.65, settle: 0.28, strandInterval: SHORT_LOOP_ERASE.interval, collapse: SHORT_LOOP_ERASE.duration, centralHold: 0.12, centralLower: 0.40, centralErase: 0.40, centralInterval: 0.12, corridorGap: 0.009 } as const
@@ -53,7 +54,7 @@ export function createMagneticEvolution(families: readonly ProminenceFamily[], d
     const background = random(family.seed, 5), draw = random(family.seed, 6)
     const probability = i === dominant ? 0.72 * ease((family.width * 2 - 0.7) / 1.7) * (0.35 + 0.65 * background) : 0
     const contact = decay + (end - decay) * (0.55 + 0.07 * random(family.seed, 7))
-    const sides = createShortLoopPlans(family.seed, contact + LOCAL_RECONNECTION.exchange, family.strands)
+    const sides = createShortLoopPlans(family.seed, contact + LOCAL_RECONNECTION.exchange, family.strands, contact, end - 0.05)
     return { seed: family.seed, strands: family.strands, timing, background, probability, draw, reorganizes: draw < probability,
       approach: contact - LOCAL_RECONNECTION.approach, contact, sides,
       finish: Math.max(...sides.map(side => side.finish)) }
@@ -145,7 +146,6 @@ export function createLocalReconnection(plan: FamilyEvolution, strands: number[]
   const anchors = new Map<number, Vector3[]>()
   const heights = new Map<number, number>()
   const centralRecoil = createCentralRecoil(plan)
-  const motions = plan.sides.map(side => createShortLoopMotion(side))
   const profile = { x: 0, y: 0, z: 0 }, sideAxis = new Vector3(), target = new Vector3()
   const left = new Vector3(), right = new Vector3(), chord = new Vector3(), tangent = new Vector3(), smooth = new Vector3()
   const origin = new Vector3(), end = new Vector3(), axis = new Vector3(), guide = new Vector3()
@@ -171,6 +171,14 @@ export function createLocalReconnection(plan: FamilyEvolution, strands: number[]
     anchors.set(strand, [d.clone().addScaledVector(axis, -gap * span), d.clone().addScaledVector(axis, gap * span), c.clone().addScaledVector(axis, -gap * span), c.clone().addScaledVector(axis, gap * span)])
     heights.set(strand, left.distanceTo(right) * (0.12 + 0.06 * plan.background))
   }
+  // 用实际足点间距与低拱高度决定张力求解尺度；每侧整束共用一份响应。
+  const aspects = [1, 2].map(branch => strands.reduce((sum, strand) => {
+    const feet = regions.get(strand)!, attached = anchors.get(strand)!
+    const a = branch === 1 ? feet[0] : attached[3], b = branch === 1 ? attached[0] : feet[1]
+    return sum + heights.get(strand)! * (branch === 1 ? 0.68 : 0.90) / a.distanceTo(b)
+  }, 0) / strands.length)
+  const motions = plan.sides.map((side, i) => createShortLoopMotion(side, aspects[i]))
+  const restShapes = plan.sides.map(side => shortLoopRestShape(side, 0))
   let guideAge = NaN, topLeft = 0.4, topRight = 0.6, heightLeft = 1, heightRight = 1
   function updateGuides(age: number) {
     if (age === guideAge) return
@@ -206,7 +214,7 @@ export function createLocalReconnection(plan: FamilyEvolution, strands: number[]
     out.addScaledVector(axis, (bounded - u) * span)
     return out
   }
-  function sample(s: number, strand: number, branch: number, age: number, out: Vector3) {
+  function sampleRaw(s: number, strand: number, branch: number, age: number, out: Vector3, reference = false) {
     if (branch === 0) return sampleMain(s, strand, out)
     // 预生长之前三条短环完全不可见，不为整个自然生命周期计算空间约束。
     const confined = age >= plan.approach
@@ -264,13 +272,21 @@ export function createLocalReconnection(plan: FamilyEvolution, strands: number[]
     const height = heights.get(strand)! * (branch === 1 ? 0.68 : branch === 3 ? 0.55 : 0.90) * (1 - 0.22 * rank)
     if (branch !== 3) {
       const motion = motions[branch - 1]
-      shortLoopProfile(s, rank, motion.plan, motion.sample(age), profile)
+      const shape = reference ? restShapes[branch - 1] : motion.sample(age)
+      shortLoopProfile(s, rank, motion.plan, shape, profile, false)
       sideAxis.subVectors(b, a); sideAxis.y = 0; sideAxis.normalize()
       target.copy(a).lerp(b, profile.x)
       target.y += height * profile.y
       target.x -= sideAxis.z * height * profile.z
       target.z += sideAxis.x * height * profile.z
       out.lerp(target, redrawEase((age - exchanged) / LOCAL_RECONNECTION.settle))
+      // 横向激发直接作用于正在交接的轮廓，不被交接后的低拱定形混合再次削弱。
+      shortLoopDeflection(s, shape, profile)
+      target.subVectors(b, a); target.y = 0
+      out.addScaledVector(target, profile.x)
+      out.y = chord.y + (out.y - chord.y) * profile.y
+      out.x -= sideAxis.z * height * profile.z
+      out.z += sideAxis.x * height * profile.z
       return confined ? confine(s, branch, out) : out
     }
     smooth.copy(chord); smooth.y += Math.sin(Math.PI * s) * height
@@ -289,5 +305,40 @@ export function createLocalReconnection(plan: FamilyEvolution, strands: number[]
     out.sub(chord).multiplyScalar(1 - 0.97 * collapse).add(chord)
     return confined ? confine(s, branch, out) : out
   }
-  return { selected, regions, anchors, plan, sample }
+  // 最终三维曲线（包括交接与走廊）再做弧长保护。按事件年龄缓存整束投影系数，
+  // 所有丝线使用相同系数，防止逐条收缩；不修改中央短环或旧主环。
+  const segments = 112, rowSize = (segments + 1) * 3
+  const buffers = [1, 2].map(branch => ({ age: NaN,
+    ...createArcBundle(strands.length, (s, point) => confine(s, branch, point), segments) }))
+  const measured = new Vector3(), referencePoint = new Vector3()
+  function updateArc(branch: number, age: number) {
+    const buffer = buffers[branch - 1]
+    if (buffer.age === age) return buffer
+    buffer.age = age
+    Object.assign(restShapes[branch - 1], shortLoopRestShape(plan.sides[branch - 1], age))
+    for (let i = 0; i < strands.length; i++) for (let j = 0; j <= segments; j++) {
+      const offset = i * rowSize + j * 3, s = j / segments
+      sampleRaw(s, strands[i], branch, age, measured).toArray(buffer.candidate, offset)
+      sampleRaw(s, strands[i], branch, age, measured, true).toArray(buffer.reference, offset)
+    }
+    buffer.project()
+    return buffer
+  }
+  function sample(s: number, strand: number, branch: number, age: number, out: Vector3) {
+    if (branch === 0 || branch === 3 || age < plan.contact) return sampleRaw(s, strand, branch, age, out)
+    const buffer = updateArc(branch, age)
+    const cell = s * segments, nearest = Math.round(cell)
+    if (Math.abs(cell - nearest) < 1e-8) return out.fromArray(buffer.output, strands.indexOf(strand) * rowSize + nearest * 3)
+    sampleRaw(s, strand, branch, age, out)
+    sampleRaw(s, strand, branch, age, referencePoint, true)
+    out.lerp(referencePoint, 1 - buffer.state.blend)
+    return confine(s, branch, out)
+  }
+  return { selected, regions, anchors, plan, sample,
+    arcDiagnostics: () => buffers.map(b => b.state.diagnostic),
+    sampleReference(s: number, strand: number, branch: number, age: number, out: Vector3) {
+      updateArc(branch, age)
+      return sampleRaw(s, strand, branch, age, out, true)
+    } }
+
 }

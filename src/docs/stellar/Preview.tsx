@@ -5,6 +5,7 @@ import { OrthographicCamera, Vector3 } from 'three'
 import { createStellarActivity } from '../../actors/assets/stellarActivity'
 import { createStellarActivityChannels } from '../../behaviors/stellarActivity'
 import type { ProminenceMorphology } from '../../behaviors/stellarMorphology'
+import type { ShortLoopArcDiagnostic } from '../../behaviors/stellarShortLoop'
 import { MAX_AGE, PREVIEW_AGE } from './model'
 
 export interface Playback { playing: boolean; seek: number | null }
@@ -18,11 +19,12 @@ export interface PreviewProps {
   markers: boolean
   redraw: boolean
   feet: [number, number, number][]
+  onArc: (diagnostic: ShortLoopArcDiagnostic[] | null) => void
   onTime: (age: number) => void
   onEnd: () => void
 }
 
-function Scene({ kind, seed, playback, speed, view, viewRevision, markers, redraw, feet, onTime, onEnd }: PreviewProps) {
+function Scene({ kind, seed, playback, speed, view, viewRevision, markers, redraw, feet, onTime, onArc, onEnd }: PreviewProps) {
   const { camera, size, invalidate } = useThree()
   const controls = useRef<ComponentRef<typeof OrbitControls>>(null)
   const age = useRef(PREVIEW_AGE), reported = useRef(-1)
@@ -62,6 +64,7 @@ function Scene({ kind, seed, playback, speed, view, viewRevision, markers, redra
     asset.update()
     if (reported.current < 0 || Math.abs(age.current - reported.current) >= 0.1 || age.current === MAX_AGE) {
       reported.current = age.current; onTime(age.current)
+      onArc(asset.getShortLoopDiagnostics()?.map(item => ({ ...item })) ?? null)
     }
     if (playback.playing && age.current < MAX_AGE && !document.hidden) invalidate()
     else if (playback.playing && age.current >= MAX_AGE) onEnd()
