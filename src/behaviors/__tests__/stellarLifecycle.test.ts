@@ -5,7 +5,7 @@ import { createMagneticDeformation } from '../stellarMagnetism'
 import { PROMINENCE_MORPHOLOGIES } from '../stellarMorphology'
 import { createFluxRopeSimulation, PLASMA } from '../stellarPlasma'
 
-it('全部构型的磁通区域固定，重组只更换连接，粒子跟随所在分支', () => {
+it('全部构型的磁通区域固定，重组沿固定区域交接，粒子跟随所在分支', () => {
   const point = new Vector3()
   for (const { kind } of PROMINENCE_MORPHOLOGIES) {
     const model = createFluxRopeSimulation(0.47, false, kind)
@@ -20,8 +20,7 @@ it('全部构型的磁通区域固定，重组只更换连接，粒子跟随所�
         expect(model.lifecycle.opacity).toBeCloseTo(0)
       } else expect(model.lifecycle.opacity).toBeCloseTo(1)
       for (let strand = 0; strand < PLASMA.strands; strand++) for (const s of [0, 1]) {
-        const reorg = model.reorganization
-        const expected = reorg?.switched && reorg.selected.has(strand) && s === 1 ? reorg.regions.get(strand)![3] : feet[strand][s]
+        const expected = feet[strand][s]
         expect(model.sample(s, strand, 0, point).distanceTo(expected)).toBeLessThan(1e-8)
       }
       expect(model.curveData.every(Number.isFinite)).toBe(true)

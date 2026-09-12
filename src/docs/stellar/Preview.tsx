@@ -16,12 +16,13 @@ export interface PreviewProps {
   view: 'front' | 'oblique'
   viewRevision: number
   markers: boolean
+  redraw: boolean
   feet: [number, number, number][]
   onTime: (age: number) => void
   onEnd: () => void
 }
 
-function Scene({ kind, seed, playback, speed, view, viewRevision, markers, feet, onTime, onEnd }: PreviewProps) {
+function Scene({ kind, seed, playback, speed, view, viewRevision, markers, redraw, feet, onTime, onEnd }: PreviewProps) {
   const { camera, size, invalidate } = useThree()
   const controls = useRef<ComponentRef<typeof OrbitControls>>(null)
   const age = useRef(PREVIEW_AGE), reported = useRef(-1)
@@ -31,6 +32,7 @@ function Scene({ kind, seed, playback, speed, view, viewRevision, markers, feet,
   const target = useMemo(() => new Vector3(0, 0.78, 0), [])
 
   useEffect(() => () => asset.dispose(), [asset])
+  useEffect(() => { asset.setRedrawDiagnostic(redraw); invalidate() }, [asset, redraw, invalidate])
   useEffect(() => {
     Object.assign(channels.prominences[0], { seed, morphology: kind, opacity: 1 })
     age.current = PREVIEW_AGE; reported.current = -1

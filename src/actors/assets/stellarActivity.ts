@@ -38,12 +38,14 @@ const commonShader = `
     return mix(mix(hash(i), hash(i + vec2(1,0)), f.x), mix(hash(i + vec2(0,1)), hash(i + vec2(1,1)), f.x), f.y);
   }
   // 弧丝与逸散颗粒共用密度和发光标尺，避免颗粒化后突然变成高亮光点。
-  float filamentEmissionAt(float t,float strand,float age,float seed,float condensation) {
-    float direction=mod(strand,2.0)*2.0-1.0;
+  float directedFilamentEmission(float t,float strand,float age,float seed,float condensation,float direction) {
     float filaments=noise(vec2(t*27.0-direction*age*0.7,strand*3.7+seed*7.0));
     filaments*=noise(vec2(t*61.0-direction*age*0.45,strand+seed*9.0))*0.5+0.5;
     float dip=exp(-pow((t-0.5)/0.24,4.0));
     return (0.09+filaments*(0.40+dip*condensation*0.7))*0.75;
+  }
+  float filamentEmissionAt(float t,float strand,float age,float seed,float condensation) {
+    return directedFilamentEmission(t,strand,age,seed,condensation,mod(strand,2.0)*2.0-1.0);
   }
   float filamentEmission(float t,float strand) {
     return filamentEmissionAt(t,strand,uAge,uSeed,uCondensation);
@@ -106,10 +108,15 @@ export function createStellarActivity(channels: ReturnType<typeof createStellarA
   const patches = [...channels.prominences, channels.cme].map((channel, index) => {
     const cme = index === 2
     const model = createFluxRopeSimulation(channel.seed, cme, channel.morphology, channel.duration)
-    const texture = new DataTexture(model.curveData, MAGNETIC.samples, MAGNETIC.strands * 3, RGBAFormat, FloatType)
+    const texture = new DataTexture(model.curveData, MAGNETIC.samples, MAGNETIC.strands * model.branchCount, RGBAFormat, FloatType)
     texture.minFilter = NearestFilter; texture.magFilter = NearestFilter
     texture.needsUpdate = true
     textures.push(texture)
+    const redrawTexture = cme ? null : new DataTexture(model.redrawData, MAGNETIC.samples, MAGNETIC.strands * model.branchCount, RGBAFormat, FloatType)
+    if (redrawTexture) {
+      redrawTexture.minFilter = NearestFilter; redrawTexture.magFilter = NearestFilter
+      redrawTexture.needsUpdate = true; textures.push(redrawTexture)
+    }
     const uniforms = {
       uAnchor: { value: new Vector3() }, uTangent: { value: new Vector3() }, uNormal: { value: new Vector3() },
       uScale: { value: 1 }, uRadius: { value: 1 }, uAge: { value: 0 }, uSeed: { value: 0 }, uOpacity: { value: 0 },
@@ -117,7 +124,7 @@ export function createStellarActivity(channels: ReturnType<typeof createStellarA
       uPixelSize: { value: new Vector2() }, uUnitPixels: { value: 1 }, uBranch: { value: 0 },
       uClosureTimes: { value: new Float32Array(12).fill(-1) }, uEjection: { value: 1 }, uMistStrength: { value: 1 }, uFirstClosure: { value: -1 },
       uCurves: { value: texture }, uNeck: { value: new Vector3() }, uApex: { value: new Vector3() },
-      uCurveOpacity: { value: model.curveOpacity },
+      uRedraw: { value: redrawTexture ?? texture }, uShowRedraw: { value: 0 },
       uShape: { value: new Vector2(model.shape.span, model.shape.height) },
       uColor: { value: new Color(STELLAR_ACTIVITY_STYLE.filamentColor) },
       uGold: { value: new Color(STELLAR_ACTIVITY_STYLE.particleColor) },
@@ -125,14 +132,14 @@ export function createStellarActivity(channels: ReturnType<typeof createStellarA
     }
     const ribbonShaders = {
       vertexShader: `${commonShader}
-        uniform sampler2D uCurves;
+        uniform sampler2D uCurves, uRedraw;
         uniform float uBranch;
-        uniform float uCurveOpacity[36];
         varying vec3 vRibbon;
-        varying float vVisible, vPulse;
+        varying float vVisible, vPulse, vField;
+        varying vec2 vFlow;
         vec4 curve(float t,float strand) {
           float cell=t*${(MAGNETIC.samples - 1).toFixed(1)}, lo=min(${(MAGNETIC.samples - 2).toFixed(1)},floor(cell));
-          float row=(uBranch*12.0+strand+0.5)/36.0;
+          float row=(uBranch*12.0+strand+0.5)/${(MAGNETIC.strands * model.branchCount).toFixed(1)};
           vec4 a=texture2D(uCurves,vec2((lo+0.5)/${MAGNETIC.samples.toFixed(1)},row));
           vec4 b=texture2D(uCurves,vec2((lo+1.5)/${MAGNETIC.samples.toFixed(1)},row));
           return mix(a,b,cell-lo);
@@ -153,35 +160,44 @@ export function createStellarActivity(channels: ReturnType<typeof createStellarA
           vRibbon=vec3(source,position.y,strand);
           float stage=clamp((uRopeRadius-(1.48+0.32*fract(strand*0.618+uSeed)))/1.38,0.0,1.0);
           float split=step(0.45,stage)*uCme;
-          vVisible=uCme>0.5 ? (uBranch<0.5 ? 1.0-split : split) : uCurveOpacity[int(uBranch*12.0+strand)];
+          vec4 redraw=uCme>0.5 ? vec4(1.0,0.0,1.0,t) : texture2D(uRedraw,vec2((t*112.0+0.5)/113.0,(uBranch*12.0+strand+0.5)/${(MAGNETIC.strands * model.branchCount).toFixed(1)}));
+          vVisible=uCme>0.5 ? (uBranch<0.5 ? 1.0-split : split) : redraw.r;
+          vField=redraw.g; vFlow=redraw.ba;
           float closedAt=uClosureTimes[int(strand)];
           float afterClose=closedAt<0.0 ? -1.0 : uAge-closedAt;
           vPulse=exp(-pow((stage-0.45)/0.10,2.0))*uCme*(1.0-uEjection*smoothstep(0.04,0.30,afterClose));
         }`,
       fragmentShader: `${commonShader}
         uniform vec3 uColor, uHighlight;
-        uniform float uBranch;
+        uniform float uBranch, uShowRedraw;
         varying vec3 vRibbon;
-        varying float vVisible, vPulse;
+        varying float vVisible, vPulse, vField;
+        varying vec2 vFlow;
         void main() {
           float t=vRibbon.x, strand=vRibbon.z;
-          float dilution=uBranch>1.5 ? 1.0 : pow(uRopeRadius,0.65);
-          float emission=filamentEmission(t,strand)/dilution;
+          if(vVisible<0.002) discard;
+          float dilution=(uCme>0.5 && uBranch>1.5) ? 1.0 : pow(uRopeRadius,0.65);
+          float emission=(uCme>0.5 ? filamentEmission(t,strand) : directedFilamentEmission(vFlow.y,strand,uAge,uSeed,uCondensation,vFlow.x))/dilution;
           float edge=exp(-vRibbon.y*vRibbon.y*4.0)*(1.0-smoothstep(0.7,1.0,abs(vRibbon.y)));
           float feet=smoothstep(0.0,0.045,t)*(1.0-smoothstep(0.955,1.0,t));
           float neck=exp(-pow((abs(t-0.5)-0.28)/0.045,2.0))*vPulse;
           float elapsed=uClosureTimes[int(strand)]<0.0 ? -1.0 : uAge-uClosureTimes[int(strand)];
           float transfer=(uCme>0.5 && uBranch>0.5 && uBranch<1.5) ? cmeConversion(elapsed,(t-0.22)/0.56)*uEjection : 0.0;
-          float cooling=uBranch>1.5 ? arcadeCooling(elapsed) : 1.0;
+          float cooling=(uCme>0.5 && uBranch>1.5) ? arcadeCooling(elapsed) : 1.0;
           float alpha=(emission+neck*0.35*0.75)*edge*feet*uOpacity*vVisible*(1.0-transfer)*cooling;
-          gl_FragColor=vec4(mix(uColor,uHighlight,neck*0.5),alpha);
+          vec3 tint=mix(uColor,uHighlight,neck*0.5);
+          if(uShowRedraw>0.5 && uCme<0.5) {
+            tint=mix(vec3(0.12,0.68,0.82),vec3(1.0,0.43,0.16),vField);
+            alpha=edge*feet*uOpacity*vVisible*0.65;
+          }
+          gl_FragColor=vec4(tint,alpha);
           #include <colorspace_fragment>
         }`,
     }
     add(ribbonGeometry, new ShaderMaterial({ uniforms, ...ribbonShaders, ...transparentPlasma }), cme ? '日冕抛射弧丝' : `日珥弧丝_${index}`)
-    if (!cme) add(ribbonGeometry, new ShaderMaterial({
-      uniforms: { ...uniforms, uBranch: { value: 1 } }, ...ribbonShaders, ...transparentPlasma,
-    }), `日珥局部换接_${index}`)
+    if (!cme) for (const branch of [1, 2, 3]) add(ribbonGeometry, new ShaderMaterial({
+      uniforms: { ...uniforms, uBranch: { value: branch } }, ...ribbonShaders, ...transparentPlasma,
+    }), `日珥重绘短环_${index}_${branch}`)
     const parcels = createParcelGeometry()
     geometries.push(parcels)
     add(parcels, new ShaderMaterial({
@@ -208,16 +224,18 @@ export function createStellarActivity(channels: ReturnType<typeof createStellarA
         }`,
       fragmentShader: `${commonShader}
         uniform vec3 uColor, uGold, uHighlight;
+        uniform float uShowRedraw;
         varying vec2 vParticle;
         varying vec3 vState;
         varying float vConversion, vVisibility;
         void main() {
+          if(vVisibility<0.002) discard;
           float glow = exp(-vParticle.y*vParticle.y*4.5)*pow(max(0.0,1.0-vParticle.x*vParticle.x),1.2);
           float cold = 1.0-smoothstep(0.15,0.85,vState.x);
           float emission = min(1.0,pow(vState.y,0.65))*(0.22+0.78*cold);
           emission = mix(emission,min(1.0,pow(vState.y,0.40))*(0.6+0.4*cold),uCme);
           vec3 tint = mix(uColor,mix(uGold,uHighlight,vState.z*0.22),uCme);
-          gl_FragColor = vec4(tint,glow*emission*uOpacity*vVisibility*0.95*(1.0-vConversion*uEjection));
+          gl_FragColor = vec4(tint,glow*emission*uOpacity*vVisibility*0.95*(1.0-vConversion*uEjection)*(1.0-0.8*uShowRedraw));
           #include <colorspace_fragment>
         }`,
     }), cme ? '日冕抛射金色粒子' : `日珥等离子体_${index}`, 3)
@@ -285,12 +303,16 @@ export function createStellarActivity(channels: ReturnType<typeof createStellarA
           }`,
       }), '重联电流片')
     }
-    return { uniforms, channel, cme, parcels, model, texture, index, ejectionVisual, lastAge: -1, seed: channel.seed, morphology: channel.morphology, duration: channel.duration, serial: channel.serial, exported: new Uint8Array(CME_DISSOLUTION.count) }
+    return { uniforms, channel, cme, parcels, model, texture, redrawTexture, index, ejectionVisual, lastAge: -1, seed: channel.seed, morphology: channel.morphology, duration: channel.duration, serial: channel.serial, exported: new Uint8Array(CME_DISSOLUTION.count) }
   })
   const tails = createCmeTailVisual(commonShader, patches[2].uniforms.uColor)
   root.add(tails.mesh)
   return {
     root,
+    /** 诊断色仅显示丝线内外层次，不改变几何、随机流或模拟时钟。 */
+    setRedrawDiagnostic(enabled: boolean) {
+      for (const patch of patches) if (!patch.cme) patch.uniforms.uShowRedraw.value = enabled ? 1 : 0
+    },
     /** 对照实验只改变可见表现，求解器与时钟保持同一实例。 */
     setEjectionAppearance(enabled: boolean, mistStrength = 1) {
       const u = patches[2].uniforms
@@ -322,6 +344,7 @@ export function createStellarActivity(channels: ReturnType<typeof createStellarA
           if (patch.cme && channels.time === null) tails.pool.clear()
           patch.model = createFluxRopeSimulation(c.seed, patch.cme, c.morphology, c.duration)
           patch.texture.image.data = patch.model.curveData
+          if (patch.redrawTexture) patch.redrawTexture.image.data = patch.model.redrawData
           patch.seed = c.seed
           patch.morphology = c.morphology
           patch.serial = c.serial
@@ -331,6 +354,7 @@ export function createStellarActivity(channels: ReturnType<typeof createStellarA
         patch.lastAge = c.age
         patch.model.advanceTo(c.age)
         patch.texture.needsUpdate = true
+        if (patch.redrawTexture) patch.redrawTexture.needsUpdate = true
         const model = patch.model, r = model.torus.radius
         if (model.ejection) {
           u.uClosureTimes.value.set(model.ejection.closureTimes)
@@ -353,7 +377,6 @@ export function createStellarActivity(channels: ReturnType<typeof createStellarA
         }
         u.uPixelSize.value.set(1 / pixelWidth, 1 / pixelHeight)
         u.uAge.value = c.age; u.uSeed.value = c.seed; u.uOpacity.value = c.opacity
-        u.uCurveOpacity.value = model.curveOpacity
         u.uRopeRadius.value = r
         // 展示用重联进度；各通道的连接切换由相同的径向阶段决定。
         u.uReconnection.value = magneticEase((magneticStage(r, 5, c.seed) - 0.20) / 0.80)
@@ -371,7 +394,7 @@ export function createStellarActivity(channels: ReturnType<typeof createStellarA
           const closedAt = model.ejection?.closureTimes[Math.floor(i / PLASMA.parcelsPerStrand)] ?? -1
           conversion.setX(i, model.branches[i] === 1 && closedAt >= 0 ? cmeConversion(c.age - closedAt, model.position[i]) : 0)
           states.setXYZ(i, model.temperature[i], model.density[i], (i * 0.6180339) % 1)
-          visibility.setX(i, model.curveOpacity[model.branches[i] * PLASMA.strands + Math.floor(i / PLASMA.parcelsPerStrand)])
+          visibility.setX(i, model.parcelVisibility[i])
           condensation += Math.max(0, 1 - model.temperature[i]) / PLASMA_COUNT
         }
         u.uCondensation.value = condensation

@@ -10,7 +10,14 @@ it('局部预览复用路径和材质，换类型/回退重建模型，恢复场
   Object.assign(channels.prominences[0], { opacity: 1, age: 0, seed: 0.47, morphology: 'nested' })
   const mesh = asset.root.getObjectByName('日珥弧丝_0') as Mesh<never, ShaderMaterial>
   const u = mesh.material.uniforms, texture = u.uCurves.value
-  const dispose = vi.spyOn(texture, 'dispose')
+  const redraw = u.uRedraw.value
+  const central = asset.root.getObjectByName('日珥重绘短环_0_3') as Mesh<never, ShaderMaterial>
+  expect(central.material.uniforms.uCurves.value).toBe(texture)
+  expect(central.geometry).toBe(mesh.geometry)
+  expect(texture.image.height).toBe(48)
+  expect(redraw.image.height).toBe(48)
+  const disposeCentral = vi.spyOn(central.material, 'dispose')
+  const dispose = vi.spyOn(texture, 'dispose'), disposeRedraw = vi.spyOn(redraw, 'dispose')
   try {
     asset.layoutLocal(800, 400, 2.5); asset.update()
     expect(u.uAnchor.value.toArray()).toEqual([0, 0, 0])
@@ -18,20 +25,31 @@ it('局部预览复用路径和材质，换类型/回退重建模型，恢复场
     expect(u.uNormal.value.toArray()).toEqual([0, 1, 0])
     expect(u.uScale.value).toBe(1)
     expect(u.uUnitPixels.value).toBe(160)
-    const initial = texture.image.data.slice()
+    const initial = texture.image.data.slice(), initialInk = redraw.image.data.slice()
     channels.prominences[0].age = 1; asset.update()
     expect(texture.image.data).not.toEqual(initial)
+    expect(redraw.image.data).not.toEqual(initialInk)
+    const paths = texture.image.data.slice(), ink = redraw.image.data.slice()
+    asset.setRedrawDiagnostic(true); asset.update()
+    expect(u.uShowRedraw.value).toBe(1)
+    expect(texture.image.data).toEqual(paths)
+    expect(redraw.image.data).toEqual(ink)
+    asset.setRedrawDiagnostic(false)
     channels.prominences[0].age = 0; asset.update()
     expect(texture.image.data).toEqual(initial)
+    expect(redraw.image.data).toEqual(initialInk)
     channels.prominences[0].morphology = 'cluster'; asset.update()
     expect(texture.image.data).not.toEqual(initial)
     expect(u.uCurves.value).toBe(texture)
+    expect(u.uRedraw.value).toBe(redraw)
     const layout = getStructureLayout(1280 / 720)
     asset.layout(layout); asset.update()
     expect(u.uRadius.value).toBe(layout.sunRadius)
     expect(u.uAnchor.value.length()).toBeGreaterThan(0)
   } finally { asset.dispose() }
   expect(dispose).toHaveBeenCalledTimes(1)
+  expect(disposeRedraw).toHaveBeenCalledTimes(1)
+  expect(disposeCentral).toHaveBeenCalledTimes(1)
 })
 
 it('CME 对照只切换显示，回退清除逸散历史且复用/释放粒子与雾资源', () => {
