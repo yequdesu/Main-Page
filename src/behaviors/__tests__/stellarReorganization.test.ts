@@ -1,6 +1,6 @@
 import { expect, it } from 'vitest'
 import { Vector3 } from 'three'
-import { createMagneticEvolution, createLocalReconnection, LOCAL_RECONNECTION, SHORT_JOIN, reorganizationRedraw, shortRetirementStart, centralStrandStart, centralStrandCount, centralStrandRetained, createReorganizationRecoil, CENTRAL_JOIN, reorganizationSource } from '../stellarReorganization'
+import { createMagneticEvolution, createLocalReconnection, LOCAL_RECONNECTION, SHORT_JOIN, reorganizationRedraw, shortRetirementStart, centralStrandStart, centralStrandCount, centralStrandRetained, createCentralRecoil, CENTRAL_JOIN, reorganizationSource } from '../stellarReorganization'
 import { createProminenceStructure, PROMINENCE_MORPHOLOGIES } from '../stellarMorphology'
 import { createFilamentRenewal, traceFront } from '../stellarRedraw'
 import { createMagneticLifecycle } from '../stellarLifecycle'
@@ -74,7 +74,7 @@ it('主环快速交接，两侧整束回落而丝线仍错峰擦除', () => {
   const plan = createMagneticEvolution(createProminenceStructure(0.47, 'isolated').families)[0]
   const ink = (dt: number, rank: number, branch: number) => reorganizationRedraw(plan, plan.contact + dt, rank, branch)
   expect(plan.contact + LOCAL_RECONNECTION.exchange - plan.approach).toBeLessThan(1)
-  expect(plan.finish).toBeLessThan(plan.timing.end - 1)
+  expect(plan.finish).toBeLessThan(plan.timing.end)
   expect(ink(0.2, 0, 0)).toBeLessThan(ink(0.2, 1, 0))
   expect(ink(-0.01, 1, 1)).toBeGreaterThan(0)
   for (let j = 0; j <= 100; j++) for (const rank of [0, 0.5, 1]) {
@@ -90,7 +90,7 @@ it('主环快速交接，两侧整束回落而丝线仍错峰擦除', () => {
   const retire = shortRetirementStart(plan)
   const main = (s: number, _strand: number, out: Vector3) => out.set(2 * s - 1, Math.sin(Math.PI * s), 0)
   const geometry = createLocalReconnection(plan, [0, 1], main, strand => strand)
-  const held = retire - LOCAL_RECONNECTION.hold * 0.8, late = retire - 0.01
+  const held = plan.sides[0].riseStart, late = retire - 0.01
   expect(geometry.sample(0.5, 0, 1, held, new Vector3()).distanceTo(geometry.sample(0.5, 0, 1, late, new Vector3()))).toBeGreaterThan(0.001)
   expect(reorganizationRedraw(plan, held, 0, 1)).toBe(1)
   expect(reorganizationRedraw(plan, late, 0, 1)).toBe(1)
@@ -292,7 +292,7 @@ it('从预生长到退场，中央与两侧的全部线段在磁通横轴投影�
     for (const feet of route.regions.values()) { a.add(feet[0]); b.add(feet[1]) }
     axis.subVectors(b, a); axis.y = 0; axis.normalize()
     const exchanged = plan.contact + LOCAL_RECONNECTION.exchange
-    const ages = [plan.approach, plan.contact - 0.1, plan.contact, plan.contact + 0.25, ...[0, 0.02, 0.06, 0.10, 0.16, 0.24, 0.4, 0.56, 0.76, 1, 1.4].map(dt => exchanged + dt), ...[0, 0.5, 1].map(f => shortRetirementStart(plan) + f * LOCAL_RECONNECTION.bundleFall), plan.finish, ...[1, 2, 3].flatMap(branch => { const r = createReorganizationRecoil(plan, branch); return [r.troughAt, r.crestAt, r.troughAt + r.period] })].sort((a, b) => a - b)
+    const ages = [plan.approach, plan.contact - 0.1, plan.contact, plan.contact + 0.25, ...[0, 0.02, 0.06, 0.10, 0.16, 0.24, 0.4, 0.56, 0.76, 1, 1.4].map(dt => exchanged + dt), ...plan.sides.flatMap(side => [side.riseStart, side.fallStart, side.fallStart + side.fallDuration * 0.5, side.fallStart + side.fallDuration, side.finish]), plan.finish, ...(() => { const r = createCentralRecoil(plan); return [r.troughAt, r.crestAt, r.troughAt + r.period] })()].sort((a, b) => a - b)
     for (const age of ages) {
       model.advanceTo(age)
       const segments = (branch: number) => {

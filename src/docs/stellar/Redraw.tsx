@@ -27,6 +27,6 @@ export default function Redraw({ plan, age, seek }: { plan: FamilyEvolution; age
     <div className="generation-list" aria-label="当前代数由内层到外层"><span>内 → 外</span>{slots.map(slot => <span key={pool.generations[slot]} style={{ opacity: 0.2 + 0.8 * visible(slot) }}>#{pool.generations[slot] + 1}{pool.directions[slot] > 0 ? '→' : '←'}</span>)}</div>
     <div className="phase-buttons"><button onClick={() => seek(plan.timing.birth)}>从本环系初生观察</button><button disabled={next === undefined} onClick={() => next !== undefined && seek(next + 0.06)}>下一条新丝线</button></div>
     <p>整束决定换代层次，每条丝线沿箭头方向逐渐绘入、逐渐擦除。生长向外补入，稳定时保持；松弛到回缩时向内补入更低矮的新轮廓，末段减少补入直至退出。代数持续增加，不倒放旧代。上图示意更新规则，三维预览按实际路径弧长推进。</p>
-    {plan.reorganizes && <div className="redraw-meters">{[['预生长', progress.grow], ['整束交接', progress.exchange], ['形态松弛', progress.settle], ['整束回落', progress.collapse]].map(([label, value]) => <label key={label}><span>{label}<output>{Math.round(Number(value) * 100)}%</output></span><meter min="0" max="1" value={value} aria-label={String(label) + '进度'} /></label>)}</div>}
+    {plan.reorganizes && <div className="redraw-meters">{[['预生长', progress.grow], ['整束交接', progress.exchange], ['形态松弛', progress.settle], ['两侧回落均值', progress.collapse]].map(([label, value]) => <label key={label}><span>{label}<output>{Math.round(Number(value) * 100)}%</output></span><meter min="0" max="1" value={value} aria-label={String(label) + '进度'} /></label>)}</div>}
   </div>
 }

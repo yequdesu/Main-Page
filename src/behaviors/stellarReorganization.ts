@@ -3,9 +3,10 @@ import { clamp01, redrawEase, traceFront, REDRAW } from './stellarRedraw'
 import { createMagneticLifecycle, MAGNETIC_LIFETIME, type MagneticTiming } from './stellarLifecycle'
 import type { ProminenceFamily } from './stellarMorphology'
 import { createShortRecoil } from './stellarRecoil'
+import { createShortLoopPlans, createShortLoopMotion, shortLoopCollapse, shortLoopProfile, SHORT_LOOP_ERASE, type ShortLoopPlan } from './stellarShortLoop'
 
 const ease = (value: number) => { const t = Math.max(0, Math.min(1, value)); return t * t * (3 - 2 * t) }
-export const LOCAL_RECONNECTION = { approach: 0.30, exchange: 0.65, settle: 0.28, hold: 0.50, lift: 0.55, bundleFall: 0.62, strandInterval: 0.18, collapse: 0.38, centralHold: 0.12, centralLower: 0.40, centralErase: 0.40, centralInterval: 0.12, corridorGap: 0.009 } as const
+export const LOCAL_RECONNECTION = { approach: 0.30, exchange: 0.65, settle: 0.28, strandInterval: SHORT_LOOP_ERASE.interval, collapse: SHORT_LOOP_ERASE.duration, centralHold: 0.12, centralLower: 0.40, centralErase: 0.40, centralInterval: 0.12, corridorGap: 0.009 } as const
 /** 分离随机流，调整时序不改变静态构型。所有概率均为展示参数，不是观测统计。 */
 const random = (seed: number, salt: number) => {
   let n = ((seed * 0xffffffff) >>> 0) ^ Math.imul(salt, 0x9e3779b9)
@@ -24,16 +25,17 @@ export interface FamilyEvolution {
   approach: number
   contact: number
   finish: number
+  sides: [ShortLoopPlan, ShortLoopPlan]
 }
 
-/** 只用于重组生成的三条短环，参数按种子生成一次；非磁能测量值。 */
-export function createReorganizationRecoil(plan: FamilyEvolution, branch: number) {
-  const central = branch === 3
+/** 中央保留较弱的解析脉冲响应；两侧改用耦合形变。 */
+export function createCentralRecoil(plan: FamilyEvolution) {
+  const branch = 3
   return createShortRecoil({
-    start: plan.contact + LOCAL_RECONNECTION.exchange + (central ? 0.40 : 0.15) + 0.035 * random(plan.seed, 80 + branch),
-    period: (0.44 + 0.10 * random(plan.seed, 90 + branch) + (branch === 2 ? 0.055 : 0)) * (central ? 0.82 : 1),
-    decay: (1.5 + 0.25 * random(plan.seed, 100 + branch)) * (central ? 1.5 : 0.75),
-    amplitude: (0.12 + 0.03 * random(plan.seed, 110 + branch)) * (central ? 0.45 : 2),
+    start: plan.contact + LOCAL_RECONNECTION.exchange + 0.40 + 0.035 * random(plan.seed, 80 + branch),
+    period: (0.44 + 0.10 * random(plan.seed, 90 + branch)) * 0.82,
+    decay: (1.5 + 0.25 * random(plan.seed, 100 + branch)) * 1.5,
+    amplitude: (0.12 + 0.03 * random(plan.seed, 110 + branch)) * 0.45,
     skewSign: random(plan.seed, 120 + branch) < 0.5 ? -1 : 1,
   })
 }
@@ -51,9 +53,10 @@ export function createMagneticEvolution(families: readonly ProminenceFamily[], d
     const background = random(family.seed, 5), draw = random(family.seed, 6)
     const probability = i === dominant ? 0.72 * ease((family.width * 2 - 0.7) / 1.7) * (0.35 + 0.65 * background) : 0
     const contact = decay + (end - decay) * (0.55 + 0.07 * random(family.seed, 7))
+    const sides = createShortLoopPlans(family.seed, contact + LOCAL_RECONNECTION.exchange, family.strands)
     return { seed: family.seed, strands: family.strands, timing, background, probability, draw, reorganizes: draw < probability,
-      approach: contact - LOCAL_RECONNECTION.approach, contact,
-      finish: contact + LOCAL_RECONNECTION.exchange + LOCAL_RECONNECTION.settle + LOCAL_RECONNECTION.hold + (family.strands - 1) * LOCAL_RECONNECTION.strandInterval + LOCAL_RECONNECTION.collapse }
+      approach: contact - LOCAL_RECONNECTION.approach, contact, sides,
+      finish: Math.max(...sides.map(side => side.finish)) }
   })
 }
 
@@ -63,25 +66,18 @@ export function evolutionPhase(plan: FamilyEvolution, age: number) {
     if (age < plan.contact) return '短环预生长'
     if (age < plan.contact + LOCAL_RECONNECTION.exchange) return '整束交接'
     if (age < plan.contact + LOCAL_RECONNECTION.exchange + LOCAL_RECONNECTION.settle) return '短环定形'
-    if (age < shortRetirementStart(plan)) return '两侧振荡上抬'
-    if (age < shortRetirementStart(plan) + LOCAL_RECONNECTION.bundleFall) return '两侧整束回落'
+    if (age < Math.min(...plan.sides.map(side => side.fallStart))) return '两侧柔性鼓胀'
+    if (age < Math.max(...plan.sides.map(side => side.fallStart + side.fallDuration))) return '左右错峰回落'
     return '低拱整体收拢与擦除'
   }
   return createMagneticLifecycle(plan.timing.end, 0, false, plan.timing).advanceTo(age).phase
 }
 
 export const SHORT_JOIN = { mainLeft: 0.42, mainRight: 0.58, left: 0.62, right: 0.38 } as const
-export const shortRetirementStart = (plan: FamilyEvolution) => plan.contact + LOCAL_RECONNECTION.exchange + LOCAL_RECONNECTION.settle + LOCAL_RECONNECTION.hold
-/** 两侧共用上抬/回落包络，不含丝线层次；逐条排队只负责发光擦除。 */
-export const shortBundleLift = (plan: FamilyEvolution, age: number) => LOCAL_RECONNECTION.lift * redrawEase((age - shortRetirementStart(plan) + LOCAL_RECONNECTION.hold) / LOCAL_RECONNECTION.hold)
-export function shortBundleCollapse(plan: FamilyEvolution, age: number) {
-  const elapsed = age - shortRetirementStart(plan)
-  const fall = Math.min(LOCAL_RECONNECTION.bundleFall, (plan.finish - shortRetirementStart(plan)) * 0.75)
-  // 大部分高度快速回落，剩余低拱继续整束收拢，避免末几条丝线停在地表。
-  return 0.78 * redrawEase(elapsed / fall) + 0.22 * redrawEase((elapsed - fall) / Math.max(1e-6, plan.finish - shortRetirementStart(plan) - fall))
-}
-export const shortStrandErase = (plan: FamilyEvolution, age: number, rank: number) => {
-  const retire = (age - shortRetirementStart(plan) - rank * (plan.strands - 1) * LOCAL_RECONNECTION.strandInterval) / LOCAL_RECONNECTION.collapse
+export const shortRetirementStart = (plan: FamilyEvolution, branch: 1 | 2 = 1) => plan.sides[branch - 1].eraseStart
+/** 逐条排队仅用于发光擦除，各侧队列跟随各自的回落时序。 */
+export const shortStrandErase = (plan: FamilyEvolution, age: number, rank: number, branch: 1 | 2) => {
+  const retire = (age - shortRetirementStart(plan, branch) - rank * (plan.strands - 1) * LOCAL_RECONNECTION.strandInterval) / LOCAL_RECONNECTION.collapse
   return clamp01((retire - 0.35) / 0.65)
 }
 /** 中央只保留交错的一半层次；两侧仍保留完整丝线预算。 */
@@ -97,7 +93,7 @@ export function reorganizationProgress(plan: FamilyEvolution, age: number) {
     grow: clamp01((age - plan.approach) / LOCAL_RECONNECTION.approach),
     exchange: clamp01((age - plan.contact) / LOCAL_RECONNECTION.exchange),
     settle: clamp01((age - exchanged) / LOCAL_RECONNECTION.settle),
-    collapse: shortBundleCollapse(plan, age),
+    collapse: (shortLoopCollapse(plan.sides[0], age) + shortLoopCollapse(plan.sides[1], age)) / 2,
   }
 }
 
@@ -136,7 +132,7 @@ export function reorganizationRedraw(plan: FamilyEvolution, age: number, rank: n
   if (branch === 3) {
     return visible * (1 - traceFront(centralStrandErase(plan, age, rank), arc, direction))
   }
-  return visible * (1 - traceFront(shortStrandErase(plan, age, rank), arc, direction))
+  return visible * (1 - traceFront(shortStrandErase(plan, age, rank, branch as 1 | 2), arc, direction))
 }
 
 type Sampler = (s: number, strand: number, out: Vector3) => Vector3
@@ -148,8 +144,9 @@ export function createLocalReconnection(plan: FamilyEvolution, strands: number[]
   const selected = new Set(strands), regions = new Map<number, Vector3[]>()
   const anchors = new Map<number, Vector3[]>()
   const heights = new Map<number, number>()
-  const recoils = [1, 2, 3].map(branch => createReorganizationRecoil(plan, branch))
-  let motionAge = NaN, bundleLift = 0, bundleCollapse = 0
+  const centralRecoil = createCentralRecoil(plan)
+  const motions = plan.sides.map(side => createShortLoopMotion(side))
+  const profile = { x: 0, y: 0, z: 0 }, sideAxis = new Vector3(), target = new Vector3()
   const left = new Vector3(), right = new Vector3(), chord = new Vector3(), tangent = new Vector3(), smooth = new Vector3()
   const origin = new Vector3(), end = new Vector3(), axis = new Vector3(), guide = new Vector3()
   for (const strand of strands) {
@@ -211,10 +208,6 @@ export function createLocalReconnection(plan: FamilyEvolution, strands: number[]
   }
   function sample(s: number, strand: number, branch: number, age: number, out: Vector3) {
     if (branch === 0) return sampleMain(s, strand, out)
-    if (age !== motionAge) {
-      motionAge = age
-      bundleLift = shortBundleLift(plan, age); bundleCollapse = shortBundleCollapse(plan, age)
-    }
     // 预生长之前三条短环完全不可见，不为整个自然生命周期计算空间约束。
     const confined = age >= plan.approach
     if (confined) updateGuides(age)
@@ -269,22 +262,30 @@ export function createLocalReconnection(plan: FamilyEvolution, strands: number[]
     // 平滑低拱是移动的平衡轮廓；在其上叠加衰减响应，保留整束层次。
     const rank = rankOf(strand)
     const height = heights.get(strand)! * (branch === 1 ? 0.68 : branch === 3 ? 0.55 : 0.90) * (1 - 0.22 * rank)
+    if (branch !== 3) {
+      const motion = motions[branch - 1]
+      shortLoopProfile(s, rank, motion.plan, motion.sample(age), profile)
+      sideAxis.subVectors(b, a); sideAxis.y = 0; sideAxis.normalize()
+      target.copy(a).lerp(b, profile.x)
+      target.y += height * profile.y
+      target.x -= sideAxis.z * height * profile.z
+      target.z += sideAxis.x * height * profile.z
+      out.lerp(target, redrawEase((age - exchanged) / LOCAL_RECONNECTION.settle))
+      return confined ? confine(s, branch, out) : out
+    }
     smooth.copy(chord); smooth.y += Math.sin(Math.PI * s) * height
-    // 两侧离平衡轮廓越远，张力释放的展示响应越强；中央不使用这一增益。
-    const recoilGain = age > exchanged && branch !== 3 ? 1 + 0.5 * redrawEase(out.distanceTo(smooth) / Math.max(1e-6, 4 * height)) : 1
-    const settle = branch === 3 ? (age - centralStrandStart(plan, rank)) / LOCAL_RECONNECTION.centralLower : (age - exchanged) / LOCAL_RECONNECTION.settle
+    const settle = (age - centralStrandStart(plan, rank)) / LOCAL_RECONNECTION.centralLower
     out.lerp(smooth, redrawEase(settle))
-    if (branch !== 3) out.y += Math.sin(Math.PI * s) ** 2 * height * bundleLift
     if (age > exchanged) {
       // 同束共用模态，不对每根丝线加入独立随机抖动；足点的位移和切向扰动为零。
-      const recoil = recoils[branch - 1].sample(age)
-      const envelope = Math.sin(Math.PI * s) ** 2 * height * redrawEase(settle) * recoilGain
+      const recoil = centralRecoil.sample(age)
+      const envelope = Math.sin(Math.PI * s) ** 2 * height * redrawEase(settle)
       out.y += envelope * (recoil.height + recoil.skew * Math.cos(Math.PI * s))
       out.addScaledVector(axis, envelope * 0.65 * recoil.skew)
       out.x -= axis.z * envelope * 0.25 * recoil.skew
       out.z += axis.x * envelope * 0.25 * recoil.skew
     }
-    const collapse = branch === 3 ? redrawEase(centralStrandErase(plan, age, rank) ** 2) : bundleCollapse
+    const collapse = redrawEase(centralStrandErase(plan, age, rank) ** 2)
     out.sub(chord).multiplyScalar(1 - 0.97 * collapse).add(chord)
     return confined ? confine(s, branch, out) : out
   }
