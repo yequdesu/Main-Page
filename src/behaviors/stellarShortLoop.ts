@@ -44,11 +44,11 @@ export function createShortLoopPlans(seed: number, start: number, strands: numbe
     const pulses = Array.from({ length: count }, (_, i) => {
       const p = (salt: number) => random(seed, 400 + side * 100 + i * 10 + salt)
       return { start: start + 0.03 + (i + 0.65 * p(0)) / count * (fallStart - start + fallDuration * 0.2),
-        duration: 0.09 + 0.19 * p(1), force: (p(2) < 0.5 ? -1 : 1) * (0.12 + 0.26 * p(3)), tuning: 2 * p(4) - 1 }
+        duration: 0.24 + 0.18 * p(1), force: (p(2) < 0.5 ? -1 : 1) * (0.045 + 0.075 * p(3)), tuning: 2 * p(4) - 1 }
     })
     return { start, riseStart: start + 0.24 + 0.10 * r(2), fallStart, fallDuration, eraseStart,
       finish: eraseStart + eraseBudget, lift: 0.40 + 0.30 * r(3),
-      period: 0.46 + 0.22 * r(4), damping: 0.18 + 0.10 * r(5), kick: (r(13) < 0.5 ? -1 : 1) * (0.18 + 0.18 * r(6)),
+      period: 0.72 + 0.24 * r(4), damping: 0.38 + 0.12 * r(5), kick: (r(13) < 0.5 ? -1 : 1) * (0.08 + 0.08 * r(6)),
       phase: 2 * Math.PI * r(7), secondaryPhase: 2 * Math.PI * r(8),
       shoulderLag: 0.66 + 0.20 * r(9), shapeBias: (r(10) - 0.5) * 0.22, layerBias: r(11) * Math.PI * 2, pulses }
   }) as [ShortLoopPlan, ShortLoopPlan]
@@ -74,12 +74,13 @@ export function createShortLoopMotion(plan: ShortLoopPlan) {
   const step = 1 / 120, count = Math.ceil((plan.finish - plan.start) / step) + 1
   const table = new Float64Array(count * 4), q = new Float64Array(4), velocity = new Float64Array(4)
   const omega = 2 * Math.PI / plan.period
-  const rates = [omega, omega * plan.shoulderLag, omega * 0.79, omega * 0.61]
+  // 高度放慢后，两肩仍需及时承接回落，避免迟迟不展开。
+  const rates = [omega, omega * plan.shoulderLag * 1.5, omega * 0.79, omega * 0.61]
   const damping = [plan.damping, 0.34, 0.30, 0.38]
   const targets = new Float64Array(4)
   for (let i = 1; i < count; i++) {
     const age = plan.start + i * step, t = age - plan.start
-    const gate = redrawEase(t / 0.15) * (1 - redrawEase((age - plan.fallStart) / plan.fallDuration))
+    const gate = redrawEase(t / 0.24) * (1 - redrawEase((age - plan.fallStart) / plan.fallDuration))
     let impulse = 0, tuning = 0
     for (const pulse of plan.pulses) {
       const u = (age - pulse.start) / pulse.duration
@@ -93,9 +94,10 @@ export function createShortLoopMotion(plan: ShortLoopPlan) {
     targets[2] = gate * (plan.shapeBias + 0.24 * Math.sin(omega * 0.72 * t + plan.secondaryPhase)) + 0.05 * velocity[1]
     targets[3] = 0.72 * q[1] + gate * 0.18 * Math.sin(omega * 0.91 * t + plan.phase)
     for (let k = 0; k < 4; k++) {
-      const force = k === 0 ? omega * omega * (-plan.kick * Math.exp(-t / 0.13) + gate * impulse) : 0
-      // 回落期提高高度响应速率，两肩保留自己的迟滞，避免整束悬停在高处。
-      const rate = rates[k] * (k === 0 ? (1 + 0.5 * redrawEase((age - plan.fallStart) / 0.18)) * (1 + 0.18 * Math.tanh(tuning)) : 1)
+      const force = k === 0 ? omega * omega * (-plan.kick * redrawEase(t / 0.16) * Math.exp(-t / 0.24) + gate * impulse) : 0
+      // 回弹采用更慢、阻尼更强的响应；回落时平滑接近目标，避免延长悬停。
+      const fallBlend = redrawEase((age - plan.fallStart) / 0.30)
+      const rate = k === 0 ? (omega + (14 - omega) * fallBlend) * (1 + 0.07 * Math.tanh(tuning)) : rates[k]
       const acceleration = rate ** 2 * (targets[k] - q[k]) - 2 * damping[k] * rate * velocity[k] + force
       velocity[k] += acceleration * step
       q[k] += velocity[k] * step

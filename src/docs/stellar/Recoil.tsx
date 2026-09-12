@@ -41,7 +41,7 @@ export default function Recoil({ plan, age, seek }: { plan: FamilyEvolution; age
       {[0, 0.25, 0.5, 0.75, 1].map(f => <text key={f} x={24 + f * 552} y="156" textAnchor={f === 0 ? 'start' : f === 1 ? 'end' : 'middle'}>+{(f * duration).toFixed(1)} s</text>)}
     </svg>
     <div className="family-states">{plan.sides.map((side, i) => <span key={i} style={{ color: colors[i] }}>{labels[i]} · {(side.fallStart - start).toFixed(2)} s 开始回落 · 用时 {side.fallDuration.toFixed(2)} s</span>)}</div>
-    <p>虚线是目标升降趋势，实线是拱顶对目标的实际响应；彩色竖线标记各自的回落起点。每侧另有 3–5 次不规则脉冲：出现时刻、方向、持续时间与强弱分别取样，还会短暂改变回弹速度。轮廓带着惯性响应，初始回弹方向也随种子改变。</p>
+    <p>虚线是目标升降趋势，实线是拱顶对目标的实际响应；彩色竖线标记各自的回落起点。每侧另有 3–5 次不规则脉冲：出现时刻、方向、持续时间与强弱分别取样。推压更宽缓、力度更轻，配合较慢的回弹和较强的阻尼，让升降更柔和；响应速率只轻微漂移。左右保留各自的惯性与形变，初始回弹方向也随种子改变。</p>
     <svg className="recoil-chart" viewBox="0 0 600 85" role="img" aria-label="左右不规则脉冲序列：向上的短线为上推，向下为下压">
       {plan.sides.map((side, b) => <g key={b}>
         <path d={'M24 ' + (20 + b * 40) + 'H576'} stroke="#344352" />
