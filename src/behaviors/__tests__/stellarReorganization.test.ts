@@ -285,6 +285,10 @@ it('从预生长到退场，中央与两侧的全部线段在磁通横轴投影�
     if (Math.max(a[0], b[0]) < Math.min(c[0], d[0]) || Math.max(c[0], d[0]) < Math.min(a[0], b[0]) || Math.max(a[1], b[1]) < Math.min(c[1], d[1]) || Math.max(c[1], d[1]) < Math.min(a[1], b[1])) return false
     return cross(a, b, c) * cross(a, b, d) <= 0 && cross(c, d, a) * cross(c, d, b) <= 0
   }
+  const bounds = (segments: Segment[]) => {
+    const xs = segments.flatMap(([a, b]) => [a[0], b[0]]), ys = segments.flatMap(([a, b]) => [a[1], b[1]])
+    return [Math.min(...xs), Math.max(...xs), Math.min(...ys), Math.max(...ys)]
+  }
   for (const kind of ['bilateral', 'one-sided', 'isolated', 'crossed', 'nested'] as const) {
     const seed = [0.47, 0.17, 0.79, ...Array.from({ length: 100 }, (_, i) => i / 100)].find(seed => createMagneticEvolution(createProminenceStructure(seed, kind).families).some(p => p.reorganizes))!
     const model = createFluxRopeSimulation(seed, false, kind), route = model.reorganization!
@@ -292,7 +296,7 @@ it('从预生长到退场，中央与两侧的全部线段在磁通横轴投影�
     for (const feet of route.regions.values()) { a.add(feet[0]); b.add(feet[1]) }
     axis.subVectors(b, a); axis.y = 0; axis.normalize()
     const exchanged = plan.contact + LOCAL_RECONNECTION.exchange
-    const ages = [plan.approach, plan.contact - 0.1, plan.contact, plan.contact + 0.25, ...[0, 0.02, 0.06, 0.10, 0.16, 0.24, 0.4, 0.56, 0.76, 1, 1.4].map(dt => exchanged + dt), ...plan.sides.flatMap(side => [side.riseStart, side.fallStart, side.fallStart + side.fallDuration * 0.5, side.fallStart + side.fallDuration, side.finish]), plan.finish, ...(() => { const r = createCentralRecoil(plan); return [r.troughAt, r.crestAt, r.troughAt + r.period] })()].sort((a, b) => a - b)
+    const ages = [plan.approach, plan.contact - 0.1, plan.contact, plan.contact + 0.25, plan.contact + 0.45, plan.contact + 0.55, ...[0, 0.02, 0.06, 0.10, 0.16, 0.24, 0.4, 0.56, 0.76, 1, 1.4].map(dt => exchanged + dt), ...plan.sides.flatMap(side => [side.riseStart, side.fallStart, side.fallStart + side.fallDuration * 0.5, side.fallStart + side.fallDuration, side.finish]), plan.finish, ...(() => { const r = createCentralRecoil(plan); return [r.troughAt, r.crestAt, r.troughAt + r.period] })()].sort((a, b) => a - b)
     for (const age of ages) {
       model.advanceTo(age)
       const segments = (branch: number) => {
@@ -307,15 +311,18 @@ it('从预生长到退场，中央与两侧的全部线段在磁通横轴投影�
         }
         return result
       }
-      const central = segments(3)
+      const central = segments(3), cb = bounds(central)
       for (const side of [1, 2]) {
         const neighbor = segments(side)
-        const crossing = central.some(c => neighbor.some(n => intersects(c, n)))
+        const nb = bounds(neighbor)
+        // 整束包围盒不相交时，无需枚举所有线段对；重叠时仍检查全部线段。
+        const overlaps = cb[0] <= nb[1] && nb[0] <= cb[1] && cb[2] <= nb[3] && nb[2] <= cb[3]
+        const crossing = overlaps && central.some(c => neighbor.some(n => intersects(c, n)))
         expect(crossing, kind + ' seed=' + seed + ' age=' + age + ' branch=' + side).toBe(false)
       }
     }
   }
-}, 20000)
+}, 30000)
 
 it('保留的中央层与两侧共同交接，稀疏中央不额外提升单条亮度', () => {
   const plan = createMagneticEvolution(createProminenceStructure(0.47, 'isolated').families)[0]

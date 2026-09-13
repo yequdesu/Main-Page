@@ -1,4 +1,5 @@
 import { Vector3 } from 'three'
+import { createCmeRotation } from './cmeRotation'
 import { createCmeDissolution } from './stellarEjection'
 import { createMagneticLifecycle, MAGNETIC_LIFETIME, CME_ARCADE_RETREAT_DURATION } from './stellarLifecycle'
 import { createProminenceStructure, type ProminenceFamily, type ProminenceMorphology } from './stellarMorphology'
@@ -34,10 +35,12 @@ export const PLASMA_COUNT = PLASMA.strands * PLASMA.parcelsPerStrand
 const fract = (v: number) => v - Math.floor(v)
 
 /** 沿动态磁结构输运；原连接、上升闭合支和日面拱廊各自拥有密度与边界条件。 */
-export function createFluxRopeSimulation(seed: number, eruptive: boolean, morphology?: ProminenceMorphology | null, duration = MAGNETIC_LIFETIME) {
+export function createFluxRopeSimulation(seed: number, eruptive: boolean, morphology?: ProminenceMorphology | null, duration = MAGNETIC_LIFETIME, rotationEnabled = true) {
   const torus: TorusState = { radius: 1, velocity: 0.005 }
   const lifecycle = createMagneticLifecycle(duration, seed, eruptive)
-  const shape = createMagneticDeformation(seed, lifecycle)
+  const rotation = eruptive ? createCmeRotation(seed, rotationEnabled) : null
+  const shape = createMagneticDeformation(seed, lifecycle, rotation?.plan.handedness ?? 1)
+  rotation?.update(torus.radius, shape)
   const structure = eruptive
     ? { kind: 'eruption' as const, companion: null, families: [{ seed, sourceKind: 'eruption' as const, width: shape.span, height: shape.height, offsetX: 0, offsetZ: 0, yaw: 0, strands: MAGNETIC.strands }] }
     : createProminenceStructure(seed, morphology)
@@ -106,6 +109,7 @@ export function createFluxRopeSimulation(seed: number, eruptive: boolean, morpho
       target.x = footX + (target.x - footX) * (1 - 0.9 * relax)
       target.z = footZ + (target.z - footZ) * (1 - 0.9 * relax)
     }
+    rotation?.apply(target)
     target.x *= scaleX; target.y *= scaleY; target.z *= Math.sqrt(scaleX * scaleY)
     const x = target.x, z = target.z, angle = family.yaw
     target.x = x * Math.cos(angle) - z * Math.sin(angle) + family.offsetX
@@ -218,6 +222,7 @@ export function createFluxRopeSimulation(seed: number, eruptive: boolean, morpho
     }
     stepTorus(torus, dt * (eruptive ? 0.92 : 0.55), decayIndex)
     for (const group of groups) group.deformation.step(dt, torus.radius, position, temperature, branches, group.first, group.end)
+    rotation?.update(torus.radius, shape)
     ejection?.step(dt, time + dt, torus.radius, sampleUpper)
     switchConnections()
     fillDensity()
@@ -298,7 +303,7 @@ export function createFluxRopeSimulation(seed: number, eruptive: boolean, morpho
   }
   fillDensity(); writePositions()
   return {
-    branchCount, arcLengths, torus, ejection, lifecycle, evolution, reorganization, shape: groups[0].deformation, structure, decayIndex, position, velocity, branches, temperature, density, centers, tangents, curveData, curveOpacity, redrawData, parcelVisibility, strandRanks, strandDirections, strandGenerations, renewals: groups.map(g => g.renewal), sample,
+    branchCount, arcLengths, torus, ejection, lifecycle, rotation, evolution, reorganization, shape: groups[0].deformation, structure, decayIndex, position, velocity, branches, temperature, density, centers, tangents, curveData, curveOpacity, redrawData, parcelVisibility, strandRanks, strandDirections, strandGenerations, renewals: groups.map(g => g.renewal), sample,
     advanceTo(age: number) {
       const target = Math.min(eruptive ? 13 : duration, age)
       while (time + PLASMA.step <= target + 1e-9) integrate()

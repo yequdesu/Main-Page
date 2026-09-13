@@ -12,13 +12,14 @@ export interface CmePreviewProps {
   playback: { playing: boolean; seek: number | null }
   speed: number
   artistic: boolean
+  rotation: boolean
   mist: number
   view: 'wide' | 'close' | 'oblique' | 'drift'
   revision: number
   onTime: (age: number) => void
   onEnd: () => void
 }
-function Scene({ seed, playback, speed, artistic, mist, view, revision, onTime, onEnd }: CmePreviewProps) {
+function Scene({ seed, playback, speed, artistic, rotation, mist, view, revision, onTime, onEnd }: CmePreviewProps) {
   const { camera, size, invalidate } = useThree()
   const channels = useMemo(createStellarActivityChannels, [])
   const asset = useMemo(() => createStellarActivity(channels), [channels])
@@ -28,6 +29,7 @@ function Scene({ seed, playback, speed, artistic, mist, view, revision, onTime, 
   useEffect(() => () => asset.dispose(), [asset])
   useEffect(() => { channels.cme.seed = seed; channels.cme.opacity = 1; reported.current = -1; invalidate() }, [seed, channels, invalidate])
   useEffect(() => { if (playback.seek !== null) age.current = playback.seek; reported.current = -1; invalidate() }, [playback, invalidate])
+  useEffect(() => { asset.setCmeRotation(rotation); invalidate() }, [asset, rotation, invalidate])
   useEffect(() => { asset.setEjectionAppearance(artistic, mist); invalidate() }, [asset, artistic, mist, invalidate])
   useEffect(() => {
     const c = camera as OrthographicCamera

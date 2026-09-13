@@ -1,9 +1,83 @@
 import { expect, it, vi } from 'vitest'
-import { Mesh, ShaderMaterial } from 'three'
+import { Mesh, ShaderMaterial, Vector3 } from 'three'
 import { createStellarActivity } from '../assets/stellarActivity'
-import { createStellarActivityChannels } from '../../behaviors/stellarActivity'
-import { getStructureLayout } from '../../behaviors/structureLayout'
+import { createStellarActivityChannels, createStellarLimbFrame } from '../../behaviors/stellarActivity'
+import { getStructureLayout, STRUCTURE_LAYOUT } from '../../behaviors/structureLayout'
+import { createProminencePlacement } from '../../behaviors/stellarPlacement'
+import { createProminenceStructure } from '../../behaviors/stellarMorphology'
 import { createFluxRopeSimulation } from '../../behaviors/stellarPlasma'
+
+it('随机摆放作用于整个普通活动区，保持日面法线、内部路径、次通道比例和局部预览', () => {
+  const channels = createStellarActivityChannels(), asset = createStellarActivity(channels)
+  const frame = createStellarLimbFrame(), anchor = new Vector3(), tangent = new Vector3(), normal = new Vector3()
+  const layout = getStructureLayout(16 / 9), seed = 0.79, placement = createProminencePlacement(seed)
+  const u = (asset.root.getObjectByName('日珥弧丝_0') as Mesh<never, ShaderMaterial>).material.uniforms
+  const second = (asset.root.getObjectByName('日珥弧丝_1') as Mesh<never, ShaderMaterial>).material.uniforms
+  const cme = (asset.root.getObjectByName('日冕抛射弧丝') as Mesh<never, ShaderMaterial>).material.uniforms
+  for (const c of [...channels.prominences, channels.cme]) Object.assign(c, { opacity: 1, age: 1, seed, position: 0.4, morphology: 'bilateral' })
+  try {
+    asset.layoutLocal(800, 500, 6); asset.update()
+    const paths = u.uCurves.value.image.data.slice()
+    asset.layout(layout, 1280, 720); asset.update()
+    frame.layout(layout); frame.sample(0.4, anchor, tangent, normal)
+    expect(u.uAnchor.value.distanceTo(anchor)).toBeLessThan(1e-10)
+    expect(u.uNormal.value.distanceTo(normal)).toBeLessThan(1e-10)
+    expect(u.uTangent.value.dot(normal)).toBeCloseTo(0, 12)
+    expect(u.uTangent.value.length()).toBeCloseTo(1, 12)
+    expect(u.uTangent.value.dot(tangent)).toBeCloseTo(Math.cos(placement.azimuth), 12)
+    expect(u.uCurves.value.image.data).toEqual(paths)
+    const d = STRUCTURE_LAYOUT.cameraZ - STRUCTURE_LAYOUT.planeZ
+    const scale = Math.min(layout.width * 0.028, layout.height * 0.050) * placement.scale * (d - anchor.z) / d
+    expect(u.uScale.value).toBeCloseTo(scale, 12)
+    expect(second.uScale.value / scale).toBeCloseTo(0.58, 12)
+    for (const branch of [1, 2, 3]) {
+      const short = asset.root.getObjectByName(`日珥重绘短环_0_${branch}`) as Mesh<never, ShaderMaterial>
+      expect(short.material.uniforms.uTangent).toBe(u.uTangent)
+      expect(short.material.uniforms.uScale).toBe(u.uScale)
+    }
+    expect(cme.uTangent.value.distanceTo(tangent)).toBeLessThan(1e-10)
+    const saved = u.uTangent.value.clone()
+    channels.prominences[0].age = 1.1; asset.update()
+    expect(u.uTangent.value.distanceTo(saved)).toBeLessThan(1e-10)
+    asset.layout(getStructureLayout(0.5), 400, 800); asset.update()
+    asset.layout(layout, 1280, 720); asset.update()
+    expect(u.uTangent.value.distanceTo(saved)).toBeLessThan(1e-10)
+    asset.layoutLocal(800, 500, 6); asset.update()
+    expect(u.uTangent.value.toArray()).toEqual([1, 0, 0]); expect(u.uScale.value).toBe(1)
+    channels.prominences[0].age = 1; asset.update()
+    expect(u.uCurves.value.image.data).toEqual(paths)
+  } finally { asset.dispose() }
+})
+
+it('首次创建、换主类型和换伴随类型都根据实际环系选择低簇尺寸分布', () => {
+  const channels = createStellarActivityChannels(), channel = channels.prominences[0]
+  Object.assign(channel, { opacity: 1, age: 0, seed: 0.47, morphology: 'cluster' })
+  const asset = createStellarActivity(channels), layout = getStructureLayout(16 / 9)
+  const u = (asset.root.getObjectByName('日珥弧丝_0') as Mesh<never, ShaderMaterial>).material.uniforms
+  try {
+    asset.layout(layout, 1280, 720)
+    for (const [kind, seed, lowCluster] of [['cluster', 0.47, true], ['nested', 0.47, false], ['nested', 0.79, true], ['bilateral', 0.79, false]] as const) {
+      Object.assign(channel, { morphology: kind, seed })
+      asset.update()
+      const structure = createProminenceStructure(seed, kind)
+      expect(structure.kind === 'cluster' || structure.companion === 'cluster').toBe(lowCluster)
+      const expected = createProminencePlacement(seed, structure)
+      const distance = STRUCTURE_LAYOUT.cameraZ - STRUCTURE_LAYOUT.planeZ
+      const baseline = Math.min(layout.width * 0.028, layout.height * 0.050) * (distance - u.uAnchor.value.z) / distance
+      expect(u.uScale.value / baseline).toBeCloseTo(expected.scale, 12)
+      if (lowCluster) {
+        expect(u.uScale.value / baseline).toBeGreaterThanOrEqual(0.85)
+        expect(u.uScale.value / baseline).toBeLessThanOrEqual(1.05)
+      } else expect(expected).toEqual(createProminencePlacement(seed))
+    }
+    channel.morphology = 'cluster'; asset.update()
+    const scale = u.uScale.value
+    asset.layoutLocal(800, 500, 6); asset.update()
+    expect(u.uScale.value).toBe(1)
+    asset.layout(layout, 1280, 720); asset.update()
+    expect(u.uScale.value).toBeCloseTo(scale, 12)
+  } finally { asset.dispose() }
+})
 
 it('局部预览复用路径和材质，换类型/回退重建模型，恢复场景布局且释放资源', () => {
   const channels = createStellarActivityChannels(), asset = createStellarActivity(channels)
@@ -195,5 +269,30 @@ it('喷发结束和下一次同种子事件不清空尾迹，300 秒到期后按
     expect(tail.geometry.instanceCount).toBe(firstCount)
     tick(332, 311, 0)
     expect(tail.geometry.instanceCount).toBe(0)
+  } finally { asset.dispose() }
+})
+
+
+it('旋扭对照按当前年龄重放，复用纹理并重建尾迹，重新开启恢复同一结果', () => {
+  const channels = createStellarActivityChannels(), asset = createStellarActivity(channels)
+  Object.assign(channels.cme, { opacity: 1, seed: 0.47, age: 10 })
+  const arc = asset.root.getObjectByName('日冕抛射弧丝') as Mesh<never, ShaderMaterial>
+  const tail = asset.root.getObjectByName('CME 长寿命尾迹') as Mesh<import('three').InstancedBufferGeometry, ShaderMaterial>
+  try {
+    asset.layoutLocal(800, 500, 6); asset.update()
+    const texture = arc.material.uniforms.uCurves.value
+    const path = texture.image.data.slice()
+    const count = tail.geometry.instanceCount
+    const positions = tail.geometry.getAttribute('aCenter').array.slice(0, count * 3)
+    asset.setCmeRotation(false); asset.update()
+    expect(arc.material.uniforms.uCurves.value).toBe(texture)
+    expect(texture.image.data).not.toEqual(path)
+    const reference = createFluxRopeSimulation(0.47, true, undefined, undefined, false)
+    reference.advanceTo(10)
+    expect(texture.image.data).toEqual(reference.curveData)
+    asset.setCmeRotation(true); asset.update()
+    expect(texture.image.data).toEqual(path)
+    expect(tail.geometry.instanceCount).toBe(count)
+    expect(tail.geometry.getAttribute('aCenter').array.slice(0, count * 3)).toEqual(positions)
   } finally { asset.dispose() }
 })

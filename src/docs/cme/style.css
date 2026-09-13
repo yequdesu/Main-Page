@@ -4,3 +4,5 @@
 @media(max-width:480px){.cme-doc .preview{height:370px}.cme-doc .view-picker{top:72px;left:17px;right:auto}.cme-doc .explanation{padding:22px 18px}.cme-stages{grid-template-columns:1fr}.cme-stages h3{margin:8px 0}.cme-stages .stage-action{margin-top:10px}.cme-doc .legend{gap:8px}.cme-doc .legend label{margin-left:0}.formula-block pre{font-size:10px}.modes button{padding:8px 12px}.cme-toolbar{padding:12px 16px}}
 
 .tail-transport{display:flex;align-items:center;flex-wrap:wrap;gap:8px;padding:10px 20px;color:var(--muted);font-size:11px}.tail-transport button{padding:6px 10px;font-size:11px}
+
+.rotation-control{padding:14px;border:1px solid var(--line);border-radius:6px;margin-top:20px;background:#111b27}.rotation-control label{font-size:12px;color:#d9dfe6}.rotation-control output{float:right;color:var(--gold);font:12px monospace}.rotation-control p{font-size:11px;line-height:1.8}.rotation-control button{font-size:11px;padding:8px 12px}

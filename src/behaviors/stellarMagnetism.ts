@@ -19,7 +19,7 @@ export function magneticSourceCoordinate(s: number, branch: MagneticBranch) {
 }
 
 /** 线性化张力的低阶模态，叠加在径向失稳参考轴上；不是完整的磁场方程求解器。 */
-export function createMagneticDeformation(seed: number, lifecycle?: MagneticLifecycle) {
+export function createMagneticDeformation(seed: number, lifecycle?: MagneticLifecycle, handedness = 1) {
   const displacement = new Float64Array(MAGNETIC.modes * 3), velocity = new Float64Array(displacement.length)
   const force = new Float64Array(displacement.length)
   const evaluated = new Float64Array(6)
@@ -32,7 +32,7 @@ export function createMagneticDeformation(seed: number, lifecycle?: MagneticLife
   }
   const span = 0.72 + 0.70 * fract(seed * 3.17)
   const height = 0.76 + 0.53 * fract(seed * 7.13)
-  const twist = 0.55 + 0.80 * fract(seed * 5.71)
+  const twist = handedness * (0.55 + 0.80 * fract(seed * 5.71))
   // 启用生命周期时，从中性轮廓出发。参考轮廓积分驱动历史，不能预先抽取最终拱顶。
   const roof = lifecycle ? [1.35, 0, 0.09, 0.5, 0.15] : [
     1.0 + 0.9 * fract(seed * 9.23), 0.65 * (fract(seed * 6.41) - 0.5),
@@ -169,7 +169,7 @@ export function sampleMagneticStrand(s: number, strand: number, radius: number, 
     const top = radius + 0.15 - 0.06 * radius * jitter
     const width = (0.68 + 0.24 * Math.max(0, radius - 2)) * (0.86 + 0.26 * jitter)
     const filament = 0.045 * radius * envelope
-    const phase = TAU * (2 * s + strand / MAGNETIC.strands + seed)
+    const phase = TAU * (Math.sign(shape?.twist ?? 1) * 2 * s + strand / MAGNETIC.strands + seed)
     const x = (-width * Math.sin(angle) * (1 + 0.13 * Math.cos(angle + seed * TAU)) + 0.08 * (seed - 0.5) * (1 - Math.cos(angle)) + filament * Math.cos(phase)) * (shape?.span ?? 1) + (shape?.component(0.5, 0) ?? 0)
     const y = (bottom + (top - bottom) * (1 - Math.cos(angle)) / 2 + filament * Math.sin(phase)) * (shape?.height ?? 1) + (shape?.component(0.5, 1) ?? 0)
     const z = shear * 0.25 + 0.15 * radius * Math.sin(angle) + filament * Math.sin(phase + 0.8) + (shape?.component(0.5, 2) ?? 0)
