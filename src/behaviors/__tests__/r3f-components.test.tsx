@@ -1,4 +1,6 @@
-import { describe, it, expect, beforeEach } from 'vitest'
+vi.mock('../../actors/VoyagerOrbiter', () => ({ default: () => null }))
+import { FocusAnimationProvider } from '../../r3f/FocusAnimationContext'
+import { describe, it, expect, beforeEach, vi } from 'vitest'
 import React from 'react'
 import ReactThreeTestRenderer from '@react-three/test-renderer'
 
@@ -8,7 +10,7 @@ import ReactThreeTestRenderer from '@react-three/test-renderer'
  * 使用 @react-three/test-renderer 的 create() + advanceFrames()
  * 验证组件挂载、场景图结构、useFrame 调用。
  *
- * 注意：涉及 document.createElement('canvas') 的组件（PlanetLabel、CentralStar、DustField）
+ * 注意：涉及 document.createElement('canvas') 的组件（CentralStar、DustField）
  * 需要 jsdom 环境。当前仅测试不需要 DOM API 的组件。
  *
  * 援引：R3F 官方 Testing 文档，@react-three/test-renderer advanceFrames()
@@ -26,7 +28,7 @@ describe('R3F Component Scene Graph', () => {
       scrollProgress: 0,
       focusedPlanetIdx: -1,
       hoveredIdx: -1,
-      overlayData: { focused: false },
+      focusStartTime: null,
     })
   })
 
@@ -136,7 +138,7 @@ describe('R3F Component Scene Graph', () => {
     const { default: OrbitRings } = await import('../../actors/OrbitRings')
 
     const renderer = await ReactThreeTestRenderer.create(
-      <OrbitRings />,
+      <FocusAnimationProvider><OrbitRings /></FocusAnimationProvider>,
     )
 
     const graph = renderer.toGraph()

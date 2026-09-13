@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="color-scheme" content="dark" />
+  <title>YeQuDesu · 交互实验目录</title>
+  <style>
+    :root { color-scheme: dark; font-family: system-ui, sans-serif; color: #dce5ef; background: #080e17; }
+    * { box-sizing: border-box; }
+    body { margin: 0; }
+    main { width: min(1080px, 100%); margin: 0 auto; padding: 64px 24px; }
+    .eyebrow { color: #c7a46e; font-size: 12px; letter-spacing: .18em; }
+    h1 { margin: 20px 0 14px; font-size: clamp(28px, 5vw, 42px); }
+    .intro { color: #9aaabd; line-height: 1.8; }
+    nav { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; margin: 40px 0; }
+    .experiment { display: flex; flex-direction: column; padding: 26px; min-height: 248px; border: 1px solid #293848; border-radius: 12px; background: #111b27; color: inherit; text-decoration: none; }
+    .experiment:hover { border-color: #c7a46e; background: #182231; }
+    .experiment:focus-visible { outline: 2px solid #edbc79; outline-offset: 4px; }
+    .tag { font-size: 11px; color: #c7a46e; letter-spacing: .1em; }
+    h2 { font-size: 20px; margin: 18px 0 10px; }
+    .experiment p { color: #a3b2c3; line-height: 1.8; font-size: 14px; margin: 0 0 28px; }
+    .action { margin-top: auto; color: #edbc79; font-size: 13px; }
+    footer { color: #75879a; font-size: 12px; line-height: 1.8; }
+    @media (max-width: 760px) { main { padding: 40px 20px; } nav { grid-template-columns: 1fr; gap: 14px; margin: 28px 0; } .experiment { min-height: 0; padding: 22px; } }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <p class="eyebrow">YEQUDESU / INTERACTIVE EXPERIMENTS</p>
+      <h1>交互实验目录</h1>
+      <p class="intro">通过三维预览、动画和可调参数，观察场景中的形态与运动。</p>
+    </header>
+    <nav aria-label="实验页面">
+      <a class="experiment" href="./actors/cme-dissolution-explainer.html?seed=0.47">
+        <span class="tag">01 / CME</span>
+        <h2>CME 粒子化逸散</h2>
+        <p>观察磁闭环转为粒子与薄雾，以及稀释后持续 300 秒的扩散尾迹。</p>
+        <span class="action">打开逸散实验 ↗</span>
+      </a>
+      <a class="experiment" href="./actors/stellar-morphology-explainer.html">
+        <span class="tag">02 / MAGNETIC ARCADES</span>
+        <h2>磁拱环结构图鉴</h2>
+        <p>用不同种子生成六类磁拱环，查看伴随组合、拱顶形态与动态变化。</p>
+        <span class="action">打开结构图鉴 ↗</span>
+      </a>
+      <a class="experiment" href="./actors/pbd-layout-explainer.html">
+        <span class="tag">03 / PBD LAYOUT</span>
+        <h2>行星标签布局</h2>
+        <p>调整约束与布局参数，通过公式和 SVG 动画理解 PBD 求解过程。</p>
+        <span class="action">打开布局实验 ↗</span>
+      </a>
+    </nav>
+    <footer>三维实验需要支持 WebGL 的浏览器。进入实验后，可使用页面内的播放与参数控件。</footer>
+  </main>
+</body>
+</html>

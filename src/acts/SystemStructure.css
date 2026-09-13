@@ -1,0 +1,27 @@
+.system-structure { position: fixed; inset: 0; z-index: 6; color: var(--color-brand-line1); pointer-events: none; }
+.system-structure-heading { position: absolute; left: 24%; top: 11%; }
+.system-structure-kicker { font: 10px/1.5 'SF Mono', monospace; letter-spacing: .2em; opacity: .55; }
+.system-structure-heading h1 { font-size: clamp(23px, 2.7vw, 40px); font-weight: 400; letter-spacing: .08em; margin: 15px 0 12px; }
+.system-structure-heading > p:last-child { font-size: 12px; opacity: .55; letter-spacing: .08em; }
+.system-structure-axis { position: absolute; top: 65%; left: 31.75%; right: 15.75%; height: 1px; background: currentColor; opacity: .12; }
+.system-structure-planet { position: absolute; top: 65%; text-align: center; width: 17%; transform: translateX(-50%); }
+.system-structure-tick { display: block; height: 8px; border-left: 1px solid currentColor; margin-left: 50%; opacity: .3; }
+.system-structure-index { display: block; margin-top: 14px; font: 10px 'SF Mono', monospace; opacity: .4; letter-spacing: .14em; }
+.system-structure-planet h2 { font-size: clamp(20px, 2.2vw, 31px); font-family: Georgia, serif; font-weight: 400; margin: 5px 0 8px; }
+.system-structure-planet p { font-size: 11px; opacity: .6; }
+.system-structure-back, .structure-next { pointer-events: auto; border: 0; background: transparent; color: var(--color-brand-line2); font-family: inherit; font-size: 11px; line-height: 1.6; cursor: pointer; padding: 12px 0; }
+.system-structure-back { position: absolute; top: 8%; right: 6%; }
+.structure-next { position: fixed; z-index: 10; right: 4%; bottom: 8%; letter-spacing: .06em; }
+.system-structure-back:hover, .structure-next:hover { color: var(--color-brand-line1); }
+.system-structure-back:focus-visible, .structure-next:focus-visible { outline: 1px solid currentColor; outline-offset: 5px; }
+@media (max-width: 600px) {
+  .system-structure-heading { left: 18%; top: 16%; }
+  .system-structure-heading h1 { font-size: 24px; }
+  .system-structure-heading > p:last-child { font-size: 11px; }
+  .system-structure-planet p { font-size: 10px; line-height: 1.6; }
+  .structure-next { bottom: 19%; }
+}
+@media (max-height: 620px) {
+  .system-structure-heading { top: 6%; }
+  .system-structure-heading h1 { font-size: 22px; margin: 6px 0; }
+}

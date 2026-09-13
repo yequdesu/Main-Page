@@ -1,6 +1,9 @@
 import { useRef, useEffect } from 'react'
+import { useFrame } from '@react-three/fiber'
 import { type Group } from 'three'
 import { SCENE_CENTER_Z } from '../r3f/ScrollRig'
+import { useScrollStore } from '../stores/scrollStore'
+import { TIMELINE } from '../composition/timeline'
 
 // Module-level ref — shared with LighthouseCapture for offscreen rendering
 export let _lighthouseGroupRef: Group | null = null
@@ -11,15 +14,28 @@ export let _lighthouseGroupRef: Group | null = null
  * 原 LighthouseScene.vue:267-366 的 30 个 Mesh 逐行转为 R3F JSX。
  * 所有 position / rotation / scale 值逐字保留。
  *
+ * 白化完成 (sp≥WHITE_OUT_END) 后隐藏，与背景白化同步。
+ *
  * 援引：R3F 声明式场景图 — pmndrs 官方 Getting Started
  */
-export default function Lighthouse() {
+export default function Lighthouse({ standalone = false }: { standalone?: boolean }) {
   const groupRef = useRef<Group>(null)
 
   useEffect(() => {
-    _lighthouseGroupRef = groupRef.current
-    return () => { _lighthouseGroupRef = null }
-  }, [])
+    if (standalone) return
+    const registered = groupRef.current
+    _lighthouseGroupRef = registered
+    return () => { if (_lighthouseGroupRef === registered) _lighthouseGroupRef = null }
+  }, [standalone])
+
+  // 白化过渡后隐藏灯塔 — sp ≥ 0.55 时 visible=false
+  useFrame(() => {
+    if (standalone) return
+    const sp = useScrollStore.getState().scrollProgress
+    if (groupRef.current) {
+      groupRef.current.visible = sp < TIMELINE.whiteOut.end
+    }
+  })
 
   return (
     <group
@@ -27,16 +43,16 @@ export default function Lighthouse() {
       position={[0, -2.5, SCENE_CENTER_Z]}
       scale={0.7}
     >
-      {/* 地基 */}
+      {/* 地基 — 材质与塔身一致 */}
       <mesh position={[0, -0.9, 0]}>
         <cylinderGeometry args={[0.7, 0.7, 1.4, 16]} />
-        <meshStandardMaterial color="#252930" roughness={0.8} />
+        <meshStandardMaterial color="#4d535c" roughness={0.5} metalness={0.1} />
       </mesh>
 
-      {/* 遮罩 — 半透明黑色，融入背景 */}
+      {/* 遮罩 — 不透明 */}
       <mesh position={[0, -0.95, 0]}>
         <cylinderGeometry args={[0.75, 1.3, 1.6, 16]} />
-        <meshBasicMaterial color="#050811" transparent opacity={0.88} depthWrite={false} />
+        <meshBasicMaterial color="#050811" />
       </mesh>
 
       {/* 岩石底座 */}
@@ -71,11 +87,11 @@ export default function Lighthouse() {
       <group position={[0, 1.0, 0.24]} rotation={[0, 0.5, 0]}>
         <mesh>
           <boxGeometry args={[0.06, 0.12, 0.05]} />
-          <meshBasicMaterial color="#111317" />
+          <meshBasicMaterial color="#111317" fog />
         </mesh>
         <mesh>
           <boxGeometry args={[0.04, 0.10, 0.055]} />
-          <meshBasicMaterial color="#ffdf6d" />
+          <meshBasicMaterial color="#ffdf6d" fog />
         </mesh>
       </group>
 
@@ -83,11 +99,11 @@ export default function Lighthouse() {
       <group position={[0, 1.9, 0.19]} rotation={[0, -0.8, 0]}>
         <mesh>
           <boxGeometry args={[0.06, 0.12, 0.05]} />
-          <meshBasicMaterial color="#111317" />
+          <meshBasicMaterial color="#111317" fog />
         </mesh>
         <mesh>
           <boxGeometry args={[0.04, 0.10, 0.055]} />
-          <meshBasicMaterial color="#ffdf6d" />
+          <meshBasicMaterial color="#ffdf6d" fog />
         </mesh>
       </group>
 
@@ -144,7 +160,7 @@ export default function Lighthouse() {
       {/* 灯泡 */}
       <mesh position={[0, 2.96, 0]}>
         <sphereGeometry args={[0.07, 12, 12]} />
-        <meshBasicMaterial color="#ffdf6d" transparent opacity={0.55} depthWrite={false} />
+        <meshBasicMaterial color="#ffdf6d" transparent opacity={0.55} depthWrite={false} fog />
       </mesh>
 
       {/* 玻璃框架柱 ×6 */}

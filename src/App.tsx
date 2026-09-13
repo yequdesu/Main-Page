@@ -5,14 +5,23 @@ import { useGSAP } from '@gsap/react'
 import SceneCanvas from './r3f/Canvas'
 import Act1OceanVoyage from './acts/Act1OceanVoyage'
 import Act2GridTransition from './acts/Act2GridTransition'
+import Act4SystemStructure from './acts/Act4SystemStructure'
+import SystemStructureOverlay from './acts/SystemStructureOverlay'
+import { PAGE_FLOW } from './behaviors/usePageFlow'
 import Act3ContentPhase from './acts/Act3ContentPhase'
 import { useScrollStore } from './stores/scrollStore'
-import { WHITE_OUT_THRESHOLD, GRID_START, GRID_SHIFT_START } from './r3f/ScrollRig'
+import { TIMELINE } from './composition/timeline'
 import { getLighthouseCapture } from './actors/LighthouseCapture'
 import MainTerminal from './MainTerminal'
 import { executeCommand } from './terminal/commands'
 import InfoPanelTerminal from './InfoPanelTerminal'
 import FloatingLabels from './actors/FloatingLabels'
+import BrandTitle from './actors/BrandTitle'
+import CompositionPanel from './composition/debug/CompositionPanel'
+import { registerCoreActors } from './composition/coreActors'
+import { registerCoreSequences } from './composition/coreSequences'
+import { resetSequence, useSignal } from './composition/sequenceStore'
+import { useEffectScope } from './composition/effectScope'
 import type { LabelConfig, SequenceStrategy } from './behaviors/useFloatingLabels'
 import { PLANET_LINKS } from './types'
 import { useDayNight } from './theme/useDayNight'
@@ -21,7 +30,7 @@ import './App.css'
 
 gsap.registerPlugin(ScrollTrigger)
 
-const SCROLL_VH = 15
+const SCROLL_VH = 25
 const FRICTION = 0.955
 const MAX_VELOCITY = 0.025
 
@@ -35,44 +44,53 @@ const MAX_VELOCITY = 0.025
  *   @gsap/react useGSAP — 自动 cleanup
  */
 export default function App() {
+  useEffect(() => {
+    registerCoreActors()
+    registerCoreSequences()
+  }, [])
+
   // ---- Zustand store ----
-  const { scrollProgress, setScrollProgress } = useScrollStore()
+  const { scrollProgress, pageProgress, structureProgress, setPageProgress } = useScrollStore()
   const terminalMode = useScrollStore(s => s.terminalMode)
+  const debugMode = useScrollStore(s => s.debugMode)
   const echoLines = useScrollStore(s => s.echoLines)
   const inputValue = useScrollStore(s => s.inputValue)
   const { handleThemeUpdate, themeKey } = useDayNight()
+  const scrollEffectScope = useEffectScope('appScroll')
+  const signalAct3 = useSignal('act3.entry')
 
   // ---- Physics state (refs — no re-render) ----
   const physRef = useRef({ target: 0, velocity: 0, lastScrollbar: 0, lastPhysics: 0, active: true })
   const clickTweenRef = useRef<gsap.core.Tween | null>(null)
-  const focusTweenRef = useRef<gsap.core.Tween | null>(null)
-  const brandTextElRef = useRef<HTMLDivElement | null>(null)
   const lighthouseCapturedRef = useRef(false)
   const stRef = useRef<ScrollTrigger | null>(null)
+  const act3VisibleRef = useRef(false)
 
   // ---- UI state (React — triggers re-render) ----
-  const [hintVisible, setHintVisible] = useState(true)
   const [isClickPlaying, setIsClickPlaying] = useState(false)
-  const [isAct3Focused, setIsAct3Focused] = useState(false)
-  const [brandTextVisible, setBrandTextVisible] = useState(false)
   const [lighthouseImage, setLighthouseImage] = useState<string | null>(null)
-  const overlayData = useScrollStore(s => s.overlayData)
+  const focusedPlanetIdx = useScrollStore(s => s.focusedPlanetIdx)
+  const focusedVoyager = useScrollStore(s => s.focusedVoyager)
+  const isAct3Focused = (focusedPlanetIdx >= 0 || focusedVoyager) && scrollProgress >= TIMELINE.act3Shift.start && structureProgress === 0
   const isTerminalActive = terminalMode === 'active'
 
   // ---- Act visibility ----
-  const needsAct1 = (sp: number) => sp < GRID_START + 0.01
-  const needsAct2 = (sp: number) => sp >= WHITE_OUT_THRESHOLD - 0.01 && sp < GRID_SHIFT_START + 0.01
-  const needsAct3 = (sp: number) => sp >= GRID_SHIFT_START - 0.01
+  // Act 1 扩展到 GRID_SHIFT_START(0.85)：波浪展平后需与 Act2 竖线共存形成网格，
+  // Act3 开始后波浪自行通过 gridOpacityMult 淡出
+  const needsAct1 = (sp: number) => sp < TIMELINE.act3Shift.start + 0.01
+  const needsAct2 = (sp: number) => sp >= TIMELINE.whiteOut.start - 0.01
+  const needsAct3 = (sp: number) => sp >= TIMELINE.act3Shift.start - 0.01
 
   // ---- syncScrollbar ----
   const syncScrollbar = useCallback(() => {
     const h = document.body.scrollHeight - window.innerHeight
-    if (h > 0) window.scrollTo(0, physRef.current.target * h)
+    if (h > 0) window.scrollTo(0, physRef.current.target / PAGE_FLOW.end * h)
   }, [])
 
   // ---- ScrollTrigger (native scrollbar) ----
   useGSAP(() => {
-    document.body.style.height = window.innerHeight * SCROLL_VH + 'px'
+    const updateHeight = () => { document.body.style.height = window.innerHeight * (1 + (SCROLL_VH - 1) * PAGE_FLOW.end) + 'px' }
+    updateHeight()
 
     stRef.current = ScrollTrigger.create({
       trigger: document.body,
@@ -80,16 +98,25 @@ export default function App() {
       end: 'bottom bottom',
       scrub: 0,
       onUpdate: (self) => {
-        if (Math.abs(self.progress - physRef.current.target) < 0.0005) return
+        const progress = self.progress * PAGE_FLOW.end
+        if (Math.abs(progress - physRef.current.target) < 0.0005) return
         physRef.current.lastScrollbar = performance.now()
         physRef.current.velocity = 0
-        physRef.current.target = self.progress
-        setScrollProgress(self.progress)
-        if (self.progress > 0.02 && hintVisible) setHintVisible(false)
+        physRef.current.target = progress
+        setPageProgress(progress)
       },
     })
 
-    return () => { stRef.current?.kill() }
+    const resize = () => {
+      const target = physRef.current.target
+      updateHeight()
+      stRef.current?.refresh()
+      physRef.current.target = target
+      setPageProgress(target)
+      syncScrollbar()
+    }
+    window.addEventListener('resize', resize)
+    return () => { window.removeEventListener('resize', resize); stRef.current?.kill() }
   }, [])
 
   // ---- GSAP physics ticker ----
@@ -108,12 +135,12 @@ export default function App() {
 
       p.target += p.velocity * dtFrames
       if (p.target <= 0) { p.target = 0; p.velocity = 0 }
-      if (p.target >= 1) { p.target = 1; p.velocity = 0 }
+      if (p.target >= PAGE_FLOW.end) { p.target = PAGE_FLOW.end; p.velocity = 0 }
 
       p.velocity *= Math.pow(FRICTION, dtFrames)
       if (Math.abs(p.velocity) < 0.00001) p.velocity = 0
 
-      setScrollProgress(p.target)
+      setPageProgress(p.target)
       syncScrollbar()
     }
     gsap.ticker.add(ticker)
@@ -127,39 +154,38 @@ export default function App() {
     if (isAct3Focused) return
     if (isClickPlaying && clickTweenRef.current) {
       clickTweenRef.current.kill()
+      scrollEffectScope.cancel('interrupt click tween')
       clickTweenRef.current = null
       setIsClickPlaying(false)
     }
     const step = e.deltaY / (window.innerHeight * SCROLL_VH) * 0.65
     physRef.current.velocity += step
     physRef.current.velocity = Math.max(-MAX_VELOCITY, Math.min(MAX_VELOCITY, physRef.current.velocity))
-  }, [isTerminalActive, isAct3Focused, isClickPlaying])
+  }, [isTerminalActive, isAct3Focused, isClickPlaying, scrollEffectScope])
 
-  // ---- click fast-forward ----
-  const onClick = useCallback(() => {
-    if (isTerminalActive) return
-    if (isClickPlaying) return
-    if (isAct3Focused) return  // block fast-forward during planet focus
-    if (scrollProgress >= 0.995) return
+  // 同一页面滚动时间轴；普通点击固定停在 Act 3，结构视图由继续滚动或专用按钮进入。
+  const scrollToSection = useCallback((target: number) => {
+    clickTweenRef.current?.kill()
     setIsClickPlaying(true)
     physRef.current.velocity = 0
-
     const tweenObj = { val: physRef.current.target }
-    clickTweenRef.current = gsap.to(tweenObj, {
-      val: 1.0,
+    scrollEffectScope.cancel('replace click tween')
+    clickTweenRef.current = scrollEffectScope.addTween(gsap.to(tweenObj, {
+      val: target,
       duration: 2,
       ease: 'power2.inOut',
       onUpdate: () => {
         physRef.current.target = tweenObj.val
-        setScrollProgress(tweenObj.val)
+        setPageProgress(tweenObj.val)
         syncScrollbar()
       },
-      onComplete: () => {
-        setIsClickPlaying(false)
-        clickTweenRef.current = null
-      },
-    })
-  }, [isTerminalActive, isClickPlaying, isAct3Focused, scrollProgress, setScrollProgress, syncScrollbar])
+      onComplete: () => { setIsClickPlaying(false); clickTweenRef.current = null },
+    }))
+  }, [setPageProgress, syncScrollbar, scrollEffectScope])
+  const onClick = useCallback(() => {
+    if (isTerminalActive || isClickPlaying || isAct3Focused || pageProgress >= 0.995) return
+    scrollToSection(PAGE_FLOW.act3Target)
+  }, [isTerminalActive, isClickPlaying, isAct3Focused, pageProgress, scrollToSection])
 
   // ---- event listeners ----
   useEffect(() => {
@@ -171,49 +197,24 @@ export default function App() {
     }
   }, [onWheel, onClick])
 
-  // ---- Act 3 focus state (block scroll wheel + brand text animation) ----
   useEffect(() => {
-    const focused = overlayData.focused && scrollProgress >= GRID_SHIFT_START
-    setIsAct3Focused(focused)
-
-    const el = brandTextElRef.current
-    if (!el) return
-
-    if (focusTweenRef.current) focusTweenRef.current.kill()
-
-    focusTweenRef.current = gsap.to(el, {
-      opacity: focused ? 0 : 1,
-      marginTop: focused ? -24 : 0,
-      duration: 0.5,
-      ease: 'power2.out',
-      overwrite: 'auto',
-    })
-  }, [overlayData.focused, scrollProgress])
-
-  // ---- brand text visibility ----
-  useEffect(() => {
-    setBrandTextVisible(scrollProgress >= 0.70)
-  }, [scrollProgress])
-
-  // computeTextOffset — Act 3 grid shift 同步到品牌文字位移（逐字保留自原 updateTextOffsetCSS）
-  const textOffsetY = (() => {
-    if (scrollProgress < GRID_SHIFT_START) return 0
-    const progress = (scrollProgress - GRID_SHIFT_START) / (1.0 - GRID_SHIFT_START)
-    const smoothProgress = progress * progress * (3 - 2 * progress) // smoothstep
-    return Math.round(-90 * smoothProgress * 10) / 10
-  })()
-
-  // Brand text opacity — 逐行渐进淡入（逐字保留自原 App.vue computed）
-  const brandLine1Opacity = (() => {
-    const t = Math.max(0, Math.min(1, (scrollProgress - 0.70) / (0.82 - 0.70)))
-    return t * t * (3 - 2 * t) // smoothstep
-  })()
-  const brandLine2Opacity = (() => {
-    const t = Math.max(0, Math.min(1, (scrollProgress - 0.82) / (0.92 - 0.82)))
-    return t * t * (3 - 2 * t) // smoothstep
-  })()
+    const visible = needsAct3(scrollProgress) && structureProgress === 0
+    if (visible === act3VisibleRef.current) return
+    act3VisibleRef.current = visible
+    if (visible) {
+      signalAct3('act3Mounted')
+    } else {
+      resetSequence('act3.entry')
+      resetSequence('labelReveal')
+    }
+  }, [scrollProgress, structureProgress, signalAct3])
 
   // ---- lighthouse screenshot ----
+  useEffect(() => {
+    // theme 切换时清除缓存，触发重新烘焙
+    lighthouseCapturedRef.current = false
+  }, [themeKey])
+
   useEffect(() => {
     if (scrollProgress >= 0.54 && !lighthouseCapturedRef.current) {
       lighthouseCapturedRef.current = true
@@ -223,17 +224,18 @@ export default function App() {
         if (img) setLighthouseImage(img)
       }
     }
-  }, [scrollProgress])
+  }, [scrollProgress, themeKey])
 
   // ---- cleanup ----
   useEffect(() => {
     return () => {
       physRef.current.active = false
+      scrollEffectScope.cancel('app cleanup')
       stRef.current?.kill()
       ScrollTrigger.getAll().forEach((t: ScrollTrigger) => t.kill())
       document.body.style.height = ''
     }
-  }, [])
+  }, [scrollEffectScope])
 
   const sp = scrollProgress
 
@@ -256,9 +258,13 @@ export default function App() {
     }),
   ) as [LabelConfig, LabelConfig, LabelConfig]
   const handleBuildStatusLine = useCallback((sp: number) => {
-    const pct = Math.round(sp * 100)
-    const actName = sp < 0.45 ? 'OceanVoyage' : sp < 0.85 ? 'GridTransition' : 'ContentPhase'
-    const actNum = sp < 0.45 ? '1' : sp < 0.85 ? '2' : '3'
+    if (sp > PAGE_FLOW.structureStart) {
+      const pct = Math.round(Math.max(0, Math.min(1, (sp - PAGE_FLOW.structureStart) / (PAGE_FLOW.structureEnd - PAGE_FLOW.structureStart))) * 100)
+      return `# Act 4 · SystemStructure · scroll ${pct}%`
+    }
+    const pct = Math.round(Math.min(1, sp) * 100)
+    const actName = sp < 0.45 ? 'OceanVoyage' : sp < TIMELINE.act3Shift.start ? 'GridTransition' : 'ContentPhase'
+    const actNum = sp < 0.45 ? '1' : sp < TIMELINE.act3Shift.start ? '2' : '3'
     return `# Act ${actNum} · ${actName} · scroll ${pct}%`
   }, [])
 
@@ -267,7 +273,8 @@ export default function App() {
       <SceneCanvas>
         <Act1OceanVoyage visible={needsAct1(sp)} />
         <Act2GridTransition visible={needsAct2(sp)} />
-        <Act3ContentPhase visible={needsAct3(sp)} />
+        <Act3ContentPhase visible={needsAct3(sp) && structureProgress < 1} />
+        <Act4SystemStructure visible={structureProgress > 0} />
       </SceneCanvas>
 
       <MainTerminal
@@ -277,7 +284,7 @@ export default function App() {
         onModeChange={handleModeChange}
         onEchoLinesChange={handleEchoLinesChange}
         onInputValueChange={handleInputChange}
-        scrollProgress={sp}
+        scrollProgress={pageProgress}
         buildStatusLine={handleBuildStatusLine}
         onThemeUpdate={handleThemeUpdate}
         themeKey={themeKey}
@@ -285,10 +292,10 @@ export default function App() {
       />
 
       {/* Info Panel Terminal — 仅 Act 3 (ContentPhase) 渲染 */}
-      {needsAct3(sp) && <InfoPanelTerminal />}
+      {needsAct3(sp) && structureProgress === 0 && <InfoPanelTerminal />}
 
       {/* Planet Labels — 仅 Act 3 可见，组件不卸载 */}
-      {needsAct3(sp) && (
+      {needsAct3(sp) && structureProgress === 0 && (
         <FloatingLabels
           configs={labelConfigs}
           sequenceStrategy="proximity"
@@ -305,50 +312,18 @@ export default function App() {
         />
       )}
 
-      {/* 滚动提示 */}
-      {hintVisible && (
-        <div className="scroll-hint" aria-hidden="true">
-          <span>Scroll</span>
-          <span className="click-hint">or click to skip</span>
-          <div className="scroll-arrow" />
-        </div>
+      {sp >= 0.995 && structureProgress === 0 && !isAct3Focused && (
+        <button className="structure-next" onClick={event => { event.stopPropagation(); scrollToSection(PAGE_FLOW.structureEnd) }}>继续向下 · 系统结构 ↓</button>
       )}
+      <SystemStructureOverlay progress={structureProgress} onBack={() => scrollToSection(PAGE_FLOW.act3Target)} />
 
-      {/* 品牌文字 */}
-      {brandTextVisible && (
-        <div ref={brandTextElRef}
-          className={`brand-text${isClickPlaying ? ' no-transition' : ''}`} aria-hidden="true"
-          style={{ '--text-offset-y': `${textOffsetY}px` } as React.CSSProperties}>
-          <div className="brand-text-row">
-            {lighthouseImage && (
-              <img src={lighthouseImage} alt="" className="brand-lighthouse-icon"
-                style={{ opacity: brandLine1Opacity }} />
-            )}
-            <div className="brand-text-inner">
-              <p className="brand-line-1" style={{ opacity: brandLine1Opacity }}>Personal Site</p>
-              <p className="brand-line-2" style={{ opacity: brandLine2Opacity }}>By YeQuDesu</p>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* 聚焦 SVG 叠加层 */}
-      {overlayData.focused && (
-        <svg className="focus-overlay" width="100%" height="100%">
-          {overlayData.star && (
-            <circle cx={overlayData.star.x} cy={overlayData.star.y} r={overlayData.star.r + 10}
-              fill="none" stroke="#64748b" strokeWidth={1} strokeDasharray="4 6" className="overlay-ring" />
-          )}
-          {overlayData.planet && (
-            <circle cx={overlayData.planet.x} cy={overlayData.planet.y} r={overlayData.planet.r + 8}
-              fill="none" stroke="#64748b" strokeWidth={1} strokeDasharray="4 6" className="overlay-ring" />
-          )}
-          {overlayData.tangents?.map((t: any, i: number) => (
-            <line key={i} x1={t.x1} y1={t.y1} x2={t.x2} y2={t.y2}
-              stroke="#94a3b8" strokeWidth={0.5} className="overlay-line" />
-          ))}
-        </svg>
-      )}
+      {/* 品牌标题（Act 2-3） */}
+      <BrandTitle
+        scrollProgress={sp}
+        lighthouseImage={lighthouseImage}
+        isClickPlaying={isClickPlaying}
+        isFocused={isAct3Focused || structureProgress > 0}
+      />
 
       {/* 页脚 */}
       <footer className="app-footer">
@@ -357,6 +332,8 @@ export default function App() {
           闽ICP备2026019172号-1
         </a>
       </footer>
+
+      {debugMode && <CompositionPanel scrollProgress={sp} />}
     </>
   )
 }

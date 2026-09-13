@@ -1,0 +1,69 @@
+/* ============================================================
+   BrandTitle — 品牌标题叠加层（Act 2-3）
+
+   由 BrandTitle 组件渲染，从 App.tsx 抽离独立维护。
+   ============================================================ */
+
+/* ---- 容器：fixed 全屏居中 ---- */
+.brand-title {
+  position: fixed; inset: 0; z-index: 10;
+  display: flex; align-items: center; justify-content: center;
+  pointer-events: none;
+  transform: translateY(calc(var(--text-offset-y, 0px) - 4vh));
+}
+
+/* 点击快进期间禁用 CSS transition，避免 smoothstep 计算值与
+   CSS transition 叠加导致动画撕裂 */
+.brand-title.no-transition,
+.brand-title.no-transition * {
+  transition: none !important;
+}
+
+/* ---- 行容器（grid 叠加，icon + text 同 cell，还原原 flex 定位） ---- */
+.brand-title-row {
+  display: grid;
+  grid-template: 1fr / 1fr;
+  align-items: end;       /* 底部对齐，还原原 flex-end */
+  justify-items: start;   /* 左对齐 */
+}
+
+/* ---- 灯塔图标（底层） ---- */
+.brand-title-icon {
+  grid-area: 1 / 1;
+  font-size: clamp(1.8rem, 4.5vw, 3.5rem);
+  height: 2.8em;
+  width: auto;
+  margin-bottom: -0.08em;
+  vertical-align: baseline;
+  object-fit: contain;
+  transform: translateY(-6px);
+}
+
+/* ---- 文字组（上层，叠加于 icon，margin-left 还原原 flex 位置） ---- */
+.brand-title-text {
+  grid-area: 1 / 1;
+  display: flex; flex-direction: column; align-items: flex-end; gap: 0.05rem;
+  /* mask 右边缘 = (2×0.91/halfW)×captureW ≈ 467px(独立于captureW) */
+  /* → display: 467/1024 × 2.8em × icon-font-size */
+  --icon-fs: clamp(1.8rem, 4.5vw, 3.5rem);
+  margin-left: calc(467 / 1024 * 2.8 * var(--icon-fs));
+  margin-bottom: 0.15em;  /* 微调抬高至 base-line 上方 */
+  z-index: 1;
+  position: relative;
+}
+
+/* ---- 主标题 "Personal Site" ---- */
+.brand-title-main {
+  margin: 0; margin-right: -0.05em;
+  font-family: 'Georgia', 'Times New Roman', serif;
+  font-size: clamp(1.8rem, 4.5vw, 3.5rem); font-weight: 600;
+  color: var(--color-brand-line1); letter-spacing: 0.05em; white-space: nowrap; text-align: left;
+}
+
+/* ---- 副标题 "By YeQuDesu" ---- */
+.brand-title-sub {
+  margin: 0; margin-right: -0.04em;
+  font-family: 'Georgia', 'Times New Roman', serif;
+  font-size: clamp(0.55rem, 1.0vw, 0.75rem); font-weight: 400;
+  color: var(--color-brand-line2); letter-spacing: 0.04em; font-style: italic; text-align: left;
+}

@@ -1,6 +1,8 @@
 import { useEffect, useCallback, useRef, useState } from 'react'
 import TerminalBar from './terminal/TerminalBar'
 import type { TerminalMode } from './stores/scrollStore'
+import { getDomLayer } from './composition/layerRegistry'
+import { useActorRuntime } from './composition/actorRuntime'
 
 // ============================================================
 // MainTerminal — MainPage 专属终端封装
@@ -20,7 +22,7 @@ const MAIN_LAYOUT = {
   padding: '8px 14px',
   fontSize: '0.68rem',
   fontFamily: "'SF Mono','Fira Code','Cascadia Code','Consolas',monospace",
-  zIndex: 15,
+  zIndex: getDomLayer('dom.mainTerminal').zIndex,
   bottom: '2rem',
 } as const
 
@@ -44,6 +46,7 @@ export interface MainTerminalProps {
 }
 
 export default function MainTerminal(props: MainTerminalProps) {
+  useActorRuntime('mainTerminal', true)
   const {
     mode, echoLines, inputValue,
     onModeChange, onEchoLinesChange, onInputValueChange,

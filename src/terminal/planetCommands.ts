@@ -1,5 +1,5 @@
 import { useScrollStore } from '../stores/scrollStore'
-import { _mainPlanetIndices } from '../actors/Planets'
+import { readPlanetParticleIndex } from '../composition/coreAnchors'
 import type { PlanetLink } from '../types'
 
 /**
@@ -23,7 +23,7 @@ export function createPlanetCommandHandler(
     switch (trimmed) {
       case 'info': {
         const store = useScrollStore.getState()
-        const planetIdx = _mainPlanetIndices[trackIdx]
+        const planetIdx = readPlanetParticleIndex(trackIdx)
         // planetIdx 可能是 undefined（尚未初始化）
         const isFocused = planetIdx !== undefined && store.focusedPlanetIdx === planetIdx
         return [
@@ -36,7 +36,7 @@ export function createPlanetCommandHandler(
 
       case 'focus': {
         const store = useScrollStore.getState()
-        const planetIdx = _mainPlanetIndices[trackIdx]
+        const planetIdx = readPlanetParticleIndex(trackIdx)
         if (planetIdx !== undefined) {
           store.setFocusedPlanet(planetIdx)
         }

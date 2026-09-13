@@ -1,7 +1,18 @@
 import { useThree } from '@react-three/fiber'
 import { Vector3, type PerspectiveCamera } from 'three'
-import { useRealtimeStore, type ScreenCoord } from '../stores/realtimeStore'
 import { SCENE_CENTER_Z } from '../r3f/ScrollRig'
+import { touchActorFrame } from '../composition/actorRuntime'
+import {
+  centralStarScreenAnchorId,
+  makeCoreAnchor,
+  planetScreenAnchorId,
+  readPlanetWorldPoint,
+  setCoreAnchor,
+  setCoreAnchors,
+  vector3FromPoint,
+  type ScreenPoint,
+} from '../composition/coreAnchors'
+import type { AnchorInput } from '../composition/anchorStore'
 
 /**
  * useScreenProjection — 将行星世界坐标 + 中央恒星投影到屏幕坐标。
@@ -19,11 +30,11 @@ const CENTRAL_STAR_WORLD = new Vector3(0, -1.0, SCENE_CENTER_Z)
 /** 中央恒星内层光晕世界半径（与 CentralStar.tsx INNER_GLOW_RADIUS 一致） */
 const CENTRAL_STAR_WORLD_RADIUS = 0.70
 
-export function useScreenProjection(worldPositions: (Vector3 | null)[]) {
+export function useScreenProjection() {
   const { camera, gl } = useThree()
-  const store = useRealtimeStore.getState
 
   const project = () => {
+    touchActorFrame('projection', Math.round(performance.now()), true)
     const w = gl.domElement.clientWidth
     const h = gl.domElement.clientHeight
     const pcam = camera as PerspectiveCamera
@@ -31,14 +42,20 @@ export function useScreenProjection(worldPositions: (Vector3 | null)[]) {
     const halfTan = Math.tan(fovY / 2)
 
     // ---- 行星投影 ----
-    const coords: [ScreenCoord, ScreenCoord, ScreenCoord] = [
+    const coords: [ScreenPoint, ScreenPoint, ScreenPoint] = [
       { x: 0, y: 0, visible: false },
       { x: 0, y: 0, visible: false },
       { x: 0, y: 0, visible: false },
     ]
+    const anchorWrites: AnchorInput[] = []
 
     for (let i = 0; i < 3; i++) {
-      const pos = worldPositions[i]
+      const point = readPlanetWorldPoint(i)
+      if (!point) {
+        anchorWrites.push(makeCoreAnchor(planetScreenAnchorId(i), coords[i], 'screenPx', 'projection', false))
+        continue
+      }
+      const pos = vector3FromPoint(point, _ndc)
       if (!pos) continue
       _ndc.copy(pos).project(camera)
       const visible =
@@ -52,8 +69,9 @@ export function useScreenProjection(worldPositions: (Vector3 | null)[]) {
           visible: true,
         }
       }
+      anchorWrites.push(makeCoreAnchor(planetScreenAnchorId(i), coords[i], 'screenPx', 'projection', coords[i].visible))
     }
-    store().setScreenCoords(coords)
+    setCoreAnchors(anchorWrites)
 
     // ---- 中央恒星投影 ----
     _ndc.copy(CENTRAL_STAR_WORLD).project(camera)
@@ -63,9 +81,11 @@ export function useScreenProjection(worldPositions: (Vector3 | null)[]) {
       const csy = ((-_ndc.y + 1) / 2) * h
       const cd = pcam.position.distanceTo(CENTRAL_STAR_WORLD)
       const csr = (CENTRAL_STAR_WORLD_RADIUS * h) / (2 * cd * halfTan)
-      store().setCentralStarScreen({ x: csx, y: csy, r: Math.round(csr), visible: true })
+      const screen = { x: csx, y: csy, r: Math.round(csr), visible: true }
+      setCoreAnchor(centralStarScreenAnchorId, screen, 'screenPx', 'projection', true)
     } else {
-      store().setCentralStarScreen({ x: 0, y: 0, r: 0, visible: false })
+      const screen = { x: 0, y: 0, r: 0, visible: false }
+      setCoreAnchor(centralStarScreenAnchorId, screen, 'screenPx', 'projection', false)
     }
   }
 

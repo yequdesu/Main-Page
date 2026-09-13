@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect } from 'vitest'
 import { executeCommand, commandRegistry } from '../commands'
+import { useScrollStore } from '../../stores/scrollStore'
 
 describe('executeCommand', () => {
   it('returns help text for "help" command', () => {
@@ -13,13 +14,15 @@ describe('executeCommand', () => {
   })
 
   it('toggles debug mode with "debug"', () => {
-    ;(window as any).__DEBUG__ = false
+    useScrollStore.getState().setDebugMode(false)
     const r1 = executeCommand('debug')
     expect(r1).toContain('ON')
+    expect(useScrollStore.getState().debugMode).toBe(true)
     expect((window as any).__DEBUG__).toBe(true)
 
     const r2 = executeCommand('debug')
     expect(r2).toContain('OFF')
+    expect(useScrollStore.getState().debugMode).toBe(false)
     expect((window as any).__DEBUG__).toBe(false)
   })
 

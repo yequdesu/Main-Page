@@ -1,14 +1,27 @@
-import { useMemo, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
-import { type LineBasicMaterial } from 'three'
-import { SCENE_CENTER_Z, ORBIT_RADII, ORBIT_COUNT, clamped, smoothstep, GRID_SHIFT_START } from '../r3f/ScrollRig'
+import { touchActorFrame, useActorRuntime } from '../composition/actorRuntime'
+import { TIMELINE } from '../composition/timeline'
+import { getWebglLayer } from '../composition/layerRegistry'
+import { Component, lazy, Suspense, useMemo, type ReactNode } from 'react'
+import { SCENE_CENTER_Z, ORBIT_RADII, ORBIT_COUNT } from '../r3f/ScrollRig'
 import { useScrollStore } from '../stores/scrollStore'
 import { themeColor } from '../theme/colors'
 import OrbitalRing from './OrbitalRing'
+import OrbitLineMaterial from './OrbitLineMaterial'
 import type { OrbitalRingConfig } from '../types'
 
+const VoyagerOrbiter = lazy(() => import('./VoyagerOrbiter'))
+
+// GLB/解码器加载失败只隐藏该探测器，轨道与主场景继续工作；重进 Act 3 可重建边界。
+class VoyagerLoadBoundary extends Component<{ children: ReactNode }, { failed: boolean }> {
+  state = { failed: false }
+  static getDerivedStateFromError() { return { failed: true } }
+  componentDidCatch(error: Error) { console.error('Voyager model failed to load', error) }
+  render() { return this.state.failed ? null : this.props.children }
+}
+
 /**
- * 行星轨道系统 — 3 条静态轨道参考线 + N 条陀螺仪装饰环。
+ * 行星轨道系统 — 3 条静态轨道参考线 + N 条进动装饰环，最外环承载 Voyager。
  *
  * 陀螺仪环配置全部声明在这里，新增轨道只需在 GYRO_RINGS 数组中加一项。
  *
@@ -31,8 +44,12 @@ interface OrbitRingsProps {
 }
 
 export default function OrbitRings({ speedScale = 1.0 }: OrbitRingsProps) {
+  useActorRuntime('orbits', true)
+  const layer = getWebglLayer('webgl.grid')
+  useFrame(state => touchActorFrame('orbits', Math.round(state.clock.elapsedTime * 60), useScrollStore.getState().scrollProgress >= TIMELINE.orbitGlow.start))
   const dayNight = useScrollStore(s => s.dayNight)
   const orbitColor = themeColor('orbit', dayNight)
+  const showVoyager = useScrollStore(s => s.scrollProgress >= TIMELINE.act3Shift.start)
 
   // 轨道环顶点（静态 — 行星公转轨道的视觉参考线）
   const orbitPoints = useMemo(() =>
@@ -45,36 +62,32 @@ export default function OrbitRings({ speedScale = 1.0 }: OrbitRingsProps) {
     }), [],
   )
 
-  const orbitMatRefs = useRef<(LineBasicMaterial | null)[]>([null, null, null])
-
-  useFrame(() => {
-    const sp = useScrollStore.getState().scrollProgress
-    const act3Progress = clamped(sp, GRID_SHIFT_START, 1.0)
-    const smooth3 = smoothstep(act3Progress)
-
-    orbitMatRefs.current.forEach((mat) => {
-      if (mat) mat.opacity = smooth3 * 0.35
-    })
-  })
-
   return (
     <>
       {/* 静态轨道参考线（行星公转轨道） */}
       {orbitPoints.map((pts, t) => (
-        <threeLine key={`orbit-${t}`} position={[0, -1.0, SCENE_CENTER_Z]} renderOrder={2}>
+        <threeLine key={`orbit-${t}`} position={[0, -1.0, SCENE_CENTER_Z]} renderOrder={layer.renderOrder}>
           <bufferGeometry>
             <bufferAttribute
               attach="attributes-position"
               args={[new Float32Array(pts.flat()), 3]}
             />
           </bufferGeometry>
-          <lineBasicMaterial ref={(mat) => { orbitMatRefs.current[t] = mat }} color={orbitColor} transparent opacity={0} depthWrite={false} depthTest />
+          <OrbitLineMaterial color={orbitColor} maxOpacity={0.35} appearStart={TIMELINE.orbitGlow.start} trackIdx={t} />
         </threeLine>
       ))}
 
       {/* 陀螺仪装饰环（每条独立力学模拟） */}
       {GYRO_RINGS.map((cfg, i) => (
-        <OrbitalRing key={`gyro-${i}`} config={cfg} speedScale={speedScale} color={orbitColor} />
+        <OrbitalRing key={`gyro-${i}`} config={cfg} speedScale={speedScale} color={orbitColor}>
+          {i === GYRO_RINGS.length - 1 && showVoyager && (
+            <VoyagerLoadBoundary>
+              <Suspense fallback={null}>
+                <VoyagerOrbiter config={cfg} speedScale={speedScale} />
+              </Suspense>
+            </VoyagerLoadBoundary>
+          )}
+        </OrbitalRing>
       ))}
     </>
   )

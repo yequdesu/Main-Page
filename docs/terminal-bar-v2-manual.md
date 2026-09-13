@@ -5,6 +5,8 @@
 > 设计文档：`docs/superpowers/specs/2026-06-13-terminal-bar-v2-design.md`  
 > v1 设计：`docs/superpowers/specs/2026-06-13-terminal-cli-bar-design.md`
 
+> 维护说明（2026-09-08）：本次仅核对并补充 [6.5 输入文字与光标同步](#65-输入文字与光标同步)。其余章节保留 v2 初期背景，包含已变更的组件 API、文件结构和命令，尚未全面核对；当前行为以源码为准。
+
 ---
 
 ## 目录
@@ -421,6 +423,22 @@ pnpm build # 验证生产构建
 2. 将 V2 文件复制为正式文件名
 3. 修复 import 路径
 4. 清理 V2 临时文件
+
+### 6.5 输入文字与光标同步
+
+当前 [TerminalBar](../src/terminal/TerminalBar.tsx) 使用透明原生输入框接收输入，再按 `selectionStart` 将文字分成光标前后两段显示。输入框中的字符顺序正确，不代表视觉光标已经同步。
+
+- [useCommandSystem](../src/terminal/useCommandSystem.ts) 的 `onChange` 同时读取 `value` 与 `selectionStart`，由组件一次更新文字和光标位置。不能只更新文字，再依赖 `keyup` 或 `select` 补齐光标；直接插入文字时可能没有后续事件，导致 `测试█` 错显成 `█测试`。
+- `onSelect`、`onClick` 和 `onKeyUp` 负责没有文字变化时的光标同步，例如左右移动和选择文字。中间插入、删除及选区替换后，仍以原生输入框返回的位置为准，不能统一移到末尾。
+- 程序预填时光标默认位于末尾；清空命令时同时将光标归零。[输入行样式](../src/terminal/TerminalBar.css) 使用 `white-space: pre` 保留连续及首尾空格，避免文字宽度与输入内容不一致。
+
+回归测试位于 [TerminalBar.test.tsx](../src/terminal/__tests__/TerminalBar.test.tsx)，刻意在输入事件后、没有追加松键或选择事件时检查显示结果：
+
+```bash
+pnpm test --run src/terminal/__tests__/TerminalBar.test.tsx
+```
+
+浏览器验收入口为 `/`：激活终端后检查连续键入、直接插入中文、连续空格、左右移动后编辑、选区替换，以及提交命令后继续输入。
 
 ---
 

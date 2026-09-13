@@ -1,63 +1,99 @@
-import { useMemo, useRef, useEffect } from 'react'
+import { useMemo, useEffect } from 'react'
 import { useFrame } from '@react-three/fiber'
-import { Line, Color, BufferGeometry, BufferAttribute, LineBasicMaterial, PointsMaterial, Vector3, Points } from 'three'
+import { Line, Color, BufferGeometry, BufferAttribute, LineBasicMaterial } from 'three'
 import { useScrollStore } from '../stores/scrollStore'
 import { useFrameCache } from '../behaviors/useFrameCache'
-import { smoothstep, clamped, GRID_START, VERTICAL_START, TEXT_START, GRID_SHIFT_START } from '../r3f/ScrollRig'
+import { clamped } from '../r3f/ScrollRig'
+import { TIMELINE } from '../composition/timeline'
+import { getWebglLayer } from '../composition/layerRegistry'
+import { touchActorFrame, useActorRuntime } from '../composition/actorRuntime'
 import type { GridLineData } from '../types'
 
-/**
- * 垂直网格线 + 节点。
- *
- * 原 buildVerticalGridLines():963-988 + buildGridJunctionNodes():939-961
- * 28 条线 + 210 个节点。
- *
- * 援引：R3F <points> + <threeLine>（手动 bufferGeometry）
- */
+// ============================================================
+// 几何参数 — 方向：近处 → 远处 → 向上
+// ============================================================
+const LINE_COUNT = 32
+const X_SPREAD = 22.6
+const BOTTOM_Y = -7.0
+const TOP_Y = 22.0
+const ARC_RADIUS = 2.5
+const Z_NEAR = 8
+const Z_FAR = -44
+
+const HORZ_SEGS = 18
+const ARC_SEGS = 10
+const VERT_SEGS = 14
+const TOTAL_SEGS = HORZ_SEGS + ARC_SEGS + VERT_SEGS
+
+const COLOR_CENTER = new Color('#8899b0')
+const COLOR_EDGE   = new Color('#4a5568')
+
 export default function GridLines() {
-  const { gridLines, gridPoints } = useMemo(() => {
-    // Vertical lines
-    const totalLines = 28, zStart = -52, zEnd = 12, baseY = -2.5
+  useActorRuntime('grid', true)
+  const layer = getWebglLayer('webgl.grid')
+  const { gridLines } = useMemo(() => {
     const lines: GridLineData[] = []
-    for (let i = 0; i < totalLines; i++) {
-      const x = -28 + (i / (totalLines - 1)) * 56
-      const pts = [x, baseY, zStart, x, baseY, zStart] // both ends at zStart initially
+
+    for (let i = 0; i < LINE_COUNT; i++) {
+      const x = -X_SPREAD + (i / (LINE_COUNT - 1)) * X_SPREAD * 2
+      const vCount = TOTAL_SEGS + 1
+      const pts = new Float32Array(vCount * 3)
+      const colors = new Float32Array(vCount * 3)
+
+      let vi = 0
+
+      // ---- 水平段：近处 → 远处 ----
+      for (let j = 0; j <= HORZ_SEGS; j++, vi++) {
+        const t = j / HORZ_SEGS
+        const z = Z_NEAR + (Z_FAR - Z_NEAR) * t
+        pts[vi * 3] = x
+        pts[vi * 3 + 1] = BOTTOM_Y
+        pts[vi * 3 + 2] = z
+      }
+
+      // ---- 圆弧段 ----
+      for (let j = 1; j <= ARC_SEGS; j++, vi++) {
+        const theta = (j / ARC_SEGS) * (Math.PI / 2)
+        const y = BOTTOM_Y + ARC_RADIUS * (1 - Math.cos(theta))
+        const z = Z_FAR - ARC_RADIUS * Math.sin(theta)
+        pts[vi * 3] = x
+        pts[vi * 3 + 1] = y
+        pts[vi * 3 + 2] = z
+      }
+
+      // ---- 竖直段 ----
+      const vertBaseZ = Z_FAR - ARC_RADIUS
+      const vertBaseY = BOTTOM_Y + ARC_RADIUS
+      for (let j = 1; j <= VERT_SEGS; j++, vi++) {
+        const t = j / VERT_SEGS
+        const y = vertBaseY + (TOP_Y - vertBaseY) * t
+        pts[vi * 3] = x
+        pts[vi * 3 + 1] = y
+        pts[vi * 3 + 2] = vertBaseZ
+      }
+
+      const xBright = 1.0 - Math.abs(x / X_SPREAD) * 0.8
+      for (let j = 0; j < vCount; j++) {
+        const zNorm = (pts[j * 3 + 2] - Z_FAR) / (Z_NEAR - Z_FAR)
+        const c = new Color().copy(COLOR_EDGE).lerp(COLOR_CENTER, Math.max(0, Math.min(1, xBright + zNorm * 0.15)))
+        colors[j * 3] = c.r; colors[j * 3 + 1] = c.g; colors[j * 3 + 2] = c.b
+      }
+
       const g = new BufferGeometry()
-      g.setAttribute('position', new BufferAttribute(new Float32Array(pts), 3))
-      const nearColor = new Color('#94a3b8')
-      const farColor  = new Color('#f1f5f9')
-      g.setAttribute('color', new BufferAttribute(new Float32Array([
-        farColor.r, farColor.g, farColor.b,
-        nearColor.r, nearColor.g, nearColor.b,
-      ]), 3))
+      g.setAttribute('position', new BufferAttribute(pts, 3))
+      g.setAttribute('color', new BufferAttribute(colors, 3))
       const mat = new LineBasicMaterial({
         vertexColors: true, transparent: true, opacity: 0,
-        depthTest: true, depthWrite: false,
+        depthTest: layer.depthTest, depthWrite: layer.depthWrite,
       })
       const line = new Line(g, mat)
-      line.renderOrder = 2
-      lines.push({ line, x, baseY, zStart, zEnd, staggerOffset: Math.random() * 0.45 })
+      line.renderOrder = layer.renderOrder
+      const staggerOffset = Math.abs(x / X_SPREAD) * 0.25
+      lines.push({ line, x, baseY: BOTTOM_Y, zStart: Z_FAR, zEnd: Z_NEAR, staggerOffset, arcHeight: 0, basePositions: new Float32Array(pts) })
     }
 
-    // Junction nodes
-    const dotPts: Vector3[] = []
-    for (let i = 0; i < 14; i++) {
-      const x = -26 + (i / 13) * 52
-      for (let j = 0; j < 15; j++) {
-        const z = -48 + (j / 14) * 52
-        dotPts.push(new Vector3(x, -2.5, z))
-      }
-    }
-    const dotGeo = new BufferGeometry().setFromPoints(dotPts)
-    const dotMat = new PointsMaterial({
-      color: '#94a3b8', size: 0.052, transparent: true, opacity: 0,
-      depthWrite: false, depthTest: true,
-    })
-    const dots = new Points(dotGeo, dotMat)
-    dots.renderOrder = 2
-
-    return { gridLines: lines, gridPoints: dots }
-  }, [])
+    return { gridLines: lines }
+  }, [layer.depthTest, layer.depthWrite, layer.renderOrder])
 
   useEffect(() => {
     return () => {
@@ -65,55 +101,106 @@ export default function GridLines() {
         vd.line.geometry.dispose()
         ;(vd.line.material as LineBasicMaterial).dispose()
       })
-      gridPoints.geometry.dispose()
-      ;(gridPoints.material as PointsMaterial).dispose()
     }
-  }, [gridLines, gridPoints])
+  }, [gridLines])
 
   const { shouldSkipSp } = useFrameCache()
-  const gridVisibleRef = useRef(true)
 
   useFrame((_state, _delta) => {
     const sp = useScrollStore.getState().scrollProgress
+    touchActorFrame('grid', Math.round(performance.now()), sp >= TIMELINE.gridExtend.start && sp <= TIMELINE.gridRetract.end)
     if (shouldSkipSp(sp)) return
 
-    const vertFactor = clamped(sp, VERTICAL_START, TEXT_START)
-    const act3Progress = clamped(sp, GRID_SHIFT_START, 1.0)
-    const smooth3 = smoothstep(act3Progress)
-    const gridOpacityMult = 1.0 - smooth3
+    const EXT_START = TIMELINE.gridExtend.start
+    const EXT_END = TIMELINE.gridExtend.end
+    const RETRACT_END = TIMELINE.gridRetract.end
 
-    // Bulk visibility
-    if (gridOpacityMult < 0.001) {
-      if (gridVisibleRef.current) {
-        gridLines.forEach(l => l.line.visible = false)
-        gridPoints.visible = false
-        gridVisibleRef.current = false
+    // 延伸前或回收后：完全隐藏
+    if (sp < EXT_START || sp >= RETRACT_END) {
+      for (const vd of gridLines) {
+        ;(vd.line.material as LineBasicMaterial).opacity = 0
       }
       return
-    } else if (!gridVisibleRef.current) {
-      gridLines.forEach(l => l.line.visible = true)
-      gridPoints.visible = true
-      gridVisibleRef.current = true
     }
 
-    if (sp < VERTICAL_START) return
-
-    const shiftY = -32.0 * smooth3
+    // 0.60-0.85: 延伸(A→B)  /  0.85-0.95: 回收(A→B，近先消失如擦除)
+    const retracting = sp >= EXT_END
+    const rawLp = retracting
+      ? 1.0 - clamped(sp, EXT_END, RETRACT_END)  // 1→0
+      : clamped(sp, EXT_START, EXT_END)            // 0→1
 
     for (const vd of gridLines) {
-      const lp = Math.max(0, Math.min(1, (vertFactor - vd.staggerOffset) / 0.55))
-      const curZ = vd.zStart + (vd.zEnd - vd.zStart) * lp
       const pArr = vd.line.geometry.attributes.position.array as Float32Array
-      pArr[1] = vd.baseY + shiftY
-      pArr[4] = vd.baseY + shiftY
-      pArr[5] = curZ
-      vd.line.geometry.attributes.position.needsUpdate = true
-      ;(vd.line.material as LineBasicMaterial).opacity = Math.min(0.75, lp * 0.75) * gridOpacityMult
-    }
+      const base = vd.basePositions
+      const vCount = TOTAL_SEGS + 1
+      pArr.set(base)
 
-    const gridFactor = clamped(sp, GRID_START, VERTICAL_START)
-    gridPoints.position.y = shiftY
-    gridPoints.material.opacity = gridFactor * 0.55 * gridOpacityMult
+      const lp = Math.max(0, Math.min(1, (rawLp - vd.staggerOffset) / 0.35))
+
+      if (retracting) {
+        // 回收 A→B：近端先消失，hidden 区间从 near→far 增长
+        const retractStart = (1.0 - lp) * TOTAL_SEGS
+        const startJ = Math.floor(retractStart)
+        const startFrac = retractStart - startJ
+        const startIdx = Math.min(startJ, TOTAL_SEGS)
+        const nextIdx = Math.min(startJ + 1, TOTAL_SEGS)
+
+        for (let j = 0; j < vCount; j++) {
+          if (j >= nextIdx) {
+            // 可见：保持原位
+          } else if (j === startIdx && startFrac > 0) {
+            // 过渡顶点：插值到下一个可见顶点
+            const t = 1.0 - startFrac
+            pArr[j * 3]     = pArr[nextIdx * 3]     + (pArr[j * 3]     - pArr[nextIdx * 3])     * t
+            pArr[j * 3 + 1] = pArr[nextIdx * 3 + 1] + (pArr[j * 3 + 1] - pArr[nextIdx * 3 + 1]) * t
+            pArr[j * 3 + 2] = pArr[nextIdx * 3 + 2] + (pArr[j * 3 + 2] - pArr[nextIdx * 3 + 2]) * t
+          } else {
+            // 已擦除：停在下一个可见顶点（无尾巴）
+            pArr[j * 3]     = pArr[nextIdx * 3]
+            pArr[j * 3 + 1] = pArr[nextIdx * 3 + 1]
+            pArr[j * 3 + 2] = pArr[nextIdx * 3 + 2]
+          }
+        }
+      } else {
+        // 延伸 A→B：近端先出现
+        const curProgress = lp * TOTAL_SEGS
+        const endJ = Math.floor(curProgress)
+        const endFrac = curProgress - endJ
+        const endIdx = Math.min(endJ, TOTAL_SEGS)
+        const nextIdx = Math.min(endJ + 1, TOTAL_SEGS)
+
+        for (let j = 0; j < vCount; j++) {
+          if (j <= endIdx) {
+          } else if (j === nextIdx && endFrac > 0) {
+            const t = endFrac
+            pArr[j * 3]     = pArr[endIdx * 3]     + (pArr[j * 3]     - pArr[endIdx * 3])     * t
+            pArr[j * 3 + 1] = pArr[endIdx * 3 + 1] + (pArr[j * 3 + 1] - pArr[endIdx * 3 + 1]) * t
+            pArr[j * 3 + 2] = pArr[endIdx * 3 + 2] + (pArr[j * 3 + 2] - pArr[endIdx * 3 + 2]) * t
+          } else {
+            pArr[j * 3]     = pArr[endIdx * 3]
+            pArr[j * 3 + 1] = pArr[endIdx * 3 + 1]
+            pArr[j * 3 + 2] = pArr[endIdx * 3 + 2]
+          }
+        }
+      }
+
+      // 颜色
+      const xBright = 1.0 - Math.abs(vd.x / X_SPREAD) * 0.8
+      for (let j = 0; j < vCount; j++) {
+        const zNorm = (pArr[j * 3 + 2] - Z_FAR) / (Z_NEAR - Z_FAR)
+        const c = new Color().copy(COLOR_EDGE).lerp(COLOR_CENTER, Math.max(0, Math.min(1, xBright + zNorm * 0.15)))
+        const ca = vd.line.geometry.attributes.color
+        if (ca) {
+          const cArr = ca.array as Float32Array
+          cArr[j * 3] = c.r; cArr[j * 3 + 1] = c.g; cArr[j * 3 + 2] = c.b
+        }
+      }
+      vd.line.geometry.attributes.color!.needsUpdate = true
+      vd.line.geometry.attributes.position.needsUpdate = true
+
+      const lineOpacity = 0.60 * (1.0 - Math.abs(vd.x / X_SPREAD))
+      ;(vd.line.material as LineBasicMaterial).opacity = Math.min(0.75, lp * 0.75) * lineOpacity
+    }
   })
 
   return (
@@ -121,7 +208,6 @@ export default function GridLines() {
       {gridLines.map((vd, i) => (
         <primitive key={`vl-${i}`} object={vd.line} />
       ))}
-      <primitive object={gridPoints} />
     </group>
   )
 }

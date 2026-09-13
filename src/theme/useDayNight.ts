@@ -1,7 +1,9 @@
 import { useEffect, useRef, useCallback, useState } from 'react'
 import { gsap } from 'gsap'
 import { useScrollStore } from '../stores/scrollStore'
-import { setThemeBlend, WHITE_OUT_THRESHOLD, WHITE_OUT_END } from '../r3f/ScrollRig'
+import { setThemeBlend } from '../r3f/ScrollRig'
+import { TIMELINE, progress, smoothstep01 } from '../composition/timeline'
+import { useEffectScope } from '../composition/effectScope'
 import { NIGHT_ACT1, NIGHT_ACT3, DAY_ACT1, DAY_ACT3, scrollThemeVars, blendThemeVars } from './palettes'
 
 // ============================================================
@@ -25,6 +27,7 @@ export function useDayNight(): { handleThemeUpdate: (sp: number) => Record<strin
   const blendRef = useRef(dayNight === 'day' ? 1 : 0)
   const sceneBlendRef = useRef({ v: dayNight === 'day' ? 1 : 0 })
   const tweenRef = useRef<gsap.core.Tween | null>(null)
+  const effectScope = useEffectScope('theme')
   const [themeKey, setThemeKey] = useState(0)
 
   // ---- data-theme attribute → CSS 主题切换 ----
@@ -36,28 +39,31 @@ export function useDayNight(): { handleThemeUpdate: (sp: number) => Record<strin
   useEffect(() => {
     const target = dayNight === 'day' ? 1 : 0
     tweenRef.current?.kill()
+    effectScope.cancel('replace theme tween')
 
     // 终端：立即切换 blend，通过 themeKey 通知 TerminalBar 重渲染
     blendRef.current = target
     setThemeKey(k => k + 1)
 
     // Scene 背景：GSAP 平滑过渡（独立于终端，零 React re-render）
-    tweenRef.current = gsap.to(sceneBlendRef.current, {
+    tweenRef.current = effectScope.addTween(gsap.to(sceneBlendRef.current, {
       v: target,
       duration: 0.6,
       ease: 'power2.inOut',
       onUpdate: () => setThemeBlend(sceneBlendRef.current.v),
-    })
-    return () => { tweenRef.current?.kill() }
-  }, [dayNight])
+    }))
+    return () => {
+      tweenRef.current?.kill()
+      effectScope.cancel('theme cleanup')
+    }
+  }, [dayNight, effectScope])
 
   // ---- TerminalBar onThemeUpdate 回调 ----
   const handleThemeUpdate = useCallback((sp: number) => {
     // Act 1：强制 night 色板，忽略 dayNight 选择（dark ocean 场景需暗色终端）
     // 进入 Act 2 后恢复实际 blend 值，scroll 回 Act 1 时立即切回 night
-    const blend = sp < WHITE_OUT_THRESHOLD ? 0 : blendRef.current
-    const raw = sp <= WHITE_OUT_THRESHOLD ? 0 : sp >= WHITE_OUT_END ? 1 : (sp - WHITE_OUT_THRESHOLD) / (WHITE_OUT_END - WHITE_OUT_THRESHOLD)
-    const scrollT = raw * raw * (3 - 2 * raw)
+    const blend = sp < TIMELINE.whiteOut.start ? 0 : blendRef.current
+    const scrollT = smoothstep01(progress('whiteOut', sp))
     const nightCss = scrollThemeVars(NIGHT_ACT1, NIGHT_ACT3, scrollT)
     const dayCss = scrollThemeVars(DAY_ACT1, DAY_ACT3, scrollT)
     return blendThemeVars(nightCss, dayCss, blend)
