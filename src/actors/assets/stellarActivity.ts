@@ -334,7 +334,7 @@ export function createStellarActivity(channels: ReturnType<typeof createStellarA
           }`,
       }), '重联电流片')
     }
-    return { uniforms, channel, cme, parcels, model, texture, redrawTexture, index, ejectionVisual, placement: createProminencePlacement(channel.seed), rotationEnabled: true, lastAge: -1, seed: channel.seed, morphology: channel.morphology, duration: channel.duration, serial: channel.serial, exported: new Uint8Array(CME_DISSOLUTION.count) }
+    return { uniforms, channel, cme, parcels, model, texture, redrawTexture, index, ejectionVisual, placement: createProminencePlacement(channel.seed, model.structure), rotationEnabled: true, lastAge: -1, seed: channel.seed, morphology: channel.morphology, duration: channel.duration, serial: channel.serial, exported: new Uint8Array(CME_DISSOLUTION.count) }
   })
   const tails = createCmeTailVisual(commonShader, patches[2].uniforms.uColor)
   root.add(tails.mesh)
@@ -384,7 +384,7 @@ export function createStellarActivity(channels: ReturnType<typeof createStellarA
         if (reset) {
           if (patch.cme && channels.time === null) tails.pool.clear()
           patch.model = createFluxRopeSimulation(c.seed, patch.cme, c.morphology, c.duration, cmeRotationEnabled)
-          patch.placement = createProminencePlacement(c.seed)
+          patch.placement = createProminencePlacement(c.seed, patch.model.structure)
           patch.rotationEnabled = cmeRotationEnabled
           patch.texture.image.data = patch.model.curveData
           if (patch.redrawTexture) patch.redrawTexture.image.data = patch.model.redrawData

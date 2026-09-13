@@ -38,7 +38,7 @@
 
 [stellarShortLoop.ts](stellarShortLoop.ts) 为重组生成的左右短环提供共同弧长约束下的横摆、升降、拱肩与环腿响应。断裂初期左支向左、右支向右拉开，刚度为原始值的 25%，向外激发增益 2.40，作用 0.20–0.28 秒；力度、时刻、周期、两腿迟滞和原有不规则上下脉冲分别由种子生成。高度、展开和横摆共享弧长势能梯度，相对参考弧长的变化限制为 ±20%，不是拱顶位移限制。参考拱顶的坐标映射允许接近外侧足点，保护余量为跨度的 4%；最终还受弧长和邻接分离约束。参数见 `SHORT_LOOP_TRANSVERSE`、`SHORT_LOOP_ARC`。
 
-创建时以 1/120 秒预计算一份耦合响应表，播放按现有事件年龄读取，无额外时钟或 GPU 资源。退场时参考曲线趋近足点弦线，横向与上下形变共同收拢；整束共享主要运动，仅丝线擦除按原有时序排队。两侧完整退场常规相差 1.00–1.55 秒：先退场侧由种子选择，主要回落为 0.50–0.58 秒；另一侧延后回落、主要回落为 0.95–1.20 秒。`SHORT_LOOP_RETIREMENT` 控制结束间隔，事件尾部不足时减少额外延后量，完整擦除队列保留并在事件结束前预留 0.05 秒。随机上下脉冲保留，中央仍由 [stellarRecoil.ts](stellarRecoil.ts) 提供较弱响应。[stellarReorganization.ts](stellarReorganization.ts) 在实际交接路径和空间走廊之后，调用 [stellarArcConstraint.ts](stellarArcConstraint.ts)，用渲染的 112 段逐条复核弧长，必要时按整束共用系数向参考形态投影，并按年龄缓存结果；`arcDiagnostics()` 给说明页提供最终路径统计。模型是降阶势能反馈加几何保护，不是完整 MHD 或 XPBD。公式、参数与近似边界见[短环振荡](../../docs/stellar-plasma-model.md#重组短环的过冲与阻尼振荡)。
+创建时以 1/120 秒预计算一份耦合响应表，播放按现有事件年龄读取，无额外时钟或 GPU 资源。退场时参考曲线趋近足点弦线，横向与上下形变共同收拢；整束共享主要运动，仅丝线擦除按原有时序排队。两侧完整退场目标间隔采用中心 1 秒、标准差约 0.183 秒、范围 0.45–1.55 秒的截断高斯分布：先退场侧由种子选择，主要回落为 0.50–0.58 秒；另一侧的基础回落为 0.95–1.20 秒。目标较小时收紧慢侧多出的回落预算，保留较晚开始、较慢回落，并让实际完整退场时差匹配目标。`SHORT_LOOP_RETIREMENT` 控制结束间隔，事件尾部不足时减少额外延后量，完整擦除队列保留并在事件结束前预留 0.05 秒。随机上下脉冲保留，中央仍由 [stellarRecoil.ts](stellarRecoil.ts) 提供较弱响应。[stellarReorganization.ts](stellarReorganization.ts) 在实际交接路径和空间走廊之后，调用 [stellarArcConstraint.ts](stellarArcConstraint.ts)，用渲染的 112 段逐条复核弧长，必要时按整束共用系数向参考形态投影，并按年龄缓存结果；`arcDiagnostics()` 给说明页提供最终路径统计。模型是降阶势能反馈加几何保护，不是完整 MHD 或 XPBD。公式、参数与近似边界见[短环振荡](../../docs/stellar-plasma-model.md#重组短环的过冲与阻尼振荡)。
 
 重组三支在最终采样位置应用共享空间走廊约束，限制中央与邻接短环互相穿插；同一磁通区域内保留不同的固定附着点。中央交错保留约一半可见丝线、两侧保持完整数量；保留的中央丝线由外到内每隔 0.12 秒启动回落，每条回落 0.40 秒、沿线擦除 0.40 秒，几何与可见度共用同一个逐层时序。实现与参数见 [stellarReorganization.ts](stellarReorganization.ts)，[公式与约束范围](../../docs/stellar-plasma-model.md#三支共享的空间走廊)。
 
@@ -50,7 +50,9 @@
 
 [stellarActivity.ts](stellarActivity.ts) 提供 Act 4 的日面切圆取样、日冕抛射概率密度与独立事件时间轴。日珥位置按可见弧长均匀采样；只有 CME 使用中线密度为平均值一半的平滑分布。沿用聚焦模块的暂停 GSAP Timeline、R3F `delta` 推进及释放方式，不共享聚焦会话状态。[stellarPlasma.ts](stellarPlasma.ts) 提供环形失稳的 RK4 积分、大小环系、沿场物质输运和 CPU/GPU 共享路径表；[stellarMagnetism.ts](stellarMagnetism.ts) 提供拱顶形状、受迫形变模态、可变截面与连续重联映射；物理依据及近似边界见[降阶模型](../../docs/stellar-plasma-model.md)。[stellarMorphology.ts](stellarMorphology.ts) 负责六类日珥构型、权重抽样、足点布局和固定流线预算；事件层排除上次及另一通道的主类型。嵌套拱廊与低矮环簇由生成器绑定另一种类型，最多 6 个环系、12 条流线；返回 `companion` 与各环系的 `sourceKind`，共享事件播放头，但各环系错峰演化，每种组成保留一个支撑环维持伴随关系。可在[种子图鉴](../../docs/actors/stellar-morphology-explainer.html)重放组合。[stellarEjection.ts](stellarEjection.ts) 由原固定步驱动，在每条流线闭合后按弧长错位布点、按出生高度减少底部可见颗粒，释放后短暂舒展局部拥挤区域；雾共用完整运动样本，复用事件时钟；显示层及实验边界见 [CME 说明页](../../docs/actors/cme-dissolution-explainer.html)。概率、颜色、阶段和资源约束见[日面活动说明](../../docs/system-structure.md#随机日珥与日冕物质抛射)。
 
-[stellarPlacement.ts](stellarPlacement.ts) 根据事件种子生成普通活动区的整体方位和尺寸，事件存续期间固定；主环、伴随环和重组短环共用结果。方位绕局部日面法线取样，尺寸分布偏向大值，第二通道保留原有较小比例；该模块不改变内部动力学或 CME 旋扭。分布、球面映射及图鉴与主页的差异见[活动区摆放公式](../../docs/system-structure.md#活动区朝向尺寸与球面贴合)。
+[stellarPlacement.ts](stellarPlacement.ts) 根据事件种子和实际 `structure.families` 生成普通活动区的整体方位和尺寸，事件存续期间固定；主环、伴随环和重组短环共用结果。方位绕局部日面法线取样；任一环系的 `sourceKind` 为 `cluster` 时，整组采用中心 95%、范围 85%–105% 的截断高斯分布，参数见 `PROMINENCE_CLUSTER_SCALE`；其他组合仍使用中心 115%、范围 85%–145% 的 `PROMINENCE_PLACEMENT`。两套范围均为 ±3σ；第二通道保留原有较小比例。该模块不改变内部动力学或 CME 旋扭。分布、球面映射及图鉴与主页的差异见[活动区摆放公式](../../docs/system-structure.md#活动区朝向尺寸与球面贴合)。
+
+[stellarRandom.ts](stellarRandom.ts) 共享确定性散列与截断高斯采样；普通活动区尺寸与短环退场间隔分别使用独立盐值，越界换盐重抽。仅在方案创建时取样，相同输入可复现，不在播放中逐帧随机。
 
 ## 聚焦会话
 

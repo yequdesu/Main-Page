@@ -54,7 +54,7 @@
 
 场景组装以 [Canvas.tsx](../r3f/Canvas.tsx) 和 [App.tsx](../App.tsx) 为准。常驻 Canvas 不代表对象始终可见，需继续核对 Actor 内部的进度与透明度逻辑。
 
-普通日珥在 Act 4 通过 [stellarPlacement.ts](../behaviors/stellarPlacement.ts) 共用事件级方位与尺寸；路径生成后才应用随机摆放，并以两个切向分量贴合球面。随机化不改变局部构型或重组时序，局部图鉴继续使用单位尺度。范围、分布与适用边界见[活动区摆放](../../docs/system-structure.md#活动区朝向尺寸与球面贴合)。
+普通日珥在 Act 4 通过 [stellarPlacement.ts](../behaviors/stellarPlacement.ts) 共用事件级方位与尺寸；首次创建与模型重建后，将实际 `structure` 传入摆放器。若任一环系来自低矮环簇，整组采用较小的截断高斯分布，包含低簇作为伴随类型的情况。路径生成后才应用随机摆放，并以两个切向分量贴合球面。随机化不改变局部构型或重组时序，局部图鉴继续使用单位尺度。范围、分布与适用边界见[活动区摆放](../../docs/system-structure.md#活动区朝向尺寸与球面贴合)。
 
 ## 主页轨道与资产对应
 

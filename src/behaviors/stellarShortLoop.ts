@@ -1,8 +1,9 @@
 import { redrawEase } from './stellarRedraw'
+import { stellarRandom as random, sampleStellarGaussian } from './stellarRandom'
 
 export const SHORT_LOOP_ERASE = { interval: 0.18, duration: 0.38 } as const
 /** 常规完整退场间隔；事件剩余时间不足时缩短延后量，不截断擦除队列。 */
-export const SHORT_LOOP_RETIREMENT = { gap: 1.0, gapSpread: 0.55 } as const
+export const SHORT_LOOP_RETIREMENT = { mean: 1.0, sigma: 0.55 / 3, min: 0.45, max: 1.55 } as const
 /** 单位质量下相对于原横向弹簧的刚度；激发强度独立，避免降 k 时推力也同步减弱。 */
 export const SHORT_LOOP_TRANSVERSE = { stiffnessScale: 0.25, driveGain: 2.40, maxDisplacement: 0.46 } as const
 
@@ -14,6 +15,7 @@ export interface ShortLoopPlan {
   fallDuration: number
   eraseStart: number
   finish: number
+  targetFinishGap: number
   lift: number
   period: number
   damping: number
@@ -28,25 +30,22 @@ export interface ShortLoopPlan {
     legLag: [number, number]; legGain: [number, number]; stiffnessScale: number; driveGain: number; maxDisplacement: number }
 }
 
-const random = (seed: number, salt: number) => {
-  let n = ((seed * 0xffffffff) >>> 0) ^ Math.imul(salt, 0x9e3779b9)
-  n = Math.imul(n ^ (n >>> 16), 0x21f0aaad)
-  n = Math.imul(n ^ (n >>> 15), 0x735a2d97)
-  return ((n ^ (n >>> 15)) >>> 0) / 4294967296
-}
-
 export function createShortLoopPlans(seed: number, start: number, strands: number, contact = start, end = Infinity): [ShortLoopPlan, ShortLoopPlan] {
   const first = random(seed, 201) < 0.5 ? 0 : 1
   const firstFall = start + 0.72 + 0.12 * random(seed, 203)
-  const initialGap = 0.28 + 0.20 * random(seed, 204)
+  const desiredGap = sampleStellarGaussian(seed, 205, SHORT_LOOP_RETIREMENT)
+  const initialGap = Math.min(0.28 + 0.20 * random(seed, 204), desiredGap * 0.5)
   const eraseBudget = (strands - 1) * SHORT_LOOP_ERASE.interval + SHORT_LOOP_ERASE.duration
+  const earlyDuration = 0.50 + 0.08 * random(seed, 220 + first * 30 + 1)
+  const earlyBudget = Math.max(eraseBudget, earlyDuration + 0.25)
+  // 小目标间隔不能被原先较长的慢侧回落预算抬高；仅收紧慢侧多出的用时。
+  // 保留慢侧较晚开始、较慢回落，以及每条丝线完整的擦除窗口。
+  const lateDuration = Math.min(0.95 + 0.25 * random(seed, 220 + (1 - first) * 30 + 1), earlyBudget + desiredGap - initialGap - 0.25)
   const fallDurationFor = (side: number) => side === first
-    ? 0.50 + 0.08 * random(seed, 220 + side * 30 + 1)
-    : 0.95 + 0.25 * random(seed, 220 + side * 30 + 1)
+    ? earlyDuration : lateDuration
   const finishAfter = (side: number) => Math.max(eraseBudget, fallDurationFor(side) + 0.25)
   const earlyFinish = firstFall + finishAfter(first)
   const lateBaseFinish = firstFall + initialGap + finishAfter(1 - first)
-  const desiredGap = SHORT_LOOP_RETIREMENT.gap + SHORT_LOOP_RETIREMENT.gapSpread * random(seed, 205)
   const delay = Math.max(0, Math.min(earlyFinish + desiredGap - lateBaseFinish, end - lateBaseFinish))
   const gap = initialGap + delay
   return [0, 1].map(side => {
@@ -63,7 +62,7 @@ export function createShortLoopPlans(seed: number, start: number, strands: numbe
         duration: 0.24 + 0.18 * p(1), force: (p(2) < 0.5 ? -1 : 1) * (0.045 + 0.075 * p(3)), tuning: 2 * p(4) - 1 }
     })
     return { start, riseStart: start + 0.24 + 0.10 * r(2), fallStart, fallDuration, eraseStart,
-      finish: eraseStart + eraseBudget, lift: 0.40 + 0.30 * r(3),
+      finish: eraseStart + eraseBudget, targetFinishGap: desiredGap, lift: 0.40 + 0.30 * r(3),
       period: 0.72 + 0.24 * r(4), damping: 0.38 + 0.12 * r(5), kick: (r(13) < 0.5 ? -1 : 1) * (0.08 + 0.08 * r(6)),
       phase: 2 * Math.PI * r(7), secondaryPhase: 2 * Math.PI * r(8),
       shoulderLag: 0.66 + 0.20 * r(9), shapeBias: (r(10) - 0.5) * 0.22, layerBias: r(11) * Math.PI * 2, pulses,

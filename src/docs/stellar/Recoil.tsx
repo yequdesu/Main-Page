@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import { LOCAL_RECONNECTION, type FamilyEvolution } from '../../behaviors/stellarReorganization'
-import { createShortLoopMotion, shortLoopProfile, shortLoopRestHeight } from '../../behaviors/stellarShortLoop'
+import { createShortLoopMotion, shortLoopProfile, shortLoopRestHeight, SHORT_LOOP_RETIREMENT } from '../../behaviors/stellarShortLoop'
 
 const labels = ['左侧短环', '右侧短环'], colors = ['#edbc7a', '#8dc7cd']
 /** 两侧响应曲线与动态拱形复用三维模型，读同一个事件年龄。 */
@@ -75,7 +75,7 @@ export default function Recoil({ plan, age, seek }: { plan: FamilyEvolution; age
       {[0, 0.25, 0.5, 0.75, 1].map(f => <text key={f} x={24 + f * 552} y="156" textAnchor={f === 0 ? 'start' : f === 1 ? 'end' : 'middle'}>+{(f * duration).toFixed(1)} s</text>)}
     </svg>
     <div className="family-states">{plan.sides.map((side, i) => <span key={i} style={{ color: colors[i] }}>{labels[i]} · {(side.fallStart - start).toFixed(2)} s 开始回落 · 回落用时 {side.fallDuration.toFixed(2)} s · 完全退场 {side.finish.toFixed(2)} s</span>)}</div>
-    <p>两侧完全退场相差 {Math.abs(plan.sides[0].finish - plan.sides[1].finish).toFixed(2)} 秒；目标间隔在 1.00–1.55 秒内按种子随机取值，先退场侧也由种子决定。另一侧较晚开始回落，回落也更缓慢，保留可见的单侧余环。事件尾部不足时会收紧间隔，保留完整的逐条擦除队列；固定种子重放时结果一致。</p>
+    <p>两侧完全退场相差 {Math.abs(plan.sides[0].finish - plan.sides[1].finish).toFixed(2)} 秒；本次抽样目标为 {plan.sides[0].targetFinishGap.toFixed(2)} 秒。目标使用截断高斯分布，中心 {SHORT_LOOP_RETIREMENT.mean.toFixed(2)} 秒、标准差 {SHORT_LOOP_RETIREMENT.sigma.toFixed(3)} 秒，范围 {SHORT_LOOP_RETIREMENT.min.toFixed(2)}–{SHORT_LOOP_RETIREMENT.max.toFixed(2)} 秒；越界重抽，先退场侧另由种子决定。另一侧较晚开始、较慢回落；目标较小时收紧多出的回落用时，使实际时差匹配目标。事件尾部不足时会进一步收紧间隔，保留完整的逐条擦除队列；固定种子重放时结果一致。</p>
     <p>虚线是目标升降趋势，实线是拱顶对目标的实际响应；彩色竖线标记各自的回落起点。每侧另有 3–5 次不规则脉冲：出现时刻、方向、持续时间与强弱分别取样。推压更宽缓、力度更轻，配合较慢的回弹和较强的阻尼，让升降更柔和；响应速率只轻微漂移。左右保留各自的惯性与形变，初始回弹方向也随种子改变。</p>
     <svg className="recoil-chart" viewBox="0 0 600 85" role="img" aria-label="左右不规则脉冲序列：向上的短线为上推，向下为下压">
       {plan.sides.map((side, b) => <g key={b}>

@@ -195,7 +195,7 @@ it('左右起落有可见差异，先落和慢落的一侧随种子改变；参�
   for (let i = 0; i < 100; i++) {
     const sides = createShortLoopPlans(i / 100, 10, 9), [a, b] = sides
     expect(sides).toEqual(createShortLoopPlans(i / 100, 10, 9))
-    expect(Math.abs(a.fallStart - b.fallStart)).toBeGreaterThanOrEqual(0.28 - 1e-9)
+    expect(Math.abs(a.fallStart - b.fallStart)).toBeGreaterThanOrEqual(0.225 - 1e-9)
     expect(Math.abs(a.fallDuration - b.fallDuration)).toBeGreaterThanOrEqual(0.12 - 1e-9)
     expect(a.period).not.toBe(b.period)
     first.add(a.fallStart < b.fallStart ? 0 : 1)
@@ -211,19 +211,45 @@ it('完整退场间隔明显且先退场侧随种子变化，延后不会截断�
     const first = sides[0].finish < sides[1].finish ? 0 : 1, last = 1 - first
     firstSides.add(first)
     const gap = sides[last].finish - sides[first].finish
-    expect(gap).toBeGreaterThanOrEqual(1 - 1e-9)
+    expect(gap).toBeGreaterThanOrEqual(0.45 - 1e-9)
     expect(gap).toBeLessThanOrEqual(1.55 + 1e-9)
-    expect(sides[last].fallDuration - sides[first].fallDuration).toBeGreaterThan(0.35)
+    expect(gap).toBeCloseTo(sides[first].targetFinishGap, 10)
+    expect(sides[last].fallDuration).toBeGreaterThan(sides[first].fallDuration)
+    expect(sides[last].fallStart).toBeGreaterThan(sides[first].fallStart)
   }
   expect(firstSides.size).toBe(2)
   for (let i = 0; i < 100; i++) for (const kind of ['isolated', 'bilateral', 'crossed', 'one-sided', 'nested', 'cluster'] as const) for (const duration of [30, 36, 38]) {
     const plans = createMagneticEvolution(createProminenceStructure(i / 100, kind).families, duration)
     for (const plan of plans) if (plan.reorganizes) {
       expect(plan.finish).toBeLessThanOrEqual(plan.timing.end - 0.05 + 1e-9)
-      expect(Math.abs(plan.sides[0].finish - plan.sides[1].finish)).toBeGreaterThan(0.65)
+      const gap = Math.abs(plan.sides[0].finish - plan.sides[1].finish)
+      expect(gap).toBeGreaterThan(0)
+      expect(gap).toBeLessThanOrEqual(plan.sides[0].targetFinishGap + 1e-9)
       for (const side of plan.sides) expect(side.finish - side.eraseStart).toBeCloseTo((plan.strands - 1) * 0.18 + 0.38, 10)
     }
   }
+})
+
+it('完整退场时差符合中心 1 秒、范围 0.45–1.55 秒的高斯分布，不受丝线数量抬高', () => {
+  const count = 50000, bins = [0, 0, 0, 0, 0, 0], sigma = 0.55 / 3
+  let total = 0, squared = 0, mismatch = 0, boundary = 0, leftFirst = 0
+  for (let i = 0; i < count; i++) {
+    const [a, b] = createShortLoopPlans(i / count, 10.65, 2, 10)
+    const [c, d] = createShortLoopPlans(i / count, 10.65, 12, 10)
+    const gap = Math.abs(a.finish - b.finish)
+    mismatch = Math.max(mismatch, Math.abs(gap - a.targetFinishGap), Math.abs(Math.abs(c.finish - d.finish) - gap))
+    if (a.targetFinishGap <= 0.45 || a.targetFinishGap >= 1.55) boundary++
+    if (a.finish < b.finish) leftFirst++
+    total += gap; squared += (gap - 1) ** 2
+    bins[Math.min(5, Math.floor((gap - 0.45) / sigma))]++
+  }
+  expect(boundary).toBe(0)
+  expect(mismatch).toBeLessThan(1e-10)
+  expect(Math.abs(total / count - 1)).toBeLessThan(0.005)
+  expect(Math.abs(Math.sqrt(squared / count) - sigma * 0.98658)).toBeLessThan(0.003)
+  expect(leftFirst / count).toBeGreaterThan(0.48); expect(leftFirst / count).toBeLessThan(0.52)
+  const expected = [0.02146, 0.13627, 0.34227, 0.34227, 0.13627, 0.02146]
+  bins.forEach((value, i) => expect(Math.abs(value / count - expected[i])).toBeLessThan(0.008))
 })
 
 it('一侧完全消失后另一侧仍保留可见拱形，随后再完整退出', () => {

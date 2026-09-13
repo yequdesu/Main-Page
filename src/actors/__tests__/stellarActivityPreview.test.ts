@@ -4,6 +4,7 @@ import { createStellarActivity } from '../assets/stellarActivity'
 import { createStellarActivityChannels, createStellarLimbFrame } from '../../behaviors/stellarActivity'
 import { getStructureLayout, STRUCTURE_LAYOUT } from '../../behaviors/structureLayout'
 import { createProminencePlacement } from '../../behaviors/stellarPlacement'
+import { createProminenceStructure } from '../../behaviors/stellarMorphology'
 import { createFluxRopeSimulation } from '../../behaviors/stellarPlasma'
 
 it('随机摆放作用于整个普通活动区，保持日面法线、内部路径、次通道比例和局部预览', () => {
@@ -13,7 +14,7 @@ it('随机摆放作用于整个普通活动区，保持日面法线、内部路�
   const u = (asset.root.getObjectByName('日珥弧丝_0') as Mesh<never, ShaderMaterial>).material.uniforms
   const second = (asset.root.getObjectByName('日珥弧丝_1') as Mesh<never, ShaderMaterial>).material.uniforms
   const cme = (asset.root.getObjectByName('日冕抛射弧丝') as Mesh<never, ShaderMaterial>).material.uniforms
-  for (const c of [...channels.prominences, channels.cme]) Object.assign(c, { opacity: 1, age: 1, seed, position: 0.4 })
+  for (const c of [...channels.prominences, channels.cme]) Object.assign(c, { opacity: 1, age: 1, seed, position: 0.4, morphology: 'bilateral' })
   try {
     asset.layoutLocal(800, 500, 6); asset.update()
     const paths = u.uCurves.value.image.data.slice()
@@ -45,6 +46,36 @@ it('随机摆放作用于整个普通活动区，保持日面法线、内部路�
     expect(u.uTangent.value.toArray()).toEqual([1, 0, 0]); expect(u.uScale.value).toBe(1)
     channels.prominences[0].age = 1; asset.update()
     expect(u.uCurves.value.image.data).toEqual(paths)
+  } finally { asset.dispose() }
+})
+
+it('首次创建、换主类型和换伴随类型都根据实际环系选择低簇尺寸分布', () => {
+  const channels = createStellarActivityChannels(), channel = channels.prominences[0]
+  Object.assign(channel, { opacity: 1, age: 0, seed: 0.47, morphology: 'cluster' })
+  const asset = createStellarActivity(channels), layout = getStructureLayout(16 / 9)
+  const u = (asset.root.getObjectByName('日珥弧丝_0') as Mesh<never, ShaderMaterial>).material.uniforms
+  try {
+    asset.layout(layout, 1280, 720)
+    for (const [kind, seed, lowCluster] of [['cluster', 0.47, true], ['nested', 0.47, false], ['nested', 0.79, true], ['bilateral', 0.79, false]] as const) {
+      Object.assign(channel, { morphology: kind, seed })
+      asset.update()
+      const structure = createProminenceStructure(seed, kind)
+      expect(structure.kind === 'cluster' || structure.companion === 'cluster').toBe(lowCluster)
+      const expected = createProminencePlacement(seed, structure)
+      const distance = STRUCTURE_LAYOUT.cameraZ - STRUCTURE_LAYOUT.planeZ
+      const baseline = Math.min(layout.width * 0.028, layout.height * 0.050) * (distance - u.uAnchor.value.z) / distance
+      expect(u.uScale.value / baseline).toBeCloseTo(expected.scale, 12)
+      if (lowCluster) {
+        expect(u.uScale.value / baseline).toBeGreaterThanOrEqual(0.85)
+        expect(u.uScale.value / baseline).toBeLessThanOrEqual(1.05)
+      } else expect(expected).toEqual(createProminencePlacement(seed))
+    }
+    channel.morphology = 'cluster'; asset.update()
+    const scale = u.uScale.value
+    asset.layoutLocal(800, 500, 6); asset.update()
+    expect(u.uScale.value).toBe(1)
+    asset.layout(layout, 1280, 720); asset.update()
+    expect(u.uScale.value).toBeCloseTo(scale, 12)
   } finally { asset.dispose() }
 })
 
