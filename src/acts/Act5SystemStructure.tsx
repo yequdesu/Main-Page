@@ -62,11 +62,12 @@ export default function Act5SystemStructure({ visible }: { visible: boolean }) {
     assets.root.position.copy(pose.star)
     assets.root.position.x -= layout.sunX * pose.structureScale
     assets.activity.root.visible = transition.activity > 0
-    assets.radiation.points.visible = transition.activity > 0
+    assets.radiation.points.visible = transition.radiation > 0
     if (visible && transition.activity > 0) activityTimeline.current?.advance(delta)
-    assets.activity.update()
+    assets.activity.setDetail(transition.activityDetail)
+    assets.activity.update(state.camera)
     assets.activity.setVisibility(transition.activity)
-    assets.radiation.update(state.clock.elapsedTime, state.gl.getPixelRatio(), transition.activity)
+    assets.radiation.update(state.clock.elapsedTime, state.gl.getPixelRatio(), transition.radiation)
     assets.planets.forEach((planet, i) => {
       const radius = layout.planets[i].radius
       const entry = transition.planets[i]

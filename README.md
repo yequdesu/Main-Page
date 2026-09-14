@@ -13,7 +13,7 @@ YeQuDesu 的滚动驱动 3D 单页个人网站，用海洋灯塔、网格过渡�
 | OceanVoyage | 0–45% | 暗色海洋、灯塔、旋转光束与漂浮碎片 |
 | GridTransition | 40–85% | 雾效过渡、海浪展平与网格延伸，随后显示品牌文字 |
 | ContentPhase | 85–100% | 中央恒星、轨道环、三颗主行星及导航标签 |
-| StellarTransition（Act 4） | Act 3 之后 | 拉近同一颗恒星，移至左侧日面构图，三颗行星由右侧错峰弹簧入场 |
+| StellarTransition（Act 4） | Act 3 之后 | 拉近同一颗恒星并渐显轮廓环带活动，移至左侧日面构图，三颗行星由右侧错峰弹簧入场 |
 | SystemStructure（Act 5） | 转场完成后 | 左侧日面边缘，向右排列普通、带卫星与带环行星，展示系统组成 |
 
 这些区间描述视觉阶段，不代表组件的挂载区间。海浪延续到网格阶段，跨幕对象常驻 Canvas 根层级，各对象按进度控制自身表现；日间主题会逐渐转为亮色背景，夜间主题保持暗色。共享阈值见 [SCROLL_RIG](src/types/index.ts)，背景和雾的计算见 [ScrollRig.ts](src/r3f/ScrollRig.ts)。

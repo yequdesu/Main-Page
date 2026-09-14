@@ -1,33 +1,12 @@
 import { gsap } from 'gsap'
 import { selectProminenceMorphology, type ProminenceMorphology } from './stellarMorphology'
-import { Vector3 } from 'three'
-import { STRUCTURE_LAYOUT, type getStructureLayout } from './structureLayout'
 import { MAGNETIC_LIFETIME, magneticLifecycleTiming } from './stellarLifecycle'
 
-/** x 是可见日面切圆上的归一化弧长，范围 [-1, 1]，0 为水平中线。 */
-export const CME_TRANSITION_WIDTH = 0.45
-const densityGain = 0.5 / (2 - CME_TRANSITION_WIDTH)
-export function cmePositionDensity(x: number) {
-  if (Math.abs(x) > 1) return 0
-  const t = Math.min(1, Math.abs(x) / CME_TRANSITION_WIDTH)
-  return 0.25 + densityGain * t * t * (3 - 2 * t)
-}
-export function cmePositionCDF(x: number) {
-  const v = Math.min(1, Math.abs(x)), a = CME_TRANSITION_WIDTH
-  const integral = v < a ? v ** 3 / a ** 2 - 0.5 * v ** 4 / a ** 3 : v - a / 2
-  return 0.5 + Math.sign(x) * (0.25 * v + densityGain * integral)
-}
-export function sampleCmePosition(u: number) {
-  let low = -1, high = 1
-  for (let i = 0; i < 36; i++) {
-    const mid = (low + high) / 2
-    if (cmePositionCDF(mid) < u) low = mid
-    else high = mid
-  }
-  return (low + high) / 2
-}
+export { createStellarLimbFrame } from './stellarLimb'
+export { cmePositionDensity, cmePositionCDF, sampleCmePosition } from './stellarCmeDistribution'
 
 export function createStellarActivityChannels() {
+  // position 保留一次均匀随机分位数 [-1, 1]；资产按出生布局映射为环周相位。
   const channel = () => ({ position: 0, seed: 0, opacity: 0, age: 0, duration: MAGNETIC_LIFETIME, serial: 0, morphology: null as ProminenceMorphology | null })
   return { prominences: [channel(), channel()], cme: channel(), time: null as number | null }
 }
@@ -47,7 +26,7 @@ export function createStellarActivityTimeline(channels: ReturnType<typeof create
     const cme = event.type === 'cme'
     const channel = cme ? channels.cme : channels.prominences[slot]
     Object.assign(channel, {
-      position: cme ? sampleCmePosition(random()) : random() * 2 - 1,
+      position: random() * 2 - 1,
       seed: random(), opacity: 0, age: 0, serial: channel.serial + 1,
       morphology: cme ? null : selectProminenceMorphology(random(), channel.morphology, channels.prominences[1 - slot].morphology),
     })
@@ -79,8 +58,9 @@ export function createStellarActivityTimeline(channels: ReturnType<typeof create
   dispatch({ type: 'prominence', slot: 1 })
   lanes[0]!.totalTime(4, false)
   lanes[1]!.totalTime(9, false)
-  // 首次进入即有日珥，首次抛射在可见场景时间 3 秒后开始。
-  lanes[2] = gsap.timeline({ paused: true }).to(channels.cme, { age: 3, duration: 3, ease: 'none' })
+  // 首次靠近时已有正在蓄能的磁通绳；跨 Act 不重启这些事件。
+  dispatch({ type: 'cme' })
+  lanes[2]!.totalTime(2.5, false)
   return {
     dispatch,
     advance(delta: number) {
@@ -96,42 +76,6 @@ export function createStellarActivityTimeline(channels: ReturnType<typeof create
     dispose() {
       disposed = true
       lanes.forEach(timeline => timeline?.kill())
-    },
-  }
-}
-
-/** 相机到球体的真实切圆：按其弧长随机取点，避免把均匀屏幕 y 误当成均匀弧长。 */
-export function createStellarLimbFrame() {
-  const center = new Vector3(), right = new Vector3(), camera = new Vector3(0, 0, STRUCTURE_LAYOUT.cameraZ - STRUCTURE_LAYOUT.planeZ)
-  const point = new Vector3(), sun = new Vector3()
-  let radius = 1, limit = 1
-  function positionAt(angle: number, target: Vector3) {
-    return target.copy(center).addScaledVector(right, radius * Math.cos(angle)).addScaledVector(up, radius * Math.sin(angle))
-  }
-  const up = new Vector3(0, 1, 0)
-  return {
-    layout(layout: ReturnType<typeof getStructureLayout>) {
-      sun.set(layout.sunX, 0, 0)
-      const d = camera.z, distance = Math.hypot(layout.sunX, d)
-      const alpha = 1 - (layout.sunRadius / distance) ** 2
-      center.copy(sun).sub(camera).multiplyScalar(alpha).add(camera)
-      right.set(d / distance, 0, layout.sunX / distance)
-      radius = layout.sunRadius * Math.sqrt(alpha)
-      let low = 0, high = Math.PI / 2
-      for (let i = 0; i < 40; i++) {
-        const angle = (low + high) / 2
-        positionAt(angle, point)
-        const scale = d / (d - point.z)
-        if (point.y * scale > layout.height * 0.43 || point.x * scale < -layout.width * 0.485) high = angle
-        else low = angle
-      }
-      limit = low
-    },
-    sample(x: number, anchor: Vector3, tangent: Vector3, normal: Vector3) {
-      const angle = Math.max(-1, Math.min(1, x)) * limit
-      positionAt(angle, anchor)
-      tangent.copy(right).multiplyScalar(-Math.sin(angle)).addScaledVector(up, Math.cos(angle))
-      normal.copy(anchor).sub(sun).normalize()
     },
   }
 }

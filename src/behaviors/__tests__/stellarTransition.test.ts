@@ -12,6 +12,8 @@ describe('Act 4 恒星转场', () => {
     sampleStellarTransition(0.42, state)
     expect(state.zoom).toBe(1)
     expect(state.reframe).toBe(0)
+    expect(state.activity).toBe(1)
+    expect(state.radiation).toBe(0)
     expect(state.planets).toEqual([0, 0, 0])
     for (const [i, start] of STELLAR_TRANSITION.planetStarts.entries()) {
       sampleStellarTransition(start + 0.001, state)
@@ -26,6 +28,20 @@ describe('Act 4 恒星转场', () => {
     expect(state.planets).toEqual([1, 1, 1])
     expect(state.activity).toBe(1)
     expect(state.overlay).toBe(1)
+  })
+
+  it('日面活动在拉近中逐渐显现，背景微光等待最终构图；回退对称且端点精确', () => {
+    const sample = (p: number) => sampleStellarTransition(p, createStellarTransitionState())
+    expect(sample(0).activity).toBe(0)
+    expect(sample(0.18).activity).toBeCloseTo(0.5)
+    expect(sample(0.32).activity).toBe(1)
+    expect(sample(0.32).zoom).toBeLessThan(1)
+    expect(sample(0.32).radiation).toBe(0)
+    expect(sample(0.86).radiation).toBeCloseTo(0.5)
+    expect(sample(0.25).activityDetail).toBe(0)
+    expect(sample(0.35).activityDetail).toBeCloseTo(0.5)
+    expect(sample(0.45).activityDetail).toBe(1)
+    expect(sample(0.65).activityDetail).toBe(1)
   })
 
   it('弹簧入场有较高初速、有限回弹和静止终点', () => {

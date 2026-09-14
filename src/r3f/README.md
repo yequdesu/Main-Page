@@ -24,7 +24,7 @@ R3F Canvas 配置、渲染循环桥接、全局场景管理。本目录的组件
 
 Act 4/5 复用同一 Canvas、相机与 demand 循环，以 layer 1 隔离结构图；共享恒星的各绘制节点同时启用 layer 0/1，根层级 `SceneLights` 提供对应灯光；其卫星和光晕在可见时请求帧。点击处理在结构过渡开始后禁用，避免误触原场景。原因与对象所有权见[结构图说明](../../docs/system-structure.md#布局与单相机渲染)。
 
-转场采样在 `Act4StellarTransition(-30)`；随后聚焦帧顺序为 `Planets(-20)` 推进 GSAP 时间轴和行星，再由相机与轨道材质消费结果。详见 [聚焦会话](../behaviors/README.md#聚焦会话)。
+转场采样在 `Act4StellarTransition(-30)`；随后聚焦帧顺序为 `Planets(-20)` 推进 GSAP 时间轴和行星，随后飞行器（−0.5）、相机（−0.25）更新，日面轮廓环带和轨道材质在 0 消费同帧结果。详见 [聚焦会话](../behaviors/README.md#聚焦会话)。
 
 ## 依赖方向
 

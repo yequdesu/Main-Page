@@ -11,10 +11,11 @@ import { PLANET_RING } from '../../actors/assets/ringedPlanet'
 import { useScrollStore } from '../../stores/scrollStore'
 
 const initial = useScrollStore.getState()
+const testCameraPosition = new Vector3()
 afterEach(() => { useScrollStore.setState(initial, true); vi.restoreAllMocks() })
 
 function TestClock() {
-  useFrame((state, delta) => { state.clock.elapsedTime += delta }, -100)
+  useFrame((state, delta) => { state.clock.elapsedTime += delta; testCameraPosition.copy(state.camera.position) }, -100)
   return null
 }
 
@@ -86,6 +87,32 @@ it('结构图只显示自身图层，主体固定排列，卫星继续公转，�
     expect(root.visible).toBe(true)
     await renderer.advanceFrames(1, 0.016)
     expect(ejection.material.uniforms.uAge.value).toBeGreaterThan(activityAge)
+    // 镜头往返只连续更新环带参考系，不换事件、不从 age=0 重播。
+    const activity = root.getObjectByName('日珥与日冕抛射')!
+    const u = ejection.material.uniforms, seed = u.uSeed.value, paths = u.uCurves.value
+    let age = u.uAge.value
+    for (const page of [1.12, 1.16, 1.20, 1.31, 1.42, 1.16]) {
+      useScrollStore.getState().setPageProgress(page)
+      await renderer.advanceFrames(1, 0.016)
+      expect(activity.visible).toBe(true)
+      expect(u.uAge.value).toBeGreaterThan(age)
+      expect(u.uSeed.value).toBe(seed)
+      expect(u.uCurves.value).toBe(paths)
+      if (page === 1.12) {
+        expect(u.uBundleResolve.value).toBeCloseTo(0)
+        expect(u.uParcelGain.value).toBeCloseTo(1)
+      }
+      if (page === 1.16) expect(u.uBundleResolve.value).toBeCloseTo(0.5)
+      if (page >= 1.20) expect(u.uBundleResolve.value).toBe(1)
+      if (page === 1.12) expect(u.uRibbonMinPixels.value).toBeCloseTo(0.55)
+      if (page === 1.16) expect(u.uRibbonMinPixels.value).toBeCloseTo(0.725)
+      if (page >= 1.20) expect(u.uRibbonMinPixels.value).toBeCloseTo(0.90)
+      // 锚点始终位于实际相机的轮廓切圆，而非日面正面。
+      const worldAnchor = u.uAnchor.value.clone().multiplyScalar(root.scale.x).add(root.position)
+      expect(worldAnchor.distanceTo(sharedStar.position)).toBeCloseTo(0.42 * sharedStar.scale.x, 8)
+      expect(testCameraPosition.clone().sub(worldAnchor).dot(u.uNormal.value)).toBeCloseTo(0, 8)
+      age = u.uAge.value
+    }
     useScrollStore.getState().setPageProgress(1)
     const pausedAge = ejection.material.uniforms.uAge.value
     await renderer.advanceFrames(3, 0.016)

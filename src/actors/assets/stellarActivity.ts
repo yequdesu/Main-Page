@@ -1,16 +1,17 @@
 import {
   AdditiveBlending, BufferAttribute, BufferGeometry, Color, DoubleSide, Group, Mesh, ShaderMaterial, Vector2, Vector3,
-  InstancedBufferGeometry, InstancedBufferAttribute, PlaneGeometry, SphereGeometry, DataTexture, FloatType, RGBAFormat, NearestFilter,
+  InstancedBufferGeometry, InstancedBufferAttribute, PlaneGeometry, SphereGeometry, DataTexture, FloatType, RGBAFormat, NearestFilter, Matrix4, type Camera,
 } from 'three'
 import { createStellarLimbFrame, type createStellarActivityChannels } from '../../behaviors/stellarActivity'
 import { createProminencePlacement } from '../../behaviors/stellarPlacement'
+import { STELLAR_LIMB, stellarLimbPhase, stellarDetailVisibility } from '../../behaviors/stellarLimb'
 import { createFluxRopeSimulation, PLASMA, PLASMA_COUNT } from '../../behaviors/stellarPlasma'
 import { MAGNETIC, magneticEase, magneticStage } from '../../behaviors/stellarMagnetism'
 import { CME_DISSOLUTION, cmeConversion } from '../../behaviors/stellarEjection'
-import { CME_SCREEN_SCALE, CME_TAIL } from '../../behaviors/stellarParticleDensity'
+import { CME_TAIL } from '../../behaviors/stellarParticleDensity'
 import { createCmeEjectionVisual } from './cmeEjectionVisual'
 import { createCmeTailVisual } from './cmeTailVisual'
-import { STRUCTURE_LAYOUT, type getStructureLayout } from '../../behaviors/structureLayout'
+import { type getStructureLayout } from '../../behaviors/structureLayout'
 
 export const STELLAR_ACTIVITY_STYLE = {
   filamentColor: '#edab68',
@@ -107,11 +108,13 @@ export function createStellarActivity(channels: ReturnType<typeof createStellarA
   const geometries: BufferGeometry[] = [ribbonGeometry, shellGeometry, sheetGeometry]
   const materials: ShaderMaterial[] = []
   const textures: DataTexture[] = []
-  let viewWidth = 1, viewHeight = 1, sunRadius = 1, pixelWidth = 1280, pixelHeight = 720
+  let viewWidth = 1, viewHeight = 1, sunRadius = 1, sunX = 0, pixelWidth = 1280, pixelHeight = 720
   let localWorldHeight: number | null = null
   let lastTime = -1
   let cmeRotationEnabled = true
+  let requestedDetail = 1
   const tailPoint = new Vector3(), tailVelocity = new Vector3(), binormal = new Vector3()
+  const inverseRoot = new Matrix4(), cameraLocal = new Vector3(), cameraUp = new Vector3(), viewPoint = new Vector3()
   function add(geometry: BufferGeometry, material: ShaderMaterial, name: string, order = 2) {
     const mesh = new Mesh(geometry, material)
     mesh.name = name
@@ -138,6 +141,7 @@ export function createStellarActivity(channels: ReturnType<typeof createStellarA
       uScale: { value: 1 }, uRadius: { value: 1 }, uAge: { value: 0 }, uSeed: { value: 0 }, uOpacity: { value: 0 },
       uRopeRadius: { value: 1 }, uReconnection: { value: 0 }, uCondensation: { value: 0 }, uCme: { value: cme ? 1 : 0 },
       uPixelSize: { value: new Vector2() }, uUnitPixels: { value: 1 }, uBranch: { value: 0 },
+      uRibbonMinPixels: { value: 0 }, uBundleResolve: { value: 1 }, uParcelGain: { value: 1 },
       uClosureTimes: { value: new Float32Array(12).fill(-1) }, uEjection: { value: 1 }, uMistStrength: { value: 1 }, uFirstClosure: { value: -1 },
       uCurves: { value: texture }, uNeck: { value: new Vector3() }, uApex: { value: new Vector3() },
       uRotation: { value: new Vector3(0, 0, 1) }, uRotationCenter: { value: new Vector2() }, uRotationProfile: { value: 1 },
@@ -150,7 +154,8 @@ export function createStellarActivity(channels: ReturnType<typeof createStellarA
     const ribbonShaders = {
       vertexShader: `${commonShader}
         uniform sampler2D uCurves, uRedraw;
-        uniform float uBranch;
+        uniform float uBranch, uRibbonMinPixels, uBundleResolve;
+        uniform vec2 uPixelSize;
         varying vec3 vRibbon;
         varying float vVisible, vPulse, vField;
         varying vec2 vFlow;
@@ -169,8 +174,18 @@ export function createStellarActivity(channels: ReturnType<typeof createStellarA
           vec4 mv=modelViewMatrix*vec4(worldPoint(point.xyz),1.0);
           vec3 viewDirection=mat3(modelViewMatrix)*worldDirection(point.xyz,direction);
           vec2 across=normalize(vec2(-viewDirection.y,viewDirection.x)+vec2(0.000001));
-          mv.xy+=across*position.y*point.w*uScale*(0.8+0.4*uCondensation);
           gl_Position=projectionMatrix*mv;
+          // 正确的视空间宽度叠加可控的远景团块展宽：25% 前保留原外观，之后按对数连续收细。
+          float modelScale=length(modelViewMatrix[0].xyz);
+          float bundleGain=pow(max(1.0,1.0/max(0.000001,modelScale)),1.0-uBundleResolve);
+          float halfWidth=point.w*uScale*(0.8+0.4*uCondensation)*modelScale*bundleGain;
+          vec2 clipWidth=(projectionMatrix*vec4(across*halfWidth,0.0,0.0)).xy;
+          vec2 pixelWidth=clipWidth/(2.0*uPixelSize*max(0.000001,abs(gl_Position.w)));
+          float nativePixels=length(pixelWidth);
+          // 仅为亚像素弧丝提供软边支撑；零截面仍为零，不复活已消退的丝线。
+          float floorPixels=uRibbonMinPixels*smoothstep(0.0,0.002,point.w);
+          float widthGain=max(1.0,floorPixels/max(0.000001,nativePixels));
+          gl_Position.xy+=clipWidth*widthGain*position.y;
           float source=t;
           if(uCme>0.5 && uBranch>1.5) source=t<0.5 ? 0.44*t : 1.0-0.44*(1.0-t);
           else if(uCme>0.5 && uBranch>0.5) source=0.22+0.56*t;
@@ -241,7 +256,7 @@ export function createStellarActivity(channels: ReturnType<typeof createStellarA
         }`,
       fragmentShader: `${commonShader}
         uniform vec3 uColor, uGold, uHighlight;
-        uniform float uShowRedraw;
+        uniform float uShowRedraw, uParcelGain;
         varying vec2 vParticle;
         varying vec3 vState;
         varying float vConversion, vVisibility;
@@ -252,7 +267,7 @@ export function createStellarActivity(channels: ReturnType<typeof createStellarA
           float emission = min(1.0,pow(vState.y,0.65))*(0.22+0.78*cold);
           emission = mix(emission,min(1.0,pow(vState.y,0.40))*(0.6+0.4*cold),uCme);
           vec3 tint = mix(uColor,mix(uGold,uHighlight,vState.z*0.22),uCme);
-          gl_FragColor = vec4(tint,glow*emission*uOpacity*vVisibility*0.95*(1.0-vConversion*uEjection)*(1.0-0.8*uShowRedraw));
+          gl_FragColor = vec4(tint,glow*emission*uOpacity*vVisibility*0.95*(1.0-vConversion*uEjection)*(1.0-0.8*uShowRedraw)*uParcelGain);
           #include <colorspace_fragment>
         }`,
     }), cme ? '日冕抛射金色粒子' : `日珥等离子体_${index}`, 3)
@@ -334,11 +349,14 @@ export function createStellarActivity(channels: ReturnType<typeof createStellarA
           }`,
       }), '重联电流片')
     }
-    return { uniforms, channel, cme, parcels, model, texture, redrawTexture, index, ejectionVisual, placement: createProminencePlacement(channel.seed, model.structure), rotationEnabled: true, lastAge: -1, seed: channel.seed, morphology: channel.morphology, duration: channel.duration, serial: channel.serial, exported: new Uint8Array(CME_DISSOLUTION.count) }
+    return { uniforms, channel, cme, parcels, model, texture, redrawTexture, index, ejectionVisual, placement: createProminencePlacement(channel.seed, model.structure),
+      phase: 0, phaseSeed: NaN, phasePosition: NaN, phaseSerial: -1,
+      rotationEnabled: true, lastAge: -1, seed: channel.seed, morphology: channel.morphology, duration: channel.duration, serial: channel.serial, exported: new Uint8Array(CME_DISSOLUTION.count) }
   })
   const tails = createCmeTailVisual(commonShader, patches[2].uniforms.uColor)
   root.add(tails.mesh)
   const visibility = { value: 1 }
+  let detailVisibility = 1, requestedVisibility = 1
   for (const material of [...materials, tails.mesh.material]) {
     material.uniforms.uSceneVisibility = visibility
     material.fragmentShader = `uniform float uSceneVisibility;\n${material.fragmentShader}`
@@ -346,7 +364,9 @@ export function createStellarActivity(channels: ReturnType<typeof createStellarA
   }
   return {
     root,
-    setVisibility(value: number) { visibility.value = value },
+    setVisibility(value: number) { requestedVisibility = value; visibility.value = value * detailVisibility },
+    /** 转场的清晰度通道只影响线宽支撑与沿场团块亮度，不重采样或重启事件。 */
+    setDetail(value: number) { requestedDetail = Math.max(0, Math.min(1, value)) },
     /** 返回首个普通通道最终三维路径的弧长统计；调用方复制后用于低频 UI 展示。 */
     getShortLoopDiagnostics() {
       const patch = patches[0], route = patch.model.reorganization
@@ -370,7 +390,7 @@ export function createStellarActivity(channels: ReturnType<typeof createStellarA
     layout(layout: ReturnType<typeof getStructureLayout>, width = 1280, height = 720) {
       localWorldHeight = null
       limb.layout(layout)
-      viewWidth = layout.width; viewHeight = layout.height; sunRadius = layout.sunRadius
+      viewWidth = layout.width; viewHeight = layout.height; sunRadius = layout.sunRadius; sunX = layout.sunX
       pixelWidth = width; pixelHeight = height
     },
     /** 文档/独立预览：在局部日面切平面展示一个通道，沿用同一模型、路径与材质。 */
@@ -378,7 +398,20 @@ export function createStellarActivity(channels: ReturnType<typeof createStellarA
       pixelWidth = Math.max(1, width); pixelHeight = Math.max(1, height)
       localWorldHeight = Math.max(0.01, worldHeight)
     },
-    update() {
+    update(camera?: Camera) {
+      detailVisibility = 1
+      if (camera && localWorldHeight === null) {
+        root.updateWorldMatrix(true, false)
+        camera.updateMatrixWorld()
+        inverseRoot.copy(root.matrixWorld).invert()
+        cameraLocal.setFromMatrixPosition(camera.matrixWorld).applyMatrix4(inverseRoot)
+        cameraUp.set(0, 1, 0).transformDirection(camera.matrixWorld).transformDirection(inverseRoot)
+        limb.view(cameraLocal, cameraUp)
+        const distanceSquared = (cameraLocal.x - sunX) ** 2 + cameraLocal.y ** 2 + cameraLocal.z ** 2
+        const focal = camera.projectionMatrix.elements[5] * pixelHeight / 2
+        detailVisibility = stellarDetailVisibility(focal * sunRadius / Math.sqrt(Math.max(1e-6, distanceSquared - sunRadius * sunRadius)))
+      }
+      visibility.value = requestedVisibility * detailVisibility
       const now = channels.time ?? channels.cme.age
       if (now < lastTime) { tails.pool.clear(); patches[2].exported.fill(0) }
       lastTime = now
@@ -417,17 +450,28 @@ export function createStellarActivity(channels: ReturnType<typeof createStellarA
           u.uScale.value = 1; u.uUnitPixels.value = pixelHeight / localWorldHeight
           u.uRadius.value = 1e6 // 局部切平面，不在文档视口叠加整颗恒星的曲率。
         } else {
-          limb.sample(c.position, u.uAnchor.value, u.uTangent.value, u.uNormal.value)
+          if (patch.phaseSeed !== c.seed || patch.phasePosition !== c.position || patch.phaseSerial !== c.serial) {
+            patch.phase = stellarLimbPhase(c.seed, c.position, patch.index, limb.referenceLimit)
+            patch.phaseSeed = c.seed; patch.phasePosition = c.position; patch.phaseSerial = c.serial
+          }
+          limb.sampleAngle(patch.phase, u.uAnchor.value, u.uTangent.value, u.uNormal.value)
           if (!patch.cme) u.uTangent.value.applyAxisAngle(u.uNormal.value, patch.placement.azimuth)
-          const distance = STRUCTURE_LAYOUT.cameraZ - STRUCTURE_LAYOUT.planeZ
-          const projectionScale = (distance - u.uAnchor.value.z) / distance
           const variation = patch.cme ? 0.9 + c.seed * 0.2 : patch.placement.scale
-          const scale = Math.min(viewWidth * (patch.cme ? CME_SCREEN_SCALE.width : 0.028), viewHeight * (patch.cme ? CME_SCREEN_SCALE.height : 0.050)) * variation * (patch.index === 1 ? 0.58 : 1)
-          u.uScale.value = scale * projectionScale
-          u.uUnitPixels.value = scale / viewHeight * pixelHeight
+          u.uScale.value = sunRadius * STELLAR_LIMB.scaleRatios[patch.index] * variation
+          u.uUnitPixels.value = u.uScale.value / viewHeight * pixelHeight
+          if (camera) {
+            viewPoint.copy(u.uAnchor.value).applyMatrix4(root.matrixWorld).applyMatrix4(camera.matrixWorldInverse)
+            u.uUnitPixels.value = camera.projectionMatrix.elements[5] * pixelHeight / 2 * u.uScale.value * root.matrixWorld.getMaxScaleOnAxis() / Math.max(0.01, -viewPoint.z)
+          }
           u.uRadius.value = sunRadius
         }
         u.uPixelSize.value.set(1 / pixelWidth, 1 / pixelHeight)
+        const localPreview = localWorldHeight !== null
+        u.uRibbonMinPixels.value = localPreview ? 0 : 0.55 + 0.35 * requestedDetail
+        u.uBundleResolve.value = localPreview ? 1 : requestedDetail
+        // 25% 前保留沿场团块叠加；解析成线束时，才为小投影下的丝线让出对比度。
+        const parcelDetail = magneticEase((u.uUnitPixels.value - 8) / 40)
+        u.uParcelGain.value = localPreview ? 1 : 1 - requestedDetail * 0.94 * (1 - parcelDetail)
         u.uAge.value = c.age; u.uSeed.value = c.seed; u.uOpacity.value = c.opacity
         u.uRopeRadius.value = r
         // 展示用重联进度；各通道的连接切换由相同的径向阶段决定。
@@ -463,7 +507,7 @@ export function createStellarActivity(channels: ReturnType<typeof createStellarA
         centers.needsUpdate = true; directions.needsUpdate = true; states.needsUpdate = true
         if (model.ejection) {
           const state = model.ejection, eventStart = now - c.age
-          const width = localWorldHeight === null ? viewWidth : 9, height = localWorldHeight === null ? viewHeight : 6.2
+          const width = localWorldHeight === null ? sunRadius : 9, height = localWorldHeight === null ? sunRadius : 6.2
           binormal.crossVectors(u.uTangent.value, u.uNormal.value)
           for (let i = 0; i < state.particleTail.length; i += CME_DISSOLUTION.particleStride) {
             if (patch.exported[i] || state.tailTransferTimes[i] < 0) continue
@@ -476,13 +520,14 @@ export function createStellarActivity(channels: ReturnType<typeof createStellarA
             tailVelocity.copy(u.uTangent.value).multiplyScalar(vx * scale)
               .addScaledVector(u.uNormal.value, state.tailVelocities[k + 1] * scale - x * vx * scale * scale / u.uRadius.value)
               .addScaledVector(binormal, state.tailVelocities[k + 2] * scale)
+            if (localWorldHeight === null) tailPoint.x -= sunX
             const random = (i * 0.754877 + 0.37) % 1, speed = 0.0024 + 0.0012 * random
             tails.pool.add({
               born: eventStart + state.releaseTimes[i], depart: eventStart + state.tailTransferTimes[i],
               origin: [tailPoint.x / width, tailPoint.y / height, tailPoint.z / height],
               velocity: [tailVelocity.x / width, tailVelocity.y / height, tailVelocity.z / height],
-              drift: localWorldHeight === null ? [speed, u.uNormal.value.y * 0.0005 + (random - 0.5) * 0.0003, 0] : [(random - 0.5) * 0.0003, speed, 0],
-              wave: localWorldHeight === null ? [0.008, 0.02, 0.006] : [0.02, 0.008, 0.006],
+              drift: localWorldHeight === null ? [speed * viewWidth / width, (u.uNormal.value.y * 0.0005 + (random - 0.5) * 0.0003) * viewHeight / height, 0] : [(random - 0.5) * 0.0003, speed, 0],
+              wave: localWorldHeight === null ? [0.008 * viewWidth / width, 0.02 * viewHeight / height, 0.006 * viewHeight / height] : [0.02, 0.008, 0.006],
               phase: c.seed * Math.PI * 2 + i * 0.618, random,
               appearance: [state.coordinates[i], Math.floor(i / CME_DISSOLUTION.perStrand), c.seed, state.tailTransferTimes[i]],
             }, now)
@@ -490,7 +535,8 @@ export function createStellarActivity(channels: ReturnType<typeof createStellarA
           patch.ejectionVisual?.update(state)
         }
       }
-      tails.update(now, localWorldHeight === null ? viewWidth : 9, localWorldHeight === null ? viewHeight : 6.2, pixelWidth, pixelHeight)
+      tails.mesh.position.x = localWorldHeight === null ? sunX : 0
+      tails.update(now, localWorldHeight === null ? sunRadius : 9, localWorldHeight === null ? sunRadius : 6.2, pixelWidth, pixelHeight)
     },
     dispose() {
       geometries.forEach(geometry => geometry.dispose())

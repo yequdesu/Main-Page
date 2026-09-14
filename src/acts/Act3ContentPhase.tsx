@@ -39,7 +39,7 @@ const Act3ContentPhase = memo(function Act3ContentPhase({ visible }: Act3Props) 
       const point = readPlanetWorldPoint(trackIdx)
       updateCameraFocus(camera as PerspectiveCamera, focusChannels, point ? vector3FromPoint(point, planetPosition) : null, PLANET_FOCUS_DISTANCE_SCALES[trackIdx] ?? 1, 0, transition)
     }
-  })
+  }, -0.25) // 在轨道/飞行器产出位置后更新相机，供日面环带同帧取样。
 
   return (
     <group visible={visible}>

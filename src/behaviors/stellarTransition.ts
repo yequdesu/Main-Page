@@ -13,12 +13,14 @@ export const STELLAR_TRANSITION = {
   orbitExit: [0, 0.24],
   planetStarts: [0.70, 0.77, 0.84],
   planetDuration: 0.16,
-  activity: [0.78, 0.94],
+  activity: [0.04, 0.32],
+  activityDetail: [0.25, 0.45],
+  radiation: [0.78, 0.94],
   overlay: [0.92, 1],
 } as const
 
 export function createStellarTransitionState() {
-  return { progress: 0, zoom: 0, reframe: 0, closeup: 0, orbitOpacity: 1, activity: 0, overlay: 0, planets: [0, 0, 0] }
+  return { progress: 0, zoom: 0, reframe: 0, closeup: 0, orbitOpacity: 1, activity: 0, activityDetail: 0, radiation: 0, overlay: 0, planets: [0, 0, 0] }
 }
 export type StellarTransitionState = ReturnType<typeof createStellarTransitionState>
 
@@ -43,6 +45,8 @@ export function sampleStellarTransition(progress: number, out: StellarTransition
   out.closeup = eased(p, STELLAR_TRANSITION.closeup)
   out.orbitOpacity = 1 - eased(p, STELLAR_TRANSITION.orbitExit)
   out.activity = eased(p, STELLAR_TRANSITION.activity)
+  out.activityDetail = eased(p, STELLAR_TRANSITION.activityDetail)
+  out.radiation = eased(p, STELLAR_TRANSITION.radiation)
   out.overlay = eased(p, STELLAR_TRANSITION.overlay)
   for (let i = 0; i < 3; i++) {
     out.planets[i] = stellarArrival(range(p, STELLAR_TRANSITION.planetStarts[i], STELLAR_TRANSITION.planetStarts[i] + STELLAR_TRANSITION.planetDuration))

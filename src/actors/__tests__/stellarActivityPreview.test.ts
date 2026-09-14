@@ -1,11 +1,97 @@
 import { expect, it, vi } from 'vitest'
-import { Mesh, ShaderMaterial, Vector3 } from 'three'
+import { Mesh, PerspectiveCamera, ShaderMaterial, Vector3 } from 'three'
 import { createStellarActivity } from '../assets/stellarActivity'
 import { createStellarActivityChannels, createStellarLimbFrame } from '../../behaviors/stellarActivity'
-import { getStructureLayout, STRUCTURE_LAYOUT } from '../../behaviors/structureLayout'
+import { getStructureLayout } from '../../behaviors/structureLayout'
+import { STELLAR_LIMB, stellarLimbPhase } from '../../behaviors/stellarLimb'
 import { createProminencePlacement } from '../../behaviors/stellarPlacement'
 import { createProminenceStructure } from '../../behaviors/stellarMorphology'
 import { createFluxRopeSimulation } from '../../behaviors/stellarPlasma'
+import { createStellarTransitionPose, createStellarTransitionState, sampleStellarTransition } from '../../behaviors/stellarTransition'
+import { createCameraFocusController } from '../../behaviors/useCameraFocus'
+import { createFocusChannels } from '../../behaviors/useFocusTimeline'
+
+it('左侧 CME 贯穿拉近、最终裁切及窗口改变，保留出生相位和磁路径', () => {
+  const channels = createStellarActivityChannels(), asset = createStellarActivity(channels)
+  Object.assign(channels.cme, { opacity: 1, age: 3, seed: 0.47, position: -0.8, serial: 1 })
+  const u = (asset.root.getObjectByName('日冕抛射弧丝') as Mesh<never, ShaderMaterial>).material.uniforms
+  const frame = createStellarLimbFrame(), initial = getStructureLayout(16 / 9)
+  frame.layout(initial)
+  const phase = stellarLimbPhase(0.47, -0.8, 2, frame.referenceLimit)
+  expect(phase).toBeLessThan(-Math.PI / 2)
+  const camera = new PerspectiveCamera(40, 16 / 9), focus = createFocusChannels()
+  const updateCamera = createCameraFocusController(), transition = createStellarTransitionState(), samplePose = createStellarTransitionPose()
+  const anchor = new Vector3(), tangent = new Vector3(), normal = new Vector3()
+  let paths: Float32Array | undefined
+  try {
+    for (const [aspect, progress] of [[16 / 9, 0.35], [16 / 9, 0.65], [16 / 9, 1], [390 / 844, 1], [390 / 844, 0.35], [16 / 9, 0.35]]) {
+      const layout = getStructureLayout(aspect)
+      asset.layout(layout, aspect * 800, 800)
+      camera.aspect = aspect; camera.updateProjectionMatrix()
+      sampleStellarTransition(progress, transition)
+      updateCamera(camera, focus, null, 1, 0, transition)
+      const pose = samplePose(transition, aspect)
+      asset.root.scale.setScalar(pose.structureScale)
+      asset.root.position.copy(pose.star)
+      asset.root.position.x -= layout.sunX * pose.structureScale
+      asset.update(camera)
+      // 用固定的出生相位验证当前切圆；resize 不能再次按新弧段抽样。
+      frame.layout(layout)
+      const localCamera = camera.position.clone().sub(asset.root.position).divideScalar(pose.structureScale)
+      const localUp = new Vector3(0, 1, 0).applyQuaternion(camera.quaternion)
+      frame.view(localCamera, localUp); frame.sampleAngle(phase, anchor, tangent, normal)
+      expect(u.uAnchor.value.distanceTo(anchor)).toBeLessThan(1e-8)
+      expect(u.uAge.value).toBe(3)
+      expect(u.uSeed.value).toBe(0.47)
+      const data = u.uCurves.value.image.data
+      if (!paths) paths = data.slice()
+      else expect(data).toEqual(paths)
+      const projected = anchor.clone().applyMatrix4(asset.root.matrixWorld).project(camera)
+      if (progress === 0.35) expect(projected.x).toBeLessThan(pose.star.clone().project(camera).x)
+      if (progress === 1) expect(projected.x).toBeLessThan(-1) // 自然出画，未迁回可见边缘。
+    }
+  } finally { asset.dispose() }
+})
+
+it('25% 前保留团块，随后逐渐解析为线束，不改变磁路径、种子或时钟，局部图鉴恢复原表现', () => {
+  const channels = createStellarActivityChannels(), asset = createStellarActivity(channels)
+  for (const c of [...channels.prominences, channels.cme]) Object.assign(c, { opacity: 1, age: 4, seed: 0.47 })
+  const layout = getStructureLayout(16 / 9), camera = new PerspectiveCamera(40, 16 / 9)
+  camera.position.set(layout.sunX, 0, 24)
+  const names = ['日珥弧丝_0', '日珥弧丝_1', '日珥重绘短环_0_1', '日冕抛射弧丝', '重联后上升磁通']
+  const uniforms = names.map(name => (asset.root.getObjectByName(name) as Mesh<never, ShaderMaterial>).material.uniforms)
+  try {
+    asset.layout(layout, 1280, 720)
+    asset.root.scale.setScalar(0.027)
+    asset.setDetail(0); asset.update(camera)
+    const snapshots = uniforms.map(u => ({ paths: u.uCurves.value.image.data.slice(), texture: u.uCurves.value, anchor: u.uAnchor.value.clone() }))
+    expect(uniforms[0].uParcelGain.value).toBe(1)
+    for (const detail of [0.5, 1, 0]) {
+      asset.setDetail(detail); asset.update(camera)
+      uniforms.forEach((u, i) => {
+        expect(u.uCurves.value).toBe(snapshots[i].texture)
+        expect(u.uCurves.value.image.data).toEqual(snapshots[i].paths)
+        expect(u.uAnchor.value.equals(snapshots[i].anchor)).toBe(true)
+        expect(u.uAge.value).toBe(4)
+        expect(u.uSeed.value).toBe(0.47)
+        expect(u.uRibbonMinPixels.value).toBeGreaterThanOrEqual(0.55)
+        expect(u.uRibbonMinPixels.value).toBeLessThanOrEqual(0.90)
+        expect(u.uBundleResolve.value).toBe(detail)
+        expect(u.uParcelGain.value).toBeCloseTo(1 - 0.94 * detail)
+      })
+    }
+    asset.root.scale.setScalar(1)
+    asset.setDetail(1); asset.update(camera)
+    expect(uniforms[0].uParcelGain.value).toBeGreaterThan(0.06)
+    asset.setDetail(0)
+    asset.layoutLocal(800, 500, 6); asset.update()
+    for (const u of uniforms) {
+      expect(u.uRibbonMinPixels.value).toBe(0)
+      expect(u.uBundleResolve.value).toBe(1)
+      expect(u.uParcelGain.value).toBe(1)
+    }
+  } finally { asset.dispose() }
+})
 
 it('随机摆放作用于整个普通活动区，保持日面法线、内部路径、次通道比例和局部预览', () => {
   const channels = createStellarActivityChannels(), asset = createStellarActivity(channels)
@@ -19,15 +105,14 @@ it('随机摆放作用于整个普通活动区，保持日面法线、内部路�
     asset.layoutLocal(800, 500, 6); asset.update()
     const paths = u.uCurves.value.image.data.slice()
     asset.layout(layout, 1280, 720); asset.update()
-    frame.layout(layout); frame.sample(0.4, anchor, tangent, normal)
+    frame.layout(layout); frame.sampleAngle(stellarLimbPhase(seed, 0.4, 0, frame.referenceLimit), anchor, tangent, normal)
     expect(u.uAnchor.value.distanceTo(anchor)).toBeLessThan(1e-10)
     expect(u.uNormal.value.distanceTo(normal)).toBeLessThan(1e-10)
     expect(u.uTangent.value.dot(normal)).toBeCloseTo(0, 12)
     expect(u.uTangent.value.length()).toBeCloseTo(1, 12)
     expect(u.uTangent.value.dot(tangent)).toBeCloseTo(Math.cos(placement.azimuth), 12)
     expect(u.uCurves.value.image.data).toEqual(paths)
-    const d = STRUCTURE_LAYOUT.cameraZ - STRUCTURE_LAYOUT.planeZ
-    const scale = Math.min(layout.width * 0.028, layout.height * 0.050) * placement.scale * (d - anchor.z) / d
+    const scale = layout.sunRadius * STELLAR_LIMB.scaleRatios[0] * placement.scale
     expect(u.uScale.value).toBeCloseTo(scale, 12)
     expect(second.uScale.value / scale).toBeCloseTo(0.58, 12)
     for (const branch of [1, 2, 3]) {
@@ -35,6 +120,7 @@ it('随机摆放作用于整个普通活动区，保持日面法线、内部路�
       expect(short.material.uniforms.uTangent).toBe(u.uTangent)
       expect(short.material.uniforms.uScale).toBe(u.uScale)
     }
+    frame.sampleAngle(stellarLimbPhase(seed, 0.4, 2, frame.referenceLimit), anchor, tangent, normal)
     expect(cme.uTangent.value.distanceTo(tangent)).toBeLessThan(1e-10)
     const saved = u.uTangent.value.clone()
     channels.prominences[0].age = 1.1; asset.update()
@@ -62,8 +148,7 @@ it('首次创建、换主类型和换伴随类型都根据实际环系选择低�
       const structure = createProminenceStructure(seed, kind)
       expect(structure.kind === 'cluster' || structure.companion === 'cluster').toBe(lowCluster)
       const expected = createProminencePlacement(seed, structure)
-      const distance = STRUCTURE_LAYOUT.cameraZ - STRUCTURE_LAYOUT.planeZ
-      const baseline = Math.min(layout.width * 0.028, layout.height * 0.050) * (distance - u.uAnchor.value.z) / distance
+      const baseline = layout.sunRadius * STELLAR_LIMB.scaleRatios[0]
       expect(u.uScale.value / baseline).toBeCloseTo(expected.scale, 12)
       if (lowCluster) {
         expect(u.uScale.value / baseline).toBeGreaterThanOrEqual(0.85)
