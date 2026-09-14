@@ -1,11 +1,19 @@
 import { STRUCTURE_LAYOUT } from '../behaviors/structureLayout'
 import { PLANET_LINKS } from '../types'
-import { createStellarTransitionState, sampleStellarTransition } from '../behaviors/stellarTransition'
+import { useLayoutEffect, useRef, useState } from 'react'
+import { createStellarTransitionState, createStellarTransitionTimeline } from '../behaviors/stellarTransition'
 import './SystemStructure.css'
 
 const descriptions = ['普通行星', '带卫星行星', '四层行星环']
 export default function SystemStructureOverlay({ progress, onBack }: { progress: number; onBack: () => void }) {
-  const opacity = sampleStellarTransition(progress, createStellarTransitionState()).overlay
+  // DOM 在 Canvas 外，持有同一工厂的独立播放头镜像；不在 render 中构建 GSAP 资源。
+  const playback = useRef<ReturnType<typeof createStellarTransitionTimeline> | null>(null)
+  const [opacity, setOpacity] = useState(0)
+  useLayoutEffect(() => {
+    const timeline = playback.current = createStellarTransitionTimeline(createStellarTransitionState())
+    return () => { timeline.dispose(); playback.current = null }
+  }, [])
+  useLayoutEffect(() => { setOpacity(playback.current!.seek(progress).overlay) }, [progress])
   return <section className="system-structure" aria-labelledby="structure-title" aria-hidden={opacity < 0.95}
     style={{ opacity, visibility: opacity > 0 ? 'visible' : 'hidden', transform: `translateY(${(1 - opacity) * 18}px)` }}>
     <header className="system-structure-heading">

@@ -8,9 +8,10 @@
 
 | 文件 | 类型 | 职责 |
 |------|------|------|
-| `useMenuNavigation.ts` | Hook | 消费 Menu 请求，以 `exit / menu` 交接当前近景，交给 App 页面补间进入 Act 5；反向退出恢复全景，卸载取消订阅 |
+| `useMenuNavigation.ts` | Hook | 消费 Menu 请求，以 `exit / menu` 交接当前近景，交给 App 页面补间进入 Act 5；新聚焦中断页面播放，卸载取消订阅 |
+| `cameraMotionCoordinator.ts` | 控制器 | 每个 Canvas 统一管理聚焦/恒星 Timeline，处理交接、重复事件、反向回退与注册释放 |
 | `usePageFlow.ts` | 纯函数 | 整页坐标映射到原三幕、Act 4 转场和 Act 5 保持阶段，边界沿用共享 `PAGE_FLOW` |
-| `stellarTransition.ts` | 纯函数 | Act 4 分段采样、阻尼弹簧入场、恒星半径归一化的连续相机与模型姿态 |
+| `stellarTransition.ts` | Timeline 工厂 / 几何函数 | Act 4 阶段标签与通道补间、阻尼弹簧 ease、恒星半径归一化的连续相机与模型姿态 |
 | `structureLayout.ts` | 纯函数 / 常量 | 结构图视口尺寸、行星排列和与 DOM 共用的比例 |
 | `useFrameCache.ts` | Hook | 帧缓存守卫——同帧同参数跳过更新（`shouldSkip` / `shouldSkipSp`）|
 | `useCameraFocus.ts` | 函数 | `createCameraFocusController()` 创建场景独占控制器：消费时间轴进度、固定抬高起点、更新相机位置/朝向/FOV；可由调用方传入复合行星的聚焦距离倍率（见 [资产对应](../actors/README.md#主页轨道与资产对应)） |
@@ -60,7 +61,7 @@
 
 业务入口使用 `setFocusedPlanet(idx)` / `focusVoyager()` / `clearFocus(reason)`，在 Zustand 中同时写入当前 UI 状态和新的 `focusEvent` 对象。`Planets` 订阅事件、请求渲染，并在下一帧交给 [useFocusTimeline.ts](useFocusTimeline.ts)。同一帧内多个请求采用最后一个；同目标再次请求也会重建会话。手动退出、时间轴超时、离开内容阶段或目标失效走同一个退出事件。
 
-`Planets` 独占一个 GSAP Timeline，会话被新事件接管时先 `kill()` 旧时间轴，并用会话版本号保护回调。它通过 Canvas 内的 [FocusAnimationProvider](../r3f/FocusAnimationContext.tsx) 共享可变进度；进度不逐帧写入 Zustand，也不触发 React 重渲染。`Act3ContentPhase` 的相机控制器是相机位置、朝向与 FOV 的唯一写入者，轨道计算器是主行星角度的唯一写入者，轨道材质只消费显隐进度。
+`Planets` 向 [cameraMotionCoordinator.ts](cameraMotionCoordinator.ts) 注册聚焦 GSAP Timeline；会话被新事件接管时先 `kill()` 旧时间轴，并用会话版本号保护回调。Canvas 内的 [CameraMotionProvider](../r3f/CameraMotionContext.tsx) 统一持有聚焦与恒星转场的可变通道；进度不逐帧写入 Zustand，也不触发场景 React 重渲染。`Act3ContentPhase` 的相机控制器是相机位置、朝向与 FOV 的唯一写入者，轨道计算器是主行星角度的唯一写入者，轨道材质只消费显隐进度。恒星转场同样由真实 GSAP Timeline 编排，其注册、定位、取消与交接规则见[统一运镜管理](../../docs/system-structure.md#统一运镜管理)。
 
 ### 时间轴节点
 
@@ -81,7 +82,7 @@
 
 复用 GSAP 的 Timeline、标签、属性补间和回调编排。时间轴创建为 `paused: true`，由 R3F 每帧通过 `totalTime(next, false)` 推进；这是为主场景提供单一时间源，避免 GSAP ticker 与 R3F 各自推进一次场景状态。终端原有时间轴继续运行，未修改 GSAP 全局时间轴或全局 ticker。
 
-`Planets` 使用 `useFrame` 优先级 `-20`（`R3F_FRAME_PRIORITY.planetsProduce`），先消费事件、推进时间轴、更新行星；优先级 `-0.25` 的相机与随后优先级 `0` 的轨道材质消费同一帧进度。负优先级不接管 R3F 自动渲染。事件订阅会 `invalidate()`；行星可见期间持续请求帧，离开场景后仍请求帧直到退出时间轴完成。帧间隔限制为 0–0.1 秒，标签页挂起后不会单帧跳完整段转场；30 秒按实际推进的场景时间计算。卸载时取消订阅并销毁时间轴；React StrictMode 重建时建立新实例。
+`Act4StellarTransition(-30)` 先通过协调器定位恒星 Timeline；`Planets` 使用优先级 `-20`（`R3F_FRAME_PRIORITY.planetsProduce`）消费事件，通过协调器推进聚焦 Timeline 并更新行星；优先级 `-0.25` 的相机与随后优先级 `0` 的轨道材质消费同一帧进度。负优先级不接管 R3F 自动渲染。事件订阅会 `invalidate()`；行星可见期间持续请求帧，离开场景后仍请求帧直到退出时间轴完成。聚焦帧间隔限制为 0–0.1 秒，标签页挂起后不会单帧跳完整段聚焦；30 秒按实际推进的场景时间计算。恒星 Timeline 使用绝对页面位置，支持直接跳转。卸载时取消订阅并释放对应注册；React StrictMode 重建时建立新 Timeline 实例。
 
 设计依据：[GSAP Timeline](https://gsap.com/docs/v3/GSAP/Timeline/)、[播放头 totalTime](https://gsap.com/docs/v3/GSAP/Timeline/totalTime()/)、[kill 与生命周期](https://gsap.com/docs/v3/GSAP/Timeline/kill()/)、[R3F useFrame 与执行顺序](https://r3f.docs.pmnd.rs/api/hooks#useframe)。
 

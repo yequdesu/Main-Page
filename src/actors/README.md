@@ -11,7 +11,7 @@
 - `Planets` 发布 `anchor.planet.*.world`、`orbitWorld`、`particleIndex`、`screenRadius` 和球体真实世界半径 `coreRadius`。点击、聚焦、轨道局部渐隐及标签读取这些锚点，不再导入 `Planets` 的可变模块变量；终端轨道数据仍写入 `realtimeStore`。
 - `CentralStar` 发布恒星世界锚点；海浪消费光束锚点，风铃使用确定性的布局函数。风铃阶段固定布局及初始公转相位来自 `useWindChime` / `Planets`，内容阶段由聚焦轨道控制器推进。
 - 行星主体、光晕、恒星光晕和导航线沿用 `layerRegistry`。新增附件的材质及深度细节仍由资产工厂管理。
-- `act3.entry` / `labelReveal` 控制信息终端和标签入场；进入 Act 4 转场时重置，返回 Act 3 后重播。聚焦保留独占的 GSAP 时间轴与 `FocusAnimationProvider`，不重建旧相机控制器或聚焦 SVG。
+- `act3.entry` / `labelReveal` 控制信息终端和标签入场；进入 Act 4 转场时重置，返回 Act 3 后重播。聚焦与恒星转场分别使用 GSAP Timeline，由 `CameraMotionProvider` 的协调器统一管理；相机仍由同一个控制器更新。
 - 新增 Actor 时声明身份、层级、共享数据及清理责任，再添加可视实现；可通过主页 `debug` 命令查看运行状态。Voyager 的网格命中列表仍由专用 [voyagerState](voyagerState.ts) 管理，Act 5 恒星活动使用独立事件通道，尚未全部声明为单独的 composition Actor。
 
 ## 当前组件地图
@@ -72,7 +72,7 @@
 
 ## 聚焦构图
 
-`Planets` 持有 [GSAP 聚焦时间轴](../behaviors/useFocusTimeline.ts) 与 [轨道调相控制器](../behaviors/useFocusOrbit.ts)，按轨道顺序传入三个主体的数据、真实资产半径和完整附件包络。控制器仅推进 `orbitAngle`；原轨道半径、XZ 平面和模型/附件更新流程继续生效。进入聚焦后，另外两颗行星沿原轨道移动到恒星两侧；到位后近同步缓慢公转。退出时配合镜头拉远，三颗行星沿原公转方向加速追上持续运行的参考相位，再恢复各自原速度；回位计划由同一控制器持有，中途重新聚焦会取消计划并保留参考轨道。实时面板的 `ω` 显示控制器的实际角速度。相机的起始高度、慢速抬升、视野适配和选相位原理见 [聚焦会话说明](../behaviors/README.md#聚焦会话)。
+`Planets` 向运镜协调器注册 [GSAP 聚焦时间轴](../behaviors/useFocusTimeline.ts) 的动作，自身持有 [轨道调相控制器](../behaviors/useFocusOrbit.ts)，按轨道顺序传入三个主体的数据、真实资产半径和完整附件包络。控制器仅推进 `orbitAngle`；原轨道半径、XZ 平面和模型/附件更新流程继续生效。进入行星聚焦后，另外两颗行星沿原轨道移动到恒星两侧；到位后近同步缓慢公转。退出时配合镜头拉远，三颗行星沿原公转方向加速追上持续运行的参考相位，再恢复各自原速度；回位计划由同一控制器持有，中途重新聚焦会取消计划并保留参考轨道。Voyager 聚焦不新建行星调相。实时面板的 `ω` 显示控制器的实际角速度。相机的起始高度、慢速抬升、视野适配和选相位原理见 [聚焦会话说明](../behaviors/README.md#聚焦会话)。
 
 ## 聚焦时的轨道显示
 

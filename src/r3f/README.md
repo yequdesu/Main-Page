@@ -9,8 +9,9 @@ R3F Canvas 配置、渲染循环桥接、全局场景管理。本目录的组件
 | 文件 | 职责 | 生命周期 |
 |------|------|----------|
 | `Canvas.tsx` | R3F `<Canvas>` 配置：`flat`（NoToneMapping）、`frameloop="demand"`、相机、初始背景/雾 | 始终挂载 |
-| `FocusAnimationContext.tsx` | 每个 Canvas 独立的聚焦动画进度，供行星、相机和轨道材质共享 | Provider 始终挂载 |
-| `StellarTransitionContext.tsx` | Canvas 独占的 Act 4 转场通道；播放层写入，镜头、恒星、轨道和结构图消费 | 始终挂载 |
+| `CameraMotionContext.tsx` | 每个 Canvas 一个运镜协调器，统一持有聚焦与恒星通道；构造不创建动画资源 | Provider 始终挂载 |
+| `FocusAnimationContext.tsx` | 聚焦通道读取入口；旧 Provider 名称为独立测试保留的别名 | 读取共享 Context |
+| `StellarTransitionContext.tsx` | 恒星通道读取入口；未挂载场景的资产预览使用 Act 3 默认值 | 读取共享 Context |
 | `ScrollRig.ts` | 所有滚动阈值常量导出 + `sceneApplyWhiteOut()`（背景色/雾密度） | 纯函数/常量 |
 | `ScrollInvalidator.tsx` | ① `subscribe` Zustand 的 `scrollProgress` / `structureProgress` → `invalidate()` 桥接渲染循环 ② 每帧调用 `sceneApplyWhiteOut` | 始终挂载 |
 | `PlanetClickHandler.tsx` | 行星屏幕投影检测、飞行器核心网格射线检测与远景点击余量，`stopPropagation` 阻止快进 | 始终挂载 |
@@ -26,7 +27,7 @@ Voyager 第一次点击聚焦，近景再次命中天线/主体基座时通过 `
 
 Act 4/5 复用同一 Canvas、相机与 demand 循环，以 layer 1 隔离结构图；共享恒星的各绘制节点同时启用 layer 0/1，根层级 `SceneLights` 提供对应灯光；其卫星和光晕在可见时请求帧。点击处理在结构过渡开始后禁用，避免误触原场景。原因与对象所有权见[结构图说明](../../docs/system-structure.md#布局与单相机渲染)。
 
-转场采样在 `Act4StellarTransition(-30)`；随后聚焦帧顺序为 `Planets(-20)` 推进 GSAP 时间轴和行星，随后飞行器（−0.5）、相机（−0.25）更新，日面轮廓环带和轨道材质在 0 消费同帧结果。详见 [聚焦会话](../behaviors/README.md#聚焦会话)。
+`Act4StellarTransition(-30)` 通过协调器按页面位置 seek 恒星 GSAP Timeline；`Planets(-20)` 通过同一协调器推进聚焦 Timeline 和行星，随后飞行器（−0.5）、相机（−0.25）更新，日面轮廓环带和轨道材质在 0 消费同帧结果。主 Canvas 只挂载 `CameraMotionProvider`，不嵌套旧别名 Provider。详见 [统一运镜管理](../../docs/system-structure.md#统一运镜管理)。
 
 ## 依赖方向
 

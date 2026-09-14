@@ -32,7 +32,7 @@ export function createFocusChannels() {
 }
 export type FocusChannels = ReturnType<typeof createFocusChannels>
 
-interface FocusTimelineActions {
+export interface FocusTimelineActions {
   focus(track: number): void
   exit(settleDuration: number): readonly number[]
   timeout(): void

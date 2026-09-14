@@ -8,9 +8,9 @@ Act 3 展示公转轨道与可聚焦导航；Act 4 将镜头拉近同一颗中�
 - 在 Act 3 继续向下滚动，或点击“继续向下 · Menu”，经 Act 4 进入 Act 5 / Menu。
 - 主终端执行 `menu` 可从任意阶段沿页面时间轴进入 Menu；已经位于 Menu 时仅回显提示。Voyager 首次点击仍聚焦，聚焦后再次命中天线或主体基座也进入 Menu；悬杆和空白点击仍只退出聚焦。
 - 三个 Menu 入口统一调用 `requestMenu()` 发出导航事件；[useMenuNavigation.ts](../src/behaviors/useMenuNavigation.ts) 由 App 挂载，聚焦中发出 `exit / menu`，然后调用原 `scrollToSection()`。这个退出原因只结束聚焦会话、取消超时并安排轨道回位；镜头保存接管瞬间的位置、朝向与 FOV，直接交给恒星转场，不先返回全景。组件卸载时取消订阅。
-- 结构图入口与返回按钮以 6.8 秒 GSAP 页面补间播放；滚轮可中断，停止后继续由当前页面位置采样。不是独立的定时播放。
+- 结构图入口与返回按钮以 6.8 秒 GSAP 页面补间推进恒星 Timeline；滚轮、原生滚动条、调试定位及新聚焦可以中断自动播放，停止后保留当前播放位置。窗口尺寸刷新保留页面进度，不被误判为用户滚动。
 - 向上滚动按同一条路径回退：行星按相反顺序离场，日面恢复为完整恒星，再拉远回到轨道图。
-- 结构转场开始后停用行星及飞行器点击、`voyager` 聚焦命令；若通过原生滚动离开聚焦场景，`Planets` 发出 `exit / scene`，沿用原退出时间轴。
+- 结构转场开始后停用行星及飞行器点击、`voyager` 聚焦命令；若通过原生滚动从聚焦进入恒星转场，同样发出 `exit / menu` 交接近景。向前面的场景退出或目标失效仍使用普通 `exit / scene`。
 - 主页终端输入 `debug` 可打开 Runtime，“页面时间轴”滑块可直接定位转场；拖动会终止快进并清除惯性，不修改场景计时和种子。
 
 ## 滚动坐标
@@ -36,9 +36,27 @@ $$
 
 `setPageProgress()` 一次更新三个字段。$p=1$ 仍是原快进落点；原三幕滚动距离保留为 24 倍视口高度，整页可滚动距离为 $24\times1.50=36$ 倍视口，body 高度为 37 倍视口。原生 ScrollTrigger 进度乘 `PAGE_FLOW.end`，同步滚动条时做逆变换；窗口变化保留页面坐标。
 
+## 统一运镜管理
+
+主场景只挂载一个 [CameraMotionProvider](../src/r3f/CameraMotionContext.tsx)，持有聚焦通道、恒星转场通道与 [cameraMotionCoordinator.ts](../src/behaviors/cameraMotionCoordinator.ts)。协调器构造时不创建 GSAP 资源；`Planets` 挂载时注册聚焦 Timeline，`Act4StellarTransition` 挂载时注册恒星 Timeline，各自取消注册时 `dispose / kill`。重复注册先释放旧实例，旧清理回调不能清除新注册；兼容 StrictMode 的重建。原 Focus/Stellar Provider 名称仅作为独立组件测试入口的别名，主场景不嵌套它们。
+
+- 聚焦会话通过协调器 `dispatch()` 接收事件，沿用原 GSAP 阶段与 30 秒超时；恒星 Timeline 持久复用，通过 `seekStellar()` 设置播放头。两个 Timeline 都是 `paused: true`。
+- `exit / menu` 将镜头交给恒星转场，取消旧聚焦的超时。交接中的重复 Menu 退出事件不重采镜头起点，旧手动退出/超时不能夺回镜头；转场内拒绝新的入焦。页面尚未进入 Act 4 时，新聚焦仍可取消页面播放并接续当前姿态。
+- 中途反向回到 Act 3 时，由协调器发出普通场景回退并通知 UI；即使聚焦退出 Timeline 已结束，也能从当前镜头平滑恢复全景。到达 Menu 后的完整返回使用原全景路径。`owner` 只报告当前镜头归属（global / focus / return / stellar），不另写相机。
+- App 的 `cancelPagePlayback()` 集中释放页面自动 Tween；原生滚动、滚轮、调试定位和新聚焦共用此入口。自动播放完成后移除 EffectScope 中的引用。页面 Tween 只负责页面位置，场景阶段由恒星 Timeline 编排。
+- 相机坐标、朝向和 FOV 仍由 `createCameraFocusController()` 唯一写入；跟随 Voyager、球面方位插值、几何距离插值及视口约束仍为几何计算。日珥/CME 事件时钟和种子不纳入页面播放头。
+
+协调器与 R3F 共用已有渲染帧，没有额外 ticker。聚焦按 `delta` 推进 `totalTime()`，恒星按页面坐标定位 `totalTime(u × 6.8, true)`；后者抑制业务回调，阶段通道通过属性补间重放，反向和跳转不重新触发物理事件。具体相机路径见下文，GSAP 的职责是阶段编排和缓动。
+
+设计依据：[GSAP Timeline 与标签](https://gsap.com/docs/v3/GSAP/Timeline/)、[totalTime 与 suppressEvents](https://gsap.com/docs/v3/GSAP/Timeline/totalTime()/)、[R3F 帧优先级](https://r3f.docs.pmnd.rs/api/hooks#useframe)。
+
 ## Act 4 转场时间轴
 
-[Act4StellarTransition.tsx](../src/acts/Act4StellarTransition.tsx) 是常驻播放层，没有自己的模型。它以 `useFrame` 优先级 -30 采样 [stellarTransition.ts](../src/behaviors/stellarTransition.ts)，更新 Canvas 独占的 [StellarTransitionContext](../src/r3f/StellarTransitionContext.tsx)，早于 `Planets(-20)` 和相机、恒星更新。已有 ScrollTrigger、GSAP 按钮补间与惯性控制页面位置；没有新增 ticker、定时器或逐帧 React 状态。
+[Act4StellarTransition.tsx](../src/acts/Act4StellarTransition.tsx) 是常驻播放层，没有自己的模型。它以 `useFrame` 优先级 -30 定位 [stellarTransition.ts](../src/behaviors/stellarTransition.ts) 中 `createStellarTransitionTimeline()` 创建的真实 GSAP Timeline，更新 Canvas 独占的转场通道，早于 `Planets(-20)` 和相机、恒星更新。已有 ScrollTrigger、GSAP 按钮补间与惯性控制页面位置；没有新增 ticker、定时器或场景逐帧 React 状态。
+
+所有通道使用显式 `fromTo` 起止值，保留原 smoothstep 缓动及解析弹簧 ease，未来阶段不提前渲染初值。关键标签为 `stellar:approach`、`stellar:reframe`、`menu:planet:0/1/2` 与 `menu:ready`；显隐也拥有各自标签。`sampleStellarTransition()` 仅用于一次性离线取样，内部创建、定位并立即释放同一 Timeline，不再另行维护一套阶段公式。运行时不调用它逐帧重建动画。
+
+Canvas 外的 `SystemStructureOverlay` 在 layout effect 中持有同工厂的独立 Timeline 镜像，按相同页面进度读取 overlay 通道，卸载时释放；仅标题显隐变化时更新自身状态，不写场景或相机。
 
 | 局部进度 $u$ | 动作 |
 |---|---|
@@ -403,6 +421,8 @@ $$
 
 ## 验证入口
 
+- [恒星 Timeline 测试](../src/behaviors/__tests__/stellarTransition.test.ts)：真实 GSAP 实例、暂停播放头、阶段标签、反向 seek、构图约束与释放。
+- [运镜协调器测试](../src/behaviors/__tests__/cameraMotionCoordinator.test.ts)：镜头交接、重复请求、旧超时阻断、暂停/反向返回、注册替换与资源释放。
 - [页面映射与取景测试](../src/behaviors/__tests__/usePageFlow.test.ts)：原阈值、快进落点、原子状态、宽窄屏投影、往返镜头和图层。
 - [日面物理模型测试](../src/behaviors/__tests__/stellarPlasma.test.ts)：稳定阈值、积分收敛、足点锚定、沿场流动与跨帧率一致性。
 - [日面活动行为测试](../src/behaviors/__tests__/stellarActivity.test.ts)：出生随机分位数、事件阶段、时钟接续与释放。

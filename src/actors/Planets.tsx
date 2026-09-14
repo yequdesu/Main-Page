@@ -11,7 +11,8 @@ import { useScrollStore } from '../stores/scrollStore'
 import { useRealtimeStore, type PlanetCoords } from '../stores/realtimeStore'
 import { useFrameCache } from '../behaviors/useFrameCache'
 import { CENTRAL_STAR_CORE_RADIUS } from './assets/centralStar'
-import { createFocusTimeline, type FocusEvent } from '../behaviors/useFocusTimeline'
+import type { FocusEvent } from '../behaviors/useFocusTimeline'
+import { useCameraMotion } from '../r3f/CameraMotionContext'
 import { voyagerState } from './voyagerState'
 import { useFocusAnimation } from '../r3f/FocusAnimationContext'
 import { useStellarTransition } from '../r3f/StellarTransitionContext'
@@ -53,6 +54,7 @@ export default function Planets() {
   const { project } = useScreenProjection()
   const { shouldSkip } = useFrameCache()
   const focusChannels = useFocusAnimation()
+  const { coordinator: cameraMotion } = useCameraMotion()
   const transition = useStellarTransition()
   const baseFov = useRef((camera as PerspectiveCamera).fov).current
 
@@ -175,12 +177,11 @@ export default function Planets() {
   const orbitBodies = useMemo(() => mainPlanetIndices.map(i => particleData[i]), [mainPlanetIndices, particleData])
   const envelopes = useMemo(() => assets.map(asset => asset.visualRadiusScale), [assets])
 
-  const focusTimeline = useRef<ReturnType<typeof createFocusTimeline> | null>(null)
   const pendingFocusEvent = useRef<FocusEvent | null>(null)
   const sceneTime = useRef(0)
   const focusAspect = useRef((camera as PerspectiveCamera).aspect)
   useEffect(() => {
-    const timeline = createFocusTimeline(focusChannels, {
+    const detachFocus = cameraMotion.attachFocus({
       focus(track) {
         focusAspect.current = (camera as PerspectiveCamera).aspect
         focusOrbit.focus(orbitBodies, track, camera as PerspectiveCamera, envelopes, PLANET_FOCUS_DISTANCE_SCALES[track], baseFov)
@@ -188,8 +189,7 @@ export default function Planets() {
       },
       exit: settle => focusOrbit.exit(orbitBodies, settle),
       timeout: () => useScrollStore.getState().clearFocus('timeout'),
-    })
-    focusTimeline.current = timeline
+    }, () => useScrollStore.getState().clearFocus('scene'))
     const initial = useScrollStore.getState()
     pendingFocusEvent.current = initial.focusedVoyager ? { type: 'voyager' } : initial.focusedPlanetIdx >= 0
       ? { type: 'focus', planetIdx: initial.focusedPlanetIdx } : null
@@ -201,11 +201,10 @@ export default function Planets() {
     })
     return () => {
       unsubscribe()
-      timeline.dispose()
-      focusTimeline.current = null
+      detachFocus()
       pendingFocusEvent.current = null
     }
-  }, [camera, baseFov, focusChannels, focusOrbit, orbitBodies, envelopes, invalidate])
+  }, [camera, baseFov, cameraMotion, focusOrbit, orbitBodies, envelopes, invalidate])
 
   // ---- Per-frame planet animation ----
   useFrame((state, delta) => {
@@ -232,30 +231,30 @@ export default function Planets() {
     const orbitSmooth3 = 1.0  // 始终轨道位置，永不 dust-lerp
 
     const cx = 0, cy = -1.0, cz = SCENE_CENTER_Z
-    const { hoveredIdx, focusedPlanetIdx, focusedVoyager, structureProgress } = useScrollStore.getState()
+    const { hoveredIdx, focusedPlanetIdx, focusedVoyager, structureProgress, pageProgress } = useScrollStore.getState()
 
     sceneTime.current = time
     const focusedTrack = mainPlanetIndices.indexOf(focusedPlanetIdx)
     if (focusedPlanetIdx >= 0 && (sp < TIMELINE.act3Shift.start || focusedTrack < 0 || structureProgress > 0)) {
-      useScrollStore.getState().clearFocus('scene')
+      useScrollStore.getState().clearFocus(structureProgress > 0 ? 'menu' : 'scene')
     }
-    if (focusedVoyager && (sp < TIMELINE.act3Shift.start || !voyagerState.available || structureProgress > 0)) useScrollStore.getState().clearFocus('scene')
+    if (focusedVoyager && (sp < TIMELINE.act3Shift.start || !voyagerState.available || structureProgress > 0)) useScrollStore.getState().clearFocus(structureProgress > 0 ? 'menu' : 'scene')
     const event = pendingFocusEvent.current
     pendingFocusEvent.current = null
     if (event) {
       const track = event.type === 'focus' ? mainPlanetIndices.indexOf(event.planetIdx) : -1
       if (event.type === 'exit' || (sp >= TIMELINE.act3Shift.start && structureProgress === 0 && (track >= 0 || (event.type === 'voyager' && voyagerState.available)))) {
-        focusTimeline.current?.dispatch(event, track)
+        cameraMotion.dispatch(event, track)
         if (event.type === 'voyager') useScrollStore.getState().setFocusStartTime(sceneTime.current)
       } else {
-        focusTimeline.current?.dispatch({ type: 'exit', reason: 'scene' })
+        cameraMotion.dispatch({ type: 'exit', reason: 'scene' })
         useScrollStore.getState().clearFocus('scene')
       }
     } else if (focusChannels.mode === 'focus' && focusChannels.target === 'planet' && Math.abs(focusAspect.current - (camera as PerspectiveCamera).aspect) > 0.02) {
       // 窗口比例改变也通过事件重建构图，从当前姿态衔接。
-      focusTimeline.current?.dispatch({ type: 'focus', planetIdx: focusedPlanetIdx }, focusedTrack)
+      cameraMotion.dispatch({ type: 'focus', planetIdx: focusedPlanetIdx }, focusedTrack)
     }
-    focusTimeline.current?.advance(delta)
+    cameraMotion.advanceFocus(delta, pageProgress)
     focusOrbit.step(orbitBodies, delta, focusChannels)
 
     // Focused planet world position for occlusion

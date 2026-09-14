@@ -1,12 +1,36 @@
 import { describe, expect, it } from 'vitest'
+import { gsap } from 'gsap'
 import { PerspectiveCamera, Vector3 } from 'three'
 import { CENTRAL_STAR_CORE_RADIUS } from '../../actors/assets/centralStar'
 import { createCameraFocusController } from '../useCameraFocus'
 import { createFocusChannels } from '../useFocusTimeline'
 import { getStructureLayout, STRUCTURE_LAYOUT } from '../structureLayout'
-import { createStellarTransitionPose, createStellarTransitionState, sampleStellarTransition, stellarArrival, STELLAR_TRANSITION } from '../stellarTransition'
+import { createStellarTransitionPose, createStellarTransitionState, createStellarTransitionTimeline, sampleStellarTransition, stellarArrival, STELLAR_TRANSITION } from '../stellarTransition'
 
 describe('Act 4 恒星转场', () => {
+  it('真实暂停 Timeline 保留既有阶段，跨阶段跳转与反向 seek 无状态残留，释放后停止写入', () => {
+    const before = gsap.globalTimeline.getChildren().length
+    const state = createStellarTransitionState(), controller = createStellarTransitionTimeline(state)
+    try {
+      expect(controller.timeline).toBeInstanceOf(gsap.core.Timeline)
+      expect(controller.timeline.paused()).toBe(true)
+      expect(controller.timeline.duration()).toBeCloseTo(6.8)
+      expect(controller.timeline.labels['stellar:approach']).toBe(0)
+      expect(controller.timeline.labels['stellar:reframe']).toBeCloseTo(0.42 * 6.8)
+      expect(controller.timeline.labels['menu:ready']).toBeCloseTo(6.8)
+      for (const p of [1, 0.9, 0.77, 0.42, 0.35, 0.25, 0.04, 0, 0.84, 0.18, 1, 0]) {
+        controller.seek(p)
+        expect(state).toEqual(sampleStellarTransition(p, createStellarTransitionState()))
+        expect(controller.timeline.time()).toBeCloseTo(p * 6.8)
+      }
+      controller.seek(0.86)
+      const frozen = structuredClone(state)
+      controller.dispose(); controller.seek(1)
+      expect(state).toEqual(frozen)
+    } finally { controller.dispose() }
+    expect(gsap.globalTimeline.getChildren().length).toBe(before)
+  })
+
   it('先拉近后重构图，行星在末段依次进入，直接跳转及往返不依赖历史', () => {
     const state = createStellarTransitionState()
     sampleStellarTransition(0.42, state)

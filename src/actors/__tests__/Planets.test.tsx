@@ -121,7 +121,7 @@ describe('主页行星类型', () => {
         await frames(1)
         expect(useScrollStore.getState().focusedPlanetIdx).toBe(-1)
         expect(useScrollStore.getState().focusedVoyager).toBe(false)
-        expect(useScrollStore.getState().focusEvent).toEqual({ type: 'exit', reason: 'scene' })
+        expect(useScrollStore.getState().focusEvent).toEqual({ type: 'exit', reason: 'menu' })
         expect(channels.mode).toBe('exit')
       }
     } finally { await renderer.unmount() }

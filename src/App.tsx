@@ -67,6 +67,7 @@ export default function App() {
   const clickTweenRef = useRef<gsap.core.Tween | null>(null)
   const lighthouseCapturedRef = useRef(false)
   const stRef = useRef<ScrollTrigger | null>(null)
+  const refreshingScrollRef = useRef(false)
   const act3VisibleRef = useRef(false)
 
   // ---- UI state (React — triggers re-render) ----
@@ -90,6 +91,15 @@ export default function App() {
     if (h > 0) window.scrollTo(0, physRef.current.target / PAGE_FLOW.end * h)
   }, [])
 
+  // 页面位置只允许一个自动写入者；所有中断入口使用同一释放路径。
+  const cancelPagePlayback = useCallback(() => {
+    const tween = clickTweenRef.current
+    if (!tween) return
+    clickTweenRef.current = null
+    scrollEffectScope.removeTween(tween)
+    setIsClickPlaying(false)
+  }, [scrollEffectScope])
+
   // ---- ScrollTrigger (native scrollbar) ----
   useGSAP(() => {
     const updateHeight = () => { document.body.style.height = window.innerHeight * (1 + (SCROLL_VH - 1) * PAGE_FLOW.end) + 'px' }
@@ -101,8 +111,10 @@ export default function App() {
       end: 'bottom bottom',
       scrub: 0,
       onUpdate: (self) => {
+        if (refreshingScrollRef.current) return
         const progress = self.progress * PAGE_FLOW.end
         if (Math.abs(progress - physRef.current.target) < 0.0005) return
+        cancelPagePlayback()
         physRef.current.lastScrollbar = performance.now()
         physRef.current.velocity = 0
         physRef.current.target = progress
@@ -112,11 +124,14 @@ export default function App() {
 
     const resize = () => {
       const target = physRef.current.target
-      updateHeight()
-      stRef.current?.refresh()
-      physRef.current.target = target
-      setPageProgress(target)
-      syncScrollbar()
+      refreshingScrollRef.current = true
+      try {
+        updateHeight()
+        stRef.current?.refresh()
+        physRef.current.target = target
+        setPageProgress(target)
+        syncScrollbar()
+      } finally { refreshingScrollRef.current = false }
     }
     window.addEventListener('resize', resize)
     return () => { window.removeEventListener('resize', resize); stRef.current?.kill() }
@@ -156,19 +171,16 @@ export default function App() {
     if (isTerminalActive) return
     if (isAct3Focused) return
     if (isClickPlaying && clickTweenRef.current) {
-      clickTweenRef.current.kill()
-      scrollEffectScope.cancel('interrupt click tween')
-      clickTweenRef.current = null
-      setIsClickPlaying(false)
+      cancelPagePlayback()
     }
     const step = e.deltaY / (window.innerHeight * SCROLL_VH) * 0.65
     physRef.current.velocity += step
     physRef.current.velocity = Math.max(-MAX_VELOCITY, Math.min(MAX_VELOCITY, physRef.current.velocity))
-  }, [isTerminalActive, isAct3Focused, isClickPlaying, scrollEffectScope])
+  }, [isTerminalActive, isAct3Focused, isClickPlaying, cancelPagePlayback])
 
   // 同一页面滚动时间轴；普通点击固定停在 Act 3，结构视图由继续滚动或专用按钮进入。
   const scrollToSection = useCallback((target: number) => {
-    clickTweenRef.current?.kill()
+    cancelPagePlayback()
     setIsClickPlaying(true)
     physRef.current.velocity = 0
     const tweenObj = { val: physRef.current.target }
@@ -182,24 +194,25 @@ export default function App() {
         setPageProgress(tweenObj.val)
         syncScrollbar()
       },
-      onComplete: () => { setIsClickPlaying(false); clickTweenRef.current = null },
+      onComplete: () => {
+        scrollEffectScope.removeTween(clickTweenRef.current, false)
+        setIsClickPlaying(false)
+        clickTweenRef.current = null
+      },
     }))
-  }, [setPageProgress, syncScrollbar, scrollEffectScope])
-  useMenuNavigation(scrollToSection)
+  }, [setPageProgress, syncScrollbar, scrollEffectScope, cancelPagePlayback])
+  useMenuNavigation(scrollToSection, cancelPagePlayback)
   const onClick = useCallback(() => {
     if (isTerminalActive || isClickPlaying || isAct3Focused || pageProgress >= 0.995) return
     scrollToSection(PAGE_FLOW.act3Target)
   }, [isTerminalActive, isClickPlaying, isAct3Focused, pageProgress, scrollToSection])
   const seekPage = useCallback((value: number) => {
-    clickTweenRef.current?.kill()
-    clickTweenRef.current = null
-    scrollEffectScope.cancel('timeline seek')
-    setIsClickPlaying(false)
+    cancelPagePlayback()
     physRef.current.velocity = 0
     physRef.current.target = value
     setPageProgress(value)
     syncScrollbar()
-  }, [setPageProgress, syncScrollbar, scrollEffectScope])
+  }, [setPageProgress, syncScrollbar, cancelPagePlayback])
 
   // ---- event listeners ----
   useEffect(() => {

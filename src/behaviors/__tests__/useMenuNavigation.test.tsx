@@ -39,17 +39,18 @@ it.each(['voyager', 'planet'])('从 %s 聚焦进入 Menu 发出镜头交接事�
   expect(useScrollStore.getState().pageProgress).toBe(1)
 })
 
-it.each([1.01, 1.15])('在 %s 中断 Menu 并反向回到 Act 3 时恢复普通退出', peak => {
-  useScrollStore.getState().setPageProgress(1)
-  useScrollStore.getState().focusVoyager()
-  renderHook(() => useMenuNavigation(vi.fn()))
-  act(() => {
-    useScrollStore.getState().requestMenu()
-    useScrollStore.getState().setPageProgress(peak)
-  })
-  expect(useScrollStore.getState().focusEvent).toEqual({ type: 'exit', reason: 'menu' })
-  act(() => useScrollStore.getState().setPageProgress(1))
-  expect(useScrollStore.getState().focusEvent).toEqual({ type: 'exit', reason: 'scene' })
+it('新聚焦或手动退出取消页面自动播放，Menu 交接不取消自身导航', () => {
+  const cancel = vi.fn(), navigate = vi.fn()
+  renderHook(() => useMenuNavigation(navigate, cancel))
+  act(() => useScrollStore.getState().focusVoyager())
+  expect(cancel).toHaveBeenCalledTimes(1)
+  act(() => useScrollStore.getState().requestMenu())
+  expect(cancel).toHaveBeenCalledTimes(1)
+  expect(navigate).toHaveBeenCalledTimes(1)
+  act(() => useScrollStore.getState().setFocusedPlanet(2))
+  expect(cancel).toHaveBeenCalledTimes(2)
+  act(() => useScrollStore.getState().clearFocus('manual'))
+  expect(cancel).toHaveBeenCalledTimes(3)
 })
 
 it('已在 Menu 时不重播，卸载或回调更新后不残留订阅', () => {

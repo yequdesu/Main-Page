@@ -3,8 +3,7 @@ import { type ReactNode } from 'react'
 import { Color, FogExp2 } from 'three'
 import { SCENE_CENTER_Z } from './ScrollRig'
 import ScrollInvalidator from './ScrollInvalidator'
-import { FocusAnimationProvider } from './FocusAnimationContext'
-import { StellarTransitionProvider } from './StellarTransitionContext'
+import { CameraMotionProvider } from './CameraMotionContext'
 import PlanetClickHandler from './PlanetClickHandler'
 import SceneLights from '../actors/SceneLights'
 import DustField from '../actors/DustField'
@@ -47,8 +46,7 @@ export default function SceneCanvas({ children }: CanvasProps) {
       }}
       style={{ position: canvasLayer.position, inset: 0, zIndex: canvasLayer.zIndex }}
     >
-      <FocusAnimationProvider>
-        <StellarTransitionProvider>
+      <CameraMotionProvider>
           <ScrollInvalidator />
           <PlanetClickHandler />
           <SceneLights />
@@ -58,8 +56,7 @@ export default function SceneCanvas({ children }: CanvasProps) {
           <WindChimeLines />
           <CentralStar />
           {children}
-        </StellarTransitionProvider>
-      </FocusAnimationProvider>
+      </CameraMotionProvider>
     </R3FCanvas>
   )
 }

@@ -11,13 +11,13 @@
 | [Act1OceanVoyage.tsx](Act1OceanVoyage.tsx) | `OceanWaves`、`LightBeam`、`LighthouseCapture` |
 | [Act2GridTransition.tsx](Act2GridTransition.tsx) | `GridLines`；保留基于进度的 `useFrame` 协调回调 |
 | [Act3ContentPhase.tsx](Act3ContentPhase.tsx) | `OrbitRings`；独占 `createCameraFocusController()` 实例，在 `useFrame` 中更新相机 |
-| [Act4StellarTransition.tsx](Act4StellarTransition.tsx) | 滚动转场采样器；以 -30 帧优先级写入恒星拉近、构图、显隐及行星入场通道 |
+| [Act4StellarTransition.tsx](Act4StellarTransition.tsx) | 注册恒星 GSAP Timeline；以 -30 帧优先级通过运镜协调器定位拉近、构图、显隐及行星入场阶段 |
 | [Act5SystemStructure.tsx](Act5SystemStructure.tsx) | 随机日珥与日冕抛射、三种行星独立实例；错峰入场后固定排列并保留卫星公转；日面由根层共享恒星呈现 |
 | [SystemStructureOverlay.tsx](SystemStructureOverlay.tsx) | 结构图标题、行星说明和返回按钮；样式在 [SystemStructure.css](SystemStructure.css) |
 
 前三幕可见性条件由 [App.tsx](../App.tsx) 的 `needsAct1/2/3` 决定。当前 Act 1 的组保留到进度 0.86 之前，使海浪能在网格阶段继续使用；Act 2 从 0.39、Act 3 从 0.84 开始启用组可见性。边界含 0.01 的提前/延后余量，各对象还会根据自身进度计算透明度等属性；这些是组可见性余量，不是宏观阶段边界。
 
-五个 Act 组件在 App 中始终挂载；四个视觉组通过 `visible` 控制，Act 4 播放层没有自己的模型组，始终采样。`visible` 不等于卸载，也不能替代逐帧回调自己的条件检查。Act 3 的相机控制器在组隐藏后继续接收更新，消费聚焦和结构图过渡进度；事件处理与超时由 `Planets` 持有的聚焦时间轴负责。
+五个 Act 组件在 App 中始终挂载；四个视觉组通过 `visible` 控制，Act 4 播放层没有自己的模型组，始终定位 Timeline。`visible` 不等于卸载，也不能替代逐帧回调自己的条件检查。Act 3 的相机控制器在组隐藏后继续接收更新，消费聚焦和结构图过渡进度；两条 Timeline 通过 Canvas 的运镜协调器管理。`Planets` 注册聚焦动作与超时，Act 4 注册恒星转场，各自卸载时释放注册。
 
 Act 4 使用 `structureProgress` 在原三幕之后进行恒星拉近、左移构图和行星入场；进度为 1 后进入 Act 5。日面活动从拉近阶段开始演化，结合恒星屏幕半径渐显，并在转场 25%–45% 提升线束清晰度；同一组轮廓环带活动贯穿 Act 4 / Act 5，反向构图不倒放物理时钟。背景微光仍在最终构图时渐显。Act 3 在转场完成后隐藏，其轨道对象提前淡出。Act 5 的对象位于 layer 1，共享恒星同时属于 layer 0/1；唯一相机控制器消费同一转场姿态；布局与渲染原因见[结构图说明](../../docs/system-structure.md)。
 
