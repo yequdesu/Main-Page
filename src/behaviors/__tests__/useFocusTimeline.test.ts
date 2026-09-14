@@ -15,6 +15,32 @@ function setup() {
 }
 
 describe('事件驱动的 GSAP 聚焦会话', () => {
+  it('Voyager 保留全部轨道；所有近景缩小行星，切换和退出均连续', () => {
+    const { channels, timeline, advance } = setup()
+    timeline.dispatch({ type: 'voyager' })
+    advance(0.5)
+    expect(channels.planetScale).toBeGreaterThan(0.6)
+    expect(channels.planetScale).toBeLessThan(1)
+    expect([...channels.orbitVisibility]).toEqual([1, 1, 1, 1])
+    expect(channels.orbitFocus).toBe(0)
+    advance(2)
+    expect(channels.planetScale).toBe(0.6)
+    timeline.dispatch({ type: 'focus', planetIdx: 1 }, 1)
+    advance(3)
+    expect(channels.planetScale).toBe(0.6)
+    expect(channels.orbitFocus).toBe(1)
+    const before = [...channels.orbitVisibility]
+    timeline.dispatch({ type: 'voyager' })
+    expect([...channels.orbitVisibility]).toEqual(before)
+    advance(3)
+    expect([...channels.orbitVisibility]).toEqual([1, 1, 1, 1])
+    expect(channels.orbitFocus).toBe(0)
+    timeline.dispatch({ type: 'exit', reason: 'manual' })
+    expect(channels.planetScale).toBe(0.6)
+    advance(3)
+    expect(channels.planetScale).toBe(1)
+  })
+
   it('飞行器接管会取消旧超时并让行星回位，共用显隐和退出进度', () => {
     const { channels, actions, timeline, advance } = setup()
     timeline.dispatch({ type: 'focus', planetIdx: 0 }, 0)

@@ -1,6 +1,7 @@
 import { createOrbitHarness } from './focusHarness'
 import { describe, expect, it } from 'vitest'
 import { PerspectiveCamera, Vector3 } from 'three'
+import { FOCUS_PLANET_SCALE } from '../useFocusTimeline'
 import { chooseFocusPhases } from '../useFocusOrbit'
 import { createFocusPoseCalculator, focusFieldOfView } from '../focusPose'
 import { ORBIT_RADII, SCENE_CENTER_Z } from '../../r3f/ScrollRig'
@@ -42,7 +43,7 @@ describe('原轨道上的聚焦构图', () => {
         const world = new Vector3(Math.cos(angles[i]) * data[i].orbitR, -1, SCENE_CENTER_Z + Math.sin(angles[i]) * data[i].orbitR)
         const distance = world.distanceTo(camera.position)
         const depth = -world.clone().applyMatrix4(camera.matrixWorldInverse).z
-        const radius = geometry.planetRadius * data[i].scale * 0.7 * data[i].sizeBoost * data[i].scaleMult * 22 / Math.max(5, distance) * envelopes[i] * 1.35 / (depth * Math.tan(fov * Math.PI / 360))
+        const radius = geometry.planetRadius * data[i].scale * 0.7 * data[i].sizeBoost * data[i].scaleMult * 22 / Math.max(5, distance) * envelopes[i] * 1.35 * FOCUS_PLANET_SCALE / (depth * Math.tan(fov * Math.PI / 360))
         const starWorld = new Vector3(0, -1, SCENE_CENTER_Z)
         const starDepth = -starWorld.applyMatrix4(camera.matrixWorldInverse).z
         const starRadius = geometry.starRadius / (starDepth * Math.tan(fov * Math.PI / 360))

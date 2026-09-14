@@ -8,7 +8,7 @@
 
 沿用 [composition](../composition/README.md) 的 Actor 注册、图层策略、坐标锚点、事件序列及副作用管理。视觉工厂负责模型与资源，主页 Actor 负责将其接入运行时；灯塔、海浪、光束、网格和碎片保留现有 runtime 接入。
 
-- `Planets` 发布 `anchor.planet.*.world`、`orbitWorld`、`particleIndex`、`screenRadius` 和球体真实世界半径 `coreRadius`。点击、聚焦、轨道局部渐隐及标签读取这些锚点，不再导入 `Planets` 的可变模块变量；终端轨道数据仍写入 `realtimeStore`。
+- `Planets` 发布 `anchor.planet.*.world`、`orbitWorld`、`particleIndex`、`screenRadius`、球体真实世界半径 `coreRadius` 和完整资产包络 `visualRadius`。点击、聚焦、轨道局部渐隐及标签读取这些锚点，不再导入 `Planets` 的可变模块变量；终端轨道数据仍写入 `realtimeStore`。
 - `CentralStar` 发布恒星世界锚点；海浪消费光束锚点，风铃使用确定性的布局函数。风铃阶段固定布局及初始公转相位来自 `useWindChime` / `Planets`，内容阶段由聚焦轨道控制器推进。
 - 行星主体、光晕、恒星光晕和导航线沿用 `layerRegistry`。新增附件的材质及深度细节仍由资产工厂管理。
 - `act3.entry` / `labelReveal` 控制信息终端和标签入场；进入 Act 4 转场时重置，返回 Act 3 后重播。聚焦与恒星转场分别使用 GSAP Timeline，由 `CameraMotionProvider` 的协调器统一管理；相机仍由同一个控制器更新。
@@ -35,7 +35,7 @@
 | [SceneLights.tsx](SceneLights.tsx) | Canvas 根层级 | 全局灯光；环境光引用供 `ScrollInvalidator` 更新 |
 | [Lighthouse.tsx](Lighthouse.tsx) | Canvas 根层级 | 程序化灯塔，根据进度自行隐藏，提供截图所需对象引用 |
 | [Planets.tsx](Planets.tsx) | Canvas 根层级 | 三颗主行星、光晕/大气层、轨道与交互数据 |
-| [DustField.tsx](DustField.tsx) | Canvas 根层级 | InstancedMesh2 碎片的位置、颜色和透明度 |
+| [DustField.tsx](DustField.tsx) | Canvas 根层级 | InstancedMesh2 碎片、小行星带固定轨道、事件入场及局部避让 |
 | [CentralStar.tsx](CentralStar.tsx) | Canvas 根层级 | 恒星核心、内层光晕、近场和远场 Sprite，以及风铃过渡 |
 | [WindChimeLines.tsx](WindChimeLines.tsx) | Canvas 根层级 | 跟随主行星和恒星过渡的悬线 |
 | [OceanWaves.tsx](OceanWaves.tsx) | Act 1 | 海浪、展平过渡与光束照明 |
@@ -72,11 +72,17 @@
 
 ## 聚焦构图
 
-`Planets` 向运镜协调器注册 [GSAP 聚焦时间轴](../behaviors/useFocusTimeline.ts) 的动作，自身持有 [轨道调相控制器](../behaviors/useFocusOrbit.ts)，按轨道顺序传入三个主体的数据、真实资产半径和完整附件包络。控制器仅推进 `orbitAngle`；原轨道半径、XZ 平面和模型/附件更新流程继续生效。进入行星聚焦后，另外两颗行星沿原轨道移动到恒星两侧；到位后近同步缓慢公转。退出时配合镜头拉远，三颗行星沿原公转方向加速追上持续运行的参考相位，再恢复各自原速度；回位计划由同一控制器持有，中途重新聚焦会取消计划并保留参考轨道。Voyager 聚焦不新建行星调相。实时面板的 `ω` 显示控制器的实际角速度。相机的起始高度、慢速抬升、视野适配和选相位原理见 [聚焦会话说明](../behaviors/README.md#聚焦会话)。
+`Planets` 向运镜协调器注册 [GSAP 聚焦时间轴](../behaviors/useFocusTimeline.ts) 的动作，自身持有 [轨道调相控制器](../behaviors/useFocusOrbit.ts)，按轨道顺序传入三个主体的数据、真实资产半径和完整附件包络。控制器仅推进 `orbitAngle`；原轨道半径、XZ 平面和模型/附件更新流程继续生效。进入行星聚焦后，另外两颗行星沿原轨道移动到恒星两侧；到位后近同步缓慢公转。退出时配合镜头拉远，三颗行星沿原公转方向加速追上持续运行的参考相位，再恢复各自原速度；回位计划由同一控制器持有，中途重新聚焦会取消计划并保留参考轨道。Voyager 聚焦不新建行星调相。实时面板的 `ω` 显示控制器的实际角速度。相机的起始高度、慢速抬升、差速跟随、视野适配和选相位原理见 [聚焦会话说明](../behaviors/README.md#聚焦会话)。
+
+## 小行星带与近景尺寸
+
+Act 3 的所有近景通过 `useFocusTimeline.ts` 的 `planetScale` 通道，在 1.8 秒内缩至 `FOCUS_PLANET_SCALE=0.6`。这是线性尺寸倍率，核心、光晕、卫星大小与公转半径、四层行星环、标签包络及构图预测同步消费；镜头距离公式不变。普通退出平滑恢复，交接 Menu 时保留小尺寸，待轨道层完全淡出后再恢复，避免近景突然变大。
+
+`DustField` 保持挂载在 Canvas 根层级，前幕保留漂浮与滚动混合；Act 3 使用 [asteroidBelt.ts](../behaviors/asteroidBelt.ts) 的固定轨道。前幕 80 个、恒星系统 320 个实例共用低模几何和材质，初始颜色仍调用 `materialsNeedsUpdate()`，自行释放实例纹理、几何与材质。在滚动准备阶段先分布到恒星四周，再由入场时间轴统一加速、错开收拢并减速；时间轴在 effect 中独占创建/清理，由 R3F 推进；可见环带继续 `invalidate()`，没有第二个动画循环。入场共享高亮通道在成环后稍作停留，再随减速回落；颜色跟随现有主题渐变，暗背景提亮、亮背景加深。世界资产包络附近及过近镜头的碎片局部柔化，避免卫星和行星环穿插，实际轨道不受聚焦构图调相影响。参数、公式和事件边界见[小行星带说明](../../docs/asteroid-belt.md)。
 
 ## 聚焦时的轨道显示
 
-六条导航轨道线共用 [OrbitLineMaterial.tsx](OrbitLineMaterial.tsx) 的显示规则。全景保留原有滚动显隐；聚焦时，当前行星的公转轨道保留原透明度的 45%，另外两条保留 18%，外层装饰轨道保留 12%。进入、切换目标与退出均消费同一聚焦时间轴的 2.4 秒 `power2.out` 渐变，从当前透明度衔接。材质不再维护独立显隐计时器；30 秒超时由时间轴发出退出事件。
+六条导航轨道线共用 [OrbitLineMaterial.tsx](OrbitLineMaterial.tsx) 的显示规则。全景保留原有滚动显隐；聚焦行星时，当前行星的公转轨道保留原透明度的 45%，另外两条保留 18%，外层装饰轨道保留 12%。进入、切换目标与退出均消费同一聚焦时间轴的 2.4 秒 `power2.out` 渐变，从当前透明度衔接。聚焦 Voyager 时六条轨道恢复全景的原有可见度，局部开口通道也归零；从行星近景切换时连续恢复。材质不再维护独立显隐计时器；30 秒超时由时间轴发出退出事件。
 
 局部渐隐以三个行星核心的实时世界坐标与球体半径为依据，来自 `Planets` 发布的 `world` / `coreRadius` 锚点。对轨道片元位置 `p`，取各球体渐隐系数的最小值：`min_i smoothstep(1.08 r_i, 1.65 r_i, distance(p, c_i))`，再按聚焦渐变量混入透明度。这样在球体表面之外留出很窄的断口，并在外侧连续恢复线条；世界空间计算支持外层环的倾斜、拉伸与进动。使用球体真实半径而非附件包络，避免卫星和实体行星环周围出现巨大缺口。仅导航线应用此效果，实体行星环材质不受影响。
 

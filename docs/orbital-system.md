@@ -101,11 +101,13 @@ n  = R_y(Ω) · n₁ = (sin(i)·sin(Ω), −cos(i), sin(i)·cos(Ω))
 
 ### 2.5 当前参数
 
+半径统一读取 `src/types/index.ts` 的 `SCROLL_RIG.OUTER_ORBIT_RADII`；内侧行星与小行星带间距、全景取景补偿见[小行星带说明](asteroid-belt.md)。
+
 | 环 | 半径 | 倾角 i | i (°) | 偏心率 e | 拉伸 X | ē/ī | 进动周期 |
 |:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
-| 内 | 7.8 | 0.12 | 6.9° | 0.15 | 1.011× | 1.25 | ~5.2 min |
-| 中 | 9.4 | 0.22 | 12.6° | 0.30 | 1.048× | 1.36 | ~2.6 min |
-| 外 | 11.0 | 0.38 | 21.8° | 0.50 | 1.155× | 1.32 | ~1.7 min |
+| 内 | 10.8 | 0.12 | 6.9° | 0.15 | 1.011× | 1.25 | ~5.2 min |
+| 中 | 12.6 | 0.22 | 12.6° | 0.30 | 1.048× | 1.36 | ~2.6 min |
+| 外 | 14.4 | 0.38 | 21.8° | 0.50 | 1.155× | 1.32 | ~1.7 min |
 
 ---
 
@@ -173,7 +175,7 @@ OrbitalRing: outerGroupRef.rotation.y += delta × speed × speedScale
 OrbitLineMaterial: 滚动显隐 × 聚焦弱化；同步球体位置与半径供片元渐隐
 ```
 
-聚焦时轨道会整体减弱，并在行星表面之外柔和淡出，退出后平滑恢复。仅作用于导航线，实体行星环不受影响。参数、空间公式、资源生命周期与 Three.js 来源统一维护在 [Actors：聚焦时的轨道显示](../src/actors/README.md#聚焦时的轨道显示)。本次同步了材质与显隐相关说明，其他历史理论和扩展示例未全面复核。
+聚焦行星时轨道会整体减弱，并在行星表面之外柔和淡出；聚焦 Voyager 时保留全景轨道可见度，退出后平滑恢复。仅作用于导航线，实体行星环不受影响。参数、空间公式、资源生命周期与 Three.js 来源统一维护在 [Actors：聚焦时的轨道显示](../src/actors/README.md#聚焦时的轨道显示)。本次同步了材质与显隐相关说明，其他历史理论和扩展示例未全面复核。
 
 ### 3.3 `OrbitRings.tsx` — 轨道系统编排
 
@@ -188,9 +190,9 @@ OrbitLineMaterial: 滚动显隐 × 聚焦弱化；同步球体位置与半径供
 
 ```ts
 const GYRO_RINGS: OrbitalRingConfig[] = [
-  { radius: 7.8,  inclination: 0.12, eccentricity: 0.15, speed: 0.02, phase: 0 },
-  { radius: 9.4,  inclination: 0.22, eccentricity: 0.30, speed: 0.04, phase: Math.PI / 3 },
-  { radius: 11.0, inclination: 0.38, eccentricity: 0.50, speed: 0.06, phase: 2 * Math.PI / 3 },
+  { radius: 10.8,  inclination: 0.12, eccentricity: 0.15, speed: 0.02, phase: 0 },
+  { radius: 12.6,  inclination: 0.22, eccentricity: 0.30, speed: 0.04, phase: Math.PI / 3 },
+  { radius: 14.4, inclination: 0.38, eccentricity: 0.50, speed: 0.06, phase: 2 * Math.PI / 3 },
 ]
 ```
 
@@ -212,7 +214,7 @@ OrbitRings ──→ OrbitalRing ──→ useScrollStore (Zustand)
 
 主页在最外层进动轨道挂载 `Voyager 1 Low Poly`。这是沿已有装饰轨道编排的循环巡航，不进行开普勒引力积分，也不拟合实际探测器星历。轨道仍以恒星为几何中心。
 
-令短半轴 `b = 11`、长半轴 `a = b / √(1 − e²)`、`e = 0.5`、倾角 `i = 0.38`，巡航参数角为 `θ(t) = π/2 − 2πt/90`。在进动父组的局部坐标中：
+令短半轴 `b = 14.4`、长半轴 `a = b / √(1 − e²)`、`e = 0.5`、倾角 `i = 0.38`，巡航参数角为 `θ(t) = π/2 − 2πt/90`。在进动父组的局部坐标中：
 
 ```text
 p(t) = (a cosθ, b sinθ sin i, b sinθ cos i)
@@ -263,7 +265,7 @@ p_world(t) = (0, −1, SCENE_CENTER_Z) + R_y(Ω(t)) · p(t)
 ### 4.6 最大透明度 `maxOpacity`
 
 - **默认：** `0.28`
-- **全景基础透明度 =** `smoothstep(clamped(scrollProgress, GRID_SHIFT_START, 1)) × maxOpacity`，阈值来自 `src/types/index.ts`；聚焦时再乘整体弱化与局部渐隐系数（见上述 Actors 文档）
+- **全景基础透明度 =** `smoothstep(clamped(scrollProgress, GRID_SHIFT_START, 1)) × maxOpacity`，阈值来自 `src/types/index.ts`；聚焦行星时再乘整体弱化与局部渐隐系数，Voyager 聚焦保留原可见度（见上述 Actors 文档）
 - 仅在 Act 3 阶段（sp > 0.85）可见
 
 ### 4.7 速度缩放 `speedScale`

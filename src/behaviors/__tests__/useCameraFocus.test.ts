@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import { PerspectiveCamera, Vector3 } from 'three'
-import { createFocusPoseCalculator, focusFieldOfView, focusOrbitPhase } from '../focusPose'
+import { createFocusPoseCalculator, focusFieldOfView, focusOrbitPhase, focusFollowLag, FOCUS_FOLLOW } from '../focusPose'
 import { createCameraFocusController } from '../useCameraFocus'
 import { createFocusChannels, createFocusTimeline } from '../useFocusTimeline'
+import { SCROLL_RIG } from '../../types'
 import { SCENE_CENTER_Z } from '../../r3f/ScrollRig'
 import { createStellarTransitionPose, createStellarTransitionState, sampleStellarTransition } from '../stellarTransition'
 import { CENTRAL_STAR_CORE_RADIUS } from '../../actors/assets/centralStar'
@@ -12,6 +13,37 @@ const globalLookAt = new Vector3(0, -0.65, SCENE_CENTER_Z - 8)
 const planets = [new Vector3(4, -1, SCENE_CENTER_Z), new Vector3(-5, -1, SCENE_CENTER_Z)]
 
 describe('时间轴驱动相机聚焦', () => {
+  it('扩大后的 Act 3 全景平滑展开，聚焦退出与 Menu 返回抵达同一全景', () => {
+    const camera = new PerspectiveCamera(40, 16 / 9)
+    camera.position.copy(globalPosition); camera.lookAt(globalLookAt)
+    const channels = createFocusChannels(), transition = createStellarTransitionState()
+    const update = createCameraFocusController()
+    const timeline = createFocusTimeline(channels, { focus() {}, exit: () => [2, 3, 4], timeout() {} })
+    const star = new Vector3(0, -1, SCENE_CENTER_Z)
+    const expanded = globalPosition.clone().sub(star).multiplyScalar(SCROLL_RIG.OUTER_ORBIT_RADII[2] / 11).add(star)
+    const frame = (delta = 0, sp = 1) => { timeline.advance(delta); update(camera, channels, planets[0], 1, 0, transition, sp) }
+    try {
+      frame(0, 0.8)
+      expect(camera.position.distanceTo(globalPosition)).toBeLessThan(1e-9)
+      let previous = camera.position.z
+      for (let step = 0; step <= 100; step++) {
+        frame(0, 0.85 + step * 0.0015)
+        expect(camera.position.z).toBeGreaterThanOrEqual(previous - 1e-9)
+        previous = camera.position.z
+      }
+      expect(camera.position.distanceTo(expanded)).toBeLessThan(1e-9)
+      timeline.dispatch({ type: 'focus', planetIdx: 0 }, 0); frame()
+      expect(camera.position.distanceTo(expanded)).toBeLessThan(1e-9)
+      for (let i = 0; i < 120; i++) frame(1 / 60)
+      timeline.dispatch({ type: 'exit', reason: 'manual' })
+      for (let i = 0; i < 360; i++) frame(1 / 60)
+      expect(camera.position.distanceTo(expanded)).toBeLessThan(1e-9)
+      sampleStellarTransition(1, transition); frame()
+      sampleStellarTransition(0, transition); frame()
+      expect(camera.position.distanceTo(expanded)).toBeLessThan(1e-9)
+    } finally { timeline.dispose() }
+  })
+
   it('Menu 衔接任意方位的 Voyager 近景，单调拉近、不穿星，完成后返回普通全景', () => {
     const star = new Vector3(0, -1, SCENE_CENTER_Z)
     for (const aspect of [16 / 9, 390 / 844]) for (const angle of [0, Math.PI / 2, Math.PI, Math.PI * 1.5]) {
@@ -145,6 +177,52 @@ describe('时间轴驱动相机聚焦', () => {
     } finally { timeline.dispose() }
   })
 
+  it.each([3.6, 5.4, 9])('轨道半径 %s：抬升与跟随共同计算后，相机沿公转方向稍慢，差速渐入且累计差角平滑有界', radius => {
+    const pose = createFocusPoseCalculator()
+    const p = new Vector3(), c = new Vector3(), look = new Vector3()
+    const angle = (t: number) => {
+      p.set(radius * Math.cos(-0.015 * t), -1, SCENE_CENTER_Z + radius * Math.sin(-0.015 * t))
+      pose(p, t, radius === 3.6 ? 1 : 1.25, c, look)
+      return Math.atan2(c.z - SCENE_CENTER_Z, c.x)
+    }
+    expect(focusFollowLag(0)).toBe(0)
+    expect(focusFollowLag(0.001) / 0.001).toBeLessThan(1e-8)
+    for (const t of [3, 10, 20, 29]) {
+      const speed = (angle(t + 0.001) - angle(t)) / 0.001
+      expect(speed).toBeGreaterThan(-0.015)
+      expect(speed).toBeLessThan(-0.0127)
+    }
+    expect(focusFollowLag(30)).toBeGreaterThan(0.04)
+    expect(focusFollowLag(30)).toBeLessThan(0.06)
+    expect(focusFollowLag(300)).toBeLessThanOrEqual(FOCUS_FOLLOW.maxLag)
+    // 姿态只取决于时间轴播放头；直接定位、乱序取样不会留下积分历史。
+    pose(p, 18, 1.25, c, look)
+    const direct = c.clone()
+    for (const t of [4, 29, 0, 18]) pose(p, t, 1.25, c, look)
+    expect(c.distanceTo(direct)).toBeLessThan(1e-12)
+  })
+
+  it.each([3.6, 5.4, 9])('半径 %i：行星在聚焦画面继续前移，保持近景尺寸与画面余量', radius => {
+    const pose = createFocusPoseCalculator()
+    const scale = radius === 3.6 ? 1 : 1.25
+    const camera = new PerspectiveCamera(48, 16 / 9)
+    const p = new Vector3(), c = new Vector3(), look = new Vector3()
+    const screens: Vector3[] = []
+    for (let t = 3; t <= 29; t++) {
+      p.set(radius * Math.cos(-0.015 * t), -1, SCENE_CENTER_Z + radius * Math.sin(-0.015 * t))
+      pose(p, t, scale, c, look)
+      camera.position.copy(c); camera.lookAt(look); camera.updateMatrixWorld()
+      const screen = p.clone().project(camera)
+      screens.push(screen)
+      expect(Math.abs(screen.x)).toBeLessThan(0.5)
+      expect(Math.abs(screen.y)).toBeLessThan(0.6)
+      expect(c.distanceTo(p)).toBeGreaterThan(Math.hypot(2.5, 2.2) * scale * 0.9)
+      expect(c.distanceTo(p)).toBeLessThan(Math.hypot(2.5, 2.2) * scale * 1.1)
+    }
+    // 原完全锁定跟随几乎抵消水平公转；新模式提供可辨识的相对位移。
+    expect(screens[screens.length - 1].x - screens[0].x).toBeGreaterThan(0.05)
+  })
+
   it('前三秒从低速平滑加速，随后持续匀速环绕，阶段交界处速度连续', () => {
     const h = 1e-4
     const speed = (t: number) => (focusOrbitPhase(t + h) - focusOrbitPhase(t)) / h
@@ -190,8 +268,13 @@ describe('时间轴驱动相机聚焦', () => {
       const holdFov = camera.fov
       for (let f = 0; f < 900; f++) frame(1 / 60)
       expect(channels.camera).toBe(1)
-      expect(camera.position.distanceTo(atHold)).toBeGreaterThan(0.45)
-      expect(camera.position.distanceTo(planets[0])).toBeCloseTo(Math.hypot(2.5, 2.2) * 1.25, 8)
+      expect(camera.position.distanceTo(atHold)).toBeGreaterThan(0.25)
+      const star = new Vector3(0, -1, SCENE_CENTER_Z)
+      const predicted = new Vector3(), look = new Vector3()
+      createFocusPoseCalculator()(planets[0], channels.elapsed, 1.25, predicted, look)
+      expect(camera.position.distanceTo(predicted)).toBeLessThan(1e-9)
+      const followPoint = look.clone().sub(star).setLength(planets[0].distanceTo(star)).add(star)
+      expect(camera.position.distanceTo(followPoint)).toBeCloseTo(Math.hypot(2.5, 2.2) * 1.25, 8)
       expect(camera.fov).toBe(holdFov)
       const before = camera.position.clone()
       const direction = camera.getWorldDirection(new Vector3())

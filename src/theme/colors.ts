@@ -17,6 +17,10 @@ export const SCENE_COLORS: Record<string, ThemePair> = {
   /** 轨道参考线 + 陀螺仪装饰环（OrbitRings / OrbitalRing） */
   orbit:  { night: '#cbd5e1', day: '#64748b' },
 
+  /** 小行星高速入场：暗背景提亮，亮背景加深以保持对比。 */
+  asteroidEntry: { night: '#cbd0d6', day: '#4b515b' },
+  asteroidCruise: { night: '#858b94', day: '#6b7079' },
+
   /** label → planet 引导虚线（PlanetLabelGuideLines） */
   guideLine: { night: 'rgba(200, 210, 225, 0.45)', day: 'rgba(60, 72, 90, 0.35)' },
 }

@@ -2,7 +2,7 @@ import { getWebglLayer } from '../composition/layerRegistry'
 import { TIMELINE } from '../composition/timeline'
 import { touchActorFrame, useActorRuntime } from '../composition/actorRuntime'
 import { R3F_FRAME_PRIORITY } from '../composition/frameScheduler'
-import { makeCoreAnchor, planetOrbitAnchorId, planetParticleIndexAnchorId, planetScreenRadiusAnchorId, planetCoreRadiusAnchorId, planetWorldAnchorId, pointFromVector3, setCoreAnchor, setCoreAnchors } from '../composition/coreAnchors'
+import { makeCoreAnchor, planetOrbitAnchorId, planetParticleIndexAnchorId, planetScreenRadiusAnchorId, planetCoreRadiusAnchorId, planetVisualRadiusAnchorId, planetWorldAnchorId, pointFromVector3, setCoreAnchor, setCoreAnchors } from '../composition/coreAnchors'
 import { useAnchorStore, type AnchorInput } from '../composition/anchorStore'
 import { useMemo, useRef, useEffect } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
@@ -18,6 +18,7 @@ import { useFocusAnimation } from '../r3f/FocusAnimationContext'
 import { useStellarTransition } from '../r3f/StellarTransitionContext'
 import { createFocusOrbitController } from '../behaviors/useFocusOrbit'
 import { calcOrbitPosition } from '../behaviors/useOrbitPosition'
+import { overviewPlanetCompensation } from '../behaviors/orbitalOverview'
 import { calcAppearance } from '../behaviors/useAppearanceFade'
 import { calcOcclusionFade } from '../behaviors/useOcclusionFade'
 import { calcScreenSpaceHover } from '../behaviors/useScreenSpaceHover'
@@ -290,6 +291,7 @@ export default function Planets() {
       const isMain = mainPlanetIndices.includes(i)
       const appearanceSmooth3 = isMain ? orbitSmooth3 : smooth3
       const appearance = calcAppearance(d, sp, wof, appearanceSmooth3, cd, 0)
+      appearance.scale *= focusChannels.planetScale * overviewPlanetCompensation(sp, focusChannels.planetScale)
 
       // Color
       _color2.set(d.grayHex)
@@ -328,6 +330,7 @@ export default function Planets() {
         // 计算该行星的屏幕视觉半径（px），供径向布局使用
         // 标签避让覆盖环带外缘或卫星整圈公转范围，不随卫星相位抖动。
         const _worldR = PLANET_BASE_RADIUS * appearance.scale * assets[trackIdx].visualRadiusScale
+        anchorWrites.push(makeCoreAnchor(planetVisualRadiusAnchorId(trackIdx), _worldR, 'world', 'planets', mesh.visible))
         const _pcam = camera as PerspectiveCamera
         const _fovY = (_pcam.fov * Math.PI) / 180
         // 屏幕半径 = worldRadius / 距离处的 frustum 高度 × 视口高度
@@ -368,7 +371,7 @@ export default function Planets() {
 
       assets[trackIdx].updateAppearance(
         time, trackIdx, appearance.scale, planetOpacity, glowFactor,
-        d.scale * d.scaleMult * ATMOS_HALO_SCALE,
+        d.scale * d.scaleMult * ATMOS_HALO_SCALE * focusChannels.planetScale * Math.sqrt(overviewPlanetCompensation(sp, focusChannels.planetScale)),
       )
       if (sp >= TIMELINE.act3Shift.start) assets[trackIdx].updateSpin?.(time, d._baseSpeed)
     }

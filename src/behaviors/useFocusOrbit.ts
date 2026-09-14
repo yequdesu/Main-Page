@@ -1,7 +1,7 @@
 import { PerspectiveCamera, Vector3 } from 'three'
 import type { ParticleData } from '../types'
 import { SCENE_CENTER_Z } from '../r3f/ScrollRig'
-import { FOCUS_TIMING, type FocusChannels } from './useFocusTimeline'
+import { FOCUS_PLANET_SCALE, FOCUS_TIMING, type FocusChannels } from './useFocusTimeline'
 import { createFocusPoseCalculator, focusFieldOfView } from './focusPose'
 
 const PHASE_STEPS = 180
@@ -50,7 +50,7 @@ export function chooseFocusPhases(data: ParticleData[], focused: number, aspect:
       const depth = -projected.copy(point).applyMatrix4(camera.matrixWorldInverse).z
       projected.copy(point).project(camera)
       const d = data[track]
-      const worldRadius = geometry.planetRadius * d.scale * 0.7 * d.sizeBoost * d.scaleMult * 22 / Math.max(5, distance) * envelopes[track] * 1.35
+      const worldRadius = geometry.planetRadius * d.scale * 0.7 * d.sizeBoost * d.scaleMult * 22 / Math.max(5, distance) * envelopes[track] * 1.35 * FOCUS_PLANET_SCALE
       return { x: projected.x * aspect, y: projected.y, radius: worldRadius / (depth * Math.tan(fov * Math.PI / 360)), front: depth > 0.1 }
     }
     point.set(0, -1, SCENE_CENTER_Z)

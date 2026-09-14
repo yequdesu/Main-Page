@@ -11,6 +11,8 @@ export const FOCUS_TIMING = {
   returnMin: 1.6,
   returnExtraSpeed: 2.8,
 } as const
+/** Act 3 近景的线性尺寸倍率；不改变镜头距离。 */
+export const FOCUS_PLANET_SCALE = 0.6
 export type { FocusEvent } from '../types'
 
 export function createFocusChannels() {
@@ -19,6 +21,7 @@ export function createFocusChannels() {
     mode: 'idle' as 'idle' | 'focus' | 'exit',
     target: 'planet' as 'planet' | 'voyager',
     voyagerFocus: 0,
+    planetScale: 1,
     track: -1,
     camera: 0,
     cameraDestination: 'global' as 'global' | 'stellar',
@@ -76,13 +79,14 @@ export function createFocusTimeline(channels: FocusChannels, actions: FocusTimel
           .to(channels, { camera: 1, duration: FOCUS_TIMING.camera, ease: 'power2.inOut' }, 'focus:start')
           .to(channels, { align: 1, duration: FOCUS_TIMING.align }, 'focus:start')
           .to(channels, { elapsed: FOCUS_TIMEOUT, duration: FOCUS_TIMEOUT }, 'focus:start')
-          .to(channels, { orbitFocus: 1, duration: FOCUS_TIMING.orbitFade, ease: 'power2.out' }, 'focus:start')
+          .to(channels, { orbitFocus: voyager ? 0 : 1, duration: FOCUS_TIMING.orbitFade, ease: 'power2.out' }, 'focus:start')
+          .to(channels, { planetScale: FOCUS_PLANET_SCALE, duration: FOCUS_TIMING.camera, ease: 'power2.inOut' }, 'focus:start')
           .to(channels, { voyagerFocus: voyager ? 1 : 0, duration: FOCUS_TIMING.camera, ease: 'power2.inOut' }, 'focus:start')
           .addLabel('focus:hold', FOCUS_TIMING.align)
           .call(() => { if (valid()) actions.timeout() }, [], FOCUS_TIMEOUT)
           .addLabel('focus:timeout', FOCUS_TIMEOUT)
         for (let i = 0; i < 4; i++) tl.to(channels.orbitVisibility, {
-          [i]: i === 3 ? 0.12 : !voyager && i === track ? 0.45 : 0.18,
+          [i]: voyager ? 1 : i === 3 ? 0.12 : i === track ? 0.45 : 0.18,
           duration: FOCUS_TIMING.orbitFade, ease: 'power2.out',
         }, 'focus:start')
       } else {
@@ -100,6 +104,10 @@ export function createFocusTimeline(channels: FocusChannels, actions: FocusTimel
           .to(channels, { orbitFocus: 0, duration: FOCUS_TIMING.orbitFade, ease: 'power2.out' }, 'exit:start')
           .to(channels, { voyagerFocus: 0, duration: FOCUS_TIMING.orbitFade, ease: 'power2.out' }, 'exit:start')
           .addLabel('exit:return', FOCUS_TIMING.settle)
+        // Menu 接管期间保留近景尺寸；反向返回时由 scene 退出平滑恢复。
+        if (event.reason !== 'menu') tl.to(channels, {
+          planetScale: 1, duration: FOCUS_TIMING.camera, ease: 'power2.inOut',
+        }, 'exit:start')
         for (let i = 0; i < 4; i++) tl.to(channels.orbitVisibility, {
           [i]: 1, duration: FOCUS_TIMING.orbitFade, ease: 'power2.out',
         }, 'exit:start')

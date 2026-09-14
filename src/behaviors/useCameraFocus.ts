@@ -3,6 +3,7 @@ import { STRUCTURE_LAYOUT } from './structureLayout'
 import { SCENE_CENTER_Z } from '../r3f/ScrollRig'
 import { createStellarTransitionPose, createStellarTransitionState, type StellarTransitionState } from './stellarTransition'
 import { createFocusPoseCalculator, focusFieldOfView } from './focusPose'
+import { orbitalOverviewScale } from './orbitalOverview'
 import type { FocusChannels } from './useFocusTimeline'
 
 /** 时间轴只提供进度；此控制器是相机位置、朝向与 FOV 的唯一写入方。 */
@@ -27,7 +28,7 @@ export function createCameraFocusController() {
   let revision = -1
   let baseFov: number | null = null
   let startFov = 40
-  return (camera: PerspectiveCamera, channels: FocusChannels, planet: Vector3 | null, distanceScale = 1, targetRadius = 0, transition: StellarTransitionState = idleTransition) => {
+  return (camera: PerspectiveCamera, channels: FocusChannels, planet: Vector3 | null, distanceScale = 1, targetRadius = 0, transition: StellarTransitionState = idleTransition, scrollProgress = 0) => {
     baseFov ??= camera.fov
     if (revision !== channels.revision) {
       revision = channels.revision
@@ -64,7 +65,7 @@ export function createCameraFocusController() {
         fov = focusFieldOfView(camera.aspect, baseFov)
       }
     } else {
-      targetPosition.copy(globalPosition)
+      targetPosition.copy(globalPosition).sub(star).multiplyScalar(orbitalOverviewScale(scrollProgress)).add(star)
       targetLookAt.copy(globalLookAt)
     }
     const progress = channels.mode === 'idle' ? 1 : channels.camera

@@ -33,6 +33,9 @@ let _themeBlend = 0 // 0=night, 1=day
 /** App.tsx GSAP tween 每帧更新，驱动 scene 背景平滑过渡 */
 export function setThemeBlend(v: number) { _themeBlend = v }
 
+/** 供对象颜色跟随同一个场景主题渐变，避免另建动画时钟。 */
+export function getThemeBlend() { return _themeBlend }
+
 const _bgBaseColor = new Color('#050811')
 const _bgNightTarget = new Color('#050811')   // night: Act 3 与 Act 1 一致
 const _bgDayTarget = new Color('#f1f5f9')     // day: 白雾过渡至亮色

@@ -48,6 +48,8 @@ export function createCameraMotionCoordinator(focus: FocusChannels, stellar: Ste
       if (stellar.progress >= 1) handoff = false
       previousPage = page
       focusTimeline?.advance(delta)
+      // Act 3 已完全淡出后恢复远景尺寸，保证从 Menu 返回时不会残留缩小状态。
+      if (stellar.orbitOpacity === 0 && focus.mode !== 'focus') focus.planetScale = 1
     },
     get owner() {
       return handoff || stellar.progress > 0 ? 'stellar' : focus.mode === 'focus' ? 'focus' : focus.mode === 'exit' ? 'return' : 'global'

@@ -30,8 +30,10 @@ describe('统一运镜协调器', () => {
     motion.dispatch({ type: 'voyager' })
     for (let i = 0; i < 150; i++) frame(1)
     expect(motion.owner).toBe('focus')
+    expect(focus.planetScale).toBe(0.6)
     const start = camera.position.clone(), direction = camera.getWorldDirection(new Vector3())
     motion.dispatch({ type: 'exit', reason: 'menu' }); frame(1, 0)
+    expect(focus.planetScale).toBe(0.6)
     const revision = focus.revision
     expect(motion.owner).toBe('stellar')
     expect(camera.position.distanceTo(start)).toBeLessThan(1e-9)
@@ -48,6 +50,7 @@ describe('统一运镜协调器', () => {
     expect(actions.timeout).not.toHaveBeenCalled()
     for (let i = 200; i >= 0; i--) frame(1 + 0.42 * i / 200)
     expect(motion.owner).toBe('global')
+    expect(focus.planetScale).toBe(1)
     expect(camera.position.distanceTo(new Vector3(0, 0.25, 8))).toBeLessThan(1e-9)
   })
 

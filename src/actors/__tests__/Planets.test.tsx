@@ -1,4 +1,5 @@
 vi.mock('../VoyagerOrbiter', () => ({ default: () => null }))
+import { orbitalOverviewScale } from '../../behaviors/orbitalOverview'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { extend, useFrame } from '@react-three/fiber'
 import ReactThreeTestRenderer from '@react-three/test-renderer'
@@ -52,6 +53,40 @@ function TestClock() {
 }
 
 describe('主页行星类型', () => {
+  it('聚焦撤去全景补偿并应用 60% 尺寸，世界包络同步，退出后恢复', async () => {
+    useScrollStore.setState({ scrollProgress: 1, pageProgress: 1, structureProgress: 0, focusedVoyager: false })
+    // 相机置于恒星位置且不挂载运镜器，使公转前后的距离补偿保持恒定。
+    const renderer = await ReactThreeTestRenderer.create(<FocusAnimationProvider><TestClock /><Planets /></FocusAnimationProvider>, {
+      camera: { position: [0, -1, SCENE_CENTER_Z] },
+    })
+    const roots = renderer.scene.children[0].instance.children
+    const cores = roots.map((root, i) => root.getObjectByName(`planet_${i}`) as Mesh)
+    const frames = async (n: number) => { for (let i = 0; i < n; i++) await renderer.advanceFrames(1, 1 / 60) }
+    try {
+      await frames(1)
+      const globalScales = cores.map(core => core.scale.x)
+      const scales = globalScales.map(scale => scale / orbitalOverviewScale(1) ** 2)
+      const moon = roots[1].getObjectByName('卫星_1') as Mesh
+      const ring = roots[2].getObjectByName('最外层淡环_2') as Mesh
+      voyagerState.available = true
+      useScrollStore.getState().focusVoyager()
+      await frames(150)
+      for (let i = 0; i < 3; i++) {
+        expect(cores[i].scale.x).toBeCloseTo(scales[i] * 0.6, 5)
+        expect(readAnchorValue(planetCoreRadiusAnchorId(i))).toBeCloseTo(PLANET_BASE_RADIUS * cores[i].scale.x)
+      }
+      expect(moon.scale.x).toBeCloseTo(scales[1] * 0.6)
+      expect(moon.position.distanceTo(cores[1].position)).toBeCloseTo(PLANET_BASE_RADIUS * scales[1] * 0.6 * SATELLITE.orbitRadius)
+      expect(ring.scale.x).toBeCloseTo(scales[2] * 0.6)
+      useScrollStore.getState().setFocusedPlanet(readPlanetParticleIndex(1)!)
+      await frames(150)
+      cores.forEach((core, i) => expect(core.scale.x).toBeCloseTo(scales[i] * 0.6, 5))
+      useScrollStore.getState().clearFocus()
+      await frames(360)
+      cores.forEach((core, i) => expect(core.scale.x).toBeCloseTo(globalScales[i], 5))
+    } finally { await renderer.unmount() }
+  })
+
   it('业务事件驱动同一会话：同目标重入、切换、超时、场景退出及卸载清理', async () => {
     useScrollStore.setState({ scrollProgress: 1 })
     let channels!: FocusChannels

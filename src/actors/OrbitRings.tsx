@@ -8,7 +8,7 @@ import { useScrollStore } from '../stores/scrollStore'
 import { themeColor } from '../theme/colors'
 import OrbitalRing from './OrbitalRing'
 import OrbitLineMaterial from './OrbitLineMaterial'
-import type { OrbitalRingConfig } from '../types'
+import { SCROLL_RIG, type OrbitalRingConfig } from '../types'
 
 const VoyagerOrbiter = lazy(() => import('./VoyagerOrbiter'))
 
@@ -33,9 +33,9 @@ class VoyagerLoadBoundary extends Component<{ children: ReactNode }, { failed: b
 // 遵循 Ngo & Lissauer (2016) ē ≈ (1–2)·ī 统计关系
 // ============================================================
 const GYRO_RINGS: OrbitalRingConfig[] = [
-  { radius: 7.8,  inclination: 0.12, eccentricity: 0.15, speed: 0.02, phase: 0 },
-  { radius: 9.4,  inclination: 0.22, eccentricity: 0.30, speed: 0.04, phase: Math.PI / 3 },
-  { radius: 11.0, inclination: 0.38, eccentricity: 0.50, speed: 0.06, phase: 2 * Math.PI / 3 },
+  { radius: SCROLL_RIG.OUTER_ORBIT_RADII[0],  inclination: 0.12, eccentricity: 0.15, speed: 0.02, phase: 0 },
+  { radius: SCROLL_RIG.OUTER_ORBIT_RADII[1],  inclination: 0.22, eccentricity: 0.30, speed: 0.04, phase: Math.PI / 3 },
+  { radius: SCROLL_RIG.OUTER_ORBIT_RADII[2], inclination: 0.38, eccentricity: 0.50, speed: 0.06, phase: 2 * Math.PI / 3 },
 ]
 
 interface OrbitRingsProps {

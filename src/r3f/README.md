@@ -12,7 +12,7 @@ R3F Canvas 配置、渲染循环桥接、全局场景管理。本目录的组件
 | `CameraMotionContext.tsx` | 每个 Canvas 一个运镜协调器，统一持有聚焦与恒星通道；构造不创建动画资源 | Provider 始终挂载 |
 | `FocusAnimationContext.tsx` | 聚焦通道读取入口；旧 Provider 名称为独立测试保留的别名 | 读取共享 Context |
 | `StellarTransitionContext.tsx` | 恒星通道读取入口；未挂载场景的资产预览使用 Act 3 默认值 | 读取共享 Context |
-| `ScrollRig.ts` | 所有滚动阈值常量导出 + `sceneApplyWhiteOut()`（背景色/雾密度） | 纯函数/常量 |
+| `ScrollRig.ts` | 所有滚动阈值常量导出 + `sceneApplyWhiteOut()`（背景色/雾密度）、`getThemeBlend()`（共享主题渐变） | 常量/场景状态 |
 | `ScrollInvalidator.tsx` | ① `subscribe` Zustand 的 `scrollProgress` / `structureProgress` → `invalidate()` 桥接渲染循环 ② 每帧调用 `sceneApplyWhiteOut` | 始终挂载 |
 | `PlanetClickHandler.tsx` | 行星屏幕投影检测、飞行器核心网格射线检测与远景点击余量，`stopPropagation` 阻止快进 | 始终挂载 |
 

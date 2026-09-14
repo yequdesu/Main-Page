@@ -3,7 +3,8 @@ import { describe, expect, it } from 'vitest'
 import { PerspectiveCamera } from 'three'
 import { ORBIT_RADII } from '../../r3f/ScrollRig'
 import type { ParticleData } from '../../types'
-import { createFocusOrbitController } from '../useFocusOrbit'
+import { chooseFocusPhases, createFocusOrbitController } from '../useFocusOrbit'
+import { focusFieldOfView } from '../focusPose'
 import { createFocusChannels, createFocusTimeline } from '../useFocusTimeline'
 
 const geometry = { planetRadius: 0.015, starRadius: 0.42 }
@@ -125,6 +126,9 @@ describe('退出聚焦后追赶原始公转相位', () => {
     const data = makeBodies()
     const controller = createOrbitHarness(geometry)
     const camera = new PerspectiveCamera(40, 16 / 9)
+    // 显式构造逆向调相起点，不依赖特定模型尺寸恰好选中旧相位。
+    const phases = chooseFocusPhases(data, 1, camera.aspect, focusFieldOfView(camera.aspect, 40), envelopes, 1.25, geometry)
+    data[0].orbitAngle = data[1].orbitAngle + phases[0] - 1.2
     for (let f = 0; f < 24; f++) controller.step(data, 1, camera, f / 60, 1 / 60, envelopes, 1.25)
     expect(controller.speeds.some(speed => speed > 0)).toBe(true)
     const previousSpeeds = [...controller.speeds]

@@ -37,6 +37,11 @@ export function planetCoreRadiusAnchorId(trackIdx: number): DataRef {
   return `anchor.planet.${trackIdx}.coreRadius`
 }
 
+/** 包含卫星完整轨道和行星环的世界包络，供近邻碎片柔化。 */
+export function planetVisualRadiusAnchorId(trackIdx: number): DataRef {
+  return `anchor.planet.${trackIdx}.visualRadius`
+}
+
 export function planetScreenRadiusAnchorId(trackIdx: number): DataRef {
   return `anchor.planet.${trackIdx}.screenRadius`
 }
