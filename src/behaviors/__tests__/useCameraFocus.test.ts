@@ -4,12 +4,86 @@ import { createFocusPoseCalculator, focusFieldOfView, focusOrbitPhase } from '..
 import { createCameraFocusController } from '../useCameraFocus'
 import { createFocusChannels, createFocusTimeline } from '../useFocusTimeline'
 import { SCENE_CENTER_Z } from '../../r3f/ScrollRig'
+import { createStellarTransitionPose, createStellarTransitionState, sampleStellarTransition } from '../stellarTransition'
+import { CENTRAL_STAR_CORE_RADIUS } from '../../actors/assets/centralStar'
 
 const globalPosition = new Vector3(0, 0.25, 8)
 const globalLookAt = new Vector3(0, -0.65, SCENE_CENTER_Z - 8)
 const planets = [new Vector3(4, -1, SCENE_CENTER_Z), new Vector3(-5, -1, SCENE_CENTER_Z)]
 
 describe('时间轴驱动相机聚焦', () => {
+  it('Menu 衔接任意方位的 Voyager 近景，单调拉近、不穿星，完成后返回普通全景', () => {
+    const star = new Vector3(0, -1, SCENE_CENTER_Z)
+    for (const aspect of [16 / 9, 390 / 844]) for (const angle of [0, Math.PI / 2, Math.PI, Math.PI * 1.5]) {
+      const camera = new PerspectiveCamera(40, aspect)
+      camera.position.copy(globalPosition); camera.lookAt(globalLookAt)
+      const target = new Vector3(Math.cos(angle) * 12, 2, SCENE_CENTER_Z + Math.sin(angle) * 12)
+      const channels = createFocusChannels(), transition = createStellarTransitionState()
+      const update = createCameraFocusController(), pose = createStellarTransitionPose()
+      const timeline = createFocusTimeline(channels, { focus() {}, exit: () => [2, 3, 4], timeout() { throw Error('旧聚焦超时仍存活') } })
+      const frame = (delta: number, p: number) => {
+        timeline.advance(delta)
+        sampleStellarTransition(p, transition)
+        update(camera, channels, target, 1, 0.32, transition)
+      }
+      try {
+        timeline.dispatch({ type: 'voyager' })
+        for (let f = 0; f < 120; f++) frame(1 / 60, 0)
+        const before = camera.position.clone(), forward = camera.getWorldDirection(new Vector3())
+        timeline.dispatch({ type: 'exit', reason: 'menu' }); frame(0, 0)
+        expect(camera.position.distanceTo(before)).toBeLessThan(1e-9)
+        expect(camera.getWorldDirection(new Vector3()).distanceTo(forward)).toBeLessThan(1e-9)
+        // 页面尚未到 Act 4 或暂停时，出焦的轨道清理不能把相机拖回全景。
+        for (let f = 0; f < 360; f++) frame(1 / 60, 0)
+        expect(channels.mode).toBe('idle')
+        expect(camera.position.distanceTo(before)).toBeLessThan(1e-9)
+        let lastDistance = camera.position.distanceTo(star)
+        for (let i = 1; i <= 100; i++) {
+          frame(1 / 60, 0.42 * i / 100)
+          const distance = camera.position.distanceTo(star)
+          expect(distance).toBeLessThan(lastDistance)
+          expect(distance).toBeGreaterThan(CENTRAL_STAR_CORE_RADIUS + camera.near)
+          expect(camera.getWorldDirection(new Vector3()).dot(star.clone().sub(camera.position).normalize())).toBeCloseTo(1, 8)
+          lastDistance = distance
+        }
+        expect(camera.position.distanceTo(pose(transition, aspect).camera)).toBeLessThan(1e-9)
+        frame(1 / 60, 1)
+        expect(camera.position.distanceTo(pose(transition, aspect).camera)).toBeLessThan(1e-9)
+        for (let i = 100; i >= 0; i--) frame(1 / 60, i / 100)
+        expect(camera.position.distanceTo(globalPosition)).toBeLessThan(1e-9)
+      } finally { timeline.dispose() }
+    }
+  })
+
+  it('Menu 中途反向取消及尚在入焦时交接，均保留首帧姿态和 FOV', () => {
+    const camera = new PerspectiveCamera(40, 390 / 844)
+    camera.position.copy(globalPosition); camera.lookAt(globalLookAt)
+    const channels = createFocusChannels(), transition = createStellarTransitionState()
+    const update = createCameraFocusController()
+    const timeline = createFocusTimeline(channels, { focus() {}, exit: () => [2, 3, 4], timeout() {} })
+    const frame = (delta: number, p = 0) => {
+      timeline.advance(delta); sampleStellarTransition(p, transition)
+      update(camera, channels, planets[0], 1, 0, transition)
+    }
+    try {
+      timeline.dispatch({ type: 'focus', planetIdx: 0 }, 0)
+      for (let i = 0; i < 60; i++) frame(1 / 60)
+      const before = camera.position.clone(), forward = camera.getWorldDirection(new Vector3()), fov = camera.fov
+      timeline.dispatch({ type: 'exit', reason: 'menu' }); frame(0)
+      expect(camera.position.distanceTo(before)).toBeLessThan(1e-9)
+      expect(camera.getWorldDirection(new Vector3()).distanceTo(forward)).toBeLessThan(1e-9)
+      expect(camera.fov).toBe(fov)
+      for (let i = 0; i < 360; i++) frame(1 / 60, 0.1)
+      expect(channels.mode).toBe('idle')
+      const interrupted = camera.position.clone()
+      timeline.dispatch({ type: 'exit', reason: 'scene' }); frame(0)
+      expect(camera.position.distanceTo(interrupted)).toBeLessThan(1e-9)
+      for (let i = 0; i < 360; i++) frame(1 / 60)
+      expect(camera.position.distanceTo(globalPosition)).toBeLessThan(1e-9)
+      expect(camera.fov).toBe(40)
+    } finally { timeline.dispose() }
+  })
+
   it('飞行器巡航全过程从右上方朝恒星取景，主体在左下且横竖屏容纳完整包围球', () => {
     const star = new Vector3(0, -1, SCENE_CENTER_Z)
     for (const aspect of [16 / 9, 755 / 871, 390 / 844]) {

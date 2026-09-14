@@ -50,13 +50,23 @@ export const commandRegistry: Command[] = [
     },
   },
   {
+    name: 'menu',
+    description: 'Transition to Menu (Act 5)',
+    handler: () => {
+      const store = useScrollStore.getState()
+      if (store.structureProgress >= 1) return 'Already in Menu (Act 5).'
+      store.requestMenu()
+      return 'Opening Menu · transitioning to Act 5'
+    },
+  },
+  {
     name: 'voyager',
     description: 'Focus the Voyager spacecraft',
     handler: () => {
       const store = useScrollStore.getState()
       if (store.scrollProgress < GRID_SHIFT_START || store.structureProgress > 0 || !voyagerState.available) return 'Voyager is available after entering the solar system and loading the model.'
       store.focusVoyager()
-      return 'Focusing Voyager · click empty space to return · auto return in 30s'
+      return 'Focusing Voyager · click spacecraft again for Menu · click empty space to return · auto return in 30s'
     },
   },
   {

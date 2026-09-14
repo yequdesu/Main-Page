@@ -9,8 +9,8 @@ export default function SystemStructureOverlay({ progress, onBack }: { progress:
   return <section className="system-structure" aria-labelledby="structure-title" aria-hidden={opacity < 0.95}
     style={{ opacity, visibility: opacity > 0 ? 'visible' : 'hidden', transform: `translateY(${(1 - opacity) * 18}px)` }}>
     <header className="system-structure-heading">
-      <p className="system-structure-kicker">05 / SYSTEM STRUCTURE</p>
-      <h1 id="structure-title">恒星系统结构</h1>
+      <p className="system-structure-kicker">05 / MENU</p>
+      <h1 id="structure-title">Menu</h1>
       <p>从日面边缘，向外展开。</p>
     </header>
     <div className="system-structure-axis" aria-hidden="true" />

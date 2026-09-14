@@ -63,7 +63,8 @@ export default function PlanetClickHandler() {
         if (_projectScratch.z >= -1 && _projectScratch.z <= 1 && hit
           && (bestDist >= 0.16 || distancePx < bestDist * rect.height / 2)) {
           e.stopPropagation()
-          if (!store.focusedVoyager) store.focusVoyager()
+          if (store.focusedVoyager) store.requestMenu()
+          else store.focusVoyager()
           return
         }
       }

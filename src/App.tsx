@@ -8,6 +8,7 @@ import Act2GridTransition from './acts/Act2GridTransition'
 import Act4StellarTransition from './acts/Act4StellarTransition'
 import Act5SystemStructure from './acts/Act5SystemStructure'
 import { STELLAR_TRANSITION } from './behaviors/stellarTransition'
+import { useMenuNavigation } from './behaviors/useMenuNavigation'
 import SystemStructureOverlay from './acts/SystemStructureOverlay'
 import { PAGE_FLOW } from './behaviors/usePageFlow'
 import Act3ContentPhase from './acts/Act3ContentPhase'
@@ -184,6 +185,7 @@ export default function App() {
       onComplete: () => { setIsClickPlaying(false); clickTweenRef.current = null },
     }))
   }, [setPageProgress, syncScrollbar, scrollEffectScope])
+  useMenuNavigation(scrollToSection)
   const onClick = useCallback(() => {
     if (isTerminalActive || isClickPlaying || isAct3Focused || pageProgress >= 0.995) return
     scrollToSection(PAGE_FLOW.act3Target)
@@ -273,7 +275,7 @@ export default function App() {
     if (sp > PAGE_FLOW.structureStart) {
       const pct = Math.round(Math.max(0, Math.min(1, (sp - PAGE_FLOW.structureStart) / (PAGE_FLOW.structureEnd - PAGE_FLOW.structureStart))) * 100)
       return sp >= PAGE_FLOW.structureEnd
-        ? '# Act 5 · SystemStructure · scroll 100%'
+        ? '# Act 5 · Menu · scroll 100%'
         : `# Act 4 · StellarTransition · scroll ${pct}%`
     }
     const pct = Math.round(Math.min(1, sp) * 100)
@@ -328,7 +330,7 @@ export default function App() {
       )}
 
       {sp >= 0.995 && structureProgress === 0 && !isAct3Focused && (
-        <button className="structure-next" onClick={event => { event.stopPropagation(); scrollToSection(PAGE_FLOW.structureEnd) }}>继续向下 · 系统结构 ↓</button>
+        <button className="structure-next" onClick={event => { event.stopPropagation(); useScrollStore.getState().requestMenu() }}>继续向下 · Menu ↓</button>
       )}
       <SystemStructureOverlay progress={structureProgress} onBack={() => scrollToSection(PAGE_FLOW.act3Target)} />
 

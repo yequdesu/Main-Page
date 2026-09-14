@@ -6,6 +6,8 @@ import PlanetClickHandler from '../PlanetClickHandler'
 import { voyagerState } from '../../actors/voyagerState'
 import { useScrollStore } from '../../stores/scrollStore'
 import { executeCommand } from '../../terminal/commands'
+import { useMenuNavigation } from '../../behaviors/useMenuNavigation'
+import { PAGE_FLOW } from '../../types'
 
 const context = vi.hoisted(() => ({ value: {} as unknown }))
 vi.mock('@react-three/fiber', () => ({ useThree: () => context.value }))
@@ -63,7 +65,7 @@ it('voyager 命令只在模型可用的太阳系场景发出聚焦事件', () =>
 })
 
 
-it('近景只点击核心实体：悬杆与原包围球内部的空白均能退出', () => {
+it('首次点击聚焦，再次点击核心进入 Menu；悬杆与包围球内空白仍只退出', () => {
   const camera = new PerspectiveCamera(40, 1280 / 720)
   camera.updateMatrixWorld()
   const canvas = document.createElement('canvas')
@@ -76,18 +78,29 @@ it('近景只点击核心实体：悬杆与原包围球内部的空白均能退�
   boom.position.set(-0.2, 0.15, -1); boom.updateMatrixWorld()
   Object.assign(voyagerState, { available: true, opacity: 1, radius: 0.5, hitRadius: 0.1, hitTargets: [core] })
   voyagerState.position.copy(core.position)
-  useScrollStore.setState({ scrollProgress: 1 })
-  render(<PlanetClickHandler />)
+  useScrollStore.getState().setPageProgress(1)
+  const navigate = vi.fn()
+  function Navigation() { useMenuNavigation(navigate); return null }
+  render(<><Navigation /><PlanetClickHandler /></>)
   const click = (x: number, y: number) => canvas.dispatchEvent(new MouseEvent('click', { clientX: x, clientY: y }))
   try {
-    useScrollStore.getState().focusVoyager()
     click(640, 360)
     expect(useScrollStore.getState().focusedVoyager).toBe(true)
+    expect(navigate).not.toHaveBeenCalled()
+    click(640, 360)
+    expect(navigate).toHaveBeenCalledExactlyOnceWith(PAGE_FLOW.structureEnd)
+    expect(useScrollStore.getState().focusedVoyager).toBe(false)
+    expect(useScrollStore.getState().focusEvent).toEqual({ type: 'exit', reason: 'menu' })
+    useScrollStore.getState().focusVoyager()
     const boomScreen = boom.position.clone().project(camera)
     click((boomScreen.x + 1) * 640, (1 - boomScreen.y) * 360)
     expect(useScrollStore.getState().focusedVoyager).toBe(false)
     useScrollStore.getState().focusVoyager()
     click(800, 420)
     expect(useScrollStore.getState().focusedVoyager).toBe(false)
+    expect(navigate).toHaveBeenCalledTimes(1)
+    useScrollStore.getState().setPageProgress(1.22)
+    click(640, 360)
+    expect(navigate).toHaveBeenCalledTimes(1)
   } finally { core.geometry.dispose(); boom.geometry.dispose(); material.dispose() }
 })

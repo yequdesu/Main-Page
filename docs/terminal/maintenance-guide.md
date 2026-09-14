@@ -218,6 +218,8 @@ typewriterDone = true → GSAP timeline 解锁 + mode→idle
 
 修改 `src/terminal/commands.ts`，向 `commandRegistry` 添加条目即可。handler 必须同步返回字符串。
 
+`menu` 调用 `scrollStore.requestMenu()` 发出导航请求；App 中的 `useMenuNavigation()` 订阅后调用已有页面补间。命令处理器不直接修改页面进度，也不创建另一套 GSAP 动画。
+
 ### 5.2 添加新的 Slot 消费者
 
 参考 `MainTerminal.tsx` 和 `InfoPanelTerminal.tsx` 的模式：

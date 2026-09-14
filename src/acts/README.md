@@ -23,6 +23,8 @@ Act 4 使用 `structureProgress` 在原三幕之后进行恒星拉近、左移�
 
 ## 跨幕对象与 DOM
 
+Act 5 的显示名称为 Menu。继续向下按钮、主终端 `menu` 命令及聚焦 Voyager 后的第二次核心点击，统一发出导航请求，由 App 的已有页面补间进入 Menu。实现组件和时间轴键保留 SystemStructure 命名，以描述其构图。
+
 [Canvas.tsx](../r3f/Canvas.tsx) 直接挂载 `SceneLights`、`Planets`、`DustField`、`Lighthouse`、`WindChimeLines` 和 `CentralStar`，这些对象不在任何 Act 的可见性组内。
 
 - 主行星由 `Planets` 管理，碎片由 `DustField` 管理。

@@ -21,6 +21,7 @@ export function createFocusChannels() {
     voyagerFocus: 0,
     track: -1,
     camera: 0,
+    cameraDestination: 'global' as 'global' | 'stellar',
     elapsed: 0,
     align: 0,
     settle: 0,
@@ -59,6 +60,7 @@ export function createFocusTimeline(channels: FocusChannels, actions: FocusTimel
         if (!voyager && (!Number.isInteger(track) || track < 0 || track > 2)) return
         const { tl, valid } = replace()
         channels.mode = 'focus'
+        channels.cameraDestination = 'global'
         channels.target = voyager ? 'voyager' : 'planet'
         channels.track = voyager ? -1 : track
         channels.align = 0
@@ -84,9 +86,11 @@ export function createFocusTimeline(channels: FocusChannels, actions: FocusTimel
           duration: FOCUS_TIMING.orbitFade, ease: 'power2.out',
         }, 'focus:start')
       } else {
-        if (channels.mode !== 'focus') return
+        if (channels.mode !== 'focus' && channels.cameraDestination !== 'stellar') return
         const { tl, valid } = replace()
         channels.mode = 'exit'
+        // Menu 接管近景，轨道和飞行器仍完成清理，但相机不执行全景拉远。
+        channels.cameraDestination = event.reason === 'menu' ? 'stellar' : 'global'
         channels.settle = 0
         channels.returns.fill(0)
         const durations = actions.exit(FOCUS_TIMING.settle)

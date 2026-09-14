@@ -30,7 +30,7 @@ export default function Act5SystemStructure({ visible }: { visible: boolean }) {
     const activityChannels = createStellarActivityChannels()
     const activity = createStellarActivity(activityChannels)
     const root = new Group()
-    root.name = 'Act 5 · 恒星系统结构'
+    root.name = 'Act 5 · Menu'
     root.position.set(0, STRUCTURE_LAYOUT.centerY, STRUCTURE_LAYOUT.planeZ)
     root.add(radiation.points, activity.root, ...planets.map(planet => planet.root))
     root.traverse(object => object.layers.set(STRUCTURE_LAYOUT.layer))

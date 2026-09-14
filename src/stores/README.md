@@ -15,6 +15,8 @@
 
 ## 读写模式
 
+`requestMenu()` 写入新的低频 `navigationEvent`；Actor、终端和 Menu 按钮只发出请求，由 App 挂载的 `useMenuNavigation()` 转交既有页面补间。事件本身不写滚动进度，也不保存逐帧动画状态。
+
 | 场景 | 方式 | 说明 |
 |------|------|------|
 | useFrame 内读取 | `useScrollStore.getState()` | 60fps，不触发 React re-render |

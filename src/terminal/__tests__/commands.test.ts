@@ -11,6 +11,7 @@ describe('executeCommand', () => {
     expect(result).toContain('debug')
     expect(result).toContain('day')
     expect(result).toContain('night')
+    expect(result).toContain('menu')
   })
 
   it('toggles debug mode with "debug"', () => {

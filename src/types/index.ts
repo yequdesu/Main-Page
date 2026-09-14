@@ -127,7 +127,7 @@ export interface Act2State {
 export type FocusEvent =
   | { type: 'focus'; planetIdx: number }
   | { type: 'voyager' }
-  | { type: 'exit'; reason: 'manual' | 'timeout' | 'scene' }
+  | { type: 'exit'; reason: 'manual' | 'timeout' | 'scene' | 'menu' }
 
 /** 页面滚动坐标：前三幕沿用 0–1，Act 4 转场后进入 Act 5 结构图。 */
 export const PAGE_FLOW = {

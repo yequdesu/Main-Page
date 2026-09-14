@@ -45,7 +45,7 @@ Act 3（滚动到 85% 后）左上角会出现**信息面板终端**，实时显
 |------|-----|
 | 位置 | 页面底部居中 |
 | 激活 | 点击终端栏 或 按 `/` 键 |
-| 功能 | 命令交互（help / debug / day / night / clear） |
+| 功能 | 命令交互（help / debug / day / night / voyager / menu / clear） |
 | 显示 | 欢迎文本 + 实时状态行（Act / scroll%） |
 
 ### 2.2 信息面板终端（InfoPanelTerminal）
@@ -99,6 +99,8 @@ typing（打字机）→ idle（等待）↔ active（活跃）
 | `debug` | — | 切换调试模式（`window.__DEBUG__`） |
 | `day` | `light` | 切换到日间模式（全局主题，三层平滑过渡） |
 | `night` | `dark` | 切换到夜间模式（默认） |
+| `voyager` | — | 在 Act 3 且模型加载后聚焦飞行器，再次点击核心可进入 Menu |
+| `menu` | — | 沿页面时间轴转场进入 Act 5 / Menu；已经位于 Menu 时提示当前位置 |
 | `clear` | `cls` | 清空回显区 |
 
 ### 4.2 命令输出
@@ -150,7 +152,7 @@ typing（打字机）→ idle（等待）↔ active（活跃）
 # Act 1 · OceanVoyage · scroll 34%
 ```
 
-实时反映页面位置。Act 编号随滚动自动切换。
+实时反映页面位置。Act 编号随滚动自动切换，最终阶段显示 `# Act 5 · Menu · scroll 100%`。
 
 ### 6.3 颜色过渡
 

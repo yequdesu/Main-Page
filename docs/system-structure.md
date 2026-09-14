@@ -1,17 +1,21 @@
-# Act 4 转场与 Act 5 恒星系统结构图
+# Act 4 转场与 Act 5 / Menu
 
 Act 3 展示公转轨道与可聚焦导航；Act 4 将镜头拉近同一颗中央恒星，再将恒星连续转换为左侧日面边缘构图，三颗行星依次从右侧入场；Act 5 保持完成后的系统结构。原 Act 4 结构图现编号为 Act 5。尺寸与间距为展示比例，不对应真实太阳系尺度。
 
 ## 进入与返回
 
 - Act 1 点击快进仍以 Act 3 为落点，原有 2 秒时长不变。
-- 在 Act 3 继续向下滚动，或点击“继续向下 · 系统结构”，经 Act 4 进入 Act 5。
+- 在 Act 3 继续向下滚动，或点击“继续向下 · Menu”，经 Act 4 进入 Act 5 / Menu。
+- 主终端执行 `menu` 可从任意阶段沿页面时间轴进入 Menu；已经位于 Menu 时仅回显提示。Voyager 首次点击仍聚焦，聚焦后再次命中天线或主体基座也进入 Menu；悬杆和空白点击仍只退出聚焦。
+- 三个 Menu 入口统一调用 `requestMenu()` 发出导航事件；[useMenuNavigation.ts](../src/behaviors/useMenuNavigation.ts) 由 App 挂载，聚焦中发出 `exit / menu`，然后调用原 `scrollToSection()`。这个退出原因只结束聚焦会话、取消超时并安排轨道回位；镜头保存接管瞬间的位置、朝向与 FOV，直接交给恒星转场，不先返回全景。组件卸载时取消订阅。
 - 结构图入口与返回按钮以 6.8 秒 GSAP 页面补间播放；滚轮可中断，停止后继续由当前页面位置采样。不是独立的定时播放。
 - 向上滚动按同一条路径回退：行星按相反顺序离场，日面恢复为完整恒星，再拉远回到轨道图。
 - 结构转场开始后停用行星及飞行器点击、`voyager` 聚焦命令；若通过原生滚动离开聚焦场景，`Planets` 发出 `exit / scene`，沿用原退出时间轴。
 - 主页终端输入 `debug` 可打开 Runtime，“页面时间轴”滑块可直接定位转场；拖动会终止快进并清除惯性，不修改场景计时和种子。
 
 ## 滚动坐标
+
+场景显示名、终端状态行和入口文案使用 Menu；实现组件 `Act5SystemStructure` 与时间轴键 `act5SystemStructure` 保留，继续描述恒星系统结构的构图职责。
 
 边界在 [types/index.ts](../src/types/index.ts) 的 `PAGE_FLOW`，宏观阶段由 [composition/timeline.ts](../src/composition/timeline.ts) 声明，映射在 [usePageFlow.ts](../src/behaviors/usePageFlow.ts)。
 
@@ -20,7 +24,7 @@ Act 3 展示公转轨道与可聚焦导航；Act 4 将镜头拉近同一颗中�
 | `pageProgress` | 0–1.50 | 滚轮、原生滚动条、按钮及调试滑块的统一坐标 |
 | `scrollProgress` | 0–1 | 原 Act 1–3 进度，保持既有阈值 |
 | Act 4 / `act4StellarTransition` | 1.02–1.42 | 拉近、日面重构图及行星入场 |
-| Act 5 / `act5SystemStructure` | 1.42–1.50 | 完成后的恒星系统结构 |
+| Act 5 / Menu / `act5SystemStructure` | 1.42–1.50 | 完成后的恒星系统结构菜单 |
 | `structureProgress` | 0–1 | Act 4 的局部进度，Act 5 时保持 1 |
 
 令整页位置为 $p$：
@@ -60,6 +64,21 @@ $$
 $$
 
 $q$ 是缓动后的拉近进度；$r\to1$ 时取 $\alpha=q$。沿同一直线时 $d=d_0^{1-q}d_1^q$；注视点和 FOV 同时平滑转向中央恒星，原聚焦镜头继续由同一控制器处理。
+
+从 Voyager 或行星聚焦进入 Menu 时，使用接管瞬间的实际相机姿态作为固定起点，避免普通出焦与恒星拉近叠加。由于 Voyager 可处于恒星任意方位，位置不直接穿过两端点之间的弦线，而是对半径做几何插值、对方位做球面旋转插值：
+
+$$
+\begin{aligned}
+d_0&=\|\mathbf C_0-\mathbf P_\star\|,\qquad \mathbf n_0=(\mathbf C_0-\mathbf P_\star)/d_0,\\
+Q_0\mathbf e_z&=\mathbf n_0,\qquad Q(q)=\operatorname{slerp}(Q_0,I,q),\\
+d(q)&=d_0^{1-q}d_c^q,\qquad \mathbf C(q)=\mathbf P_\star+d(q)Q(q)\mathbf e_z,\\
+\mathbf T(q)&=(1-q)\mathbf T_0+q\mathbf P_\star,\qquad f(q)=(1-q)f_0+qf_{\mathrm{structure}}.
+\end{aligned}
+$$
+
+$Q_0$ 是将正 Z 方向旋转至初始径向的单位四元数，$I$ 为单位旋转；$\mathbf T_0$ 在实际相机前向上，距离取 $d_0$，保证首帧朝向连续。稳定的 Voyager 近景已注视恒星，所以整个拉近阶段保持恒星居中。当前外轨道镜头满足 $d_0>d_c>R_0$，距离单调减小，背侧出发也不穿过恒星。位置、朝向和 FOV 均由原相机控制器写入，轨道退出时间轴的结束不会重置镜头起点。
+
+达到恒星近景（$q=1$）后与普通路径完全重合，释放该起点，继续原日面重构图；因此从完成的 Menu 返回时仍回到轨道全景。若中途暂停，保留当前构图；若反向滚回 Act 3，发出普通 `exit / scene`，从当时的实际姿态平滑回到全景。再次聚焦也会替换旧交接，不保留过期相机快照。
 
 设原核心半径 $R_0=0.42$、最终日面半径 $R_1$，$S_1=R_1/R_0$，$h$ 为重构图进度，$d_c$ 为近景距离，$D=24$。共同变换为：
 

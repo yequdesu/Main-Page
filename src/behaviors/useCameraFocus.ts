@@ -1,4 +1,4 @@
-import { Vector3, type PerspectiveCamera } from 'three'
+import { Quaternion, Vector3, type PerspectiveCamera } from 'three'
 import { STRUCTURE_LAYOUT } from './structureLayout'
 import { SCENE_CENTER_Z } from '../r3f/ScrollRig'
 import { createStellarTransitionPose, createStellarTransitionState, type StellarTransitionState } from './stellarTransition'
@@ -20,6 +20,9 @@ export function createCameraFocusController() {
   const inward = new Vector3(), side = new Vector3(), above = new Vector3()
   const up = new Vector3(0, 1, 0)
   const star = new Vector3(0, -1, SCENE_CENTER_Z)
+  const front = new Vector3(0, 0, 1)
+  const handoffRotation = new Quaternion(), rotation = new Quaternion(), identity = new Quaternion()
+  let handoff = false, handoffDistance = 1
   const pose = createFocusPoseCalculator()
   let revision = -1
   let baseFov: number | null = null
@@ -30,8 +33,13 @@ export function createCameraFocusController() {
       revision = channels.revision
       startPosition.copy(camera.position)
       camera.getWorldDirection(direction)
-      startLookAt.copy(camera.position).addScaledVector(direction, camera.position.distanceTo(planet ?? globalLookAt))
+      handoff = channels.cameraDestination === 'stellar'
+      startLookAt.copy(camera.position).addScaledVector(direction, camera.position.distanceTo(handoff ? star : planet ?? globalLookAt))
       startFov = camera.fov
+      if (handoff) {
+        handoffDistance = startPosition.distanceTo(star)
+        handoffRotation.setFromUnitVectors(front, direction.subVectors(startPosition, star).normalize())
+      }
     }
     let fov = baseFov
     if (channels.mode === 'focus' && planet) {
@@ -69,16 +77,26 @@ export function createCameraFocusController() {
     const toDistance = next.camera.distanceTo(next.target)
     const ratio = toDistance / Math.max(1e-6, fromDistance)
     const dolly = Math.abs(ratio - 1) < 1e-6 ? structure : (1 - Math.pow(ratio, structure)) / (1 - ratio)
-    camera.position.lerp(next.camera, dolly)
-    lookAt.lerp(next.target, structure)
+    if (handoff) {
+      // 从接管瞬间的近景直接拉近。径向距离单调收敛，方位球面插值，背侧也不穿星。
+      rotation.slerpQuaternions(handoffRotation, identity, structure)
+      const distance = Math.exp(Math.log(handoffDistance) * (1 - structure) + Math.log(toDistance) * structure)
+      camera.position.copy(front).applyQuaternion(rotation).multiplyScalar(distance).add(next.target)
+      lookAt.lerpVectors(startLookAt, next.target, structure)
+    } else {
+      camera.position.lerp(next.camera, dolly)
+      lookAt.lerp(next.target, structure)
+    }
     camera.lookAt(lookAt)
     camera.layers.set(transition.orbitOpacity <= 0 ? STRUCTURE_LAYOUT.layer : 0)
     if (transition.progress > 0) camera.layers.enable(STRUCTURE_LAYOUT.layer)
-    const sceneFov = startFov + (fov - startFov) * progress
+    const sceneFov = handoff ? startFov : startFov + (fov - startFov) * progress
     const nextFov = sceneFov + (STRUCTURE_LAYOUT.fov - sceneFov) * structure
     if (Math.abs(nextFov - camera.fov) > 1e-6) {
       camera.fov = nextFov
       camera.updateProjectionMatrix()
     }
+    // 已与恒星近景完全重合后交还普通路径；从 Menu 返回时仍抵达轨道全景。
+    if (structure >= 1) handoff = false
   }
 }

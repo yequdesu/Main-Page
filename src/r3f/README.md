@@ -17,6 +17,8 @@ R3F Canvas 配置、渲染循环桥接、全局场景管理。本目录的组件
 
 ## 维护要点
 
+Voyager 第一次点击聚焦，近景再次命中天线/主体基座时通过 `requestMenu()` 请求转场进入 Act 5 / Menu；悬杆与空白点击仍只退出聚焦。点击处理器不直接写页面进度。
+
 - **`flat` prop 不可移除**——否则色调映射差异导致色偏
 - **`frameloop="demand"` 不可改为 `always`**——由 `ScrollInvalidator` 响应滚动；行星可见或退出时间轴尚未完成时由 `Planets` 持续请求帧
 - **新增全局对象**（如灯光、粒子系统）应挂载在此层级，避免受 Act `visible` 影响

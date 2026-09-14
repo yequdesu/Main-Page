@@ -9,6 +9,7 @@ interface ScrollSlice {
   pageProgress: number
   structureProgress: number
   scrollProgress: number
+  navigationEvent: { target: 'menu' } | null
 }
 
 interface FocusSlice {
@@ -26,6 +27,7 @@ interface FocusSlice {
 interface ScrollActions {
   setPageProgress: (progress: number) => void
   setScrollProgress: (sp: number) => void
+  requestMenu: () => void
 }
 
 interface FocusActions {
@@ -33,7 +35,7 @@ interface FocusActions {
   focusVoyager: () => void
   setHoveredIdx: (idx: number) => void
   setFocusStartTime: (t: number) => void
-  clearFocus: (reason?: 'manual' | 'timeout' | 'scene') => void
+  clearFocus: (reason?: Extract<FocusEvent, { type: 'exit' }>['reason']) => void
 }
 
 // ============================================================
@@ -79,8 +81,10 @@ export const useScrollStore = create<ScrollStore>()((set) => ({
   pageProgress: 0,
   structureProgress: 0,
   scrollProgress: 0,
+  navigationEvent: null,
   setPageProgress: (progress) => set(getPageFlow(progress)),
   setScrollProgress: (sp) => set({ scrollProgress: sp }),
+  requestMenu: () => set({ navigationEvent: { target: 'menu' } }),
 
   // ---- Focus slice ----
   focusEvent: null,

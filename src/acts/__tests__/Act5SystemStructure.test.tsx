@@ -27,7 +27,7 @@ it('结构图只显示自身图层，主体固定排列，卫星继续公转，�
   const scene = (visible: boolean) => <StellarTransitionProvider><TestClock /><Act4StellarTransition /><CentralStar /><Act5SystemStructure visible={visible} /></StellarTransitionProvider>
   const renderer = await ReactThreeTestRenderer.create(scene(true))
   await renderer.advanceFrames(1, 0.016)
-  const root = renderer.scene.children.find(child => child.instance.name === 'Act 5 · 恒星系统结构')!.instance
+  const root = renderer.scene.children.find(child => child.instance.name === 'Act 5 · Menu')!.instance
   const sharedStar = renderer.scene.children.find(child => child.instance.name === '中央恒星')!.instance
   const planets = [0, 1, 2].map(i => root.getObjectByName(`planet_${i}`) as Mesh)
   const moon = root.getObjectByName('卫星_1') as Mesh

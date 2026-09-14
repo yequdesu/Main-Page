@@ -133,6 +133,8 @@ export function createFocusOrbitController(geometry: FocusGeometry) {
     },
     exit(data: ParticleData[], settleDuration: number) {
       initialize(data)
+      // Voyager 不创建行星构图。没有实际调相/回位会话时，不凭参考相位生成回位。
+      if (active < 0 && returns.every(plan => plan === null)) return data.map(() => 0)
       active = -1
       return data.map((d, i) => {
         // 预估制动结束的位置，使时间轴在退出事件发生时即可排好各轨道回位时长。
@@ -184,6 +186,8 @@ export function createFocusOrbitController(geometry: FocusGeometry) {
         if (!plan) {
           speeds[i] = d._baseSpeed * (1 - d.hoverFactor * 0.8)
           d.orbitAngle += speeds[i] * dt
+          // 风铃阶段会直接设置行星相位；自由公转的参考应跟随实际位置。
+          references[i] = d.orbitAngle
           return
         }
         const natural = d._baseSpeed
