@@ -4,20 +4,21 @@ import { getPageFlow, PAGE_FLOW } from '../usePageFlow'
 import { getStructureLayout, STRUCTURE_LAYOUT } from '../structureLayout'
 import { createCameraFocusController } from '../useCameraFocus'
 import { createFocusChannels } from '../useFocusTimeline'
+import { createStellarTransitionState, sampleStellarTransition } from '../stellarTransition'
 import { useScrollStore } from '../../stores/scrollStore'
 
 const initial = useScrollStore.getState()
 afterEach(() => useScrollStore.setState(initial, true))
 
-describe('第四幕滚动与取景', () => {
+describe('第四幕转场与第五幕取景', () => {
   it('原三幕区间不变，快进落点停在轨道图；继续滚动才进入结构图', () => {
     for (const value of [0, 0.4, 0.45, 0.85, 1]) {
       expect(getPageFlow(value)).toEqual({ pageProgress: value, scrollProgress: value, structureProgress: 0 })
     }
     expect(getPageFlow(PAGE_FLOW.act3Target).structureProgress).toBe(0)
-    expect(getPageFlow(1.12).structureProgress).toBeCloseTo(0.5)
-    expect(getPageFlow(1.22).structureProgress).toBe(1)
-    expect(getPageFlow(2)).toEqual({ pageProgress: 1.3, scrollProgress: 1, structureProgress: 1 })
+    expect(getPageFlow(1.22).structureProgress).toBeCloseTo(0.5)
+    expect(getPageFlow(PAGE_FLOW.structureEnd).structureProgress).toBe(1)
+    expect(getPageFlow(2)).toEqual({ pageProgress: PAGE_FLOW.end, scrollProgress: 1, structureProgress: 1 })
     expect(getPageFlow(-1)).toEqual({ pageProgress: 0, scrollProgress: 0, structureProgress: 0 })
   })
 
@@ -25,9 +26,9 @@ describe('第四幕滚动与取景', () => {
     const snapshots: unknown[] = []
     const unsubscribe = useScrollStore.subscribe(state => snapshots.push([state.pageProgress, state.scrollProgress, state.structureProgress]))
     try {
-      useScrollStore.getState().setPageProgress(1.22)
+      useScrollStore.getState().setPageProgress(PAGE_FLOW.structureEnd)
       useScrollStore.getState().setPageProgress(0.85)
-      expect(snapshots).toEqual([[1.22, 1, 1], [0.85, 0.85, 0]])
+      expect(snapshots).toEqual([[PAGE_FLOW.structureEnd, 1, 1], [0.85, 0.85, 0]])
     } finally { unsubscribe() }
   })
 
@@ -39,10 +40,10 @@ describe('第四幕滚动与取景', () => {
     const original = camera.position.clone()
     const originalDirection = camera.getWorldDirection(new Vector3())
     expect(camera.layers.mask).toBe(1)
-    update(camera, channels, null, 1, 0, 0.5)
+    update(camera, channels, null, 1, 0, sampleStellarTransition(0.5, createStellarTransitionState()))
     const midway = camera.position.clone()
-    expect(camera.layers.mask).toBe(3)
-    update(camera, channels, null, 1, 0, 1)
+    expect(camera.layers.mask).toBe(2)
+    update(camera, channels, null, 1, 0, sampleStellarTransition(1, createStellarTransitionState()))
     expect(camera.layers.mask).toBe(2)
     expect(camera.fov).toBe(40)
     camera.updateMatrixWorld()
@@ -60,7 +61,7 @@ describe('第四幕滚动与取景', () => {
     const glowRay = new Vector3(-0.22 * layout.width, 0, STRUCTURE_LAYOUT.planeZ - STRUCTURE_LAYOUT.cameraZ).normalize()
     expect(center.clone().cross(glowRay).length()).toBeCloseTo(layout.sunGlowRadius)
     expect(layout.sunGlowRadius).toBeGreaterThan(layout.sunRadius)
-    update(camera, channels, null, 1, 0, 0.5)
+    update(camera, channels, null, 1, 0, sampleStellarTransition(0.5, createStellarTransitionState()))
     expect(camera.position.distanceTo(midway)).toBeLessThan(1e-9)
     update(camera, channels, null)
     expect(camera.position.distanceTo(original)).toBeLessThan(1e-9)

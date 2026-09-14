@@ -26,7 +26,7 @@ export default function App() {
   const timing = useMemo(() => cmeTiming(seed), [seed])
   const elapsed = age - timing.first, phase = cmeStage(elapsed)
   const longTail = age > CME_TAIL.eventEnd, rangeEnd = longTail ? CME_END : CME_TAIL.eventEnd
-  const currentStage = longTail ? { title: '300 秒背景尾迹', text: '薄雾与磁结构已经退场。稀释后的光点继续缓慢扩散，存活 300 秒，最后 60 秒逐渐消退；离开 Act 4 会暂停场景时间。' } : stages[phase]
+  const currentStage = longTail ? { title: '300 秒背景尾迹', text: '薄雾与磁结构已经退场。稀释后的光点继续缓慢扩散，存活 300 秒，最后 60 秒逐渐消退；离开 Act 5 会暂停场景时间。' } : stages[phase]
   useEffect(() => { if (longTail && playback.playing) setView('drift') }, [longTail, playback.playing])
   const stop = useCallback(() => setPlayback({ playing: false, seek: null }), [])
   const report = useCallback((t: number) => setAge(t), [])
@@ -47,7 +47,7 @@ export default function App() {
   }
   return <main className="stellar-doc cme-doc">
     <header className="doc-header"><a className="wordmark" href="#intro">YEQUDESU <span>/ 视觉实验</span></a><nav aria-label="说明页导航"><a href="./stellar-morphology-explainer.html">磁拱环图鉴 ↗</a><a href="../stellar-plasma-model.md">模型与公式 ↗</a></nav></header>
-    <section className="intro" id="intro"><p className="eyebrow">CME · RECONNECTION TO OUTFLOW</p><h1>从磁闭环，到金色流风。</h1><p>在连接改变的瞬间，让细丝化为颗粒，再随稀薄的光雾向外漂移。</p><div className="intro-note"><span className="live-dot" />复用 Act 4 模型与材质<span className="note-separator">/</span><span className="note-detail">艺术化的等离子体发光表现</span></div></section>
+    <section className="intro" id="intro"><p className="eyebrow">CME · RECONNECTION TO OUTFLOW</p><h1>从磁闭环，到金色流风。</h1><p>在连接改变的瞬间，让细丝化为颗粒，再随稀薄的光雾向外漂移。</p><div className="intro-note"><span className="live-dot" />复用 Act 5 模型与材质<span className="note-separator">/</span><span className="note-detail">艺术化的等离子体发光表现</span></div></section>
     <section className="experiment" aria-label="CME 粒子化实验">
       <div className="cme-toolbar"><div className="modes"><button aria-pressed={artistic} onClick={() => setArtistic(true)}>艺术化逸散</button><button aria-pressed={!artistic} onClick={() => setArtistic(false)}>原始磁结构</button></div><span>同一种子 · 同一时刻 · 切换比较</span></div>
       <div className="experiment-grid"><div className="visual-column">
@@ -81,7 +81,7 @@ export default function App() {
 p生成(η) = ${CME_DISTRIBUTION.bottomRetention} + ${1 - CME_DISTRIBUTION.bottomRetention} E(η / ${CME_DISTRIBUTION.bottomHeight})
 δ = τ − τ释放；B(δ) = sin²(π clamp(δ / ${CME_DISTRIBUTION.separationDuration}, 0, 1))
 |a| ≤ ${CME_DISTRIBUTION.separationSpeed}；a 朝释放时邻域较空的一侧`}</pre><p>最底部生成率为 {CME_DISTRIBUTION.bottomRetention * 100}%，到闭环高度的 {Math.round(CME_DISTRIBUTION.bottomHeight * 100)}% 平滑恢复为 100%。取舍由种子在出生时确定，不随帧闪烁，也不把省下的颗粒补到其他位置。释放瞬间保留原速度，随后在 {CME_DISTRIBUTION.separationDuration} 秒内温和舒展；这属于分布治理，不是新增的等离子体压力求解。薄雾采样完整保留，并共用调整后的外流运动。可把薄雾强度设为 0，比较不同种子的底部间距。</p></div></details>
-      <details className="parameters"><summary>逸散后如何迅速融入背景</summary><div className="formula-block"><p>背景微光的 {STELLAR_RADIATION_DISTRIBUTION.count} 个点分布在整条日面边缘。按 Act 4 常规构图下的局部面积换算，CME 尾迹保留 {CME_DISSIPATION.minTail}–{CME_DISSIPATION.maxTail} 个分散光点，恰好是原稀释预算的两倍。刚形成时仍能看见闭环轮廓，随后多数颗粒分别淡出：</p><pre>{`δ = τ − τ释放，rᵢ ∈ [0,1) 为固定的错峰顺序
+      <details className="parameters"><summary>逸散后如何迅速融入背景</summary><div className="formula-block"><p>背景微光的 {STELLAR_RADIATION_DISTRIBUTION.count} 个点分布在整条日面边缘。按 Act 5 常规构图下的局部面积换算，CME 尾迹保留 {CME_DISSIPATION.minTail}–{CME_DISSIPATION.maxTail} 个分散光点，恰好是原稀释预算的两倍。刚形成时仍能看见闭环轮廓，随后多数颗粒分别淡出：</p><pre>{`δ = τ − τ释放，rᵢ ∈ [0,1) 为固定的错峰顺序
 Fᵢ(δ) = 1 − E((δ − ${CME_DISSIPATION.delay} − ${CME_DISSIPATION.stagger} rᵢ) / ${CME_DISSIPATION.fade})
 尾迹光点：Fᵢ = 1，交接至独立的 300 秒生命周期
 N尾迹 = ${CME_DISSIPATION.tailMultiplier} × clamp(ceil(背景面积密度 × CME 局部包络面积), ${CME_DISSIPATION.minTail / CME_DISSIPATION.tailMultiplier}, ${CME_DISSIPATION.maxTail / CME_DISSIPATION.tailMultiplier})`}</pre><p>每颗普通粒子在释放后约 0.04–0.29 秒开始淡出，淡出持续 0.4 秒；不会整批突然消失，也不会逐帧重新抽签。尾迹按空间间距挑选，在闭合后固定下来；拖动镜头不会补出新粒子。密度是参考构图下的视觉估算，实际投影、遮挡和背景生命周期会影响观感。薄雾保留完整运动样本与原有寿命，承接扩散尾迹。</p></div></details>
@@ -90,7 +90,7 @@ T = ${CME_TAIL.relaxation} s
 P(a) = P₀ + v背景 a + (v₀ − v背景) T [1 − exp(−a/T)] + w(a)
 w(a) = A [1 − exp(−a/12)]² [sin(0.035a+φ) − sinφ]
 α尾迹 = E(a/${CME_TAIL.crossfade}) × [1 − E((b−${CME_TAIL.fadeStart})/${CME_TAIL.lifetime - CME_TAIL.fadeStart})]
-b ≥ ${CME_TAIL.lifetime} s：回收该颗粒`}</pre><p>主页尾迹逐渐向右扩散；此处使用局部向上的外流坐标，并提供“扩散远景”。寿命按 Act 4 可见场景时间计算，离开后暂停，返回继续。最后 60 秒缓慢淡出；不同喷发可同时保留尾迹。预览截止 313 秒，为最晚释放的颗粒留足 300 秒；相机裁切与遮挡仍会影响可见性。</p></div></details>
+b ≥ ${CME_TAIL.lifetime} s：回收该颗粒`}</pre><p>主页尾迹逐渐向右扩散；此处使用局部向上的外流坐标，并提供“扩散远景”。寿命按 Act 5 可见场景时间计算，离开后暂停，返回继续。最后 60 秒缓慢淡出；不同喷发可同时保留尾迹。预览截止 313 秒，为最晚释放的颗粒留足 300 秒；相机裁切与遮挡仍会影响可见性。</p></div></details>
       <details className="parameters"><summary>薄雾如何覆盖粒子并共同扩散</summary><div className="formula-block"><p>每个雾区跟随原外流位置；h 控制横向覆盖，λ 控制沿运动方向的伸长：</p><pre>{`P雾 = P粒子样本
 h = max(1.5 (0.14 + 0.12τ), 0.9 × 最大相邻间距)
 λ = min(1.8, 1.15 + 0.18τ)

@@ -8,7 +8,8 @@
 
 | 文件 | 类型 | 职责 |
 |------|------|------|
-| `usePageFlow.ts` | 纯函数 | 整页坐标映射到原三幕和 Act 4 进度，边界沿用共享 `PAGE_FLOW` |
+| `usePageFlow.ts` | 纯函数 | 整页坐标映射到原三幕、Act 4 转场和 Act 5 保持阶段，边界沿用共享 `PAGE_FLOW` |
+| `stellarTransition.ts` | 纯函数 | Act 4 分段采样、阻尼弹簧入场、恒星半径归一化的连续相机与模型姿态 |
 | `structureLayout.ts` | 纯函数 / 常量 | 结构图视口尺寸、行星排列和与 DOM 共用的比例 |
 | `useFrameCache.ts` | Hook | 帧缓存守卫——同帧同参数跳过更新（`shouldSkip` / `shouldSkipSp`）|
 | `useCameraFocus.ts` | 函数 | `createCameraFocusController()` 创建场景独占控制器：消费时间轴进度、固定抬高起点、更新相机位置/朝向/FOV；可由调用方传入复合行星的聚焦距离倍率（见 [资产对应](../actors/README.md#主页轨道与资产对应)） |
@@ -30,9 +31,9 @@
 >
 > [历史设计（2026-06-21）](../../docs/superpowers/specs/2026-06-21-pbd-layout-design.md)
 
-## 第四幕取景
+## Act 4 转场与 Act 5 取景
 
-`useCameraFocus` 同时消费 `structureProgress`，在既有姿态基础上插值到结构图镜头，并同步相机图层。只有该控制器写相机；原聚焦算法继续保留，离开 Act 3 时由场景事件退出。布局公式、正反向滚动与渲染理由见[Act 4 说明](../../docs/system-structure.md)。
+`Act4StellarTransition` 以 -30 优先级采样 `structureProgress`，一次更新 Canvas 的 `StellarTransitionContext`；`Planets(-20)`、恒星、唯一相机控制器和结构图消费同一帧数据。既有 ScrollTrigger、GSAP 按钮补间及滚动物理仍是页面驱动源，没有第二个相机控制器或自主计时器。`stellarTransition.ts` 将拉近、重构图、显隐、三颗行星弹簧入场与标题分为可反向的阶段；先接近原恒星，再共同变换模型与相机，最终匹配 `structureLayout.ts`。原聚焦算法保留，离开 Act 3 时由场景事件退出。公式、阶段区间及恢复约束见[转场说明](../../docs/system-structure.md#act-4-转场时间轴)。
 
 ## 日面活动
 
@@ -44,11 +45,11 @@
 
 [stellarLifecycle.ts](stellarLifecycle.ts) 提供生长、动态定形、松弛和回缩的共享包络。普通事件为 30–38 秒，各环系消退持续 12–15.6 秒；CME 残留拱廊的主要回缩约 4.4 秒。`stellarMagnetism` 在形成期积分参考拱顶与形变模态，保留形成历史；`stellarPlasma` 相对足点弦线施加几何包络，弧丝与团块共用路径。[stellarReorganization.ts](stellarReorganization.ts) 生成各环系的独立出生/消退时刻，按跨度与种子背景配置决定是否局部换接；磁通区域固定，配对允许改变，保留直接回缩路径。短环先预生长至主环的局部外肩，再按层次沿线交接；中央过渡环承接旧拱顶，先回落并擦除，左右短环随后柔性鼓胀、错峰整体回落并逐条擦除；其他独立环系继续演化。[stellarRedraw.ts](stellarRedraw.ts) 提供完整生命周期出生表、固定容量代际窗口与有向弧长绘制前沿；生长回收内层、补入新外层，稳定暂停，消退回收外层、补入更低的新内层，末段停止补入并清空，重组场由 `stellarReorganization` 提供；`stellarPlasma` 把可见度写入与路径同坐标的纹理数据，团块共享可见度，槽位换代时仅在不可见瞬间重置代表性样本。事件时间轴仅提供年龄和寿命；文档 seek 以相同固定步重放，未新增独立时钟。磁能释放后也可能出现收缩振荡，较强阻尼与这组时间比例是展示选择，详见[非对称生命周期](../../docs/stellar-plasma-model.md#足点锚定的非对称生命周期)。
 
-[stellarParticleDensity.ts](stellarParticleDensity.ts) 共享背景微光的数量/范围与 CME 缩放标尺，用局部面积估算尾迹预算，当前取原预算的两倍（4–16 个）；[stellarEjection.ts](stellarEjection.ts) 固定尾迹选择及释放后错峰淡出，保持同一种子可重放。[stellarTail.ts](stellarTail.ts) 提供 300 秒解析漂移、末段淡出和固定容量池；由活动时间轴的连续场景时间驱动，保留跨事件尾迹，离开 Act 4 后暂停。
+[stellarParticleDensity.ts](stellarParticleDensity.ts) 共享背景微光的数量/范围与 CME 缩放标尺，用局部面积估算尾迹预算，当前取原预算的两倍（4–16 个）；[stellarEjection.ts](stellarEjection.ts) 固定尾迹选择及释放后错峰淡出，保持同一种子可重放。[stellarTail.ts](stellarTail.ts) 提供 300 秒解析漂移、末段淡出和固定容量池；由活动时间轴的连续场景时间驱动，保留跨事件尾迹，离开 Act 5 后暂停。
 
 [stellarMist.ts](stellarMist.ts) 从 CME 原外流样本构建自适应雾核：按邻点间距扩张、沿局部速度拉长，并补偿密集重叠；不移动或收拢粒子。参数与覆盖验证见[薄雾模型](../../docs/stellar-plasma-model.md#跟随粒子扩散的连续雾场)。
 
-[stellarActivity.ts](stellarActivity.ts) 提供 Act 4 的日面切圆取样、日冕抛射概率密度与独立事件时间轴。日珥位置按可见弧长均匀采样；只有 CME 使用中线密度为平均值一半的平滑分布。沿用聚焦模块的暂停 GSAP Timeline、R3F `delta` 推进及释放方式，不共享聚焦会话状态。[stellarPlasma.ts](stellarPlasma.ts) 提供环形失稳的 RK4 积分、大小环系、沿场物质输运和 CPU/GPU 共享路径表；[stellarMagnetism.ts](stellarMagnetism.ts) 提供拱顶形状、受迫形变模态、可变截面与连续重联映射；物理依据及近似边界见[降阶模型](../../docs/stellar-plasma-model.md)。[stellarMorphology.ts](stellarMorphology.ts) 负责六类日珥构型、权重抽样、足点布局和固定流线预算；事件层排除上次及另一通道的主类型。嵌套拱廊与低矮环簇由生成器绑定另一种类型，最多 6 个环系、12 条流线；返回 `companion` 与各环系的 `sourceKind`，共享事件播放头，但各环系错峰演化，每种组成保留一个支撑环维持伴随关系。可在[种子图鉴](../../docs/actors/stellar-morphology-explainer.html)重放组合。[stellarEjection.ts](stellarEjection.ts) 由原固定步驱动，在每条流线闭合后按弧长错位布点、按出生高度减少底部可见颗粒，释放后短暂舒展局部拥挤区域；雾共用完整运动样本，复用事件时钟；显示层及实验边界见 [CME 说明页](../../docs/actors/cme-dissolution-explainer.html)。概率、颜色、阶段和资源约束见[日面活动说明](../../docs/system-structure.md#随机日珥与日冕物质抛射)。
+[stellarActivity.ts](stellarActivity.ts) 提供 Act 5 的日面切圆取样、日冕抛射概率密度与独立事件时间轴。日珥位置按可见弧长均匀采样；只有 CME 使用中线密度为平均值一半的平滑分布。沿用聚焦模块的暂停 GSAP Timeline、R3F `delta` 推进及释放方式，不共享聚焦会话状态。[stellarPlasma.ts](stellarPlasma.ts) 提供环形失稳的 RK4 积分、大小环系、沿场物质输运和 CPU/GPU 共享路径表；[stellarMagnetism.ts](stellarMagnetism.ts) 提供拱顶形状、受迫形变模态、可变截面与连续重联映射；物理依据及近似边界见[降阶模型](../../docs/stellar-plasma-model.md)。[stellarMorphology.ts](stellarMorphology.ts) 负责六类日珥构型、权重抽样、足点布局和固定流线预算；事件层排除上次及另一通道的主类型。嵌套拱廊与低矮环簇由生成器绑定另一种类型，最多 6 个环系、12 条流线；返回 `companion` 与各环系的 `sourceKind`，共享事件播放头，但各环系错峰演化，每种组成保留一个支撑环维持伴随关系。可在[种子图鉴](../../docs/actors/stellar-morphology-explainer.html)重放组合。[stellarEjection.ts](stellarEjection.ts) 由原固定步驱动，在每条流线闭合后按弧长错位布点、按出生高度减少底部可见颗粒，释放后短暂舒展局部拥挤区域；雾共用完整运动样本，复用事件时钟；显示层及实验边界见 [CME 说明页](../../docs/actors/cme-dissolution-explainer.html)。概率、颜色、阶段和资源约束见[日面活动说明](../../docs/system-structure.md#随机日珥与日冕物质抛射)。
 
 [stellarPlacement.ts](stellarPlacement.ts) 根据事件种子和实际 `structure.families` 生成普通活动区的整体方位和尺寸，事件存续期间固定；主环、伴随环和重组短环共用结果。方位绕局部日面法线取样；任一环系的 `sourceKind` 为 `cluster` 时，整组采用中心 95%、范围 85%–105% 的截断高斯分布，参数见 `PROMINENCE_CLUSTER_SCALE`；其他组合仍使用中心 115%、范围 85%–145% 的 `PROMINENCE_PLACEMENT`。两套范围均为 ±3σ；第二通道保留原有较小比例。该模块不改变内部动力学或 CME 旋扭。分布、球面映射及图鉴与主页的差异见[活动区摆放公式](../../docs/system-structure.md#活动区朝向尺寸与球面贴合)。
 

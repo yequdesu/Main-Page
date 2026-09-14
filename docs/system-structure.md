@@ -1,40 +1,102 @@
-# Act 4：恒星系统结构图
+# Act 4 转场与 Act 5 恒星系统结构图
 
-Act 3 展示公转轨道与可聚焦导航；Act 4 位于它下方，以左侧日面边缘、向右排列的普通行星（FS）、带卫星行星（Code）、四层带环行星（GitHub）展示系统组成。尺寸与间距为展示比例，不对应真实太阳系尺度。行星主体固定排列，带环行星持续轴向自转并呈现环面进动，卫星仍绕自身行星公转，保留实体行星环、浅明暗面和呼吸光晕。
+Act 3 展示公转轨道与可聚焦导航；Act 4 将镜头拉近同一颗中央恒星，再将恒星连续转换为左侧日面边缘构图，三颗行星依次从右侧入场；Act 5 保持完成后的系统结构。原 Act 4 结构图现编号为 Act 5。尺寸与间距为展示比例，不对应真实太阳系尺度。
 
 ## 进入与返回
 
-- Act 1 点击快进依旧以 Act 3 为落点。
-- 在 Act 3 继续向下滚动，或点击“继续向下 · 系统结构”，进入 Act 4。
-- 向上滚动，或点击“返回轨道视图”，回到 Act 3；按钮使用原有 GSAP 页面滚动补间，滚轮可中断补间。
-- 结构图不启用行星链接、飞行器点击或 `voyager` 聚焦命令。若通过原生滚动离开聚焦场景，`Planets` 发出 `exit / scene`，沿用原退出时间轴。
+- Act 1 点击快进仍以 Act 3 为落点，原有 2 秒时长不变。
+- 在 Act 3 继续向下滚动，或点击“继续向下 · 系统结构”，经 Act 4 进入 Act 5。
+- 结构图入口与返回按钮以 6.8 秒 GSAP 页面补间播放；滚轮可中断，停止后继续由当前页面位置采样。不是独立的定时播放。
+- 向上滚动按同一条路径回退：行星按相反顺序离场，日面恢复为完整恒星，再拉远回到轨道图。
+- 结构转场开始后停用行星及飞行器点击、`voyager` 聚焦命令；若通过原生滚动离开聚焦场景，`Planets` 发出 `exit / scene`，沿用原退出时间轴。
+- 主页终端输入 `debug` 可打开 Runtime，“页面时间轴”滑块可直接定位转场；拖动会终止快进并清除惯性，不修改场景计时和种子。
 
 ## 滚动坐标
 
-共享边界在 [types/index.ts](../src/types/index.ts) 的 `PAGE_FLOW`，映射在 [usePageFlow.ts](../src/behaviors/usePageFlow.ts)，滚动物理和 ScrollTrigger 在 [App.tsx](../src/App.tsx)。
+边界在 [types/index.ts](../src/types/index.ts) 的 `PAGE_FLOW`，宏观阶段由 [composition/timeline.ts](../src/composition/timeline.ts) 声明，映射在 [usePageFlow.ts](../src/behaviors/usePageFlow.ts)。
 
-| 字段 | 范围 | 含义 |
-|------|------|------|
-| `pageProgress` | 0–1.30 | 整页位置，滚轮、原生滚动条及按钮的统一坐标 |
-| `scrollProgress` | 0–1 | 原 Act 1–3 进度，保持所有既有阈值 |
-| `structureProgress` | 0–1 | 从 Act 3 向 Act 4 的局部过渡进度 |
+| 字段 / 阶段 | 范围 | 含义 |
+|---|---|---|
+| `pageProgress` | 0–1.50 | 滚轮、原生滚动条、按钮及调试滑块的统一坐标 |
+| `scrollProgress` | 0–1 | 原 Act 1–3 进度，保持既有阈值 |
+| Act 4 / `act4StellarTransition` | 1.02–1.42 | 拉近、日面重构图及行星入场 |
+| Act 5 / `act5SystemStructure` | 1.42–1.50 | 完成后的恒星系统结构 |
+| `structureProgress` | 0–1 | Act 4 的局部进度，Act 5 时保持 1 |
 
-令整页位置为 $p$，旧进度和结构进度分别为：
+令整页位置为 $p$：
+
+$$
+s=\min(1,p),\qquad
+u=\operatorname{clamp}\!\left(\frac{p-1.02}{1.42-1.02},0,1\right).
+$$
+
+`setPageProgress()` 一次更新三个字段。$p=1$ 仍是原快进落点；原三幕滚动距离保留为 24 倍视口高度，整页可滚动距离为 $24\times1.50=36$ 倍视口，body 高度为 37 倍视口。原生 ScrollTrigger 进度乘 `PAGE_FLOW.end`，同步滚动条时做逆变换；窗口变化保留页面坐标。
+
+## Act 4 转场时间轴
+
+[Act4StellarTransition.tsx](../src/acts/Act4StellarTransition.tsx) 是常驻播放层，没有自己的模型。它以 `useFrame` 优先级 -30 采样 [stellarTransition.ts](../src/behaviors/stellarTransition.ts)，更新 Canvas 独占的 [StellarTransitionContext](../src/r3f/StellarTransitionContext.tsx)，早于 `Planets(-20)` 和相机、恒星更新。已有 ScrollTrigger、GSAP 按钮补间与惯性控制页面位置；没有新增 ticker、定时器或逐帧 React 状态。
+
+| 局部进度 $u$ | 动作 |
+|---|---|
+| 0–0.24 | 原轨道、三颗轨道行星、碎片和 Voyager 淡出；之后关闭相机 layer 0 |
+| 0–0.42 | 相机朝原中央恒星拉近，星体保持原中心与半径；放大到约占视口短边 56% |
+| 0.06–0.42 | 同一资产渐变到日面特写材质、低频呼吸和收敛柔光 |
+| 0.42–0.78 | 以恒星半径归一化的共同变换将星体移至左侧，形成日面边缘 |
+| 0.70、0.77、0.84 起 | FS、Code、GitHub 从右侧依次入场，每颗占 0.16 进度 |
+| 0.78–0.94 | 日面活动与背景微光渐显，可见后才推进活动时钟 |
+| 0.92–1 | 结构图标题与说明渐显，进度 1 进入 Act 5 |
+
+每个普通阶段使用 $E(v)=3v^2-2v^3$，其中 $v$ 是对应区间归一化并截断后的进度。所有通道均为绝对进度的函数；跳转、暂停和反向滚动不会重复创建或积累动画。日珥、卫星、自转及既有轨道仍使用场景时间，反向滚动只反转构图，不倒放物理活动。
+
+### 拉近与日面重构图
+
+为了避免线性世界位移将视觉放大挤到末段，拉近按距离的几何插值重映射。设当前原镜头为 $\mathbf C_0$，近景目标为 $\mathbf C_1$，到目标注视点的距离比为 $r=d_1/d_0$，则：
+
+$$
+\alpha(q)=\frac{1-r^q}{1-r},\qquad
+\mathbf C=(1-\alpha)\mathbf C_0+\alpha\mathbf C_1.
+$$
+
+$q$ 是缓动后的拉近进度；$r\to1$ 时取 $\alpha=q$。沿同一直线时 $d=d_0^{1-q}d_1^q$；注视点和 FOV 同时平滑转向中央恒星，原聚焦镜头继续由同一控制器处理。
+
+设原核心半径 $R_0=0.42$、最终日面半径 $R_1$，$S_1=R_1/R_0$，$h$ 为重构图进度，$d_c$ 为近景距离，$D=24$。共同变换为：
 
 $$
 \begin{aligned}
-s&=\min(1,p),\\
-u&=\operatorname{clamp}\!\left(\frac{p-1.02}{1.22-1.02},0,1\right).
+S(h)&=S_1^h,\\
+d(h)&=S(h)\left[(1-h)d_c+hD/S_1\right],\\
+x_\star(h)&=hS(h)x_1/S_1,\\
+\mathbf C(h)&=\left(0,-1+(-24+1)h,(-16+d_c)(1-h)+8h\right),\\
+\mathbf P_\star(h)&=\left(x_\star(h),C_y(h),C_z(h)-d(h)\right).
 \end{aligned}
 $$
 
-这里 $\operatorname{clamp}(x,a,b)=\min(b,\max(a,x))$。`setPageProgress()` 一次更新三个字段。$p=1$ 为原点击快进落点；1.02 开始过渡，1.22 完成，1.30 为页尾。
+镜头注视 $(0,P_{\star,y},P_{\star,z})$，恒星整体缩放为 $S(h)$。近景距离按短边适配：
 
-原三幕滚动距离保留为 24 倍视口高度；整页可滚动距离为 $24\times1.30$ 倍视口，body 高度为 $1+24\times1.30=32.2$ 倍视口。原生 ScrollTrigger 的 0–1 进度乘 1.30 后进入映射；同步浏览器滚动位置时做逆变换。窗口缩放会按新高度重建滚动范围，并保留当前页面坐标。
+$$
+d_c=\frac{R_0}{\sin\!\left[\arctan\!\left(0.56\min(1,a)\tan20^\circ\right)\right]}.
+$$
+
+这里 $a$ 为宽高比。$h=0$ 与原恒星近景完全一致，$h=1$ 恢复既有结构图参数。镜头始终留在核心球外；这是示意构图的相似变换，不代表恒星物理膨胀。日面活动组按 $S/S_1$ 和同一球心变换，避免挂在另一个静止日面上。
+
+### 行星弹簧入场
+
+三颗行星使用独立实例，从保留附件余量的屏幕右侧进入，顺序与轨道由内向外一致。归一化时间 $t$ 的弹簧响应为：
+
+$$
+\begin{aligned}
+\omega&=9,\quad\zeta=0.82,\quad v_0=4,\quad\omega_d=\omega\sqrt{1-\zeta^2},\\
+A(t)&=e^{-\zeta\omega t}\!\left[\cos(\omega_dt)+\frac{\zeta\omega-v_0}{\omega_d}\sin(\omega_dt)\right],\\
+P(t)&=1-A(t)\left[1-E\!\left(\operatorname{clamp}\frac{t-0.8}{0.2}\right)\right],\\
+x_i(t)&=x_{i,\mathrm{target}}+(x_{i,\mathrm{right}}-x_{i,\mathrm{target}})(1-P(t)).
+\end{aligned}
+$$
+
+该响应有较高初速、小幅越位和精确的静止终点。末段修正消除残余偏差与速度；不逐帧积分，因此快滚、跳转和回退可复现。行星尺寸、浅阴影、卫星公转及环面进动保留，说明标签待构图稳定再出现。
 
 ## 布局与单相机渲染
 
-[Act4SystemStructure.tsx](../src/acts/Act4SystemStructure.tsx) 常驻同一 Canvas，使用独立的三种行星资产实例，不移动 Act 3 的对象。布局在 [structureLayout.ts](../src/behaviors/structureLayout.ts)，DOM 说明在 [SystemStructureOverlay.tsx](../src/acts/SystemStructureOverlay.tsx)。
+[Act5SystemStructure.tsx](../src/acts/Act5SystemStructure.tsx) 常驻同一 Canvas，拥有三种行星与日面活动；恒星由根层级 [CentralStar.tsx](../src/actors/CentralStar.tsx) 独占，同一个节点从 Act 3 延续到 Act 5。
 
 最终相机位于 $(0,-24,8)$，面向 $(0,-24,-16)$，垂直视场角为 $\varphi=40^\circ$。令宽高比为 $a_{\mathrm{aspect}}$，相机到结构平面的距离为 $d=24$，则可视尺寸与行星横坐标为：
 
@@ -55,19 +117,19 @@ $$
 
 球心位于左屏外，使透视投影下的核心右侧轮廓位于视口宽度的 10.5%。资产整体缩放为 $R/R_{\mathrm{core}}$，其中 $R_{\mathrm{core}}$ 对应源码常量 `CENTRAL_STAR_CORE_RADIUS`。页面不再显示恒星名称、日面标签或底部脚注；非等比例的说明保留在本文。
 
-相机仍由 [useCameraFocus.ts](../src/behaviors/useCameraFocus.ts) 的唯一控制器写入；`Act3ContentPhase` 即使隐藏也继续调用它。以 $q=3u^2-2u^3$ 在原镜头与结构镜头的位置、注视点和 FOV 之间插值。这样滚动中途反向仍对应同一条路径。既有行星、飞行器的聚焦姿态逻辑继续保留。
+相机继续只由 [useCameraFocus.ts](../src/behaviors/useCameraFocus.ts) 写入，`Act3ContentPhase` 隐藏时仍更新相机。转场调用共享姿态采样器，原行星、飞行器聚焦算法和事件时间轴保留。
 
-结构图位于 Three.js layer 1，原场景位于 layer 0。每个结构图 Mesh / Sprite 都显式设置 layer 1；相机在过渡时启用两层，完整进入后只启用 layer 1，返回时恢复 layer 0。这避免 Act 3 的常驻恒星、碎片、探测器或光晕穿入结构图，同时保留其状态。所有全局灯光仍在 Canvas 根层级；结构图的补光和左上主光通过 layer 1 隔离，表面光源色沿用恒星远场柔光的 `STAR_FAR_LIGHT_COLOR`。过渡期间相机启用两层，两组灯光均参与渲染。
+结构图对象使用 layer 1，原轨道场景使用 layer 0；共享恒星的每个 Mesh / Sprite 同时属于两层。转场初段启用两层，原轨道对象淡出完成后仅启用 layer 1；返回时按进度恢复。共享恒星只渲染一次，没有重叠核心、模型切换或帧缓冲交叉淡化。灯光仍在 Canvas 根层级，结构图主光色沿用 `STAR_FAR_LIGHT_COLOR`。
 
-方案采用同一渲染器、同一相机和对象图层，无需新增 Canvas 或第二套聚焦控制器。依据：[Three.js Layers 官方说明](https://threejs.org/docs/pages/Layers.html)——对象与相机至少共享一个图层才会显示；`set()` 替换图层，`enable()` 追加图层。图层在此控制可见性，不暂停对象的动画计算。
+沿用同一渲染器、同一相机与 `flat`、`frameloop="demand"`。滚动通过 `ScrollInvalidator` 唤醒，行星与可见日面活动继续请求帧。图层只控制绘制、不暂停对象状态；对象显隐也不释放资源。依据：[Three.js Layers](https://threejs.org/docs/pages/Layers.html) 的共享图层可见性规则，以及 [R3F useFrame](https://r3f.docs.pmnd.rs/api/hooks#useframe) 的帧优先级机制。
 
 ## 资产与生命周期
 
-恒星完整复用 [centralStar.ts](../src/actors/assets/centralStar.ts) 的 `createCentralStarAsset()`，与 Act 3、Studio 同源；保留球形核心、内层光晕、近远场柔光及 `updateGlow()` 呼吸动画。每个实例独占资源，Act 4 不复用 Act 3 的场景节点或滚动行为。Act 4 通过工厂的可选 `segments: 128` 提高特写球面细分，默认 Act 3 和 Studio 仍使用 32。仅该实例将内层光晕缩放乘 0.7、近场柔光乘 0.25、远场柔光乘 0.18，并将内层光晕最大半径限制为右侧轮廓位于视口宽度 28% 的球面半径，以避免整个呼吸周期中遮住首颗行星；特写的颜色、透明度与低频呼吸由下述适配器控制，默认工厂行为不变。原独立日面圆盘实现已移除。具体节点的深度和透明度配置沿用共用工厂。
+恒星完整复用 [centralStar.ts](../src/actors/assets/centralStar.ts) 的 `createCentralStarAsset()`，与 Act 3、Studio 同源；保留球形核心、内层光晕、近远场柔光及 `updateGlow()` 呼吸动画。主页面现在由 `CentralStar` 独占同一资产，使用 `segments: 128` 适配连续特写，Studio 的默认工厂仍使用 32。转场结束时将内层光晕缩放乘 0.7、近场柔光乘 0.25、远场柔光乘 0.18，并将内层光晕最大半径限制为右侧轮廓位于视口宽度 28% 的球面半径，以避免整个呼吸周期中遮住首颗行星；特写的颜色、透明度与低频呼吸由下述适配器控制，默认工厂行为不变。原独立日面圆盘实现已移除。具体节点的深度和透明度配置沿用共用工厂。
 
 ### 日面特写材质与柔光
 
-[stellarCloseup.ts](../src/actors/assets/stellarCloseup.ts) 仅配置 Act 4 的资产实例，不改变 Act 3 和 Studio。恒星仍只有一个核心球体；原先的双色内核来自光晕叠加，尤其是面向相机的 Sprite 平面穿过偏轴球体，在部分日面上形成了额外加色边界。
+[stellarCloseup.ts](../src/actors/assets/stellarCloseup.ts) 支持同一主页面资产从 Act 3 向 Act 5 过渡，Studio 默认配置不变。`update(time, blend, intensity)` 以 blend=0 精确恢复轨道视图外观，以 blend=1 应用下述特写；默认 blend=1 兼容独立特写测试。恒星仍只有一个核心球体；原先的双色内核来自光晕叠加，尤其是面向相机的 Sprite 平面穿过偏轴球体，在部分日面上形成了额外加色边界。
 
 核心保留 `MeshBasicMaterial` 的自发光外观。令 $\mathbf N$ 为单位表面法线、$\mathbf V$ 为单位观察方向，通过颜色插值增加连续的边缘渐暗：
 
@@ -98,9 +160,9 @@ $$
 
 [stellarRadiation.ts](../src/actors/assets/stellarRadiation.ts) 提供艺术化的辐射感：72 个稀疏微光点沿日面边缘缓慢向外漂移，单次生命周期为 10–18 秒，淡入后逐渐消失。主色为暖白，少量冷白光点交错；这是示意图的视觉效果，不是霍金辐射物理模拟。
 
-粒子起点由透视球体在各高度的切线求得，向外漂移不超过视口宽度的 7.7%，与第一颗行星保持距离。粒子放在核心平面后方 $1.6R$，根据深度补偿投影尺寸；核心正常写入深度，背景光点不会穿过日面。点云使用 `renderOrder=0`、`transparent=true`、`depthWrite=false`、`depthTest=true`，对象仍位于 Act 4 的 layer 1。
+粒子起点由透视球体在各高度的切线求得，向外漂移不超过视口宽度的 7.7%，与第一颗行星保持距离。粒子放在核心平面后方 $1.6R$，根据深度补偿投影尺寸；核心正常写入深度，背景光点不会穿过日面。点云使用 `renderOrder=0`、`transparent=true`、`depthWrite=false`、`depthTest=true`，对象仍位于 Act 5 的 layer 1。
 
-使用单个 `Points + ShaderMaterial` 绘制，72 组确定性种子只分配一次，动画在顶点 shader 中计算。沿用 Act 4 的时钟和 `invalidate()`；每帧只更新时间与像素密度 uniform，不新增计时器或 CPU 粒子对象。关闭该点云的 CPU 视锥裁剪，因为种子位置不是实际 shader 位置；Act 的组可见性仍有效。点云几何体和材质由 Act 4 统一释放。实现依据：[Three.js Points](https://threejs.org/docs/pages/Points.html)、[ShaderMaterial](https://threejs.org/docs/pages/ShaderMaterial.html)。
+使用单个 `Points + ShaderMaterial` 绘制，72 组确定性种子只分配一次，动画在顶点 shader 中计算。沿用 Act 5 的时钟和 `invalidate()`；每帧只更新时间与像素密度 uniform，不新增计时器或 CPU 粒子对象。关闭该点云的 CPU 视锥裁剪，因为种子位置不是实际 shader 位置；Act 的组可见性仍有效。点云几何体和材质由 Act 5 统一释放。实现依据：[Three.js Points](https://threejs.org/docs/pages/Points.html)、[ShaderMaterial](https://threejs.org/docs/pages/ShaderMaterial.html)。
 
 ### 随机日珥与日冕物质抛射
 
@@ -198,7 +260,7 @@ $$
 
 $\mathbf A$ 是球面上的活动区锚点，$R$ 是恒星半径；等价的分式形式避免小落差相减损失精度。忽略轻微嵌入项时，$y=0$ 的足点落在球面上；$0.014q$ 让端部继续轻微嵌入日面。着色器的线带展宽和团块方向使用该映射的导数，使方向与弯曲后的路径一致。这里要求活动区的切向范围小于恒星半径；根号下的数值保护不是越过这一范围后的物理解。
 
-CME 保留原有摆放与曲率近似。图鉴的 `layoutLocal()` 保持单位尺度和局部切平面，便于同种子比较内部构型；本节随机摆放在主页 Act 4 观察。局部几何约束与最终球面映射的适用边界见[几何约束总览](stellar-plasma-model.md#几何约束总览)。
+CME 保留原有摆放与曲率近似。图鉴的 `layoutLocal()` 保持单位尺度和局部切平面，便于同种子比较内部构型；本节随机摆放在主页 Act 5 观察。局部几何约束与最终球面映射的适用边界见[几何约束总览](stellar-plasma-model.md#几何约束总览)。
 
 #### 事件与动画生命周期
 
@@ -211,17 +273,17 @@ CME 保留原有摆放与曲率近似。图鉴的 `layoutLocal()` 保持单位�
 | `cme:fade` | 8–13 秒 | 磁结构与薄雾逐渐淡出；已交接尾迹独立续存 |
 | `cme:next` | 18–30 秒 | 自动派发下一次随机位置事件 |
 
-沿用现有聚焦模块的 `paused: true` GSAP Timeline，由 Act 4 的 `useFrame` 通过 `totalTime()` 推进。每帧间隔限制在 0–0.1 秒，隐藏 Act 或离开结构阶段时不推进；重返继续当前阶段。没有新增 `setTimeout`、独立 RAF、全局 ticker 或逐帧 React/Zustand 状态更新。旧通道在新事件接管时 `kill()`，控制器在 effect 清理中释放，避免无限累积子时间轴。控制器同时推进连续场景时间；尾迹以此保存各自的释放与交接时刻，不跟随单次 CME 播放头复位，最后 60 秒淡出。固定容量的尾迹池与扩散公式见 [300 秒尾迹](stellar-plasma-model.md#300-秒尾迹与跨事件留存)。
+沿用现有聚焦模块的 `paused: true` GSAP Timeline，由 Act 5 的 `useFrame` 通过 `totalTime()` 推进。每帧间隔限制在 0–0.1 秒，隐藏 Act 或转场返回至日面活动尚不可见的阶段时不推进；重返继续当前阶段。没有新增 `setTimeout`、独立 RAF、全局 ticker 或逐帧 React/Zustand 状态更新。旧通道在新事件接管时 `kill()`，控制器在 effect 清理中释放，避免无限累积子时间轴。控制器同时推进连续场景时间；尾迹以此保存各自的释放与交接时刻，不跟随单次 CME 播放头复位，最后 60 秒淡出。固定容量的尾迹池与扩散公式见 [300 秒尾迹](stellar-plasma-model.md#300-秒尾迹与跨事件留存)。
 
-活动区的基准尺度受视口宽、高共同限制，并按切点深度补偿透视大小；中线仍允许抛射。弧丝端部轻微嵌入日面，保留核心的自然深度遮挡。三个磁通绳弧丝 Mesh、六个普通日珥短环 Mesh（含两个中央过渡支）、三个团块 Mesh 和前缘、电流片、重联拱廊及上升支以及逸散颗粒、薄雾和持久尾迹共十九个对象显式设置 layer 1、`transparent=true`、`depthWrite=false`、`depthTest=true`。团块、逸散颗粒与持久尾迹 `renderOrder=3`，薄雾及其余对象为 2；双面材质使用单次绘制。Shader 动态定位的几何体关闭 CPU 视锥裁剪，组的显隐仍有效。九个几何体、十九个材质、三张路径纹理及两张重绘纹理均由 Act 4 实例释放。磁结构与团块按固定步长在 CPU 积分，共享路径表通过浮点纹理上传；其余结构由 uniform 驱动 Shader，不逐帧重建几何体。普通日珥的团块读取与丝线相同的局部重绘可见度；CME 各流线依次改变连接关系，团块同步转入新分支，详见[连续重联过程](stellar-plasma-model.md#连接改变的连续过程)。旧恒星与微光资源保持原所有权。
+活动区的基准尺度受视口宽、高共同限制，并按切点深度补偿透视大小；中线仍允许抛射。弧丝端部轻微嵌入日面，保留核心的自然深度遮挡。三个磁通绳弧丝 Mesh、六个普通日珥短环 Mesh（含两个中央过渡支）、三个团块 Mesh 和前缘、电流片、重联拱廊及上升支以及逸散颗粒、薄雾和持久尾迹共十九个对象显式设置 layer 1、`transparent=true`、`depthWrite=false`、`depthTest=true`。团块、逸散颗粒与持久尾迹 `renderOrder=3`，薄雾及其余对象为 2；双面材质使用单次绘制。Shader 动态定位的几何体关闭 CPU 视锥裁剪，组的显隐仍有效。九个几何体、十九个材质、三张路径纹理及两张重绘纹理均由 Act 5 实例释放。磁结构与团块按固定步长在 CPU 积分，共享路径表通过浮点纹理上传；其余结构由 uniform 驱动 Shader，不逐帧重建几何体。普通日珥的团块读取与丝线相同的局部重绘可见度；CME 各流线依次改变连接关系，团块同步转入新分支，详见[连续重联过程](stellar-plasma-model.md#连接改变的连续过程)。旧恒星与微光资源保持原所有权。
 
 实现依据：[GSAP Timeline](https://gsap.com/docs/v3/GSAP/Timeline/)、[Three.js ShaderMaterial](https://threejs.org/docs/pages/ShaderMaterial.html)、[R3F 按需渲染](https://r3f.docs.pmnd.rs/advanced/scaling-performance#on-demand-rendering)。
 
 ### 带环行星自转与环面进动
 
-Act 4 使用共用带环资产的 `updateSpin()`，与 Act 3 沿用同一 R3F 场景时钟和 `PLANET_ORBIT_SPEEDS[2]`。Act 4 通过独立参数将自转周期设为正常公转周期的 0.7 倍，当前约 62.83 秒；Act 3 使用 1.4 倍周期（约 125.66 秒）；固定排列不表示停止自转。自转轴、速度基准与资源约束见[主页资产对应](../src/actors/README.md#主页轨道与资产对应)。
+Act 5 使用共用带环资产的 `updateSpin()`，与 Act 3 沿用同一 R3F 场景时钟和 `PLANET_ORBIT_SPEEDS[2]`。Act 5 通过独立参数将自转周期设为正常公转周期的 0.7 倍，当前约 62.83 秒；Act 3 使用 1.4 倍周期（约 125.66 秒）；固定排列不表示停止自转。自转轴、速度基准与资源约束见[主页资产对应](../src/actors/README.md#主页轨道与资产对应)。
 
-Act 4 调用 `updateSpin(..., true)` 开启环面进动，Act 3 与 Studio 默认关闭。核心保持原轴向自转；四层环在轴向旋转之后，共同绕资产局部 Y 轴旋转。环面法线与该轴的夹角保持 26.7°，方位持续改变，所以屏幕上能看到椭圆展开、收窄，以及前后遮挡和明暗变化。进动与 Act 4 自转共用约 62.83 秒的周期。
+Act 5 调用 `updateSpin(..., true)` 开启环面进动，Act 3 与 Studio 默认关闭。核心保持原轴向自转；四层环在轴向旋转之后，共同绕资产局部 Y 轴旋转。环面法线与该轴的夹角保持 26.7°，方位持续改变，所以屏幕上能看到椭圆展开、收窄，以及前后遮挡和明暗变化。进动与 Act 5 自转共用约 62.83 秒的周期。
 
 令 $t$ 为场景时间、$\omega_{\mathrm{orbit}}$ 为正常公转角速度，环面与核心的四元数旋转组合为：
 
@@ -239,13 +301,13 @@ $$
 
 - 复用 [planet.ts](../src/actors/assets/planet.ts)、[satellitePlanet.ts](../src/actors/assets/satellitePlanet.ts)、[ringedPlanet.ts](../src/actors/assets/ringedPlanet.ts)。新实例保持原颜色、卫星轨道及四层行星环透明度，局部倾斜便于阅读。
 - 保留 `flat` 和 `frameloop="demand"`。`ScrollInvalidator` 同时响应旧场景与结构进度；结构图可见时 `useFrame` 更新卫星、光晕并 `invalidate()`，无新增定时器。
-- Act 4 拥有自己的几何体、材质及三颗行星共用的光晕纹理，卸载时统一释放；显隐切换不释放、不重建。Act 3 的轨道与时间轴仍可继续推进，返回后衔接当前时间。
+- Act 5 拥有行星与活动的几何体、材质及行星共用光晕纹理；共享恒星由根层级 `CentralStar` 独占并释放，卸载时统一释放；显隐切换不释放、不重建。Act 3 的轨道与时间轴仍可继续推进，返回后衔接当前时间。
 
 ## 验证入口
 
 - [页面映射与取景测试](../src/behaviors/__tests__/usePageFlow.test.ts)：原阈值、快进落点、原子状态、宽窄屏投影、往返镜头和图层。
 - [日面物理模型测试](../src/behaviors/__tests__/stellarPlasma.test.ts)：稳定阈值、积分收敛、足点锚定、沿场流动与跨帧率一致性。
 - [日面活动行为测试](../src/behaviors/__tests__/stellarActivity.test.ts)：概率归一化、中线密度、平滑过渡、逆采样、事件阶段和宽窄屏球面切点。
-- [结构图组件测试](../src/acts/__tests__/Act4SystemStructure.test.tsx)：图层、固定位置、卫星运动、日面活动显隐暂停与资源释放。
+- [结构图组件测试](../src/acts/__tests__/Act5SystemStructure.test.tsx)：图层、固定位置、卫星运动、日面活动显隐暂停与资源释放。
 - [点击测试](../src/r3f/__tests__/PlanetClickHandler.test.tsx)：结构图中禁用轨道场景点击与飞行器命令。
 - 浏览器检查 Act 1 点击、Act 3 聚焦、向下进入、返回、滚轮中断、窗口尺寸改变，以及日夜主题。构建不能代替这些视觉检查。

@@ -29,5 +29,12 @@ it('特写按原动画时间的 15% 呼吸，三层可见度有区分，不改�
     expect(star.root.children.filter(child => child.name === '恒星核心')).toHaveLength(1)
     expect(star.glow.material.depthWrite).toBe(false)
     expect(star.nearHalo.material.depthTest).toBe(true)
+    // 从近景反向退回时，同一资产恢复默认光晕和颜色，而不是替换另一颗恒星。
+    closeup.update(12, 0, 0.7)
+    reference.updateGlow(12, 0.7)
+    expect(star.core.material.color.equals(reference.core.material.color)).toBe(true)
+    expect(star.glow.scale.equals(reference.glow.scale)).toBe(true)
+    expect(star.glow.material.opacity).toBeCloseTo(reference.glow.material.opacity)
+    expect(star.nearHalo.material.opacity).toBeCloseTo(reference.nearHalo.material.opacity)
   } finally { star.dispose(); reference.dispose() }
 })

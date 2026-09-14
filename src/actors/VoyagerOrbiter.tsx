@@ -5,6 +5,7 @@ import { Group, Matrix4, Vector3 } from 'three'
 import type { OrbitalRingConfig } from '../types'
 import { clamped, GRID_SHIFT_START, smoothstep } from '../r3f/ScrollRig'
 import { useFocusAnimation } from '../r3f/FocusAnimationContext'
+import { useStellarTransition } from '../r3f/StellarTransitionContext'
 import { useScrollStore } from '../stores/scrollStore'
 import { sampleVoyagerOrbit, VOYAGER_ORBIT } from '../behaviors/useVoyagerOrbit'
 import { createVoyagerAsset } from './assets/voyager'
@@ -17,6 +18,7 @@ export default function VoyagerOrbiter({ config, speedScale = 1 }: { config: Orb
   const group = useRef<Group>(null)
   const angle = useRef<number>(VOYAGER_ORBIT.phase)
   const focus = useFocusAnimation()
+  const transition = useStellarTransition()
   const scratch = useMemo(() => ({
     tangent: new Vector3(), normal: new Vector3(), side: new Vector3(), world: new Vector3(), matrix: new Matrix4(), up: new Vector3(0, 1, 0), right: new Vector3(), above: new Vector3(),
   }), [])
@@ -53,6 +55,7 @@ export default function VoyagerOrbiter({ config, speedScale = 1 }: { config: Orb
     const opacity = smoothstep(clamped(useScrollStore.getState().scrollProgress, GRID_SHIFT_START, 1))
       * (focus.orbitVisibility[3] + (1 - focus.orbitVisibility[3]) * focus.voyagerFocus)
       * (nearFade + (1 - nearFade) * focus.voyagerFocus)
+      * transition.orbitOpacity
     voyagerState.opacity = opacity
     node.visible = opacity > 0.005
     asset.setOpacity(opacity)

@@ -14,6 +14,7 @@ import { CENTRAL_STAR_CORE_RADIUS } from './assets/centralStar'
 import { createFocusTimeline, type FocusEvent } from '../behaviors/useFocusTimeline'
 import { voyagerState } from './voyagerState'
 import { useFocusAnimation } from '../r3f/FocusAnimationContext'
+import { useStellarTransition } from '../r3f/StellarTransitionContext'
 import { createFocusOrbitController } from '../behaviors/useFocusOrbit'
 import { calcOrbitPosition } from '../behaviors/useOrbitPosition'
 import { calcAppearance } from '../behaviors/useAppearanceFade'
@@ -52,6 +53,7 @@ export default function Planets() {
   const { project } = useScreenProjection()
   const { shouldSkip } = useFrameCache()
   const focusChannels = useFocusAnimation()
+  const transition = useStellarTransition()
   const baseFov = useRef((camera as PerspectiveCamera).fov).current
 
   // Pre-allocated reusable objects
@@ -358,6 +360,7 @@ export default function Planets() {
         _scratch.set(px, py, pz)
         planetOpacity = calcOcclusionFade(_scratch, camera as PerspectiveCamera, focusedPlanetPos, appearance.scale, appearance.opacity)
       }
+      planetOpacity *= transition.orbitOpacity
       mat.opacity = planetOpacity
       mat.color.copy(_scratch2)
 

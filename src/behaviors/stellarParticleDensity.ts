@@ -12,7 +12,7 @@ export const CME_TAIL = {
   relaxation: 2.5, capacity: 384, eventEnd: 13,
 } as const
 
-/** 以 Act 4 常规构图下的椭圆包络估算；冻结预算，镜头缩放不会重新生成颗粒。 */
+/** 以 Act 5 常规构图下的椭圆包络估算；冻结预算，镜头缩放不会重新生成颗粒。 */
 export function cmeBackgroundParticleBudget(width: number, height: number, seed: number) {
   const background = STELLAR_RADIATION_DISTRIBUTION, aspect = CME_DISSIPATION.referenceAspect
   const backgroundArea = background.heightSpan * (background.driftMin + background.driftSpread / 2)

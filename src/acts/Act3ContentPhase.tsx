@@ -6,6 +6,7 @@ import { useMemo, memo } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
 import { Vector3, type PerspectiveCamera } from 'three'
 import { useFocusAnimation } from '../r3f/FocusAnimationContext'
+import { useStellarTransition } from '../r3f/StellarTransitionContext'
 import { voyagerState } from '../actors/voyagerState'
 import OrbitRings from '../actors/OrbitRings'
 import { useScrollStore } from '../stores/scrollStore'
@@ -26,17 +27,17 @@ const Act3ContentPhase = memo(function Act3ContentPhase({ visible }: Act3Props) 
   const updateCameraFocus = useMemo(createCameraFocusController, [])
 
   const focusChannels = useFocusAnimation()
+  const transition = useStellarTransition()
 
   useFrame(state => {
     touchActorFrame('cameraFocus', Math.round(state.clock.elapsedTime * 60), useScrollStore.getState().scrollProgress >= TIMELINE.act3Shift.start)
-    const { structureProgress } = useScrollStore.getState()
 
     const trackIdx = focusChannels.track
     if (focusChannels.target === 'voyager') {
-      updateCameraFocus(camera as PerspectiveCamera, focusChannels, voyagerState.available ? voyagerState.position : null, 1, voyagerState.radius, structureProgress)
+      updateCameraFocus(camera as PerspectiveCamera, focusChannels, voyagerState.available ? voyagerState.position : null, 1, voyagerState.radius, transition)
     } else {
       const point = readPlanetWorldPoint(trackIdx)
-      updateCameraFocus(camera as PerspectiveCamera, focusChannels, point ? vector3FromPoint(point, planetPosition) : null, PLANET_FOCUS_DISTANCE_SCALES[trackIdx] ?? 1, 0, structureProgress)
+      updateCameraFocus(camera as PerspectiveCamera, focusChannels, point ? vector3FromPoint(point, planetPosition) : null, PLANET_FOCUS_DISTANCE_SCALES[trackIdx] ?? 1, 0, transition)
     }
   })
 

@@ -8,12 +8,14 @@ import { getDomLayer, listLayers, resolvePointerEvents } from '../layerRegistry'
 import { useSequenceStore } from '../sequenceStore'
 import { snapshotTimeline } from '../timeline'
 import './CompositionPanel.css'
+import { PAGE_FLOW } from '../../types'
 
 interface CompositionPanelProps {
   scrollProgress: number
+  onSeek?: (progress: number) => void
 }
 
-export default function CompositionPanel({ scrollProgress }: CompositionPanelProps) {
+export default function CompositionPanel({ scrollProgress, onSeek }: CompositionPanelProps) {
   const [collapsed, setCollapsed] = useState(false)
   const anchors = useAnchorStore((state) => state.anchors)
   const actorRuntime = useActorRuntimeStore((state) => state.actors)
@@ -73,6 +75,10 @@ export default function CompositionPanel({ scrollProgress }: CompositionPanelPro
       <div className="composition-panel__body">
         <section>
           <h3>Timeline</h3>
+          {onSeek && <label>Page {scrollProgress.toFixed(3)}
+            <input aria-label="页面时间轴" type="range" min={0} max={PAGE_FLOW.end} step={0.001}
+              value={scrollProgress} onChange={event => onSeek(Number(event.target.value))} style={{ width: '100%' }} />
+          </label>}
           {Object.entries(timeline).map(([key, value]) => (
             <div key={key}>
               {key}: {value.progress.toFixed(2)} {value.active ? 'active' : ''}

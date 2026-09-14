@@ -1,14 +1,15 @@
 import { STRUCTURE_LAYOUT } from '../behaviors/structureLayout'
 import { PLANET_LINKS } from '../types'
+import { createStellarTransitionState, sampleStellarTransition } from '../behaviors/stellarTransition'
 import './SystemStructure.css'
 
 const descriptions = ['普通行星', '带卫星行星', '四层行星环']
 export default function SystemStructureOverlay({ progress, onBack }: { progress: number; onBack: () => void }) {
-  const opacity = Math.max(0, Math.min(1, (progress - 0.65) / 0.35))
+  const opacity = sampleStellarTransition(progress, createStellarTransitionState()).overlay
   return <section className="system-structure" aria-labelledby="structure-title" aria-hidden={opacity < 0.95}
     style={{ opacity, visibility: opacity > 0 ? 'visible' : 'hidden', transform: `translateY(${(1 - opacity) * 18}px)` }}>
     <header className="system-structure-heading">
-      <p className="system-structure-kicker">04 / SYSTEM STRUCTURE</p>
+      <p className="system-structure-kicker">05 / SYSTEM STRUCTURE</p>
       <h1 id="structure-title">恒星系统结构</h1>
       <p>从日面边缘，向外展开。</p>
     </header>

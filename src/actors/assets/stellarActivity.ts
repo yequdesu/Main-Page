@@ -98,7 +98,7 @@ function createParcelGeometry() {
   return geometry
 }
 
-/** 凹陷磁通绳 + 沿场等离子体团块 + CME 前缘/重联拱廊。每个 Act 4 实例独占 GPU 资源。 */
+/** 凹陷磁通绳 + 沿场等离子体团块 + CME 前缘/重联拱廊。每个 Act 5 实例独占 GPU 资源。 */
 export function createStellarActivity(channels: ReturnType<typeof createStellarActivityChannels>) {
   const root = new Group()
   root.name = '日珥与日冕抛射'
@@ -338,8 +338,15 @@ export function createStellarActivity(channels: ReturnType<typeof createStellarA
   })
   const tails = createCmeTailVisual(commonShader, patches[2].uniforms.uColor)
   root.add(tails.mesh)
+  const visibility = { value: 1 }
+  for (const material of [...materials, tails.mesh.material]) {
+    material.uniforms.uSceneVisibility = visibility
+    material.fragmentShader = `uniform float uSceneVisibility;\n${material.fragmentShader}`
+      .replace('#include <colorspace_fragment>', 'gl_FragColor.a *= uSceneVisibility;\n#include <colorspace_fragment>')
+  }
   return {
     root,
+    setVisibility(value: number) { visibility.value = value },
     /** 返回首个普通通道最终三维路径的弧长统计；调用方复制后用于低频 UI 展示。 */
     getShortLoopDiagnostics() {
       const patch = patches[0], route = patch.model.reorganization

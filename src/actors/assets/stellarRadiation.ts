@@ -16,7 +16,7 @@ export function createStellarRadiation() {
   geometry.setAttribute('position', new BufferAttribute(seeds, 3))
   const material = new ShaderMaterial({
     uniforms: {
-      uTime: { value: 0 }, uPixelRatio: { value: 1 },
+      uTime: { value: 0 }, uPixelRatio: { value: 1 }, uVisibility: { value: 1 },
       uWidth: { value: 1 }, uHeight: { value: 1 }, uSunX: { value: 0 }, uRadius: { value: 1 },
       uDistance: { value: STRUCTURE_LAYOUT.cameraZ - STRUCTURE_LAYOUT.planeZ },
       uWarm: { value: new Color('#ffe4ba') }, uCool: { value: new Color('#bdcfee') },
@@ -47,11 +47,12 @@ export function createStellarRadiation() {
       }`,
     fragmentShader: `
       uniform vec3 uWarm, uCool;
+      uniform float uVisibility;
       varying float vFade, vTint;
       void main() {
         float r = length(gl_PointCoord - 0.5) * 2.0;
         float glow = exp(-r * r * 3.0) * (1.0 - smoothstep(0.65, 1.0, r));
-        gl_FragColor = vec4(mix(uWarm, uCool, vTint), glow * vFade * 0.32);
+        gl_FragColor = vec4(mix(uWarm, uCool, vTint), glow * vFade * 0.32 * uVisibility);
         #include <colorspace_fragment>
       }`,
     transparent: true, blending: AdditiveBlending, depthWrite: false, depthTest: true,
@@ -68,9 +69,10 @@ export function createStellarRadiation() {
       material.uniforms.uSunX.value = layout.sunX
       material.uniforms.uRadius.value = layout.sunRadius
     },
-    update(time: number, pixelRatio: number) {
+    update(time: number, pixelRatio: number, visibility = 1) {
       material.uniforms.uTime.value = time
       material.uniforms.uPixelRatio.value = pixelRatio
+      material.uniforms.uVisibility.value = visibility
     },
     dispose() { geometry.dispose(); material.dispose() },
   }

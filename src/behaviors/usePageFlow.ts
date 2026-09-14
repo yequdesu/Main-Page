@@ -1,4 +1,5 @@
 import { PAGE_FLOW } from '../types'
+import { progress } from '../composition/timeline'
 export { PAGE_FLOW } from '../types'
 
 export function getPageFlow(value: number) {
@@ -6,6 +7,6 @@ export function getPageFlow(value: number) {
   return {
     pageProgress,
     scrollProgress: Math.min(1, pageProgress),
-    structureProgress: Math.max(0, Math.min(1, (pageProgress - PAGE_FLOW.structureStart) / (PAGE_FLOW.structureEnd - PAGE_FLOW.structureStart))),
+    structureProgress: progress('act4StellarTransition', pageProgress),
   }
 }

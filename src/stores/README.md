@@ -23,7 +23,7 @@
 
 ## 维护要点
 
-- **页面进度由 App.tsx 的滚动物理系统通过 `setPageProgress()` 写入**，一次更新三个字段；不要在 Actor 中修改。旧 `setScrollProgress()` 仅保留单字段兼容接口，不能用它导航到 Act 4。映射公式见[结构图说明](../../docs/system-structure.md#滚动坐标)
+- **页面进度由 App.tsx 的滚动物理系统通过 `setPageProgress()` 写入**，一次更新三个字段；不要在 Actor 中修改。旧 `setScrollProgress()` 仅保留单字段兼容接口，不能用它导航到 Act 5。映射公式见[结构图说明](../../docs/system-structure.md#滚动坐标)
 - **新增渲染状态字段追加到对应 Slice**——不要混入 UI 状态
 - 在 `useFrame` 中通过 `getState()` 读取所需字段，避免每帧数据触发不必要的 React 订阅
 - `focusStartTime` 使用 **R3F 时钟域**（`state.clock.elapsedTime`），非 `performance.now()`；`null` 表示尚未开始计时，`0` 是有效时间。`setFocusedPlanet()` 重置该字段，由场景控制器在下一帧赋值，`clearFocus()` 清空计时与聚焦状态

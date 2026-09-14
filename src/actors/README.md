@@ -11,14 +11,14 @@
 - `Planets` 发布 `anchor.planet.*.world`、`orbitWorld`、`particleIndex`、`screenRadius` 和球体真实世界半径 `coreRadius`。点击、聚焦、轨道局部渐隐及标签读取这些锚点，不再导入 `Planets` 的可变模块变量；终端轨道数据仍写入 `realtimeStore`。
 - `CentralStar` 发布恒星世界锚点；海浪消费光束锚点，风铃使用确定性的布局函数。风铃阶段固定布局及初始公转相位来自 `useWindChime` / `Planets`，内容阶段由聚焦轨道控制器推进。
 - 行星主体、光晕、恒星光晕和导航线沿用 `layerRegistry`。新增附件的材质及深度细节仍由资产工厂管理。
-- `act3.entry` / `labelReveal` 控制信息终端和标签入场；进入 Act 4 时重置，返回 Act 3 后重播。聚焦保留独占的 GSAP 时间轴与 `FocusAnimationProvider`，不重建旧相机控制器或聚焦 SVG。
-- 新增 Actor 时声明身份、层级、共享数据及清理责任，再添加可视实现；可通过主页 `debug` 命令查看运行状态。Voyager 的网格命中列表仍由专用 [voyagerState](voyagerState.ts) 管理，Act 4 恒星活动使用独立事件通道，尚未全部声明为单独的 composition Actor。
+- `act3.entry` / `labelReveal` 控制信息终端和标签入场；进入 Act 4 转场时重置，返回 Act 3 后重播。聚焦保留独占的 GSAP 时间轴与 `FocusAnimationProvider`，不重建旧相机控制器或聚焦 SVG。
+- 新增 Actor 时声明身份、层级、共享数据及清理责任，再添加可视实现；可通过主页 `debug` 命令查看运行状态。Voyager 的网格命中列表仍由专用 [voyagerState](voyagerState.ts) 管理，Act 5 恒星活动使用独立事件通道，尚未全部声明为单独的 composition Actor。
 
 ## 当前组件地图
 
 日面背景微光与 CME 逸散颗粒共用 [stellarParticleAppearance.ts](assets/stellarParticleAppearance.ts) 的屏幕直径范围。背景点精灵按 DPR 换算，CME 广告牌按 CSS 视口换算，保持相近的可见大小；CME 仅有轻微的沿运动方向拉伸。相机缩放改变颗粒间距，基础粒径保持稳定。逸散颗粒与磁拱环共用色源及发光密度函数，主体仅降低颜色强度；可见颗粒与薄雾从共享运动样本分别抽取，底部按出生高度平滑减少可见颗粒，未选实例不提交绘制；释放后大部分颗粒在约 0.7 秒内平滑退场，零透明度实例不提交绘制，稀释预算为原背景面积预算的两倍，每批保留 4–16 个分散尾迹，存活 300 秒并逐渐向页面扩散；完整运动样本仍供薄雾使用。
 
-[Act4SystemStructure](../acts/Act4SystemStructure.tsx) 复用三种行星工厂创建独立实例，并使用 [assets/centralStar.ts](assets/centralStar.ts) 的完整恒星资产呈现日面边缘。`SceneLights` 在 Canvas 根层级提供 layer 1 的主光与补光；原行星、碎片和恒星保持原位置。日面特写由 [assets/stellarCloseup.ts](assets/stellarCloseup.ts) 提供边缘渐暗、轮廓外柔光和 15% 频率呼吸。[assets/stellarRadiation.ts](assets/stellarRadiation.ts) 提供日面后方的稀疏逸散微光。[assets/stellarActivity.ts](assets/stellarActivity.ts) 另行提供六类空间构型的磁拱环、沿场团块、亮金色抛射前缘及连续重联的上下支，运动由 [stellarPlasma.ts](../behaviors/stellarPlasma.ts) 的降阶物理模型驱动；事件分布与时间轴由 [stellarActivity.ts](../behaviors/stellarActivity.ts) 管理。普通日珥按环系独立演化；条件重组复用路径纹理的四个分支，旧主环、左右短环和中央过渡环各有一个共享几何体的弧丝 Mesh；每个普通通道拥有一张同坐标的重绘纹理，沿弧长计算的局部可见度同时作用于弧丝与团块，团块总数不增加。`setRedrawDiagnostic()` 仅改变普通日珥的内外层次着色。该资产的 `layoutLocal(width, height, worldHeight)` 供[磁拱环图鉴](../docs/stellar/README.md)使用，切换为局部切平面并按正交视口换算像素尺寸，仍复用模型和材质；调用常规 `layout()` 会恢复日面布局。CME 上升支通过 [cmeEjectionVisual.ts](assets/cmeEjectionVisual.ts) 转为金色颗粒与稀薄三维雾片；[cmeTailVisual.ts](assets/cmeTailVisual.ts) 接续长寿命尾迹，独立于单次事件淡出并支持跨喷发累积。`setEjectionAppearance()` 供 [CME 对照实验](../docs/cme/README.md)控制可见表现；几何体与材质仍归 `stellarActivity` 统一释放。资源所有权与图层见[结构图说明](../../docs/system-structure.md)。
+[Act5SystemStructure](../acts/Act5SystemStructure.tsx) 复用三种行星工厂创建独立实例，；Canvas 根层级的 `CentralStar` 同一节点经 Act 4 转场移动、缩放为日面边缘，使用 [assets/centralStar.ts](assets/centralStar.ts) 的完整恒星资产。`SceneLights` 在 Canvas 根层级提供 layer 1 的主光与补光；原轨道行星和碎片保持原位置，并在拉近初段淡出；恒星与相机按同一转场通道连续变换。日面特写由 [assets/stellarCloseup.ts](assets/stellarCloseup.ts) 提供边缘渐暗、轮廓外柔光和 15% 频率呼吸。[assets/stellarRadiation.ts](assets/stellarRadiation.ts) 提供日面后方的稀疏逸散微光。[assets/stellarActivity.ts](assets/stellarActivity.ts) 另行提供六类空间构型的磁拱环、沿场团块、亮金色抛射前缘及连续重联的上下支，运动由 [stellarPlasma.ts](../behaviors/stellarPlasma.ts) 的降阶物理模型驱动；事件分布与时间轴由 [stellarActivity.ts](../behaviors/stellarActivity.ts) 管理。普通日珥按环系独立演化；条件重组复用路径纹理的四个分支，旧主环、左右短环和中央过渡环各有一个共享几何体的弧丝 Mesh；每个普通通道拥有一张同坐标的重绘纹理，沿弧长计算的局部可见度同时作用于弧丝与团块，团块总数不增加。`setRedrawDiagnostic()` 仅改变普通日珥的内外层次着色。该资产的 `layoutLocal(width, height, worldHeight)` 供[磁拱环图鉴](../docs/stellar/README.md)使用，切换为局部切平面并按正交视口换算像素尺寸，仍复用模型和材质；调用常规 `layout()` 会恢复日面布局。CME 上升支通过 [cmeEjectionVisual.ts](assets/cmeEjectionVisual.ts) 转为金色颗粒与稀薄三维雾片；[cmeTailVisual.ts](assets/cmeTailVisual.ts) 接续长寿命尾迹，独立于单次事件淡出并支持跨喷发累积。`setEjectionAppearance()` 供 [CME 对照实验](../docs/cme/README.md)控制可见表现；几何体与材质仍归 `stellarActivity` 统一释放。资源所有权与图层见[结构图说明](../../docs/system-structure.md)。
 
 以下挂载位置描述主应用；Debug Studio 可通过模型注册表单独加载灯塔；`standalone` 模式不订阅主页滚动可见性，也不写入主页截图对象引用。灯塔烘焙的临时克隆共享源几何体，因此仅释放烘焙函数自己创建的材质与渲染器。
 
@@ -54,7 +54,7 @@
 
 场景组装以 [Canvas.tsx](../r3f/Canvas.tsx) 和 [App.tsx](../App.tsx) 为准。常驻 Canvas 不代表对象始终可见，需继续核对 Actor 内部的进度与透明度逻辑。
 
-普通日珥在 Act 4 通过 [stellarPlacement.ts](../behaviors/stellarPlacement.ts) 共用事件级方位与尺寸；首次创建与模型重建后，将实际 `structure` 传入摆放器。若任一环系来自低矮环簇，整组采用较小的截断高斯分布，包含低簇作为伴随类型的情况。路径生成后才应用随机摆放，并以两个切向分量贴合球面。随机化不改变局部构型或重组时序，局部图鉴继续使用单位尺度。范围、分布与适用边界见[活动区摆放](../../docs/system-structure.md#活动区朝向尺寸与球面贴合)。
+普通日珥在 Act 5 通过 [stellarPlacement.ts](../behaviors/stellarPlacement.ts) 共用事件级方位与尺寸；首次创建与模型重建后，将实际 `structure` 传入摆放器。若任一环系来自低矮环簇，整组采用较小的截断高斯分布，包含低簇作为伴随类型的情况。路径生成后才应用随机摆放，并以两个切向分量贴合球面。随机化不改变局部构型或重组时序，局部图鉴继续使用单位尺度。范围、分布与适用边界见[活动区摆放](../../docs/system-structure.md#活动区朝向尺寸与球面贴合)。
 
 ## 主页轨道与资产对应
 
@@ -62,9 +62,9 @@
 
 整个资产根节点随主页滚动显隐；核心位置和缩放更新后，统一调用资产的 `updateAppearance()`，使卫星和四层环同步跟随风铃下落、轨道运动、距离缩放与遮挡淡出。卫星使用主页 R3F 时钟，Studio 继续使用独立的可暂停预览时钟。行星可见时由 `Planets` 请求下一帧，保证停止滚动后卫星仍公转；不可见时不为行星继续请求帧，保留 Canvas 的 `frameloop="demand"`。依据：[R3F 按需渲染](https://r3f.docs.pmnd.rs/advanced/scaling-performance#on-demand-rendering)。
 
-带环行星在 Act 3 与 Act 4 中共用 `updateSpin(time, orbitAngularSpeed, periodRatio, precessRings)`：自转周期 `Tspin = periodRatio × Torbit`，角速度 `ωspin = ωorbit / periodRatio`。正常公转角速度统一由 [PLANET_ORBIT_SPEEDS](../types/index.ts) 提供，当前外轨为 −0.07 rad/s，对应约 89.76 秒公转一周；Act 3 保持默认 1.4 倍周期（125.66 秒自转一周），Act 4 使用独立的 0.7 倍周期（62.83 秒自转一周）。使用基础速度，不受悬停、聚焦调相或退出回位加速影响；Act 4 固定排列时沿用同一公转速度基准与场景时钟。
+带环行星在 Act 3 与 Act 5 中共用 `updateSpin(time, orbitAngularSpeed, periodRatio, precessRings)`：自转周期 `Tspin = periodRatio × Torbit`，角速度 `ωspin = ωorbit / periodRatio`。正常公转角速度统一由 [PLANET_ORBIT_SPEEDS](../types/index.ts) 提供，当前外轨为 −0.07 rad/s，对应约 89.76 秒公转一周；Act 3 保持默认 1.4 倍周期（125.66 秒自转一周），Act 5 使用独立的 0.7 倍周期（62.83 秒自转一周）。使用基础速度，不受悬停、聚焦调相或退出回位加速影响；Act 5 固定排列时沿用同一公转速度基准与场景时钟。
 
-基础自转轴为行星环平面的法线，核心与四层环围绕自身中心同向转动。Act 4 额外传入 `precessRings=true`，让四层环再绕资产局部 Y 轴共同进动，周期约 62.83 秒；倾角保持 26.7°，但朝向改变，使椭圆轮廓、遮挡和受光持续变化。进动不作用于核心，也不改变环的中心、尺寸或层间间隙。Act 3 默认关闭进动，保持原行为。角度按绝对时间解析计算，避免逐帧累积误差；`Quaternion` / `Vector3` 在工厂构建时分配。Act 3、Act 4 沿用原有 `useFrame` 和 `invalidate()`；Studio 未调用该接口，原预览行为保持不变。当前材质近似均匀、几何体轴对称，因此单纯轴向自转的视觉变化较含蓄；Act 4 通过环面进动提供可辨认的旋转效果。周期倍率位于 [ringedPlanet.ts](assets/ringedPlanet.ts) 的 `RINGED_PLANET_SPIN_PERIOD_RATIO`；Act 4 的覆盖值位于 [Act4SystemStructure.tsx](../acts/Act4SystemStructure.tsx) 的 `RINGED_SPIN_PERIOD_RATIO`。
+基础自转轴为行星环平面的法线，核心与四层环围绕自身中心同向转动。Act 5 额外传入 `precessRings=true`，让四层环再绕资产局部 Y 轴共同进动，周期约 62.83 秒；倾角保持 26.7°，但朝向改变，使椭圆轮廓、遮挡和受光持续变化。进动不作用于核心，也不改变环的中心、尺寸或层间间隙。Act 3 默认关闭进动，保持原行为。角度按绝对时间解析计算，避免逐帧累积误差；`Quaternion` / `Vector3` 在工厂构建时分配。Act 3、Act 5 沿用原有 `useFrame` 和 `invalidate()`；Studio 未调用该接口，原预览行为保持不变。当前材质近似均匀、几何体轴对称，因此单纯轴向自转的视觉变化较含蓄；Act 5 通过环面进动提供可辨认的旋转效果。周期倍率位于 [ringedPlanet.ts](assets/ringedPlanet.ts) 的 `RINGED_PLANET_SPIN_PERIOD_RATIO`；Act 5 的覆盖值位于 [Act5SystemStructure.tsx](../acts/Act5SystemStructure.tsx) 的 `RINGED_SPIN_PERIOD_RATIO`。
 
 工厂返回的 `visualRadiusScale` 是相对核心半径的可见实体包络：普通行星取近场光晕边缘，带环行星取最外环外缘，带卫星行星取卫星完整公转范围。主页据此计算标签避让半径，避免标签遮住附件，同时避免半径随卫星相位摆动。相机聚焦后方距离和侧向距离使用 [types/index.ts](../types/index.ts) 中的 `PLANET_FOCUS_DISTANCE_SCALES`：普通行星为 1.00 倍，带卫星和带环行星统一为 1.25 倍，以兼顾近景观察和附件边距。点击和导航仍以主行星中心为目标，卫星不是独立导航入口。
 

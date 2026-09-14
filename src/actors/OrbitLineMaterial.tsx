@@ -4,6 +4,7 @@ import { useMemo, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import { Vector4, type LineBasicMaterial } from 'three'
 import { useFocusAnimation } from '../r3f/FocusAnimationContext'
+import { useStellarTransition } from '../r3f/StellarTransitionContext'
 import { useScrollStore } from '../stores/scrollStore'
 import { clamped, smoothstep } from '../r3f/ScrollRig'
 
@@ -19,6 +20,7 @@ interface OrbitLineMaterialProps {
 export default function OrbitLineMaterial({ color, maxOpacity, appearStart, trackIdx }: OrbitLineMaterialProps) {
   const layer = getWebglLayer('webgl.grid')
   const focusChannels = useFocusAnimation()
+  const transition = useStellarTransition()
   const materialRef = useRef<LineBasicMaterial>(null)
   const state = useMemo(() => ({
     focus: { value: 0 },
@@ -62,7 +64,7 @@ export default function OrbitLineMaterial({ color, maxOpacity, appearStart, trac
       else state.spheres.value[i].set(0, 0, 0, 0)
     }
     if (materialRef.current) {
-      materialRef.current.opacity = smoothstep(clamped(sp, appearStart, 1)) * maxOpacity * state.visibility
+      materialRef.current.opacity = smoothstep(clamped(sp, appearStart, 1)) * maxOpacity * state.visibility * transition.orbitOpacity
     }
     // 主页面 Planets 在可见阶段持续 invalidate；此处不启动额外帧循环。
   })

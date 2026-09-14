@@ -1,4 +1,4 @@
-/** Act 4 与 DOM 标注共享的布局比例；行星顺序与 Act 3 的三条内轨一致。 */
+/** Act 5 与 DOM 标注共享的布局比例；行星顺序与 Act 3 的三条内轨一致。 */
 export const STRUCTURE_LAYOUT = {
   layer: 1,
   centerY: -24,

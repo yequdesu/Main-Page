@@ -51,7 +51,7 @@ YeQuDesu 是滚动驱动的 3D 单页个人网站，包含海洋灯塔、网格�
 
 - 保留主应用 Canvas 的 `flat` 和 `frameloop="demand"`。`ScrollInvalidator` 订阅滚动进度并调用 `invalidate()`；新增动画或外部状态更新时，明确如何请求渲染。
 - 全局灯光与跨幕对象保留在 Canvas 根层级。当前包括 `SceneLights`、`Planets`、`DustField`、`Lighthouse`、`WindChimeLines`、`CentralStar`。尤其不能将 `DustField` 移入某个 Act 的可见性组。
-- 四个 Act 在主应用中保持挂载，以 `visible` 控制组可见性；不能把“对象已挂载”当作“当前画面可见”。DOM 标签和信息面板有独立的条件渲染逻辑。
+- 五个 Act 组件在主应用中保持挂载，视觉组以 `visible` 控制可见性；Act 4 转场播放层始终采样，支持反向滚动；不能把“对象已挂载”当作“当前画面可见”。DOM 标签和信息面板有独立的条件渲染逻辑。
 - 逐个渲染对象检查 `renderOrder`、`transparent`、`depthWrite` 和 `depthTest`。需要指定顺序时设置在具体对象上，不能仅给父 Group 设置后假设子对象获得相同数值。
 - `InstancedMesh2` 的初始 `setColorAt` 批量写入后，保留 `materialsNeedsUpdate()` 更新步骤，避免首次渲染丢失实例颜色。
 - 热路径复用 `Vector3`、`Color`、`Quaternion` 等对象，避免每帧重复分配；沿用 `useFrameCache` 时确保缓存参数覆盖实际依赖。

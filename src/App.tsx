@@ -5,7 +5,9 @@ import { useGSAP } from '@gsap/react'
 import SceneCanvas from './r3f/Canvas'
 import Act1OceanVoyage from './acts/Act1OceanVoyage'
 import Act2GridTransition from './acts/Act2GridTransition'
-import Act4SystemStructure from './acts/Act4SystemStructure'
+import Act4StellarTransition from './acts/Act4StellarTransition'
+import Act5SystemStructure from './acts/Act5SystemStructure'
+import { STELLAR_TRANSITION } from './behaviors/stellarTransition'
 import SystemStructureOverlay from './acts/SystemStructureOverlay'
 import { PAGE_FLOW } from './behaviors/usePageFlow'
 import Act3ContentPhase from './acts/Act3ContentPhase'
@@ -172,7 +174,7 @@ export default function App() {
     scrollEffectScope.cancel('replace click tween')
     clickTweenRef.current = scrollEffectScope.addTween(gsap.to(tweenObj, {
       val: target,
-      duration: 2,
+      duration: Math.max(target, physRef.current.target) > PAGE_FLOW.structureStart ? STELLAR_TRANSITION.duration : 2,
       ease: 'power2.inOut',
       onUpdate: () => {
         physRef.current.target = tweenObj.val
@@ -186,6 +188,16 @@ export default function App() {
     if (isTerminalActive || isClickPlaying || isAct3Focused || pageProgress >= 0.995) return
     scrollToSection(PAGE_FLOW.act3Target)
   }, [isTerminalActive, isClickPlaying, isAct3Focused, pageProgress, scrollToSection])
+  const seekPage = useCallback((value: number) => {
+    clickTweenRef.current?.kill()
+    clickTweenRef.current = null
+    scrollEffectScope.cancel('timeline seek')
+    setIsClickPlaying(false)
+    physRef.current.velocity = 0
+    physRef.current.target = value
+    setPageProgress(value)
+    syncScrollbar()
+  }, [setPageProgress, syncScrollbar, scrollEffectScope])
 
   // ---- event listeners ----
   useEffect(() => {
@@ -260,7 +272,9 @@ export default function App() {
   const handleBuildStatusLine = useCallback((sp: number) => {
     if (sp > PAGE_FLOW.structureStart) {
       const pct = Math.round(Math.max(0, Math.min(1, (sp - PAGE_FLOW.structureStart) / (PAGE_FLOW.structureEnd - PAGE_FLOW.structureStart))) * 100)
-      return `# Act 4 · SystemStructure · scroll ${pct}%`
+      return sp >= PAGE_FLOW.structureEnd
+        ? '# Act 5 · SystemStructure · scroll 100%'
+        : `# Act 4 · StellarTransition · scroll ${pct}%`
     }
     const pct = Math.round(Math.min(1, sp) * 100)
     const actName = sp < 0.45 ? 'OceanVoyage' : sp < TIMELINE.act3Shift.start ? 'GridTransition' : 'ContentPhase'
@@ -274,7 +288,8 @@ export default function App() {
         <Act1OceanVoyage visible={needsAct1(sp)} />
         <Act2GridTransition visible={needsAct2(sp)} />
         <Act3ContentPhase visible={needsAct3(sp) && structureProgress < 1} />
-        <Act4SystemStructure visible={structureProgress > 0} />
+        <Act4StellarTransition />
+        <Act5SystemStructure visible={structureProgress > 0} />
       </SceneCanvas>
 
       <MainTerminal
@@ -333,7 +348,7 @@ export default function App() {
         </a>
       </footer>
 
-      {debugMode && <CompositionPanel scrollProgress={sp} />}
+      {debugMode && <CompositionPanel scrollProgress={pageProgress} onSeek={seekPage} />}
     </>
   )
 }

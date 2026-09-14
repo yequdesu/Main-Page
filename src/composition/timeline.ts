@@ -1,4 +1,4 @@
-import { SCROLL_RIG } from '../types'
+import { PAGE_FLOW, SCROLL_RIG } from '../types'
 
 export type TimelineDirection = 'forward' | 'backward' | 'still'
 
@@ -27,6 +27,8 @@ export const TIMELINE = {
   act1OceanVoyage: defineRange('act1OceanVoyage', 0, 0.45, 'Act 1 ocean voyage macro phase'),
   act2GridTransition: defineRange('act2GridTransition', 0.45, SCROLL_RIG.GRID_SHIFT_START, 'Act 2 grid transition macro phase'),
   act3ContentPhase: defineRange('act3ContentPhase', SCROLL_RIG.GRID_SHIFT_START, 1.0, 'Act 3 content macro phase'),
+  act4StellarTransition: defineRange('act4StellarTransition', PAGE_FLOW.structureStart, PAGE_FLOW.structureEnd, 'Act 4 stellar approach and limb composition'),
+  act5SystemStructure: defineRange('act5SystemStructure', PAGE_FLOW.structureEnd, PAGE_FLOW.end, 'Act 5 system structure'),
   whiteOut: defineRange(
     'whiteOut',
     SCROLL_RIG.WHITE_OUT_THRESHOLD,

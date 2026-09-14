@@ -57,7 +57,7 @@ export default function App() {
       <p className="eyebrow">STELLAR MORPHOLOGY · ACT 04</p>
       <h1>磁拱环，如何长出不同的形状。</h1>
       <p>磁通区域留在原处，环系错峰生长，丝线沿自身方向绘制，生长向外换代、消退向内换代。拖动时间，观察主环如何将发光结构快速交接给短环。</p>
-      <div className="intro-note"><span className="live-dot" />预览复用 Act 4 的生成模型与发光材质<span className="note-separator">/</span><span className="note-detail">相同类型与种子，可以复现相同结构</span></div>
+      <div className="intro-note"><span className="live-dot" />预览复用 Act 5 的生成模型与发光材质<span className="note-separator">/</span><span className="note-detail">相同类型与种子，可以复现相同结构</span></div>
     </section>
 
     <section className="experiment" aria-label="磁拱环种子实验">
@@ -135,7 +135,7 @@ export default function App() {
         <article><span className="step-number">02</span><h3>种子决定环境与驱动</h3><p>种子与类型共同决定环系数量、尺度、足点位置、朝向和时变应力。拱顶细节由驱动历史和沿场负载在生长中逐渐形成。</p></article>
         <article><span className="step-number">03</span><h3>时间继续改变形态</h3><p>播放时，局部负载与张力近似驱动轴的形变，团块沿场运动。因此复现某一帧，还需要相同的模拟时间和视角。</p></article>
       </div>
-      <div className="model-note"><div><h3>为什么不会再反复出现“一大两小”？</h3><p>Act 4 按卡片中的基准权重抽选类型，先排除本通道上次主类型与另一通道的主类型，再对剩余权重归一化。“双侧伴随”的基准权重是 8，不代表去重后长期恰好出现 8%。嵌套拱廊和低矮环簇还会绑定另一种类型；去重针对主类型，伴随类型可重复。本页允许手动选中每一种主类型。</p></div><div><h3>这些图表示什么？</h3><p>曲线表示沿磁场发光的等离子体环系；多个细丝可以属于同一个环系。这六类是项目的构图分类，权重并非太阳观测统计。演示采用实时降阶模型，未求解完整三维 MHD。</p><a href="../stellar-plasma-model.md">查看公式、物理依据与近似边界 ↗</a></div></div>
+      <div className="model-note"><div><h3>为什么不会再反复出现“一大两小”？</h3><p>Act 5 按卡片中的基准权重抽选类型，先排除本通道上次主类型与另一通道的主类型，再对剩余权重归一化。“双侧伴随”的基准权重是 8，不代表去重后长期恰好出现 8%。嵌套拱廊和低矮环簇还会绑定另一种类型；去重针对主类型，伴随类型可重复。本页允许手动选中每一种主类型。</p></div><div><h3>这些图表示什么？</h3><p>曲线表示沿磁场发光的等离子体环系；多个细丝可以属于同一个环系。这六类是项目的构图分类，权重并非太阳观测统计。演示采用实时降阶模型，未求解完整三维 MHD。</p><a href="../stellar-plasma-model.md">查看公式、物理依据与近似边界 ↗</a></div></div>
       <details className="parameters"><summary>查看当前种子的环系参数 <span>{current.label} / {seed}</span></summary><p>跨度与高度为局部相对尺度；高度列是构型尺度参数，实际拱顶还受凹陷、偏斜和动态形变影响。</p><div className="table-scroll"><table><thead><tr><th>环系</th><th>组成</th><th>跨度</th><th>高度尺度</th><th>足点区中心 X</th><th>朝向</th><th>流线</th></tr></thead><tbody>{current.structure.families.map((family, i) => <tr key={i}><td>0{i + 1}</td><td>{morphologyLabel(family.sourceKind)}</td><td>{(family.width * 2).toFixed(2)}</td><td>{family.height.toFixed(2)}</td><td>{family.offsetX.toFixed(2)}</td><td>{(family.yaw * 180 / Math.PI).toFixed(1)}°</td><td>{family.strands}</td></tr>)}</tbody></table></div><p>每个活动区共用 12 条代表性流线，按各环系的大小分配。</p></details>
     </section>
     <footer className="doc-footer"><span>YEQUDESU · 磁拱环结构图鉴</span><span>实时 3D 预览 / SVG 结构对照 / 可复现种子</span></footer>

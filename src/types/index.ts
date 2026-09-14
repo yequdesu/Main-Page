@@ -129,10 +129,10 @@ export type FocusEvent =
   | { type: 'voyager' }
   | { type: 'exit'; reason: 'manual' | 'timeout' | 'scene' }
 
-/** 页面滚动坐标：前三幕沿用 0–1，结构视图向后追加。 */
+/** 页面滚动坐标：前三幕沿用 0–1，Act 4 转场后进入 Act 5 结构图。 */
 export const PAGE_FLOW = {
   act3Target: 1,
   structureStart: 1.02,
-  structureEnd: 1.22,
-  end: 1.30,
+  structureEnd: 1.42,
+  end: 1.50,
 } as const

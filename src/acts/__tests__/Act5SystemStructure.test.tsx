@@ -2,7 +2,11 @@ import { afterEach, expect, it, vi } from 'vitest'
 import ReactThreeTestRenderer from '@react-three/test-renderer'
 import { useFrame } from '@react-three/fiber'
 import { Mesh, Vector3, type Material, type Points, type BufferGeometry, type ShaderMaterial } from 'three'
-import Act4SystemStructure from '../Act4SystemStructure'
+import Act5SystemStructure from '../Act5SystemStructure'
+import CentralStar from '../../actors/CentralStar'
+import Act4StellarTransition from '../Act4StellarTransition'
+import { StellarTransitionProvider } from '../../r3f/StellarTransitionContext'
+import { PAGE_FLOW } from '../../types'
 import { PLANET_RING } from '../../actors/assets/ringedPlanet'
 import { useScrollStore } from '../../stores/scrollStore'
 
@@ -18,13 +22,16 @@ it('结构图只显示自身图层，主体固定排列，卫星继续公转，�
   vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockImplementation(() => ({
     createRadialGradient: () => ({ addColorStop() {} }), fillRect() {},
   }) as unknown as CanvasRenderingContext2D)
-  useScrollStore.getState().setPageProgress(1.22)
-  const scene = (visible: boolean) => <><TestClock /><Act4SystemStructure visible={visible} /></>
+  useScrollStore.getState().setPageProgress(PAGE_FLOW.structureEnd)
+  const scene = (visible: boolean) => <StellarTransitionProvider><TestClock /><Act4StellarTransition /><CentralStar /><Act5SystemStructure visible={visible} /></StellarTransitionProvider>
   const renderer = await ReactThreeTestRenderer.create(scene(true))
-  const root = renderer.scene.children[0].instance
+  await renderer.advanceFrames(1, 0.016)
+  const root = renderer.scene.children.find(child => child.instance.name === 'Act 5 · 恒星系统结构')!.instance
+  const sharedStar = renderer.scene.children.find(child => child.instance.name === '中央恒星')!.instance
   const planets = [0, 1, 2].map(i => root.getObjectByName(`planet_${i}`) as Mesh)
   const moon = root.getObjectByName('卫星_1') as Mesh
-  const star = root.getObjectByName('恒星核心') as Mesh
+  const star = sharedStar.getObjectByName('恒星核心') as Mesh
+  expect(root.getObjectByName('恒星核心')).toBeUndefined()
   const radiation = root.getObjectByName('日面背景逸散微光') as Points<BufferGeometry, ShaderMaterial>
   const ejection = root.getObjectByName('日冕抛射弧丝') as Mesh<BufferGeometry, ShaderMaterial>
   const ejectionParticles = root.getObjectByName('日冕抛射金色粒子') as Mesh<BufferGeometry, ShaderMaterial>
@@ -43,7 +50,7 @@ it('结构图只显示自身图层，主体固定排列，卫星继续公转，�
   expect(radiation.material.depthWrite).toBe(false)
   expect(radiation.material.depthTest).toBe(true)
   expect(star.geometry.type).toBe('SphereGeometry')
-  for (const name of ['内层光晕', '近场柔光', '远场柔光']) expect(root.getObjectByName(name)).toBeDefined()
+  for (const name of ['内层光晕', '近场柔光', '远场柔光']) expect(sharedStar.getObjectByName(name)).toBeDefined()
   const disposeStar = vi.spyOn(star.geometry, 'dispose')
   const dispose = vi.spyOn(moon.geometry, 'dispose')
   const disposeMaterial = vi.spyOn(moon.material as Material, 'dispose')
@@ -69,7 +76,7 @@ it('结构图只显示自身图层，主体固定排列，卫星继续公转，�
     expect(normal.clone().applyQuaternion(ring.quaternion).distanceTo(previousNormal)).toBeGreaterThan(0.1)
     planets.forEach((planet, i) => expect(planet.parent!.position.equals(centers[i])).toBe(true))
     await renderer.update(scene(false))
-    expect(renderer.scene.children[0].instance).toBe(root)
+    expect(renderer.scene.children.find(child => child.instance.name === root.name)!.instance).toBe(root)
     expect(root.visible).toBe(false)
     expect(dispose).not.toHaveBeenCalled()
     const activityAge = ejection.material.uniforms.uAge.value
@@ -83,6 +90,9 @@ it('结构图只显示自身图层，主体固定排列，卫星继续公转，�
     const pausedAge = ejection.material.uniforms.uAge.value
     await renderer.advanceFrames(3, 0.016)
     expect(ejection.material.uniforms.uAge.value).toBe(pausedAge)
+    expect(sharedStar.position.distanceTo(new Vector3(0, -1, -16))).toBeLessThan(1e-9)
+    expect(sharedStar.scale.x).toBe(1)
+    expect(sharedStar.getObjectByName('恒星核心')).toBe(star)
     expect(useScrollStore.getState().focusedPlanetIdx).toBe(-1)
   } finally { await renderer.unmount() }
   expect(dispose).toHaveBeenCalledTimes(1)

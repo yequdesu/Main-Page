@@ -3,6 +3,7 @@ import { useFrame, useThree } from '@react-three/fiber'
 import { Matrix4, Color, Quaternion, Vector3, SphereGeometry, MeshBasicMaterial, type PerspectiveCamera } from 'three'
 import { InstancedMesh2 } from '@three.ez/instanced-mesh'
 import { useScrollStore } from '../stores/scrollStore'
+import { useStellarTransition } from '../r3f/StellarTransitionContext'
 import { useRealtimeStore } from '../stores/realtimeStore'
 import { useFrameCache } from '../behaviors/useFrameCache'
 import { calcOrbitPosition } from '../behaviors/useOrbitPosition'
@@ -28,6 +29,7 @@ const _defaultCamPos = new Vector3(0, 0.25, 8)
  */
 export default function DustField() {
   useActorRuntime('debris', true)
+  const transition = useStellarTransition()
   const { camera, gl } = useThree()
   const { shouldSkip } = useFrameCache()
   const layer = getWebglLayer('webgl.debris')
@@ -174,7 +176,7 @@ export default function DustField() {
       )
       debrisRef.current.setMatrixAt(i, _matrix)
       debrisRef.current.setColorAt(i, _scratch2)
-      debrisRef.current.setOpacityAt(i, appearance.opacity)
+      debrisRef.current.setOpacityAt(i, appearance.opacity * transition.orbitOpacity)
     }
 
     // Publish camera + debris data to realtime store

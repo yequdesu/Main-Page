@@ -1,7 +1,7 @@
 import { stellarRandom as random, sampleStellarGaussian } from './stellarRandom'
 import type { ProminenceMorphology } from './stellarMorphology'
 
-/** Act 4 普通磁拱的活动区摆放；与内部构型、运动时序使用不同的随机盐值。 */
+/** Act 5 普通磁拱的活动区摆放；与内部构型、运动时序使用不同的随机盐值。 */
 export const PROMINENCE_PLACEMENT = { maxAzimuth: Math.PI / 4, minScale: 0.85, maxScale: 1.45, meanScale: 1.15, scaleSigma: 0.10 } as const
 /** 包含低矮环簇的整组活动区：同时约束低簇与伴随结构，保留内部比例。 */
 export const PROMINENCE_CLUSTER_SCALE = { mean: 0.95, sigma: 0.10 / 3, min: 0.85, max: 1.05 } as const
