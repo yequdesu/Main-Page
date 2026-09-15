@@ -17,6 +17,7 @@
 | `useFrameCache.ts` | Hook | 帧缓存守卫——同帧同参数跳过更新（`shouldSkip` / `shouldSkipSp`）|
 | `useCameraFocus.ts` | 函数 | `createCameraFocusController()` 创建场景独占控制器：消费时间轴进度、固定抬高起点、更新相机位置/朝向/FOV；可由调用方传入复合行星的聚焦距离倍率（见 [资产对应](../actors/README.md#主页轨道与资产对应)） |
 | `useFocusTimeline.ts` | 有状态函数 | 事件触发 GSAP Timeline，统一编排镜头、调相、轨道淡化、回位与超时 |
+| `menuPlanetInteraction.ts` | 控制器 | Menu 独占的实体射线命中、悬停缩放与链接导航；由 R3F 推进暂停 GSAP Timeline 并清理事件 |
 | `focusPose.ts` | 函数 | 相机和调相器共用的目标姿态与视野适配 |
 | `useVoyagerOrbit.ts` | 纯函数 | 最外层椭圆上的巡航位置、切线与周期参数 |
 | `useFocusOrbit.ts` | 有状态函数 | 透视构图选相位、沿原轨道调相、近同步公转和退出恢复 |

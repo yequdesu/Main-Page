@@ -18,7 +18,7 @@ afterEach(() => { setThemeBlend(initialThemeBlend); useScrollStore.setState(init
 function Clock() { useFrame((state, delta) => { state.clock.elapsedTime += delta }, -100); return null }
 
 describe('DustField 场景接入', () => {
-  it.each([0, 1])('主题混合 %i：入场增强对比且亮点稳定，巡航恢复原颜色/透明度', async theme => {
+  it.each([0, 1])('主题混合 %i：入场增强对比且亮点稳定，巡航恢复巡航色并维持 92% 不透明度', async theme => {
     setThemeBlend(theme)
     useScrollStore.setState({ scrollProgress: 1 })
     const renderer = await ReactThreeTestRenderer.create(<FocusAnimationProvider><Clock /><DustField /></FocusAnimationProvider>)
@@ -53,7 +53,7 @@ describe('DustField 场景接入', () => {
         expect(c.g).toBeCloseTo(baseline.g, 6)
         expect(c.b).toBeCloseTo(baseline.b, 6)
       }
-      expect(mesh.getOpacityAt(1)).toBeCloseTo(0.65, 5)
+      expect(mesh.getOpacityAt(1)).toBeCloseTo(0.92, 5)
     } finally { await renderer.unmount() }
   })
 

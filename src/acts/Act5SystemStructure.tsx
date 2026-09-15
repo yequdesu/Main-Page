@@ -12,12 +12,17 @@ import { useStellarTransition } from '../r3f/StellarTransitionContext'
 import { getStructureLayout, STRUCTURE_LAYOUT } from '../behaviors/structureLayout'
 import { useScrollStore } from '../stores/scrollStore'
 import { PLANET_ORBIT_SPEEDS } from '../types'
+import { createMenuPlanetInteraction } from '../behaviors/menuPlanetInteraction'
 
 const RINGED_SPIN_PERIOD_RATIO = 0.7
 
 /** 同一 Canvas 中的结构视图：独立资产实例，不改变 Act 3 的轨道与焦点。 */
 export default function Act5SystemStructure({ visible }: { visible: boolean }) {
   const size = useThree(state => state.size)
+  const camera = useThree(state => state.camera)
+  const gl = useThree(state => state.gl)
+  const invalidate = useThree(state => state.invalidate)
+  const interaction = useRef<ReturnType<typeof createMenuPlanetInteraction> | null>(null)
   const layout = useMemo(() => getStructureLayout(size.width / size.height), [size.width, size.height])
   const activityTimeline = useRef<ReturnType<typeof createStellarActivityTimeline> | null>(null)
   const transition = useStellarTransition()
@@ -25,7 +30,12 @@ export default function Act5SystemStructure({ visible }: { visible: boolean }) {
   const assets = useMemo(() => {
     const texture = createPlanetHaloTexture()
     const ringedPlanet = createRingedPlanetAsset(2, texture)
-    const planets = [createPlanetAsset(0, texture), createSatellitePlanetAsset(1, texture), ringedPlanet]
+    const satellitePlanet = createSatellitePlanetAsset(1, texture)
+    const planets = [createPlanetAsset(0, texture), satellitePlanet, ringedPlanet]
+    const hitPlanets = planets.map((planet, i) => ({ root: planet.root, targets: i === 1
+      ? [planet.core, satellitePlanet.moon] : i === 2
+        ? [planet.core, ringedPlanet.ring, ringedPlanet.innerRing, ringedPlanet.outerRing, ringedPlanet.outermostRing]
+        : [planet.core] }))
     const radiation = createStellarRadiation()
     const activityChannels = createStellarActivityChannels()
     const activity = createStellarActivity(activityChannels)
@@ -39,9 +49,15 @@ export default function Act5SystemStructure({ visible }: { visible: boolean }) {
       planet.core.material.opacity = 1
       planet.root.rotation.x = 0.32
     }
-    return { root, radiation, activity, activityChannels, planets, ringedPlanet, dispose() { planets.forEach(planet => planet.dispose()); radiation.dispose(); activity.dispose(); texture.dispose() } }
+    return { root, radiation, activity, activityChannels, planets, hitPlanets, ringedPlanet, dispose() { planets.forEach(planet => planet.dispose()); radiation.dispose(); activity.dispose(); texture.dispose() } }
   }, [])
   useEffect(() => () => assets.dispose(), [assets])
+  useEffect(() => {
+    const controller = createMenuPlanetInteraction(gl.domElement, camera, assets.hitPlanets,
+      () => assets.root.visible && useScrollStore.getState().structureProgress >= 1, invalidate)
+    interaction.current = controller
+    return () => { controller.dispose(); interaction.current = null }
+  }, [assets, camera, gl, invalidate])
   useEffect(() => {
     const timeline = createStellarActivityTimeline(assets.activityChannels)
     activityTimeline.current = timeline
@@ -56,7 +72,7 @@ export default function Act5SystemStructure({ visible }: { visible: boolean }) {
     })
   }, [assets, layout, size.width, size.height])
   useFrame((state, delta) => {
-    if (useScrollStore.getState().structureProgress <= 0) return
+    if (useScrollStore.getState().structureProgress <= 0) { interaction.current?.advance(0); return }
     const pose = samplePose(transition, size.width / size.height)
     assets.root.scale.setScalar(pose.structureScale)
     assets.root.position.copy(pose.star)
@@ -77,6 +93,7 @@ export default function Act5SystemStructure({ visible }: { visible: boolean }) {
       planet.updateAppearance(state.clock.elapsedTime, i, radius / PLANET_BASE_RADIUS, 1, 0.65, radius * 5)
     })
     assets.ringedPlanet.updateSpin(state.clock.elapsedTime, PLANET_ORBIT_SPEEDS[2], RINGED_SPIN_PERIOD_RATIO, true)
+    interaction.current?.advance(delta)
     state.invalidate() // 卫星公转、光晕呼吸、日珥与抛射；仍使用 demand 渲染。
   })
   return <primitive object={assets.root} visible={visible} dispose={null} />

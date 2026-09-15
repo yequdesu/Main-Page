@@ -7,7 +7,7 @@ export const ASTEROID_BELT = {
   legacyCount: 80,
   sizeScale: 0.5,
   formationTimeScale: 0.5,
-  cruiseOpacity: 0.65,
+  cruiseOpacity: 0.92,
   seed: 470,
   radius: (SCROLL_RIG.ORBIT_RADII[1] + SCROLL_RIG.ORBIT_RADII[2]) / 2,
   radialSpread: 0.14,
@@ -18,7 +18,7 @@ export const ASTEROID_BELT = {
   focusSettle: 0.9,
 } as const
 
-/** 增强入场辨识度；成环后平滑回落到当前主题的巡航色与不透明度。 */
+/** 增强入场辨识度；成环后颜色回落到巡航色，不透明度维持 92%。 */
 export const ASTEROID_ENTRY_VISUAL = {
   preparedHighlight: 0.55,
   peakOpacity: 0.92,

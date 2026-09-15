@@ -12,7 +12,7 @@
 | [Act2GridTransition.tsx](Act2GridTransition.tsx) | `GridLines`；保留基于进度的 `useFrame` 协调回调 |
 | [Act3ContentPhase.tsx](Act3ContentPhase.tsx) | `OrbitRings`；独占 `createCameraFocusController()` 实例，在 `useFrame` 中更新相机 |
 | [Act4StellarTransition.tsx](Act4StellarTransition.tsx) | 注册恒星 GSAP Timeline；以 -30 帧优先级通过运镜协调器定位拉近、构图、显隐及行星入场阶段 |
-| [Act5SystemStructure.tsx](Act5SystemStructure.tsx) | 随机日珥与日冕抛射、三种行星独立实例；错峰入场后固定排列并保留卫星公转；日面由根层共享恒星呈现 |
+| [Act5SystemStructure.tsx](Act5SystemStructure.tsx) | 随机日珥与日冕抛射、三种行星独立实例；错峰入场后固定排列并保留卫星公转，Menu 悬停缩放与点击导航；日面由根层共享恒星呈现 |
 | [SystemStructureOverlay.tsx](SystemStructureOverlay.tsx) | 结构图标题、行星说明和返回按钮；样式在 [SystemStructure.css](SystemStructure.css) |
 
 前三幕可见性条件由 [App.tsx](../App.tsx) 的 `needsAct1/2/3` 决定。当前 Act 1 的组保留到进度 0.86 之前，使海浪能在网格阶段继续使用；Act 2 从 0.39、Act 3 从 0.84 开始启用组可见性。边界含 0.01 的提前/延后余量，各对象还会根据自身进度计算透明度等属性；这些是组可见性余量，不是宏观阶段边界。
@@ -23,7 +23,7 @@ Act 4 使用 `structureProgress` 在原三幕之后进行恒星拉近、左移�
 
 ## 跨幕对象与 DOM
 
-Act 5 的显示名称为 Menu。继续向下按钮、主终端 `menu` 命令及聚焦 Voyager 后的第二次核心点击，统一发出导航请求，由 App 的已有页面补间进入 Menu。实现组件和时间轴键保留 SystemStructure 命名，以描述其构图。
+Act 5 的显示名称为 Menu。继续向下按钮、主终端 `menu` 命令及聚焦 Voyager 后的第二次核心点击，统一发出导航请求，由 App 的已有页面补间进入 Menu。实现组件和时间轴键保留 SystemStructure 命名，以描述其构图。Menu 完成后通过 [menuPlanetInteraction.ts](../behaviors/menuPlanetInteraction.ts) 启用实体命中，悬停将整颗资产平滑放大到 120%，点击复用 `PLANET_LINKS`；转场中关闭交互并恢复尺寸。
 
 [Canvas.tsx](../r3f/Canvas.tsx) 直接挂载 `SceneLights`、`Planets`、`DustField`、`Lighthouse`、`WindChimeLines` 和 `CentralStar`，这些对象不在任何 Act 的可见性组内。
 
